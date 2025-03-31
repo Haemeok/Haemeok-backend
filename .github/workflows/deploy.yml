@@ -3,6 +3,7 @@ name: Deploy to AWS ECR
 on:
   push:
     branches: [ "main" ] # 또는 배포할 브랜치
+  workflow_dispatch:
 
 jobs:
   deploy:
