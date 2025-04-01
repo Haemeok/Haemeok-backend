@@ -25,6 +25,7 @@ public class JwtTokenProvider {
             @Value("${jwt.access-token-validity-in-ms}") long accessTokenValidityInMilliseconds,
             @Value("${jwt.refresh-token-validity-in-ms}") long refreshTokenValidityInMilliseconds
     ) {
+        log.info("✅ Loaded JWT_SECRET: {}", secret);
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenValidityInMilliseconds = accessTokenValidityInMilliseconds;
         this.refreshTokenValidityInMilliseconds = refreshTokenValidityInMilliseconds;
