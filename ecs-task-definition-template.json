@@ -4,7 +4,7 @@
   "executionRoleArn": "arn:aws:iam::595712054986:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
-      "name": "haemeok-backend",
+      "name": "haemeok-app",
       "image": "595712054986.dkr.ecr.ap-southeast-2.amazonaws.com/haemeok-repository:latest",
       "essential": true,
       "portMappings": [
