@@ -1,0 +1,46 @@
+{
+  "family": "haemeok-task",
+  "networkMode": "bridge",
+  "executionRoleArn": "arn:aws:iam::595712054986:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "haemeok-backend",
+      "image": "595712054986.dkr.ecr.ap-southeast-2.amazonaws.com/haemeok-repository:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "DB_URL", "value": "${DB_URL}" },
+        { "name": "DB_USERNAME", "value": "${DB_USERNAME}" },
+        { "name": "DB_PASSWORD", "value": "${DB_PASSWORD}" },
+        { "name": "JWT_SECRET", "value": "${JWT_SECRET}" },
+        { "name": "ACCESS_TOKEN_VALIDITY", "value": "${ACCESS_TOKEN_VALIDITY}" },
+        { "name": "REFRESH_TOKEN_VALIDITY", "value": "${REFRESH_TOKEN_VALIDITY}" },
+        { "name": "GOOGLE_CLIENT_ID", "value": "${GOOGLE_CLIENT_ID}" },
+        { "name": "GOOGLE_CLIENT_SECRET", "value": "${GOOGLE_CLIENT_SECRET}" },
+        { "name": "KAKAO_CLIENT_ID", "value": "${KAKAO_CLIENT_ID}" },
+        { "name": "KAKAO_CLIENT_SECRET", "value": "${KAKAO_CLIENT_SECRET}" },
+        { "name": "NAVER_CLIENT_ID", "value": "${NAVER_CLIENT_ID}" },
+        { "name": "NAVER_CLIENT_SECRET", "value": "${NAVER_CLIENT_SECRET}" },
+        { "name": "CLOUD_AWS_REGION_STATIC", "value": "${CLOUD_AWS_REGION_STATIC}" },
+        { "name": "CLOUD_AWS_S3_BUCKET", "value": "${CLOUD_AWS_S3_BUCKET}" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/haemeok-task",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "requiresCompatibilities": ["EC2"],
+  "cpu": "1024",
+  "memory": "1024"
+}

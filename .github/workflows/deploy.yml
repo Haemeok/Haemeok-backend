@@ -1,42 +1,85 @@
-name: Deploy to AWS ECR
+#name: Deploy to AWS ECR
+#
+#on:
+#  push:
+#    branches: [ "main" ] # 또는 배포할 브랜치
+#  workflow_dispatch:
+#
+#jobs:
+#  deploy:
+#    runs-on: ubuntu-latest
+#
+#    env:
+#      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#      AWS_REGION: ap-southeast-2
+#
+#    steps:
+#      - name: Checkout source code
+#        uses: actions/checkout@v3
+#
+#      - name: Set up JDK
+#        uses: actions/setup-java@v3
+#        with:
+#          distribution: 'temurin'
+#          java-version: '17'
+#
+#      - name: Grant execute permission for gradlew
+#        run: chmod +x ./gradlew
+#
+##      - name: Build with Gradle
+##        run: ./gradlew clean build
+#
+#      - name: Build with Gradle (no test)
+#        run: ./gradlew clean build -x test
+#
+#      - name: Login to Amazon ECR
+#        uses: aws-actions/amazon-ecr-login@v1
+#
+#      - name: Build, tag, and push Docker image to ECR
+#        env:
+#          ECR_REGISTRY: 595712054986.dkr.ecr.ap-southeast-2.amazonaws.com
+#          ECR_REPOSITORY: haemeok-repository
+#          IMAGE_TAG: latest
+#        run: |
+#          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+#          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+#          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+name: Deploy to AWS ECS
 
 on:
   push:
-    branches: [ "main" ] # 또는 배포할 브랜치
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   deploy:
+    name: Deploy to ECS
     runs-on: ubuntu-latest
 
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ap-southeast-2
 
     steps:
       - name: Checkout source code
         uses: actions/checkout@v3
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
           java-version: '17'
+          distribution: 'temurin'
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-#      - name: Build with Gradle
-#        run: ./gradlew clean build
-
-      - name: Build with Gradle (no test)
+      - name: Build without tests
         run: ./gradlew clean build -x test
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, tag, and push Docker image to ECR
+      - name: Build and Push Docker image
         env:
           ECR_REGISTRY: 595712054986.dkr.ecr.ap-southeast-2.amazonaws.com
           ECR_REPOSITORY: haemeok-repository
@@ -45,3 +88,30 @@ jobs:
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Replace environment variables in task definition
+        run: |
+          envsubst < ecs-task-definition-template.json > ecs-task-definition.json
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ACCESS_TOKEN_VALIDITY: ${{ secrets.ACCESS_TOKEN_VALIDITY }}
+          REFRESH_TOKEN_VALIDITY: ${{ secrets.REFRESH_TOKEN_VALIDITY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          CLOUD_AWS_REGION_STATIC: ${{ secrets.CLOUD_AWS_REGION_STATIC }}
+          CLOUD_AWS_S3_BUCKET: ${{ secrets.CLOUD_AWS_S3_BUCKET }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ecs-task-definition.json
+          service: haemeok-service
+          cluster: haemeok-cluster
+          wait-for-service-stability: true
