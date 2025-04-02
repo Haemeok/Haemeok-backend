@@ -3,3 +3,4 @@ VOLUME /tmp
 COPY build/libs/recipe-service-0.0.1-SNAPSHOT.jar app.jar
 ENTRYPOINT ["java", "-Xmx700m", "-jar", "/app.jar","--spring.profiles.active=prod"]
 
+EXPOSE 8080
