@@ -41,7 +41,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         );
 
         // React 쪽으로 리다이렉트 + 토큰 전달
-        String redirectUri = "http://localhost:3000/oauth2/redirect" +
+        String redirectUri = "http://www.haemeok.com/oauth2/redirect" +
                 "?accessToken=" + accessToken +
                 "&refreshToken=" + refreshToken;
 
