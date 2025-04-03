@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "ingredients")
+@Table(name = "ingredients", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"name"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -20,9 +22,12 @@ public class Ingredient {
     @Column(length = 50)
     private String category;
 
-    @Column(name = "image_url", nullable = false, length = 255)
+    @Column(name = "image_url", nullable = true, length = 255)
     private String imageUrl;
 
     @Column(name = "price")
     private Integer price; // 단위: 원 (정수)
+
+    @Column
+    private String unit;
 }

@@ -25,9 +25,18 @@ public class RecipeStepIngredient {
     @JoinColumn(name = "ingredient_id", nullable = false)
     private Ingredient ingredient;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recipe_ingredient_id")
+    private RecipeIngredient recipeIngredient;
+
     @Column(length = 50)
     private String quantity;
 
     @Column(length = 20)
     private String unit;
+
+    public void updateQuantityAndUnit(String quantity, String unit) {
+        this.quantity = quantity;
+        this.unit = unit;
+    }
 }

@@ -1,10 +1,13 @@
-package com.jdc.recipe_service.domain.dto;
+package com.jdc.recipe_service.domain.dto.user;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
+import lombok.*;
 
-@Data
+@Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class UserRequestDTO {
 
     @Size(max = 50)

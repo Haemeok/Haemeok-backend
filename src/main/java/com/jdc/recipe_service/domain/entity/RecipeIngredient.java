@@ -2,6 +2,7 @@ package com.jdc.recipe_service.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 @Entity
 @Table(name = "recipe_ingredients", uniqueConstraints = {
@@ -30,4 +31,9 @@ public class RecipeIngredient {
 
     @Column(length = 20)
     private String unit;
+
+    public void updateQuantityAndUnit(String quantity, String unit) {
+        this.quantity = quantity;
+        this.unit = unit;
+    }
 }

@@ -17,7 +17,7 @@ public class AiRecipeDetails {
     private Long recipeId;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @MapsId
+    @MapsId  //FK를 PK로 지정
     @JoinColumn(name = "recipe_id")
     private Recipe recipe;
 
