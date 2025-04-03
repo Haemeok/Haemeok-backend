@@ -37,4 +37,11 @@ public class RecipeComment extends BaseTimeEntity {
     @OneToMany(mappedBy = "parentComment", cascade = CascadeType.ALL)
     private List<RecipeComment> replies;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean isDeleted = false;
+
+    public void setDeleted(boolean b) {
+        this.isDeleted = b;
+    }
 }

@@ -1,4 +1,4 @@
-package com.jdc.recipe_service.domain.dto;
+package com.jdc.recipe_service.domain.dto.recipe;
 
 import lombok.Data;
 import java.math.BigDecimal;

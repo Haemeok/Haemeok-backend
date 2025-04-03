@@ -1,6 +1,6 @@
 package com.jdc.recipe_service.controller;
 
-import com.jdc.recipe_service.domain.dto.UserResponseDTO;
+import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2User;

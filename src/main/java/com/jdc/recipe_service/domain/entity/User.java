@@ -39,4 +39,10 @@ public class User extends BaseTimeEntity {
     @Column(length = 255)
     private String introduction;
 
+
+    public void updateProfile(String nickname, String profileImage, String introduction) {
+        this.nickname = nickname;
+        this.profileImage = profileImage;
+        this.introduction = introduction;
+    }
 }

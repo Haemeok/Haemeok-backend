@@ -34,7 +34,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/oauth2/**", "/login/**", "/h2-console/**", "/api/token/refresh", "/login", "/error").permitAll()
+                        .requestMatchers("/", "/oauth2/**", "/login/**", "/h2-console/**", "/api/token/refresh", "/login", "/error", "/api/recipes").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
