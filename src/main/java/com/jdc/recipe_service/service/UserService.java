@@ -41,6 +41,11 @@ public class UserService {
         return UserMapper.toDto(user);
     }
 
+    public User getGuestUser() {
+        return userRepository.findById(3L) // ✅ 여기에 guest 계정 ID 하드코딩
+                .orElseThrow(() -> new RuntimeException("테스트 유저가 없습니다."));
+    }
+
     // 모든 유저 조회
     public List<UserResponseDTO> getAllUsers() {
         List<User> users = userRepository.findAll();
