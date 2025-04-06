@@ -22,7 +22,7 @@ public class RecipeStepIngredient {
     private RecipeStep step;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ingredient_id", nullable = false)
+    @JoinColumn(name = "ingredient_id")
     private Ingredient ingredient;
 
     @ManyToOne(fetch = FetchType.LAZY)

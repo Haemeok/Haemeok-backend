@@ -57,11 +57,11 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "cooking_tools", columnDefinition = "TEXT")
     private String cookingTools;
 
-    @Column(name = "is_ai_generated", nullable = false)
+    @Column(name = "is_ai_generated")
     @Builder.Default
     private boolean isAiGenerated = false;
 
-    @Column(nullable = false)
+    @Column
     @Builder.Default
     private Integer servings = 1; // 기본값 1인분
 
@@ -70,11 +70,11 @@ public class Recipe extends BaseTimeEntity {
 //    @Builder.Default
 //    private Boolean isPrivate = false; // 기본값 공개
 //
-    @Column(nullable = false)
+    @Column
     @Builder.Default
     private Integer totalIngredientCost = 0; // 재료 기준 가격
 
-    @Column(nullable = false)
+    @Column
     @Builder.Default
     private Integer marketPrice = 0; // 시중 평균 가격
 

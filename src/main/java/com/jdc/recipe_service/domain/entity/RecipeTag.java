@@ -22,6 +22,6 @@ public class RecipeTag {
     private Recipe recipe;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tag_id", nullable = false)
+    @JoinColumn(name = "tag_id")
     private Tag tag;
 }

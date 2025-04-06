@@ -15,7 +15,7 @@ public class RecipeStepDto {
     private int stepNumber;
     private String instruction;
     private String stepImageUrl;
-    private String cookingTools;
+//    private String cookingTools;
     private String action;
 
     private List<RecipeStepIngredientDto> ingredients;

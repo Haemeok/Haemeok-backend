@@ -58,7 +58,7 @@ public class RecipeStepService {
             if (step != null) {
                 step.updateInstruction(dto.getInstruction());
                 step.updateStepImageUrl(dto.getStepImageUrl());
-                step.updateCookingTools(dto.getCookingTools());
+//                step.updateCookingTools(dto.getCookingTools());
                 step.updateAction(dto.getAction());
             } else {
                 step = RecipeStepMapper.toEntity(dto, recipe);
