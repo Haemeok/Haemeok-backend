@@ -1,50 +1,3 @@
-#name: Deploy to AWS ECR
-#
-#on:
-#  push:
-#    branches: [ "main" ] # 또는 배포할 브랜치
-#  workflow_dispatch:
-#
-#jobs:
-#  deploy:
-#    runs-on: ubuntu-latest
-#
-#    env:
-#      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#      AWS_REGION: ap-southeast-2
-#
-#    steps:
-#      - name: Checkout source code
-#        uses: actions/checkout@v3
-#
-#      - name: Set up JDK
-#        uses: actions/setup-java@v3
-#        with:
-#          distribution: 'temurin'
-#          java-version: '17'
-#
-#      - name: Grant execute permission for gradlew
-#        run: chmod +x ./gradlew
-#
-##      - name: Build with Gradle
-##        run: ./gradlew clean build
-#
-#      - name: Build with Gradle (no test)
-#        run: ./gradlew clean build -x test
-#
-#      - name: Login to Amazon ECR
-#        uses: aws-actions/amazon-ecr-login@v1
-#
-#      - name: Build, tag, and push Docker image to ECR
-#        env:
-#          ECR_REGISTRY: 595712054986.dkr.ecr.ap-southeast-2.amazonaws.com
-#          ECR_REPOSITORY: haemeok-repository
-#          IMAGE_TAG: latest
-#        run: |
-#          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-#          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-#          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 name: Deploy to AWS ECS
 
 on:
@@ -58,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      AWS_REGION: ap-southeast-2
+      AWS_REGION: ap-northeast-2
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
@@ -84,7 +37,7 @@ jobs:
 
       - name: Build and Push Docker image
         env:
-          ECR_REGISTRY: 595712054986.dkr.ecr.ap-southeast-2.amazonaws.com
+          ECR_REGISTRY: 595712054986.dkr.ecr.ap-northeast-2.amazonaws.com
           ECR_REPOSITORY: haemeok-repository
           IMAGE_TAG: latest
         run: |
