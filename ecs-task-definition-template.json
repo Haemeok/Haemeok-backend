@@ -5,7 +5,7 @@
   "containerDefinitions": [
     {
       "name": "haemeok-app",
-      "image": "595712054986.dkr.ecr.ap-southeast-2.amazonaws.com/haemeok-repository:latest",
+      "image": "595712054986.dkr.ecr.ap-northeast-2.amazonaws.com/haemeok-repository:latest",
       "essential": true,
       "portMappings": [
         {
@@ -34,7 +34,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/haemeok-task",
-          "awslogs-region": "ap-southeast-2",
+          "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }
       }
