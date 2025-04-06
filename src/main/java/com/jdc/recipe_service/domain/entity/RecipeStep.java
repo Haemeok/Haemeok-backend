@@ -28,14 +28,14 @@ public class RecipeStep {
     @Column(name = "step_number", nullable = false)
     private Integer stepNumber;
 
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(columnDefinition = "TEXT")
     private String instruction;
 
     @Column(name = "step_image_url", length = 255)
     private String stepImageUrl;
 
-    @Column(name = "cooking_tools", columnDefinition = "TEXT")
-    private String cookingTools;
+//    @Column(name = "cooking_tools", columnDefinition = "TEXT")
+//    private String cookingTools;
 
     @Column(length = 50)
     private String action;
@@ -53,9 +53,9 @@ public class RecipeStep {
         this.stepImageUrl = stepImageUrl;
     }
 
-    public void updateCookingTools(String cookingTools) {
-        this.cookingTools = cookingTools;
-    }
+//    public void updateCookingTools(String cookingTools) {
+//        this.cookingTools = cookingTools;
+//    }
     public void updateAction(String action) {
         this.action = action;
     }

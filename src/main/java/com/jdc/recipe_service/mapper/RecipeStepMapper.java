@@ -16,7 +16,7 @@ public class RecipeStepMapper {
                 .stepNumber(dto.getStepNumber())
                 .instruction(dto.getInstruction())
                 .stepImageUrl(dto.getStepImageUrl())
-                .cookingTools(dto.getCookingTools())
+//                .cookingTools(dto.getCookingTools())
                 .action(dto.getAction())
                 .build();
     }
@@ -26,7 +26,7 @@ public class RecipeStepMapper {
                 .stepNumber(step.getStepNumber())
                 .instruction(step.getInstruction())
                 .stepImageUrl(step.getStepImageUrl())
-                .cookingTools(step.getCookingTools())
+//                .cookingTools(step.getCookingTools())
                 .action(step.getAction())
                 .ingredients(ingredients)
                 .build();
