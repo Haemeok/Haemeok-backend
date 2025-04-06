@@ -24,7 +24,6 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
-
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 
         // JWT 발급
@@ -40,8 +39,12 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                         .build()
         );
 
-        // React 쪽으로 리다이렉트 + 토큰 전달
-        String redirectUri = "http://www.haemeok.com/oauth2/redirect" +
+        String origin = request.getHeader("Origin");
+
+        // fallback 기본 redirect URI
+        String redirectBase = (origin != null) ? origin : "https://www.haemeok.com";
+
+        String redirectUri = redirectBase + "/oauth2/redirect" +
                 "?accessToken=" + accessToken +
                 "&refreshToken=" + refreshToken;
 
