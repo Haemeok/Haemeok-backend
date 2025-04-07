@@ -2,58 +2,67 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeTag;
-import com.jdc.recipe_service.domain.entity.Tag;
 import com.jdc.recipe_service.domain.repository.RecipeTagRepository;
-import com.jdc.recipe_service.domain.repository.TagRepository;
-import com.jdc.recipe_service.mapper.RecipeTagMapper;
+import com.jdc.recipe_service.domain.type.TagType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class RecipeTagService {
-    private final TagRepository tagRepository;
+
     private final RecipeTagRepository recipeTagRepository;
 
-    public void saveAll(Recipe recipe, List<String> tagNames) {
-        for (String tagName : tagNames) {
-//            Tag tag = tagRepository.findByNameIgnoreCase(tagName)
-//                    .orElseThrow(() -> new RuntimeException("태그가 존재하지 않습니다: " + tagName));
-            Tag tag = tagRepository.findByNameIgnoreCase(tagName)
-                    .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
-            RecipeTag recipeTag = RecipeTagMapper.toEntity(recipe, tag);
-            recipeTagRepository.save(recipeTag);
-        }
+    /**
+     * 새 레시피에 태그 저장
+     */
+    public void saveAll(Recipe recipe, List<String> tagDisplayNames) {
+        List<TagType> tagTypes = tagDisplayNames.stream()
+                .distinct() // 중복 방지
+                .map(TagType::fromDisplayName)
+                .collect(Collectors.toList());
+
+        List<RecipeTag> recipeTags = tagTypes.stream()
+                .map(tagType -> RecipeTag.builder()
+                        .recipe(recipe)
+                        .tag(tagType)
+                        .build())
+                .toList();
+
+        recipeTagRepository.saveAll(recipeTags);
     }
 
-    public void updateTags(Recipe recipe, List<String> tagNames) {
-        List<RecipeTag> existing = recipeTagRepository.findByRecipeId(recipe.getId());
-        Map<String, RecipeTag> existingMap = existing.stream()
-                .collect(Collectors.toMap(
-                        t -> t.getTag().getName().toLowerCase().trim(),
-                        Function.identity()
-                ));
+    /**
+     * 레시피 수정 시 태그 업데이트
+     */
+    public void updateTags(Recipe recipe, List<String> tagDisplayNames) {
+        List<RecipeTag> existingTags = recipeTagRepository.findByRecipeId(recipe.getId());
+        Set<TagType> newTagTypes = tagDisplayNames.stream()
+                .map(TagType::fromDisplayName)
+                .collect(Collectors.toSet());
 
-        Set<String> newNames = tagNames.stream().map(s -> s.toLowerCase().trim()).collect(Collectors.toSet());
-
-        for (RecipeTag tag : existing) {
-            if (!newNames.contains(tag.getTag().getName().toLowerCase().trim())) {
+        // 기존 태그 중 삭제할 것
+        for (RecipeTag tag : existingTags) {
+            if (!newTagTypes.contains(tag.getTag())) {
                 recipeTagRepository.delete(tag);
             }
         }
 
-        for (String name : newNames) {
-            if (!existingMap.containsKey(name)) {
-                Tag tag = tagRepository.findByNameIgnoreCase(name)
-                        .orElseThrow(() -> new RuntimeException("태그가 존재하지 않습니다: " + name));
-                RecipeTag entity = RecipeTagMapper.toEntity(recipe, tag);
-                recipeTagRepository.save(entity);
+        // 새로운 태그 중 추가할 것
+        Set<TagType> existingTypes = existingTags.stream()
+                .map(RecipeTag::getTag)
+                .collect(Collectors.toSet());
+
+        for (TagType newType : newTagTypes) {
+            if (!existingTypes.contains(newType)) {
+                RecipeTag newTag = RecipeTag.builder()
+                        .recipe(recipe)
+                        .tag(newType)
+                        .build();
+                recipeTagRepository.save(newTag);
             }
         }
     }

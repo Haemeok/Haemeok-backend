@@ -103,7 +103,10 @@ public class RecipeService {
 
         UserDto authorDto = UserMapper.toSimpleDto(recipe.getUser());
 
-        List<TagDto> tags = RecipeTagMapper.toDtoList(recipeTagRepository.findByRecipeId(recipeId));
+        List<RecipeTag> recipeTags = recipeTagRepository.findByRecipeId(recipeId);
+        List<String> tagNames = recipeTags.stream()
+                .map(recipeTag -> recipeTag.getTag().getDisplayName())
+                .toList();
         List<RecipeIngredientDto> ingredients = RecipeIngredientMapper.toDtoList(recipeIngredientRepository.findByRecipeId(recipeId));
 
         List<RecipeStep> steps = recipeStepRepository.findWithIngredientsByRecipeIdOrderByStepNumber(recipeId);
@@ -133,7 +136,7 @@ public class RecipeService {
                 .likeCount(likeCount)
                 .likedByCurrentUser(likedByUser)
                 .favoriteByCurrentUser(favoritedByUser)
-                .tags(tags)
+                .tags(tagNames)
                 .ingredients(ingredients)
                 .steps(stepDtos)
                 .comments(commentDtos)

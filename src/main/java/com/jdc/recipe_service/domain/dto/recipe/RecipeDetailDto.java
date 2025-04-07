@@ -37,7 +37,7 @@ public class RecipeDetailDto {
     private UserDto author;
     private BigDecimal avgRating;
 
-    private List<TagDto> tags;
+    private List<String> tags;
     private List<RecipeIngredientDto> ingredients;
     private List<RecipeStepDto> steps;
 
