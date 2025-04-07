@@ -18,7 +18,6 @@ public class RecipeTagMapper {
 
     public static TagDto toDto(RecipeTag recipeTag) {
         return new TagDto(recipeTag.getTag().name(), recipeTag.getTag().getDisplayName());
-
     }
 
     public static List<TagDto> toDtoList(List<RecipeTag> recipeTags) {
