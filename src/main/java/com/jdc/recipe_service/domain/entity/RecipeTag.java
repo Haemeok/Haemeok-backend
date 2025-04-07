@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.entity;
 
+import com.jdc.recipe_service.domain.type.TagType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,7 +22,8 @@ public class RecipeTag {
     @JoinColumn(name = "recipe_id", nullable = false)
     private Recipe recipe;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tag_id")
-    private Tag tag;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tag_name", length = 50, nullable = false)
+    private TagType tag;
+
 }

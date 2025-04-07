@@ -24,13 +24,8 @@
         private String dishType;
         private int cookingTime;
         private String imageUrl;
-        private String youtubeUrl;
         private String cookingTools;
-       // private boolean isAiGenerated;
-
         private Integer servings;
-        private Integer totalIngredientCost;
-        private Integer marketPrice;
 
         private List<RecipeIngredientRequestDto> ingredients;
         private List<RecipeStepRequestDto> steps;

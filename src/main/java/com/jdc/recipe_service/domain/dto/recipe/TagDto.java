@@ -1,15 +1,18 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
 public class TagDto {
-    private Long id;
-    private String name;
+    private String code;    // 예: "LUNCHBOX"
+    private String name;    // 예: "🍱 도시락"
+
+    public TagDto(String code, String name) {
+        this.code = code;
+        this.name = name;
+    }
 }
