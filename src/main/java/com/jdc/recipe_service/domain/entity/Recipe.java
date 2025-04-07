@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.entity;
 
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
+import com.jdc.recipe_service.domain.type.DishType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
@@ -38,8 +39,9 @@ public class Recipe extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "dish_type", length = 50)
-    private String dishType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dish_type", nullable = false, length = 30)
+    private DishType dishType;
 
     @Column(name = "cooking_time")
     private Integer cookingTime;
@@ -91,8 +93,7 @@ public class Recipe extends BaseTimeEntity {
     @BatchSize(size = 10)
     private List<RecipeStep> steps;
 
-    // 도메인 메서드: 레시피 업데이트
-    public void update(String title, String description, String dishType, int cookingTime,
+    public void update(String title, String description, DishType dishType, int cookingTime,
                        String imageUrl, String youtubeUrl, String cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice) {
         this.title = title;
@@ -103,9 +104,10 @@ public class Recipe extends BaseTimeEntity {
         this.youtubeUrl = youtubeUrl;
         this.cookingTools = cookingTools;
         this.servings = servings;
-       // this.isAiGenerated = isAiGenerated;
         this.totalIngredientCost = totalIngredientCost;
         this.marketPrice = marketPrice;
+       // this.isAiGenerated = false;
     }
+
 
 }

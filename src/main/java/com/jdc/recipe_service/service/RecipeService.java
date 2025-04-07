@@ -8,6 +8,7 @@ import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
+import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.exception.RecipeAccessDeniedException;
 import com.jdc.recipe_service.mapper.*;
 import lombok.RequiredArgsConstructor;
@@ -120,7 +121,7 @@ public class RecipeService {
         return RecipeDetailDto.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
-                .dishType(recipe.getDishType())
+                .dishType(recipe.getDishType().getDisplayName())
                 .description(recipe.getDescription())
                 .cookingTime(recipe.getCookingTime())
                 .avgRating(recipe.getAvgRating())
@@ -150,7 +151,7 @@ public class RecipeService {
                         .id(recipe.getId())
                         .title(recipe.getTitle())
                         .imageUrl(recipe.getImageUrl())
-                        .dishType(recipe.getDishType())
+                        .dishType(recipe.getDishType().getDisplayName())
                         .createdAt(recipe.getCreatedAt())
                         .isAiGenerated(recipe.isAiGenerated())
                         .build());
@@ -165,7 +166,7 @@ public class RecipeService {
         recipe.update(
                 dto.getTitle(),
                 dto.getDescription(),
-                dto.getDishType(),
+                DishType.fromDisplayName(dto.getDishType()),
                 dto.getCookingTime(),
                 dto.getImageUrl(),
                 dto.getYoutubeUrl(),
