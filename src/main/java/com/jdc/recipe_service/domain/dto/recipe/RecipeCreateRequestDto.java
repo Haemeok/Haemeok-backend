@@ -25,8 +25,7 @@
         private int cookingTime;
         private String imageUrl;
         private String youtubeUrl;
-        private String cookingTools;
-       // private boolean isAiGenerated;
+        private List<String> cookingTools;
 
         private Integer servings;
         private Integer totalIngredientCost;

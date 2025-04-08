@@ -16,11 +16,13 @@ public class RecipeMapper {
                 .cookingTime(dto.getCookingTime())
                 .imageUrl(dto.getImageUrl())
                 .youtubeUrl(dto.getYoutubeUrl())
-                .cookingTools(String.join(", ", dto.getCookingTools())) // List → String 변환
+                .cookingTools(dto.getCookingTools())
                 .servings(dto.getServings())
                 .marketPrice(dto.getMarketPrice())
                 .totalIngredientCost(dto.getTotalIngredientCost())
                 .build();
     }
+
+
 
 }
