@@ -127,7 +127,7 @@ public class RecipeService {
                 .avgRating(recipe.getAvgRating())
                 .imageUrl(recipe.getImageUrl())
                 .youtubeUrl(recipe.getYoutubeUrl())
-                .cookingTools(splitTools(recipe.getCookingTools()))
+                .cookingTools(recipe.getCookingTools())
                 .servings(recipe.getServings())
                 .isAiGenerated(recipe.isAiGenerated())
                 .marketPrice(recipe.getMarketPrice())
@@ -170,7 +170,7 @@ public class RecipeService {
                 dto.getCookingTime(),
                 dto.getImageUrl(),
                 dto.getYoutubeUrl(),
-                String.join(", ", dto.getCookingTools()),
+                dto.getCookingTools(),
                 dto.getServings(),
                 dto.getTotalIngredientCost(),
                 dto.getMarketPrice()
@@ -253,15 +253,5 @@ public class RecipeService {
             throw new RecipeAccessDeniedException("권한이 없습니다.");
         }
     }
-
-    private List<String> splitTools(String raw) {
-        if (raw == null || raw.isBlank()) return List.of();
-        return Arrays.stream(raw.split("[,\\s]+"))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .distinct()
-                .toList();
-    }
-
 
 }

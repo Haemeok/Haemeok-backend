@@ -56,8 +56,11 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "youtube_url", length = 255)
     private String youtubeUrl;
 
-    @Column(name = "cooking_tools", columnDefinition = "TEXT")
-    private String cookingTools;
+    @ElementCollection
+    @CollectionTable(name = "recipe_cooking_tools", joinColumns = @JoinColumn(name = "recipe_id"))
+    @Column(name = "tool", length = 50)
+    @BatchSize(size = 10)
+    private List<String> cookingTools;
 
     @Column(name = "is_ai_generated")
     @Builder.Default
@@ -94,7 +97,7 @@ public class Recipe extends BaseTimeEntity {
     private List<RecipeStep> steps;
 
     public void update(String title, String description, DishType dishType, int cookingTime,
-                       String imageUrl, String youtubeUrl, String cookingTools, Integer servings,
+                       String imageUrl, String youtubeUrl, List<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice) {
         this.title = title;
         this.description = description;
