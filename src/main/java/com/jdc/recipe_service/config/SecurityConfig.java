@@ -7,6 +7,7 @@ import com.jdc.recipe_service.security.oauth.OAuth2AuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -31,41 +32,43 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+    private final Environment env;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .requiresChannel(channel -> channel
-                        .anyRequest().requiresSecure()    //HTTPS
-                )
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+        // ✅ HTTPS 강제 조건부 적용
+        if (!isLocalProfile()) {
+            http.requiresChannel(channel ->
+                    channel.anyRequest().requiresSecure()
+            );
+        }
+
+        http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/oauth2/**", "/login/**", "/h2-console/**", "/api/token/refresh", "/login", "/error", "/api/recipes/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/v3/api-docs.yaml", "/api/tags/**"
+                        .requestMatchers(
+                                "/", "/oauth2/**", "/login/**", "/h2-console/**", "/api/token/refresh", "/login", "/error",
+                                "/api/recipes/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                                "/api/tags/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
-                .formLogin(form -> form.disable())   // 폼 로그인 비활성화
+                .formLogin(form -> form.disable())
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(user -> user.userService(customOAuth2UserService))
                         .successHandler(successHandler)
-                );
-        // 필요한 공개 API 경로만 추가로 .permitAll()로 열어주면 됨
-
-        // 👇 JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 등록
-        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
-        // H2 콘솔 접근 허용 시 필요한 설정
-        http.headers(headers -> headers.frameOptions(frame -> frame.disable()));
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 
         return http.build();
     }
+
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -81,6 +84,10 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private boolean isLocalProfile() {
+        return Arrays.stream(env.getActiveProfiles()).anyMatch(p -> p.equalsIgnoreCase("local"));
     }
 }
 
