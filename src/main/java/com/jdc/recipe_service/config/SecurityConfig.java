@@ -38,6 +38,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .requiresChannel(channel -> channel
+                        .anyRequest().requiresSecure()    //HTTPS
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/oauth2/**", "/login/**", "/h2-console/**", "/api/token/refresh", "/login", "/error", "/api/recipes/**",
                                 "/swagger-ui.html",

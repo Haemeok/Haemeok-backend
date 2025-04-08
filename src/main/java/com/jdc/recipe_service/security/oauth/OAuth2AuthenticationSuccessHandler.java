@@ -39,11 +39,14 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                         .build()
         );
 
-        String origin = request.getHeader("Origin");
+        String referer = request.getHeader("Referer");
 
-        // fallback 기본 redirect URI
-        String redirectBase = (origin != null) ? origin : "https://www.haemeok.com";
-
+        String redirectBase;
+        if (referer != null && referer.contains("localhost")) {
+            redirectBase = "http://localhost:5173";
+        } else {
+            redirectBase = "https://www.haemeok.com";
+        }
         String redirectUri = redirectBase + "/oauth2/redirect" +
                 "?accessToken=" + accessToken +
                 "&refreshToken=" + refreshToken;
