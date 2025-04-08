@@ -22,5 +22,11 @@ public class UserResponseDTO {
 
     public UserResponseDTO(User user) {
         this.id = user.getId();
+        this.nickname = user.getNickname();
+        this.profileImage = user.getProfileImage();
+        this.introduction = user.getIntroduction();
+        this.createdAt = user.getCreatedAt();
+        this.updatedAt = user.getUpdatedAt();
+
     }
 }
