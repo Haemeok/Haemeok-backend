@@ -2,6 +2,8 @@ package com.jdc.recipe_service.domain.repository;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.TagType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -51,5 +53,35 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
 
     //사용자가 쓴 레시피 조회
     Page<Recipe> findByUserId(Long userId, Pageable pageable);
+
+    // dishType 기반 카테고리 조회
+    List<Recipe> findByDishType(DishType dishType, Pageable pageable);
+
+    // 태그 이름으로 조회 (RecipeTag → Tag)
+    @Query("""
+    SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
+        r.id, r.title, r.imageUrl, u.nickname, r.createdAt, COUNT(rl.id), false
+    )
+    FROM Recipe r
+    JOIN r.user u
+    JOIN r.tags rt
+    LEFT JOIN RecipeLike rl ON rl.recipe = r
+    WHERE rt.tag = :tag
+    GROUP BY r.id, u.nickname, r.title, r.imageUrl, r.createdAt
+""")
+    Page<RecipeSimpleDto> findByTagWithLikeCount(@Param("tag") TagType tag, Pageable pageable);
+
+
+    @Query("""
+    SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
+        r.id, r.title, r.imageUrl, u.nickname, r.createdAt, COUNT(rl.id), false
+    )
+    FROM Recipe r
+    JOIN r.user u
+    LEFT JOIN RecipeLike rl ON rl.recipe = r
+    WHERE r.dishType = :dishType
+    GROUP BY r.id, u.nickname, r.title, r.imageUrl, r.createdAt
+""")
+    Page<RecipeSimpleDto> findByDishTypeWithLikeCount(@Param("dishType") DishType dishType, Pageable pageable);
 
 }

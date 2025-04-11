@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.type;
 
 import lombok.Getter;
+import org.apache.coyote.BadRequestException;
 
 @Getter
 public enum TagType {
@@ -33,5 +34,13 @@ public enum TagType {
             }
         }
         throw new IllegalArgumentException("존재하지 않는 태그입니다: " + name);
+    }
+
+    public static TagType fromNameOrThrow(String tagName) throws BadRequestException {
+        try {
+            return TagType.valueOf(tagName);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("잘못된 태그 이름입니다: " + tagName);
+        }
     }
 }
