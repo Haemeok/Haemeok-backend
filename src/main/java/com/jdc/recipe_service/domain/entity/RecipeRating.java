@@ -26,5 +26,13 @@ public class RecipeRating {
     private Recipe recipe;
 
     @Column(nullable = false)
-    private Byte rating;
+    private Double rating;
+
+//    @Column(length = 1000)
+//    private String comment;
+
+    public void updateRating(Double rating /*, String comment */) {
+        this.rating = rating;
+        // this.comment = comment;
+    }
 }
