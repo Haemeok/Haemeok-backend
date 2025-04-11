@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -35,7 +36,7 @@ public class RecipeDetailDto {
     private Integer servings;
 
     private UserDto author;
-    private BigDecimal avgRating;
+    private RecipeRatingInfoDto ratingInfo;
 
     private List<String> tags;
     private List<RecipeIngredientDto> ingredients;
@@ -53,5 +54,8 @@ public class RecipeDetailDto {
     private Integer totalIngredientCost;
     private Integer marketPrice;
     private Integer savings; // averagePrice - measuredPrice 계산값
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
 }
