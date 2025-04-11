@@ -96,7 +96,7 @@ public class Recipe extends BaseTimeEntity {
     @BatchSize(size = 10)
     private List<RecipeStep> steps;
 
-    public void update(String title, String description, DishType dishType, int cookingTime,
+    public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageUrl, String youtubeUrl, List<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice) {
         this.title = title;

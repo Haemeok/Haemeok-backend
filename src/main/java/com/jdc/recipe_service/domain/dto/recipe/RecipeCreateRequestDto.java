@@ -22,7 +22,7 @@
         private String title;
         private String description;
         private String dishType;
-        private int cookingTime;
+        private Integer cookingTime;
         private String imageUrl;
         private String youtubeUrl;
         private List<String> cookingTools;
