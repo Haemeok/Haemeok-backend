@@ -9,10 +9,13 @@ import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.exception.RecipeAccessDeniedException;
 import com.jdc.recipe_service.mapper.*;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +43,7 @@ public class RecipeService {
     private final RecipeIngredientService recipeIngredientService;
     private final RecipeStepService recipeStepService;
     private final RecipeTagService recipeTagService;
+    private final RecipeRatingService recipeRatingService;
 
     @Transactional
     public Long createRecipe(RecipeCreateRequestDto dto, Long userId) {
@@ -53,9 +57,9 @@ public class RecipeService {
 
         // 3. 하위 도메인 저장 처리
         recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        recipeRepository.flush();
         recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTagNames());
-
         return recipe.getId();
     }
 
@@ -89,6 +93,78 @@ public class RecipeService {
         return recipes;
     }
 
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> getByTagWithLikeInfo(String tagName, Long currentUserId, Pageable pageable) throws BadRequestException {
+        // 1. Enum name 기준으로 변환 (예: "HOME_PARTY" → TagType.HOME_PARTY)
+        TagType tag = TagType.fromNameOrThrow(tagName);
+
+        // 2. 태그 기준 좋아요 수 포함된 Projection 조회
+        Page<RecipeSimpleDto> page = recipeRepository.findByTagWithLikeCount(tag, pageable);
+        List<RecipeSimpleDto> recipes = page.getContent();
+
+        if (currentUserId == null) {
+            return page; // 비로그인 유저는 like 정보 없이 그대로 반환
+        }
+
+        // 3. recipeIds 추출
+        List<Long> recipeIds = recipes.stream()
+                .map(RecipeSimpleDto::getId)
+                .toList();
+
+        // 4. 유저가 좋아요한 레시피 ID 조회
+        Set<Long> likedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                .stream()
+                .map(rl -> rl.getRecipe().getId())
+                .collect(Collectors.toSet());
+
+        // 5. 각 DTO에 likedByCurrentUser 반영
+        recipes.forEach(dto -> {
+            if (likedRecipeIds.contains(dto.getId())) {
+                dto.setLikedByCurrentUser(true);
+            }
+        });
+
+        // 6. PageImpl로 다시 감싸서 반환
+        return new PageImpl<>(recipes, pageable, page.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> getByDishTypeWithLikeInfo(String dishTypeEnumName, Long currentUserId, Pageable pageable) {
+        // enum name 기반으로 변환 ("FRY", "SOUP" 등)
+        DishType dishType = DishType.valueOf(dishTypeEnumName);
+
+        // DishType 조건에 따른 좋아요 수 포함된 Projection 조회
+        Page<RecipeSimpleDto> page = recipeRepository.findByDishTypeWithLikeCount(dishType, pageable);
+        List<RecipeSimpleDto> recipes = page.getContent();
+
+        if (currentUserId == null) {
+            return page;
+        }
+
+        // 1. 조회된 레시피 ID 목록 추출
+        List<Long> recipeIds = recipes.stream()
+                .map(RecipeSimpleDto::getId)
+                .toList();
+
+        // 2. 로그인 사용자가 좋아요 누른 레시피의 ID 목록 조회
+        Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                .stream()
+                .map(like -> like.getRecipe().getId())
+                .collect(Collectors.toSet());
+
+        // 3. 각 DTO에 좋아요 여부 적용
+        recipes.forEach(dto -> {
+            if (likedIds.contains(dto.getId())) {
+                dto.setLikedByCurrentUser(true);
+            }
+        });
+
+        // 4. PageImpl로 다시 감싸서 반환
+        return new PageImpl<>(recipes, pageable, page.getTotalElements());
+    }
+
+
+
 
     // 레시피 상세 조회
     @Transactional(readOnly = true)
@@ -101,6 +177,12 @@ public class RecipeService {
                 recipeLikeRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
         boolean favoritedByUser = currentUserId != null &&
                 recipeFavoriteRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
+
+        RecipeRatingInfoDto ratingInfo = RecipeRatingInfoDto.builder()
+                .avgRating(recipe.getAvgRating())
+                .myRating(recipeRatingService.getMyRating(recipeId, currentUserId))
+                .ratingCount(recipeRatingService.getRatingCount(recipeId))
+                .build();
 
         UserDto authorDto = UserMapper.toSimpleDto(recipe.getUser());
 
@@ -124,7 +206,7 @@ public class RecipeService {
                 .dishType(recipe.getDishType().getDisplayName())
                 .description(recipe.getDescription())
                 .cookingTime(recipe.getCookingTime())
-                .avgRating(recipe.getAvgRating())
+                .ratingInfo(ratingInfo)
                 .imageUrl(recipe.getImageUrl())
                 .youtubeUrl(recipe.getYoutubeUrl())
                 .cookingTools(recipe.getCookingTools())
@@ -142,6 +224,8 @@ public class RecipeService {
                 .steps(stepDtos)
                 .comments(commentDtos)
                 .commentCount(recipeCommentRepository.countVisibleComments(recipeId))
+                .createdAt(recipe.getCreatedAt())
+                .updatedAt(recipe.getUpdatedAt())
                 .build();
     }
 
