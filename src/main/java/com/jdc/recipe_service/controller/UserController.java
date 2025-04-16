@@ -69,17 +69,33 @@ public class UserController {
 
     // 즐겨찾기 조회
     @GetMapping("/{userId}/favorites")
-    public ResponseEntity<List<RecipeSimpleDto>> getFavoriteRecipes(@PathVariable Long userId) {
-        List<RecipeSimpleDto> recipes = userService.getFavoriteRecipesByUser(userId);
+    public ResponseEntity<List<RecipeSimpleDto>> getFavoriteRecipes(@PathVariable Long userId,
+                                                                    Authentication authentication) {
+//        Long currentUserId = (authentication != null && authentication.isAuthenticated())
+//                ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
+//                : null;
+        Long currentUserId = (authentication != null && authentication.isAuthenticated())
+                ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
+                : userService.getGuestUser().getId(); // ✅ fallback 적용
+
+        List<RecipeSimpleDto> recipes = userService.getFavoriteRecipesByUser(userId, currentUserId);
         return ResponseEntity.ok(recipes);
     }
+
 
     //작성 레시피 조회
     @GetMapping("/{userId}/recipes")
     public ResponseEntity<Page<MyRecipeSummaryDto>> getUserRecipes(
-            @PathVariable Long userId,
+            @PathVariable(required = false) Long userId,
+            Authentication authentication,
             @PageableDefault(size = 10, sort = "createdAt", direction = DESC) Pageable pageable) {
-        return ResponseEntity.ok(recipeService.getMyRecipes(userId, pageable));
+
+        Long resolvedUserId = (authentication != null && authentication.isAuthenticated())
+                ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
+                : userService.getGuestUser().getId(); // ✅ fallback 적용
+
+        return ResponseEntity.ok(recipeService.getMyRecipes(resolvedUserId, pageable));
     }
+
 
 }

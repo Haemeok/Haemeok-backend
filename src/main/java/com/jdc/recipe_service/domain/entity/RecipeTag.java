@@ -6,7 +6,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "recipe_tags", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"recipe_id", "tag_id"})
+        @UniqueConstraint(columnNames = {"recipe_id", "tag_name"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

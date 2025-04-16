@@ -20,6 +20,10 @@ public class RecipeLikeController {
 
     @PostMapping("/{id}/like")
     public ResponseEntity<?> toggleLike(@PathVariable Long id, Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("message", "로그인이 필요합니다."));
+        }
+
         Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
         boolean liked = likeService.toggleLike(userId, id);
         String message = liked ? "레시피 좋아요 등록 완료" : "레시피 좋아요 취소 완료";
@@ -28,6 +32,10 @@ public class RecipeLikeController {
 
     @PostMapping("/{id}/favorite")
     public ResponseEntity<?> toggleFavorite(@PathVariable Long id, Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("message", "로그인이 필요합니다."));
+        }
+
         Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
         boolean favorited = favoriteService.toggleFavorite(userId, id);
         String message = favorited ? "레시피 즐겨찾기 등록 완료" : "레시피 즐겨찾기 취소 완료";

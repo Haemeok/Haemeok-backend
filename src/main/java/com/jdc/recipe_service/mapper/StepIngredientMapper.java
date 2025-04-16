@@ -15,7 +15,7 @@ public class StepIngredientMapper {
                 .step(step)
                 .ingredient(ingredient)
                 .quantity(dto.getQuantity())
-                .unit(dto.getUnit())
+                .unit(ingredient.getUnit())
                 .build();
     }
 

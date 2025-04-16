@@ -20,6 +20,9 @@ public class CommentLikeController {
     @PostMapping("/{commentId}/like")
     public ResponseEntity<?> toggleLike(@PathVariable Long commentId,
                                         Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("message", "로그인이 필요합니다."));
+        }
         Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
         boolean liked = commentLikeService.toggleLike(commentId, userId);
         String message = liked ? "댓글 좋아요 등록 완료" : "댓글 좋아요 취소 완료";

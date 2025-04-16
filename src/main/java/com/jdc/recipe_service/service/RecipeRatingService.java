@@ -64,7 +64,7 @@ public class RecipeRatingService {
     public Double getMyRating(Long recipeId, Long userId) {
         return ratingRepository.findByUserIdAndRecipeId(userId, recipeId)
                 .map(RecipeRating::getRating)
-                .orElse(null);
+                .orElse(0.0);
     }
 
     public long getRatingCount(Long recipeId) {
