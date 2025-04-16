@@ -96,6 +96,10 @@ public class Recipe extends BaseTimeEntity {
     @BatchSize(size = 10)
     private List<RecipeStep> steps;
 
+    @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
+    @BatchSize(size = 100)
+    private List<RecipeLike> likes;
+
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageUrl, String youtubeUrl, List<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice) {

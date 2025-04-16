@@ -18,5 +18,5 @@ import lombok.NoArgsConstructor;
 public class RecipeIngredientRequestDto {
     private String name;
     private String quantity;
-    private String unit;
+    //private String unit;
 }
