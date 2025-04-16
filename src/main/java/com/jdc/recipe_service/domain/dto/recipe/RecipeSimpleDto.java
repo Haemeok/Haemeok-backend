@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
 
+import com.querydsl.core.annotations.QueryProjection;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -29,4 +30,15 @@ public class RecipeSimpleDto {
         likedByCurrentUser = b;
     }
 
+    @QueryProjection
+    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName,
+                           LocalDateTime createdAt, int likeCount, boolean likedByCurrentUser) {
+        this.id = id;
+        this.title = title;
+        this.imageUrl = imageUrl;
+        this.authorName = authorName;
+        this.createdAt = createdAt;
+        this.likeCount = likeCount;
+        this.likedByCurrentUser = likedByCurrentUser;
+    }
 }

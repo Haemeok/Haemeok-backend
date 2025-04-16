@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -15,6 +16,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -34,8 +36,6 @@ public class RecipeController {
     public ResponseEntity<Long> createRecipe(@RequestBody RecipeCreateRequestDto requestDto,
                                              Authentication authentication) {
 //        Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
-//        Long recipeId = recipeService.createRecipe(requestDto, userId);
-//        return ResponseEntity.ok(recipeId);
         Long userId = (authentication != null && authentication.isAuthenticated())
                 ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
                 : userService.getGuestUser().getId(); // ✅ 비회원 fallback
@@ -43,8 +43,8 @@ public class RecipeController {
         return ResponseEntity.ok(recipeId);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<RecipeDetailDto> getRecipeDetail(@PathVariable("id") Long recipeId,
+    @GetMapping("/{recipeId}")
+    public ResponseEntity<RecipeDetailDto> getRecipeDetail(@PathVariable("recipeId") Long recipeId,
                                                            Authentication authentication) {
 //        Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
         Long userId = (authentication != null && authentication.isAuthenticated())
@@ -81,6 +81,41 @@ public class RecipeController {
         }
     }
 
+    // ✅ 1. 유저 전용 레시피 생성
+    @PostMapping("/user")
+    public ResponseEntity<?> createUserRecipe(@RequestBody RecipeUserCreateRequestDto dto,
+                                              Authentication authentication) {
+        Long userId = (authentication != null && authentication.isAuthenticated())
+                ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
+                : userService.getGuestUser().getId(); // fallback
+        Long recipeId = recipeService.createUserRecipe(dto, userId);
+        return ResponseEntity.ok(Map.of("recipeId", recipeId));
+    }
+
+    // ✅ 2. 유저 전용 레시피 수정
+    @PutMapping("/user/{id}")
+    public ResponseEntity<?> updateUserRecipe(@PathVariable Long id,
+                                              @RequestBody RecipeUserCreateRequestDto dto,
+                                              Authentication authentication) {
+        Long userId = (authentication != null && authentication.isAuthenticated())
+                ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
+                : userService.getGuestUser().getId(); // fallback
+        recipeService.updateUserRecipe(id, userId, dto);
+        return ResponseEntity.ok(Map.of("recipeId", id));
+    }
+
+    // ✅ 3. 유저 전용 레시피 삭제
+    @DeleteMapping("/user/{id}")
+    public ResponseEntity<?> deleteUserRecipe(@PathVariable Long id,
+                                              Authentication authentication) {
+        Long userId = (authentication != null && authentication.isAuthenticated())
+                ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
+                : userService.getGuestUser().getId(); // fallback
+        recipeService.deleteRecipe(id, userId); // validateOwnership 내부 호출
+        return ResponseEntity.ok(Map.of("deletedRecipeId", id));
+    }
+
+
     @GetMapping("/simple")
     public ResponseEntity<List<RecipeSimpleDto>> getAllSimpleRecipes(Authentication authentication) {
 //        Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
@@ -88,6 +123,18 @@ public class RecipeController {
                 ? ((CustomUserDetails) authentication.getPrincipal()).getUser().getId()
                 : userService.getGuestUser().getId(); // ✅ 비회원 fallback
         return ResponseEntity.ok(recipeService.getAllRecipesSimple(userId));
+    }
+
+    @PostMapping("/search")
+    public ResponseEntity<Page<RecipeSimpleDto>> searchRecipes(
+            @RequestBody RecipeSearchCondition condition,
+            Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = (userDetails != null) ? userDetails.getUser().getId() : null;
+
+        Page<RecipeSimpleDto> result = recipeService.searchRecipes(condition, pageable, userId);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/by-tag")

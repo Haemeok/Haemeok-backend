@@ -8,8 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -27,7 +25,7 @@ public class RecipeDetailDto {
     private String title;
     private String dishType;
     private String description;
-    private int cookingTime;
+    private Integer cookingTime;
     private String imageUrl;
     private String youtubeUrl;
     private List<String> cookingTools;

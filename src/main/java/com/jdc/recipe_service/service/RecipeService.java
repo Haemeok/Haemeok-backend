@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
@@ -38,8 +39,8 @@ public class RecipeService {
     private final UserRepository userRepository;
     private final RecipeCommentRepository recipeCommentRepository;
     private final CommentLikeRepository commentLikeRepository;
-    private final CommentService commentService;
 
+    private final CommentService commentService;
     private final RecipeIngredientService recipeIngredientService;
     private final RecipeStepService recipeStepService;
     private final RecipeTagService recipeTagService;
@@ -60,6 +61,26 @@ public class RecipeService {
         recipeRepository.flush();
         recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTagNames());
+        return recipe.getId();
+    }
+
+    @Transactional
+    public Long createUserRecipe(RecipeUserCreateRequestDto dto, Long userId) {
+        // 1. 작성자 조회
+        User user = getUserOrThrow(userId);
+
+        // 2. 레시피 저장
+        Recipe recipe = RecipeMapper.toEntity(dto, user);
+        recipeRepository.save(recipe);
+
+        // 3. 하위 도메인 저장 처리
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        recipe.setTotalIngredientCost(totalCost); // ✅ 총 원가 저장
+        recipeRepository.flush();
+
+        recipeStepService.saveAll(recipe, dto.getSteps());
+        recipeTagService.saveAll(recipe, dto.getTagNames());
+
         return recipe.getId();
     }
 
@@ -92,6 +113,27 @@ public class RecipeService {
 
         return recipes;
     }
+
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
+        Page<RecipeSimpleDto> page = recipeRepository.search(condition, pageable);
+
+        if (userId != null) {
+            List<Long> recipeIds = page.getContent().stream()
+                    .map(RecipeSimpleDto::getId)
+                    .toList();
+
+            Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(userId, recipeIds)
+                    .stream()
+                    .map(like -> like.getRecipe().getId())
+                    .collect(Collectors.toSet());
+
+            page.getContent().forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
+        }
+
+        return page;
+    }
+
 
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> getByTagWithLikeInfo(String tagName, Long currentUserId, Pageable pageable) throws BadRequestException {
@@ -164,9 +206,6 @@ public class RecipeService {
     }
 
 
-
-
-    // 레시피 상세 조회
     @Transactional(readOnly = true)
     public RecipeDetailDto getRecipeDetail(Long recipeId, Long currentUserId) {
 
@@ -200,6 +239,18 @@ public class RecipeService {
 
         List<CommentDto> commentDtos = commentService.getTop3CommentsWithLikes(recipeId, currentUserId);
 
+        // ✅ 비용 계산 보정
+        Integer totalCost = recipe.getTotalIngredientCost();
+        Integer marketPrice = recipe.getMarketPrice();
+
+//        if (marketPrice == null && totalCost != null) {
+//            marketPrice = (int) Math.round(totalCost * 1.3); // 대충 30% 프리미엄 가정
+//        }
+
+        Integer savings = (marketPrice != null && totalCost != null)
+                ? marketPrice - totalCost
+                : null;
+
         return RecipeDetailDto.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
@@ -212,9 +263,9 @@ public class RecipeService {
                 .cookingTools(recipe.getCookingTools())
                 .servings(recipe.getServings())
                 .isAiGenerated(recipe.isAiGenerated())
-                .marketPrice(recipe.getMarketPrice())
-                .totalIngredientCost(recipe.getTotalIngredientCost())
-                .savings(recipe.getMarketPrice() - recipe.getTotalIngredientCost())
+                .marketPrice(marketPrice)
+                .totalIngredientCost(totalCost)
+                .savings(savings)
                 .author(authorDto)
                 .likeCount(likeCount)
                 .likedByCurrentUser(likedByUser)
@@ -228,6 +279,7 @@ public class RecipeService {
                 .updatedAt(recipe.getUpdatedAt())
                 .build();
     }
+
 
     public Page<MyRecipeSummaryDto> getMyRecipes(Long userId, Pageable pageable) {
         return recipeRepository.findByUserId(userId, pageable)
@@ -267,6 +319,37 @@ public class RecipeService {
         recipeRepository.flush();
         return recipe.getId();
     }
+
+    @Transactional
+    public Long updateUserRecipe(Long recipeId, Long userId, RecipeUserCreateRequestDto dto) {
+        // 1. 레시피 조회 + 작성자 검증
+        Recipe recipe = getRecipeOrThrow(recipeId);
+        validateOwnership(recipe, userId);
+
+        // 2. 레시피 자체 필드 업데이트
+        recipe.update(
+                dto.getTitle(),
+                dto.getDescription(),
+                DishType.fromDisplayName(dto.getDishType()),
+                dto.getCookingTime(),
+                dto.getImageUrl(),
+                null, // youtubeUrl은 유저 입력 안 함
+                dto.getCookingTools(),
+                dto.getServings(),
+                null, // totalCost은 아래에서 계산
+                null  // marketPrice도 유저가 입력 안 함
+        );
+
+        // 3. 재료/단계/태그 업데이트
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        recipe.setTotalIngredientCost(totalCost); // 총원가 갱신
+
+        recipeStepService.updateSteps(recipe, dto.getSteps());
+        recipeTagService.updateTags(recipe, dto.getTagNames());
+
+        return recipe.getId();
+    }
+
 
 
     @Transactional

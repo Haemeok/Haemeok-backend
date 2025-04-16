@@ -16,17 +16,21 @@ public class RecipeIngredientMapper {
                 .recipe(recipe)
                 .ingredient(ingredient)
                 .quantity(dto.getQuantity())
-                .unit(dto.getUnit())
+                .unit(ingredient.getUnit())
                 .build();
     }
 
     public static RecipeIngredientDto toDto(RecipeIngredient entity) {
+        int unitPrice = entity.getIngredient().getPrice() != null ? entity.getIngredient().getPrice() : 0;
+        int quantity = Integer.parseInt(entity.getQuantity());
+        int totalPrice = unitPrice * quantity;
+
         return RecipeIngredientDto.builder()
                 .ingredientId(entity.getIngredient().getId())
                 .name(entity.getIngredient().getName())
                 .quantity(entity.getQuantity())
                 .unit(entity.getUnit())
-                .price(entity.getIngredient().getPrice())
+                .price(totalPrice)
                 .build();
     }
 

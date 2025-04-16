@@ -31,9 +31,10 @@ public class RecipeStepService {
             recipeStepRepository.save(step);
 
             for (RecipeStepIngredientRequestDto ingDto : dto.getIngredients()) {
-                Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(ingDto.getName())
+                Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(ingDto.getName().trim())
                         .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + ingDto.getName()));
-                RecipeStepIngredient rsi = StepIngredientMapper.toEntity(ingDto, step, ingredient);
+
+                RecipeStepIngredient rsi = StepIngredientMapper.toEntity(ingDto, step, ingredient); // ✅ unit 자동 포함됨
                 recipeStepIngredientRepository.save(rsi);
             }
         }
@@ -90,9 +91,8 @@ public class RecipeStepService {
                     .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + dto.getName()));
 
             if (existingIng != null) {
-                if (!Objects.equals(existingIng.getQuantity(), dto.getQuantity()) ||
-                        !Objects.equals(existingIng.getUnit(), dto.getUnit())) {
-                    existingIng.updateQuantityAndUnit(dto.getQuantity(), dto.getUnit());
+                if (!Objects.equals(existingIng.getQuantity(), dto.getQuantity())) {
+                    existingIng.updateQuantityAndUnit(dto.getQuantity(), ingredient.getUnit());
                     recipeStepIngredientRepository.save(existingIng);
                 }
             } else {
