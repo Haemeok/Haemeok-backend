@@ -30,6 +30,8 @@ public class RecipeStepService {
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
             recipeStepRepository.save(step);
 
+            if (dto.getIngredients() == null) continue;
+
             for (RecipeStepIngredientRequestDto ingDto : dto.getIngredients()) {
                 Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(ingDto.getName().trim())
                         .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + ingDto.getName()));

@@ -10,10 +10,7 @@ import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -25,10 +22,15 @@ public class RecipeIngredientService {
 
     public int saveAll(Recipe recipe, List<RecipeIngredientRequestDto> dtos) {
         int totalCost = 0;
+        Set<Long> insertedIngredientIds = new HashSet<>();
 
         for (RecipeIngredientRequestDto dto : dtos) {
-            Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(dto.getName())
+            Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(dto.getName().trim())
                     .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + dto.getName()));
+
+            if (!insertedIngredientIds.add(ingredient.getId())) {
+                continue; // 중복 방지
+            }
 
             int quantity = Integer.parseInt(dto.getQuantity());
             int unitPrice = ingredient.getPrice() != null ? ingredient.getPrice() : 0;
@@ -42,8 +44,12 @@ public class RecipeIngredientService {
     }
 
     public void updateIngredients(Recipe recipe, List<RecipeIngredientRequestDto> ingredientDtos) {
-        recipeIngredientRepository.deleteByRecipeId(recipe.getId()); // 1. 기존 재료 전체 삭제
-        saveAll(recipe, ingredientDtos); // 2. 새로 저장 (단가 포함)
+        // 1. 기존 재료 삭제
+        recipeIngredientRepository.deleteByRecipeId(recipe.getId());
+        recipeIngredientRepository.flush(); // 💡 중복 insert 방지용 flush
+
+        // 2. 새로 저장
+        saveAll(recipe, ingredientDtos);
     }
 
 
