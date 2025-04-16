@@ -48,7 +48,7 @@ public class AuthController {
         savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(savedToken);
 
-        // ✅ HttpOnly 쿠키로 refreshToken 전달
+        // HttpOnly 쿠키로 refreshToken 전달
         Cookie cookie = new Cookie("refreshToken", newRefreshToken);
         cookie.setHttpOnly(true);
         cookie.setSecure(true);
@@ -72,7 +72,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Access token이 유효하지 않습니다.");
         }
 
-        // ✅ 쿠키에서 refreshToken 추출
+        // 쿠키에서 refreshToken 추출
         String refreshToken = null;
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
@@ -83,7 +83,7 @@ public class AuthController {
             }
         }
 
-        // ✅ refresh token 삭제
+        // refresh token 삭제
         if (refreshToken != null) {
             RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken).orElse(null);
             if (savedToken != null) {
@@ -91,7 +91,7 @@ public class AuthController {
             }
         }
 
-        // ✅ 쿠키 무효화
+        // 쿠키 무효화
         Cookie deleteCookie = new Cookie("refreshToken", null);
         deleteCookie.setPath("/");
         deleteCookie.setMaxAge(0);

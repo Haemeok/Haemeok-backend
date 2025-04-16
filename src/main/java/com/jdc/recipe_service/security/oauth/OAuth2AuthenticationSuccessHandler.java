@@ -3,6 +3,7 @@ package com.jdc.recipe_service.security.oauth;
 import com.jdc.recipe_service.domain.entity.RefreshToken;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -26,11 +27,11 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 
-        // JWT 발급
+        // AccessToken, RefreshToken 생성
         String accessToken = jwtTokenProvider.createAccessToken(oAuth2User.getUser());
         String refreshToken = jwtTokenProvider.createRefreshToken();
 
-        // 리프레시 토큰 저장
+        // RefreshToken DB 저장
         refreshTokenRepository.save(
                 RefreshToken.builder()
                         .user(oAuth2User.getUser())
@@ -39,6 +40,15 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                         .build()
         );
 
+        // 리프레시 토큰을 HttpOnly 쿠키에 저장
+        Cookie cookie = new Cookie("refreshToken", refreshToken);
+        cookie.setHttpOnly(true); // JS 접근 금지
+        //cookie.setSecure(true);   // HTTPS에서만 전송됨
+        cookie.setPath("/");      // 모든 경로에서 접근 가능
+        cookie.setMaxAge(7 * 24 * 60 * 60); // 7일 유효
+        response.addCookie(cookie);
+
+        // accessToken만 리다이렉트 URI에 포함
         String referer = request.getHeader("Referer");
 
         String redirectBase;
@@ -47,9 +57,10 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         } else {
             redirectBase = "https://www.haemeok.com";
         }
+
+        // accessToken만 전달
         String redirectUri = redirectBase + "/oauth2/redirect" +
-                "?accessToken=" + accessToken +
-                "&refreshToken=" + refreshToken;
+                "?accessToken=" + accessToken;
 
         response.sendRedirect(redirectUri);
     }
