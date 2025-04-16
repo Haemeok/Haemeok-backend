@@ -52,14 +52,6 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
-    @GetMapping("/me")
-    public ResponseEntity<UserResponseDTO> getCurrentUser(Authentication authentication) {
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        Long userId = Long.parseLong(userDetails.getUsername()); // 또는 userDetails.getUser().getId();
-
-        UserResponseDTO response = userService.getUser(userId);
-        return ResponseEntity.ok(response);
-    }
 
     // 유저 업데이트 API
     @PutMapping("/{id}")
