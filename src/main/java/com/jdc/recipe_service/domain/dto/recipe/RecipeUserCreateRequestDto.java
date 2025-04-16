@@ -22,9 +22,9 @@
         private String title;
         private String description;
         private String dishType;
-        private int cookingTime;
+        private Integer cookingTime;
         private String imageUrl;
-        private String cookingTools;
+        private List<String> cookingTools;
         private Integer servings;
 
         private List<RecipeIngredientRequestDto> ingredients;

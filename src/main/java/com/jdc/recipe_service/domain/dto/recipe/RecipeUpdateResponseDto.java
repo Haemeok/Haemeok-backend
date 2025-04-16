@@ -22,7 +22,7 @@ public class RecipeUpdateResponseDto {
     private String title;
     private String dishType;
     private String description;
-    private int cookingTime;
+    private Integer cookingTime;
     private String imageUrl;
     private String youtubeUrl;
     private List<String> cookingTools;

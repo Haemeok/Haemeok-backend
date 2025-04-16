@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -73,17 +74,22 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<RecipeSimpleDto> getFavoriteRecipesByUser(Long userId) {
-        List<RecipeFavorite> favorites = recipeFavoriteRepository.findByUserId(userId);
-
-        List<Recipe> recipes = favorites.stream()
-                .map(RecipeFavorite::getRecipe)
-                .toList();
+    public List<RecipeSimpleDto> getFavoriteRecipesByUser(Long targetUserId, Long currentUserId) {
+        List<RecipeFavorite> favorites = recipeFavoriteRepository.findByUserId(targetUserId);
+        List<Recipe> recipes = favorites.stream().map(RecipeFavorite::getRecipe).toList();
 
         List<Long> recipeIds = recipes.stream().map(Recipe::getId).toList();
-        Set<Long> likedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(userId, recipeIds)
-                .stream().map(like -> like.getRecipe().getId())
-                .collect(Collectors.toSet());
+
+        // 🔹 좋아요 수 bulk 조회
+        Map<Long, Long> likeCountMap = recipeLikeRepository.countLikesForRecipeIds(recipeIds);
+
+        // 🔹 로그인 유저의 좋아요 여부 bulk 조회
+        Set<Long> likedIds = (currentUserId != null)
+                ? recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                .stream()
+                .map(like -> like.getRecipe().getId())
+                .collect(Collectors.toSet())
+                : Set.of();
 
         return recipes.stream()
                 .map(recipe -> RecipeSimpleDto.builder()
@@ -92,10 +98,12 @@ public class UserService {
                         .imageUrl(recipe.getImageUrl())
                         .authorName(recipe.getUser().getNickname())
                         .createdAt(recipe.getCreatedAt())
-                        .likeCount(recipeLikeRepository.countByRecipeId(recipe.getId()))
-                        .likedByCurrentUser(likedRecipeIds.contains(recipe.getId()))
+                        .likeCount(likeCountMap.getOrDefault(recipe.getId(), 0L)) // 🔥 여기 bulk 적용
+                        .likedByCurrentUser(likedIds.contains(recipe.getId()))
                         .build())
                 .toList();
     }
+
+
 
 }
