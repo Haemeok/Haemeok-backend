@@ -1,13 +1,8 @@
 package com.jdc.recipe_service.controller;
 
-import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
-import com.jdc.recipe_service.domain.entity.User;
-import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2User;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
