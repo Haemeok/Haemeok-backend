@@ -31,8 +31,8 @@ public class RecipeStep {
     @Column(columnDefinition = "TEXT")
     private String instruction;
 
-    @Column(name = "step_image_url", length = 255)
-    private String stepImageUrl;
+    @Column(name = "step_image_key")
+    private String imageKey;
 
 //    @Column(name = "cooking_tools", columnDefinition = "TEXT")
 //    private String cookingTools;
@@ -49,8 +49,8 @@ public class RecipeStep {
         this.instruction = instruction;
     }
 
-    public void updateStepImageUrl(String stepImageUrl) {
-        this.stepImageUrl = stepImageUrl;
+    public void updateStepImageKey(String imageKey) {
+        this.imageKey = imageKey;
     }
 
 //    public void updateCookingTools(String cookingTools) {

@@ -15,21 +15,20 @@ public class RecipeStepMapper {
                 .recipe(recipe)
                 .stepNumber(dto.getStepNumber())
                 .instruction(dto.getInstruction())
-                .stepImageUrl(dto.getStepImageUrl())
-//                .cookingTools(dto.getCookingTools())
+                .imageKey(dto.getImageKey()) // 🔄 stepImageUrl → stepImageKey
                 .action(dto.getAction())
                 .build();
     }
 
-    public static RecipeStepDto toDto(RecipeStep step, List<RecipeStepIngredientDto> ingredients) {
+    public static RecipeStepDto toDto(RecipeStep step, List<RecipeStepIngredientDto> ingredients, String imageUrl) {
         return RecipeStepDto.builder()
                 .stepNumber(step.getStepNumber())
                 .instruction(step.getInstruction())
-                .stepImageUrl(step.getStepImageUrl())
-//                .cookingTools(step.getCookingTools())
+                .stepImageUrl(imageUrl) // ✅ 변환된 URL 주입
                 .action(step.getAction())
                 .ingredients(ingredients)
                 .build();
     }
 }
+
 

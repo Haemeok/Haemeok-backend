@@ -50,8 +50,8 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private BigDecimal avgRating = BigDecimal.valueOf(0.00);
 
-    @Column(name = "image_url", length = 255)
-    private String imageUrl;
+    @Column(name = "image_key")
+    private String imageKey;
 
     @Column(name = "youtube_url", length = 255)
     private String youtubeUrl;
@@ -101,13 +101,13 @@ public class Recipe extends BaseTimeEntity {
     private List<RecipeLike> likes;
 
     public void update(String title, String description, DishType dishType, Integer cookingTime,
-                       String imageUrl, String youtubeUrl, List<String> cookingTools, Integer servings,
+                       String imageKey, String youtubeUrl, List<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice) {
         this.title = title;
         this.description = description;
         this.dishType = dishType;
         this.cookingTime = cookingTime;
-        this.imageUrl = imageUrl;
+        this.imageKey = imageKey;
         this.youtubeUrl = youtubeUrl;
         this.cookingTools = cookingTools;
         this.servings = servings;
