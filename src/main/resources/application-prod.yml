@@ -61,3 +61,17 @@ jwt:
   access-token-validity-in-ms: ${ACCESS_TOKEN_VALIDITY}
   refresh-token-validity-in-ms: ${REFRESH_TOKEN_VALIDITY}
 
+app:
+  s3:
+    bucket-name: ${APP_S3_BUCKET_NAME}
+    upload-base-path: ${APP_S3_UPLOAD_BASE_PATH}
+    presigned-url-expiration-minutes: ${APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES}
+
+
+cloud:
+  aws:
+    region:
+      static: ${CLOUD_AWS_REGION_STATIC}
+    credentials:
+      access-key: ${AWS_ACCESS_KEY_ID}
+      secret-key: ${AWS_SECRET_ACCESS_KEY}
