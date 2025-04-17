@@ -7,7 +7,8 @@ import lombok.*;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"provider", "oauth_id"})
+        @UniqueConstraint(columnNames = {"provider", "oauth_id"}),
+        @UniqueConstraint(columnNames = {"nickname"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

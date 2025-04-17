@@ -20,14 +20,4 @@ public class UserRequestDTO {
     @Size(max = 255)
     private String introduction;
 
-
-    //추후 삭제
-    @NotBlank
-    @Size(max = 50)
-    private String provider;
-
-    //추후 삭제
-    @NotBlank
-    @Size(max = 100)
-    private String oauthId;
 }

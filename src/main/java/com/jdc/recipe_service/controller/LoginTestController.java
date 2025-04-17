@@ -30,14 +30,4 @@ public class LoginTestController {
                 user.getUser().getProvider()
         );
     }
-    @GetMapping("/api/me")
-    public ResponseEntity<UserResponseDTO> getMyInfo(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        if (userDetails == null) {
-            return ResponseEntity.status(401).build(); // 인증 안 됐을 경우
-        }
-
-        User user = userDetails.getUser();
-        UserResponseDTO response = new UserResponseDTO(user);
-        return ResponseEntity.ok(response);
-    }
 }
