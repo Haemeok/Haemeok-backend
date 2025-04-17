@@ -7,6 +7,7 @@ import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeRatingService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
@@ -33,7 +34,7 @@ public class RecipeController {
     private final RecipeRatingService recipeRatingService;
 
     @PostMapping
-    public ResponseEntity<Long> createRecipe(@RequestBody RecipeCreateRequestDto requestDto,
+    public ResponseEntity<Long> createRecipe(@RequestBody @Valid RecipeCreateRequestDto requestDto,
                                              Authentication authentication) {
 //        Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
         Long userId = (authentication != null && authentication.isAuthenticated())
