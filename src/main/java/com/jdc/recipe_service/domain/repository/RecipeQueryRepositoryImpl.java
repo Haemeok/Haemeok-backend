@@ -35,7 +35,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .select(new QRecipeSimpleDto(
                         recipe.id,
                         recipe.title,
-                        recipe.imageUrl,
+                        recipe.imageKey,
                         recipe.user.nickname,
                         recipe.createdAt,
                         recipe.likes.size(),

@@ -11,6 +11,7 @@ import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,17 @@ public class UserService {
     private final UserRepository userRepository;
     private final RecipeLikeRepository recipeLikeRepository;
     private final RecipeFavoriteRepository recipeFavoriteRepository;
+
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
 
     // 유저 생성
     public UserResponseDTO createUser(UserRequestDTO request) {
@@ -95,7 +107,7 @@ public class UserService {
                 .map(recipe -> RecipeSimpleDto.builder()
                         .id(recipe.getId())
                         .title(recipe.getTitle())
-                        .imageUrl(recipe.getImageUrl())
+                        .imageUrl(generateImageUrl(recipe.getImageKey()))
                         .authorName(recipe.getUser().getNickname())
                         .createdAt(recipe.getCreatedAt())
                         .likeCount(likeCountMap.getOrDefault(recipe.getId(), 0L)) // 🔥 여기 bulk 적용
