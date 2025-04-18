@@ -10,14 +10,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.nio.file.AccessDeniedException;
+
 @RestControllerAdvice
 @Hidden
 @Slf4j
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(CommentAccessDeniedException.class)
-    public ResponseEntity<String> handleCommentAccess(CommentAccessDeniedException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("본인의 댓글만 삭제할 수 있습니다.");
+    @ExceptionHandler({ CommentAccessDeniedException.class, AccessDeniedException.class })
+    public ResponseEntity<String> handleCommentAccess(Exception ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ex.getMessage());
     }
 
     @ExceptionHandler(RecipeAccessDeniedException.class)

@@ -294,20 +294,6 @@ public class RecipeService {
                 .build();
     }
 
-
-    public Page<MyRecipeSummaryDto> getMyRecipes(Long userId, Pageable pageable) {
-        return recipeRepository.findByUserId(userId, pageable)
-                .map(recipe -> MyRecipeSummaryDto.builder()
-                        .id(recipe.getId())
-                        .title(recipe.getTitle())
-                        .imageUrl(generateImageUrl(recipe.getImageKey()))
-                        .dishType(recipe.getDishType().getDisplayName())
-                        .createdAt(recipe.getCreatedAt())
-                        .isAiGenerated(recipe.isAiGenerated())
-                        .build());
-    }
-
-
     @Transactional
     public Long updateRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
         Recipe recipe = getRecipeOrThrow(recipeId);

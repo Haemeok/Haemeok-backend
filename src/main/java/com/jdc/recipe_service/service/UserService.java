@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
@@ -8,10 +9,14 @@ import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +33,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final RecipeLikeRepository recipeLikeRepository;
     private final RecipeFavoriteRepository recipeFavoriteRepository;
+    private final RecipeRepository recipeRepository;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -85,17 +91,31 @@ public class UserService {
         userRepository.delete(user);
     }
 
+
     @Transactional(readOnly = true)
-    public List<RecipeSimpleDto> getFavoriteRecipesByUser(Long targetUserId, Long currentUserId) {
-        List<RecipeFavorite> favorites = recipeFavoriteRepository.findByUserId(targetUserId);
-        List<Recipe> recipes = favorites.stream().map(RecipeFavorite::getRecipe).toList();
+    public Page<RecipeSimpleDto> getFavoriteRecipesByUser(
+            Long targetUserId,
+            Long currentUserId,
+            Pageable pageable) {
 
-        List<Long> recipeIds = recipes.stream().map(Recipe::getId).toList();
+        // 1) 페이징된 즐겨찾기 엔티티 조회
+        Page<RecipeFavorite> favPage =
+                recipeFavoriteRepository.findByUserId(targetUserId, pageable);
 
-        // 🔹 좋아요 수 bulk 조회
-        Map<Long, Long> likeCountMap = recipeLikeRepository.countLikesForRecipeIds(recipeIds);
+        // 2) Recipe 객체 리스트 추출
+        List<Recipe> recipes = favPage.getContent().stream()
+                .map(RecipeFavorite::getRecipe)
+                .toList();
 
-        // 🔹 로그인 유저의 좋아요 여부 bulk 조회
+        List<Long> recipeIds = recipes.stream()
+                .map(Recipe::getId)
+                .toList();
+
+        // 3) bulk 좋아요 수 조회
+        Map<Long, Long> likeCountMap =
+                recipeLikeRepository.countLikesForRecipeIds(recipeIds);
+
+        // 4) bulk 내 좋아요 여부 조회
         Set<Long> likedIds = (currentUserId != null)
                 ? recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
                 .stream()
@@ -103,7 +123,8 @@ public class UserService {
                 .collect(Collectors.toSet())
                 : Set.of();
 
-        return recipes.stream()
+        // 5) DTO 매핑
+        List<RecipeSimpleDto> dtos = recipes.stream()
                 .map(recipe -> RecipeSimpleDto.builder()
                         .id(recipe.getId())
                         .title(recipe.getTitle())
@@ -114,6 +135,22 @@ public class UserService {
                         .likedByCurrentUser(likedIds.contains(recipe.getId()))
                         .build())
                 .toList();
+
+        // 6) PageImpl로 감싸서 반환
+        return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MyRecipeSummaryDto> getMyRecipes(Long userId, Pageable pageable) {
+        return recipeRepository.findByUserId(userId, pageable)
+                .map(recipe -> MyRecipeSummaryDto.builder()
+                        .id(recipe.getId())
+                        .title(recipe.getTitle())
+                        .imageUrl(generateImageUrl(recipe.getImageKey()))
+                        .dishType(recipe.getDishType().getDisplayName())
+                        .createdAt(recipe.getCreatedAt())
+                        .isAiGenerated(recipe.isAiGenerated())
+                        .build());
     }
 
 
