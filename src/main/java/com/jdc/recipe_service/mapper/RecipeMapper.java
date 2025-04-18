@@ -15,9 +15,9 @@ public class RecipeMapper {
                 .user(user)
                 .title(dto.getTitle())
                 .description(dto.getDescription())
-                .dishType(DishType.fromDisplayName(dto.getDishType())) // displayName → Enum 변환
+                .dishType(DishType.fromDisplayName(dto.getDishType()))
                 .cookingTime(dto.getCookingTime())
-                .imageUrl(dto.getImageUrl())
+                .imageKey(dto.getImageKey())
                 .youtubeUrl(dto.getYoutubeUrl())
                 .cookingTools(dto.getCookingTools())
                 .servings(dto.getServings())
@@ -33,10 +33,10 @@ public class RecipeMapper {
                 .description(dto.getDescription())
                 .dishType(DishType.fromDisplayName(dto.getDishType()))
                 .cookingTime(dto.getCookingTime())
-                .imageUrl(dto.getImageUrl())
+                .imageKey(dto.getImageKey())
                 .cookingTools(dto.getCookingTools())
                 .servings(dto.getServings())
-                .build(); // totalCost은 서비스단에서 set
+                .build();
     }
 
 }

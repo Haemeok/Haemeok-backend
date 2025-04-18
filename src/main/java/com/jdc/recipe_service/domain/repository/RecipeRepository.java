@@ -20,7 +20,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     //RecipeRepository.java (목록 조회 시 좋아요 수 포함)
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
-            " r.id, r.title, r.imageUrl, r.user.nickname, r.createdAt, COUNT(rl), false) " +
+            " r.id, r.title, r.imageKey, r.user.nickname, r.createdAt, COUNT(rl), false) " +
             "FROM Recipe r LEFT JOIN RecipeLike rl ON rl.recipe.id = r.id " +
             "GROUP BY r.id ORDER BY r.createdAt DESC")
     List<RecipeSimpleDto> findAllWithLikeCount();
@@ -60,27 +60,27 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     // 태그 이름으로 조회 (RecipeTag → Tag)
     @Query("""
     SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
-        r.id, r.title, r.imageUrl, u.nickname, r.createdAt, COUNT(rl.id), false
+        r.id, r.title, r.imageKey, u.nickname, r.createdAt, COUNT(rl.id), false
     )
     FROM Recipe r
     JOIN r.user u
     JOIN r.tags rt
     LEFT JOIN RecipeLike rl ON rl.recipe = r
     WHERE rt.tag = :tag
-    GROUP BY r.id, u.nickname, r.title, r.imageUrl, r.createdAt
+    GROUP BY r.id, u.nickname, r.title, r.imageKey, r.createdAt
 """)
     Page<RecipeSimpleDto> findByTagWithLikeCount(@Param("tag") TagType tag, Pageable pageable);
 
 
     @Query("""
     SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
-        r.id, r.title, r.imageUrl, u.nickname, r.createdAt, COUNT(rl.id), false
+        r.id, r.title, r.imageKey, u.nickname, r.createdAt, COUNT(rl.id), false
     )
     FROM Recipe r
     JOIN r.user u
     LEFT JOIN RecipeLike rl ON rl.recipe = r
     WHERE r.dishType = :dishType
-    GROUP BY r.id, u.nickname, r.title, r.imageUrl, r.createdAt
+    GROUP BY r.id, u.nickname, r.title, r.imageKey, r.createdAt
 """)
     Page<RecipeSimpleDto> findByDishTypeWithLikeCount(@Param("dishType") DishType dishType, Pageable pageable);
 
