@@ -1,9 +1,6 @@
 package com.jdc.recipe_service.mapper;
 
-import com.jdc.recipe_service.domain.dto.user.CommentUserDto;
-import com.jdc.recipe_service.domain.dto.user.UserDto;
-import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
-import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
+import com.jdc.recipe_service.domain.dto.user.*;
 import com.jdc.recipe_service.domain.entity.User;
 
 public class UserMapper {
@@ -29,17 +26,16 @@ public class UserMapper {
                 .build();
     }
 
-    // 요청 DTO → 엔티티 변환
+    // 프로필 수정용: nickname/profileImage/introduction만
     public static User toEntity(UserRequestDTO dto) {
         if (dto == null) return null;
         return User.builder()
                 .nickname(dto.getNickname())
                 .profileImage(dto.getProfileImage())
                 .introduction(dto.getIntroduction())
-                .provider(dto.getProvider())
-                .oauthId(dto.getOauthId())
                 .build();
     }
+
 
     // 엔티티 → 응답용 전체 DTO
     public static UserResponseDTO toDto(User user) {

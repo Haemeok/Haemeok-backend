@@ -20,7 +20,6 @@ import static org.springframework.data.domain.Sort.Direction.DESC;
 public class UserController {
 
     private final UserService userService;
-    private final RecipeService recipeService;
 
     // 공개 프로필 조회
     @GetMapping("/{userId}")
@@ -34,7 +33,7 @@ public class UserController {
             @PathVariable Long userId,
             @PageableDefault(size = 10, sort = "createdAt", direction = DESC) Pageable pageable) {
 
-        Page<MyRecipeSummaryDto> page = recipeService.getMyRecipes(userId, pageable);
+        Page<MyRecipeSummaryDto> page = userService.getMyRecipes(userId, pageable);
         return ResponseEntity.ok(page);
     }
 }

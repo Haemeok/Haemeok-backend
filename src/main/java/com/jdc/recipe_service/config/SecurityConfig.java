@@ -8,12 +8,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.security.config.Customizer;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -27,67 +28,114 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOAuth2UserService oauth2UserService;
     private final OAuth2AuthenticationSuccessHandler successHandler;
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+    private final JwtAuthenticationFilter jwtFilter;
+    private final CustomAuthenticationEntryPoint entryPoint;
     private final Environment env;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+                // CSRF OFF, CORS / 세션 stateless
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfig()))
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        // ✅ HTTPS 강제 조건부 적용
-        if (!isLocalProfile()) {
-            http.requiresChannel(channel ->
-                    channel.anyRequest().requiresSecure()
-            );
+        // --- 로컬 프로필: 전부 허용 (H2 콘솔 등) ---
+        if (Arrays.asList(env.getActiveProfiles()).contains("local")) {
+            http.authorizeHttpRequests(a -> a.anyRequest().permitAll())
+                    .headers(h -> h.frameOptions(frame -> frame.disable()));
+            return http.build();
         }
 
+        // --- 운영/스테이징 ---
         http
+                // HTTPS 강제
+                .requiresChannel(ch -> ch.anyRequest().requiresSecure())
                 .authorizeHttpRequests(auth -> auth
+
+                        // 1) 공개 엔드포인트
                         .requestMatchers(
-                                "/", "/oauth2/**", "/login/**", "/h2-console/**", "/api/token/refresh", "/login", "/error",
-                                "/api/recipes/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml",
-                                "/api/tags/**","/api/users/{userId}/favorites","/api/users/{userId}/recipes"
+                                "/", "/oauth2/**", "/login/**", "/error",
+                                "/h2-console/**",
+                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                                "/api/token/refresh", "/api/tags/**"
                         ).permitAll()
-                        .anyRequest().authenticated()
+
+                        // 2) GET 중 “마이페이지”만 인증 필요
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/me", "/api/me/favorites"
+                        ).authenticated()
+
+                        // 3) 읽기 전용 GET (모두 허용)
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/recipes/*/comments",
+                                "/api/recipes/*/comments/*/replies",
+                                "/api/recipes/*",
+                                "/api/recipes/simple",
+                                "/api/recipes/search",
+                                "/api/recipes/by-tag",
+                                "/api/recipes/by-dish-type",
+                                "/api/recipes/dish-types",
+                                "/api/tags",
+                                "/api/users/*",
+                                "/api/users/*/recipes"
+                        ).permitAll()
+
+                        // 4) 인증 필요 POST
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/recipes/*/comments",
+                                "/api/recipes/*/comments/*/replies",
+                                "/api/comments/*/like",
+                                "/api/recipes",
+                                "/api/recipes/presigned-urls",
+                                "/api/recipes/*/like",
+                                "/api/recipes/*/favorite"
+                        ).authenticated()
+
+                        // 5) 인증 필요 PUT
+                        .requestMatchers(HttpMethod.PUT,
+                                "/api/recipes/*",
+                                "/api/recipes/*/rating",
+                                "/api/me"
+                        ).authenticated()
+
+                        // 6) 인증 필요 DELETE
+                        .requestMatchers(HttpMethod.DELETE,
+                                "/api/recipes/*/comments/*",
+                                "/api/recipes/*",
+                                "/api/recipes/*/rating",
+                                "/api/me"
+                        ).authenticated()
+
+                        // 7) 나머지 전부 차단
+                        .anyRequest().denyAll()
                 )
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
-                .formLogin(form -> form.disable())
+                .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
+                .formLogin(AbstractHttpConfigurer::disable)
                 .oauth2Login(oauth -> oauth
-                        .userInfoEndpoint(user -> user.userService(customOAuth2UserService))
+                        .userInfoEndpoint(u -> u.userService(oauth2UserService))
                         .successHandler(successHandler)
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
-
         return http.build();
     }
 
-
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
+    public CorsConfigurationSource corsConfig() {
+        CorsConfiguration cfg = new CorsConfiguration();
+        cfg.setAllowedOrigins(Arrays.asList(
                 "http://localhost:5173",
                 "https://www.haemeok.com"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
+        cfg.setAllowedMethods(Arrays.asList("GET","POST","PUT","DELETE","OPTIONS"));
+        cfg.setAllowedHeaders(Arrays.asList("*"));
+        cfg.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
-
-    private boolean isLocalProfile() {
-        return Arrays.stream(env.getActiveProfiles()).anyMatch(p -> p.equalsIgnoreCase("local"));
+        UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
+        src.registerCorsConfiguration("/**", cfg);
+        return src;
     }
 }
-

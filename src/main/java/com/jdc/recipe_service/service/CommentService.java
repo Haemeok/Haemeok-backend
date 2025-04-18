@@ -154,7 +154,8 @@ public class CommentService {
         }).filter(Objects::nonNull).toList();
     }
 
-    public void deleteComment(Long commentId, Long userId) throws AccessDeniedException {
+    @Transactional
+    public void deleteComment(Long commentId, Long userId) {
         RecipeComment comment = recipeCommentRepository.findById(commentId)
                 .orElseThrow(() -> new RuntimeException("댓글이 존재하지 않습니다."));
 

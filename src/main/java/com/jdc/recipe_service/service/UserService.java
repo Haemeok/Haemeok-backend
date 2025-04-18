@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
@@ -9,6 +10,7 @@ import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,8 @@ public class UserService {
     private final UserRepository userRepository;
     private final RecipeFavoriteRepository recipeFavoriteRepository;
     private final RecipeLikeRepository recipeLikeRepository;
+    private final RecipeRepository recipeRepository;
+
 
     // 관리자 전용: 사용자 생성
     public UserResponseDTO createUser(UserRequestDTO dto) {
@@ -114,9 +118,18 @@ public class UserService {
     }
 
 
-    public User getGuestUser() {
-        return userRepository.findById(3L)
-                .orElseThrow(() -> new RuntimeException("테스트 유저가 없습니다."));
+    @Transactional(readOnly = true)
+    public Page<MyRecipeSummaryDto> getMyRecipes(Long userId, Pageable pageable) {
+        return recipeRepository.findByUserId(userId, pageable)
+                .map(recipe -> MyRecipeSummaryDto.builder()
+                        .id(recipe.getId())
+                        .title(recipe.getTitle())
+                        .imageUrl(recipe.getImageUrl())
+                        .dishType(recipe.getDishType().getDisplayName())
+                        .createdAt(recipe.getCreatedAt())
+                        .isAiGenerated(recipe.isAiGenerated())
+                        .build());
     }
+
 
 }
