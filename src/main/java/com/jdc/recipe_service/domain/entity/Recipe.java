@@ -50,6 +50,10 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private BigDecimal avgRating = BigDecimal.valueOf(0.00);
 
+    @Column(name = "rating_count")
+    @Builder.Default
+    private Long ratingCount = 0L;
+
     @Column(name = "image_key")
     private String imageKey;
 

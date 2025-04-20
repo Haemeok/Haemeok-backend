@@ -98,38 +98,37 @@ public class RecipeService {
     }
 
     @Transactional(readOnly = true)
-    public List<RecipeSimpleDto> getAllRecipesSimple(Long currentUserId) {
-        // 1. 좋아요 수 포함된 레시피 목록 조회 (JPQL에서 DTO로 Projection)
-        List<RecipeSimpleDto> recipes = recipeRepository.findAllWithLikeCount();
+    public Page<RecipeSimpleDto> getAllRecipesSimple(Long currentUserId, Pageable pageable) {
+        // 1. QueryDSL 기반 projection + 페이징
+        Page<RecipeSimpleDto> page = recipeRepository.findAllSimpleWithRatingAndCookingInfo(pageable);
 
         if (currentUserId == null) {
-            return recipes; // 로그인 안 한 경우, likedByCurrentUser는 false로 유지
+            return page; // 비회원은 likedByCurrentUser false 상태 그대로 반환
         }
 
+        List<RecipeSimpleDto> content = page.getContent();
+
         // 2. 레시피 ID 목록 추출
-        List<Long> recipeIds = recipes.stream()
+        List<Long> recipeIds = content.stream()
                 .map(RecipeSimpleDto::getId)
                 .toList();
 
-        // 3. 로그인 유저가 좋아요 누른 레시피 조회
-        Set<Long> likedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+        // 3. 유저가 좋아요 누른 레시피 ID 조회
+        Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
                 .stream()
-                .map(rl -> rl.getRecipe().getId())
+                .map(like -> like.getRecipe().getId())
                 .collect(Collectors.toSet());
 
-        // 4. 각 DTO에 좋아요 여부 설정
-        recipes.forEach(dto -> {
-            if (likedRecipeIds.contains(dto.getId())) {
-                dto.setLikedByCurrentUser(true);
-            }
-        });
+        // 4. liked 상태 반영
+        content.forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
 
-        return recipes;
+        return new PageImpl<>(content, pageable, page.getTotalElements());
     }
+
 
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
-        Page<RecipeSimpleDto> page = recipeRepository.search(condition, pageable);
+        Page<RecipeSimpleDto> page = recipeRepository.search(condition, pageable, userId);
 
         if (userId != null) {
             List<Long> recipeIds = page.getContent().stream()
