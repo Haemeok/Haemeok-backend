@@ -7,11 +7,16 @@ import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+
+import static org.springframework.data.domain.Sort.Direction.DESC;
 
 @RestController
 @RequestMapping("/api/me")
@@ -48,10 +53,11 @@ public class MyAccountController {
 
     // 내 즐겨찾기 조회
     @GetMapping("/favorites")
-    public ResponseEntity<List<RecipeSimpleDto>> getMyFavorites(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<Page<RecipeSimpleDto>> getMyFavorites(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PageableDefault(size = 10, sort = "createdAt", direction = DESC) Pageable pageable) {
         Long userId = Long.valueOf(userDetails.getUsername());
-        List<RecipeSimpleDto> favorites = userService.getFavoriteRecipesByUser(userId);
-        return ResponseEntity.ok(favorites);
+        Page<RecipeSimpleDto> page = userService.getFavoriteRecipesByUser(userId, userId, pageable);
+        return ResponseEntity.ok(page);
     }
 }

@@ -14,6 +14,8 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
@@ -34,6 +36,16 @@ public class UserService {
     private final RecipeLikeRepository recipeLikeRepository;
     private final RecipeRepository recipeRepository;
 
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
 
     // 관리자 전용: 사용자 생성
     public UserResponseDTO createUser(UserRequestDTO dto) {
@@ -92,30 +104,53 @@ public class UserService {
 
     // 내 즐겨찾기 조회
     @Transactional(readOnly = true)
-    public List<RecipeSimpleDto> getFavoriteRecipesByUser(Long userId) {
-        List<RecipeFavorite> favs = recipeFavoriteRepository.findByUserId(userId);
-        List<Recipe> recipes = favs.stream()
+    public Page<RecipeSimpleDto> getFavoriteRecipesByUser(
+            Long targetUserId,
+            Long currentUserId,
+            Pageable pageable) {
+
+        // 1) 페이징된 즐겨찾기 엔티티 조회
+        Page<RecipeFavorite> favPage =
+                recipeFavoriteRepository.findByUserId(targetUserId, pageable);
+
+        // 2) Recipe 객체 리스트 추출
+        List<Recipe> recipes = favPage.getContent().stream()
                 .map(RecipeFavorite::getRecipe)
                 .toList();
 
-        List<Long> ids = recipes.stream()
+        List<Long> recipeIds = recipes.stream()
                 .map(Recipe::getId)
                 .toList();
 
-        Map<Long, Long> likeCount = recipeLikeRepository.countLikesForRecipeIds(ids);
+        // 3) bulk 좋아요 수 조회
+        Map<Long, Long> likeCountMap =
+                recipeLikeRepository.countLikesForRecipeIds(recipeIds);
 
-        return recipes.stream()
-                .map(r -> RecipeSimpleDto.builder()
-                        .id(r.getId())
-                        .title(r.getTitle())
-                        .imageUrl(r.getImageUrl())
-                        .authorName(r.getUser().getNickname())
-                        .createdAt(r.getCreatedAt())
-                        .likeCount(likeCount.getOrDefault(r.getId(), 0L))
-                        .likedByCurrentUser(true)
+        // 4) bulk 내 좋아요 여부 조회
+        Set<Long> likedIds = (currentUserId != null)
+                ? recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                .stream()
+                .map(like -> like.getRecipe().getId())
+                .collect(Collectors.toSet())
+                : Set.of();
+
+        // 5) DTO 매핑
+        List<RecipeSimpleDto> dtos = recipes.stream()
+                .map(recipe -> RecipeSimpleDto.builder()
+                        .id(recipe.getId())
+                        .title(recipe.getTitle())
+                        .imageUrl(generateImageUrl(recipe.getImageKey()))
+                        .authorName(recipe.getUser().getNickname())
+                        .createdAt(recipe.getCreatedAt())
+                        .likeCount(likeCountMap.getOrDefault(recipe.getId(), 0L)) // 🔥 여기 bulk 적용
+                        .likedByCurrentUser(likedIds.contains(recipe.getId()))
                         .build())
                 .toList();
+
+        // 6) PageImpl로 감싸서 반환
+        return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
     }
+
 
 
     @Transactional(readOnly = true)
@@ -124,7 +159,7 @@ public class UserService {
                 .map(recipe -> MyRecipeSummaryDto.builder()
                         .id(recipe.getId())
                         .title(recipe.getTitle())
-                        .imageUrl(recipe.getImageUrl())
+                        .imageUrl(generateImageUrl(recipe.getImageKey()))
                         .dishType(recipe.getDishType().getDisplayName())
                         .createdAt(recipe.getCreatedAt())
                         .isAiGenerated(recipe.isAiGenerated())

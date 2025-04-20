@@ -14,7 +14,7 @@ import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.exception.RecipeAccessDeniedException;
 import com.jdc.recipe_service.mapper.*;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.BadRequestException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -47,6 +47,17 @@ public class RecipeService {
     private final RecipeStepService recipeStepService;
     private final RecipeTagService recipeTagService;
     private final RecipeRatingService recipeRatingService;
+
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
 
     @Transactional
     public Long createRecipe(RecipeCreateRequestDto dto, Long userId) {
@@ -242,7 +253,9 @@ public class RecipeService {
         List<RecipeStep> steps = recipeStepRepository.findWithIngredientsByRecipeIdOrderByStepNumber(recipeId);
         List<RecipeStepDto> stepDtos = steps.stream().map(step -> {
             List<RecipeStepIngredientDto> usedIngredients = StepIngredientMapper.toDtoList(step.getStepIngredients());
-            return RecipeStepMapper.toDto(step, usedIngredients);
+
+            String stepImageUrl = generateImageUrl(step.getImageKey());
+            return RecipeStepMapper.toDto(step, usedIngredients, stepImageUrl);
         }).toList();
 
         List<CommentDto> commentDtos = commentService.getTop3CommentsWithLikes(recipeId, currentUserId);
@@ -266,7 +279,7 @@ public class RecipeService {
                 .description(recipe.getDescription())
                 .cookingTime(recipe.getCookingTime())
                 .ratingInfo(ratingInfo)
-                .imageUrl(recipe.getImageUrl())
+                .imageUrl(generateImageUrl(recipe.getImageKey()))
                 .youtubeUrl(recipe.getYoutubeUrl())
                 .cookingTools(recipe.getCookingTools())
                 .servings(recipe.getServings())
@@ -299,7 +312,7 @@ public class RecipeService {
                 dto.getDescription(),
                 DishType.fromDisplayName(dto.getDishType()),
                 dto.getCookingTime(),
-                dto.getImageUrl(),
+                dto.getImageKey(),
                 dto.getYoutubeUrl(),
                 dto.getCookingTools(),
                 dto.getServings(),
@@ -327,7 +340,7 @@ public class RecipeService {
                 dto.getDescription(),
                 DishType.fromDisplayName(dto.getDishType()),
                 dto.getCookingTime(),
-                dto.getImageUrl(),
+                dto.getImageKey(),
                 null, // youtubeUrl은 유저 입력 안 함
                 dto.getCookingTools(),
                 dto.getServings(),
@@ -369,7 +382,7 @@ public class RecipeService {
         if (!commentIds.isEmpty()) {
             commentLikeRepository.deleteByCommentIdIn(commentIds);
         }
-       // commentLikeRepository.deleteByCommentIdIn(commentIds);
+        // commentLikeRepository.deleteByCommentIdIn(commentIds);
 
         // 3. 댓글 삭제
         recipeCommentRepository.deleteByRecipeId(recipeId);

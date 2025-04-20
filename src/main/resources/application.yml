@@ -9,4 +9,4 @@ springdoc:
   api-docs:
     enabled: true
   swagger-ui:
-    path: /swagger-ui.html
+    path: /swagger-ui.html/index.html
