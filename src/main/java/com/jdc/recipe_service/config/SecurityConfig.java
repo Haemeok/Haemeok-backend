@@ -80,7 +80,9 @@ public class SecurityConfig {
                                     "/api/recipes",
                                     "/api/recipes/presigned-urls",
                                     "/api/recipes/*/like",
-                                    "/api/recipes/*/favorite"
+                                    "/api/recipes/*/favorite",
+                                    "/api/recipes/with-images",
+                                    "/api/me/fridge/items/bulk"
                             ).authenticated()
 
                             // 5) 보호된 PUT
@@ -88,7 +90,8 @@ public class SecurityConfig {
                                     "/api/me",
                                     "/api/recipes/*",
                                     "/api/recipes/*/rating",
-                                    "/api/ingredients"
+                                    "/api/ingredients",
+                                    "/api/recipes/*/images"
                             ).authenticated()
 
                             // 6) 보호된 DELETE
@@ -158,7 +161,9 @@ public class SecurityConfig {
                                 "/api/recipes/presigned-urls",
                                 "/api/recipes/*/like",
                                 "/api/recipes/*/favorite",
-                                "/api/me/fridge/items"
+                                "/api/me/fridge/items",
+                                "/api/recipes/with-images",
+                                "/api/me/fridge/items/bulk"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
@@ -166,7 +171,8 @@ public class SecurityConfig {
                                 "/api/ingredients",
                                 "/api/recipes/*",
                                 "/api/recipes/*/rating",
-                                "/api/me"
+                                "/api/me",
+                                "/api/recipes/*/images"
                         ).authenticated()
 
                         // 6) 인증 필요 DELETE

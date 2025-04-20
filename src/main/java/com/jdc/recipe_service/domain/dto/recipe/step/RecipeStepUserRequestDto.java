@@ -14,7 +14,8 @@ import java.util.List;
 public class RecipeStepUserRequestDto {
     private int stepNumber;
     private String instruction;
-    private String stepImageUrl;
+    private String imageKey;
+    private List<String> stepImageKeys;
 
     private List<RecipeStepIngredientRequestDto> ingredients;
 }

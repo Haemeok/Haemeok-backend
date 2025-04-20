@@ -2,6 +2,7 @@
 
     import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
     import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
+    import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepUserRequestDto;
     import lombok.AllArgsConstructor;
     import lombok.Builder;
     import lombok.Getter;
@@ -29,7 +30,7 @@
         private Integer servings;
 
         private List<RecipeIngredientRequestDto> ingredients;
-        private List<RecipeStepRequestDto> steps;
+        private List<RecipeStepUserRequestDto> steps;
         private List<String> tagNames;
 
     }

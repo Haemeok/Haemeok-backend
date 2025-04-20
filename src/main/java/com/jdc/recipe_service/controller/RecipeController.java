@@ -2,6 +2,7 @@ package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.*;
+import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeRatingService;
@@ -41,6 +42,33 @@ public class RecipeController {
         Long userId = userDetails.getUser().getId();
         return ResponseEntity.ok(recipeService.createRecipe(dto, userId));
     }
+
+    @PostMapping("/with-images")
+    public ResponseEntity<PresignedUrlResponse> createRecipeWithPresignedUrls(
+            @RequestBody RecipeWithImageUploadRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (userDetails == null) {
+            System.out.println("❌ userDetails is null"); // or log.warn
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        System.out.println("✅ 인증된 사용자: " + userDetails.getUsername());
+        Long userId = userDetails.getUser().getId();
+        PresignedUrlResponse response = recipeService.createRecipeAndGenerateUrls(request, userId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/{id}/images")
+    public ResponseEntity<Void> updateRecipeImageKeys(
+            @PathVariable Long id,
+            @RequestBody RecipeImageKeyUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        recipeService.updateImageKeys(id, userDetails.getUser().getId(), request);
+        return ResponseEntity.ok().build();
+    }
+
+
 
     // 2) 레시피 단건 조회 (읽기 전용, 선택 인증)
     @GetMapping("/{recipeId}")
@@ -92,7 +120,7 @@ public class RecipeController {
     // 5) 유저 전용 레시피 생성·수정·삭제 (인증 필수)
     @PostMapping("/user")
     public ResponseEntity<?> createUserRecipe(
-            @RequestBody RecipeUserCreateRequestDto dto,
+            @RequestBody RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -106,7 +134,7 @@ public class RecipeController {
     @PutMapping("/user/{id}")
     public ResponseEntity<?> updateUserRecipe(
             @PathVariable Long id,
-            @RequestBody RecipeUserCreateRequestDto dto,
+            @RequestBody RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {

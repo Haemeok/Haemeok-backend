@@ -6,6 +6,8 @@ import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientDto;
+import com.jdc.recipe_service.domain.dto.url.PresignedUrlRequest;
+import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
@@ -25,6 +27,7 @@ import org.springframework.http.HttpStatus;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 
 @Service
@@ -47,6 +50,7 @@ public class RecipeService {
     private final RecipeStepService recipeStepService;
     private final RecipeTagService recipeTagService;
     private final RecipeRatingService recipeRatingService;
+    private final RecipeUploadService recipeUploadService;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -78,7 +82,26 @@ public class RecipeService {
     }
 
     @Transactional
-    public Long createUserRecipe(RecipeUserCreateRequestDto dto, Long userId) {
+    public PresignedUrlResponse createRecipeAndGenerateUrls(RecipeWithImageUploadRequest request, Long userId) {
+        User user = getUserOrThrow(userId);
+
+        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
+        recipeRepository.save(recipe);
+
+        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
+        recipe.setTotalIngredientCost(totalCost);
+        recipeRepository.flush();
+
+        recipeStepService.saveAll(recipe, request.getRecipe().getSteps());
+        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
+
+        return recipeUploadService.generatePresignedUrls(recipe.getId(), userId, request.getFiles());
+    }
+
+
+
+    @Transactional
+    public Long createUserRecipe(RecipeCreateRequestDto dto, Long userId) {
         // 1. 작성자 조회
         User user = getUserOrThrow(userId);
 
@@ -300,7 +323,6 @@ public class RecipeService {
                 .build();
     }
 
-
     @Transactional
     public Long updateRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
         Recipe recipe = getRecipeOrThrow(recipeId);
@@ -328,7 +350,7 @@ public class RecipeService {
     }
 
     @Transactional
-    public Long updateUserRecipe(Long recipeId, Long userId, RecipeUserCreateRequestDto dto) {
+    public Long updateUserRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
         // 1. 레시피 조회 + 작성자 검증
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
@@ -357,7 +379,24 @@ public class RecipeService {
         return recipe.getId();
     }
 
+    @Transactional
+    public void updateImageKeys(Long recipeId, Long userId, RecipeImageKeyUpdateRequest request) {
+        Recipe recipe = getRecipeOrThrow(recipeId);
+        validateOwnership(recipe, userId); // 작성자 권한 체크
 
+        recipe.setImageKey(request.getImageKey());
+
+        List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
+        Map<Integer, String> imageKeyMap = IntStream.range(0, request.getStepImageKeys().size())
+                .boxed()
+                .collect(Collectors.toMap(i -> i, i -> request.getStepImageKeys().get(i)));
+
+        for (RecipeStep step : steps) {
+            if (imageKeyMap.containsKey(step.getStepNumber())) {
+                step.updateStepImageKey(imageKeyMap.get(step.getStepNumber()));
+            }
+        }
+    }
 
     @Transactional
     public Long deleteRecipe(Long recipeId, Long userId) {
@@ -406,6 +445,7 @@ public class RecipeService {
 
         return recipeId;
     }
+
 
     private Recipe getRecipeOrThrow(Long recipeId) {
         return recipeRepository.findById(recipeId)
