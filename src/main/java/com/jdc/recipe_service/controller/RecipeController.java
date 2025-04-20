@@ -8,20 +8,14 @@ import com.jdc.recipe_service.service.RecipeRatingService;
 import com.jdc.recipe_service.service.RecipeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
-
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 import java.util.Arrays;
 import java.util.List;
@@ -138,14 +132,16 @@ public class RecipeController {
 
     // 6) 전체 간단 조회 (읽기 전용)
     @GetMapping("/simple")
-    public ResponseEntity<List<RecipeSimpleDto>> getAllSimple(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<Page<RecipeSimpleDto>> getAllSimple(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            Pageable pageable) {
 
         Long userId = (userDetails != null)
                 ? userDetails.getUser().getId()
                 : null;
-        return ResponseEntity.ok(
-                recipeService.getAllRecipesSimple(userId));
+
+        Page<RecipeSimpleDto> result = recipeService.getAllRecipesSimple(userId, pageable);
+        return ResponseEntity.ok(result);
     }
 
     // 7) 검색, 태그, 디시타입 조회 (읽기 전용)
