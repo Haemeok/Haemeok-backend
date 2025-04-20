@@ -29,24 +29,6 @@ public class UserController {
     }
 
     // 작성 레시피 조회 (누구나 가능)
-    @GetMapping("/me/recipes")
-    public ResponseEntity<Page<MyRecipeSummaryDto>> getMyRecipes(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable) {
-
-        if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        Long myId = userDetails.getUser().getId();
-        // 내부적으로 동일한 서비스 호출
-        Page<MyRecipeSummaryDto> page =
-                userService.getUserRecipes(myId, myId, pageable);
-
-        return ResponseEntity.ok(page);
-    }
-
     /*** 다른 사람 작성 레시피 조회 ***/
     @GetMapping("/{userId}/recipes")
     public ResponseEntity<Page<MyRecipeSummaryDto>> getUserRecipes(
