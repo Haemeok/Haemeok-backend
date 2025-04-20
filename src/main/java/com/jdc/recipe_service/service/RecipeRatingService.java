@@ -2,8 +2,10 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingRequestDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeComment;
 import com.jdc.recipe_service.domain.entity.RecipeRating;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRatingRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
@@ -21,6 +23,7 @@ public class RecipeRatingService {
     private final RecipeRatingRepository ratingRepository;
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
+    private final RecipeCommentRepository recipeCommentRepository;
 
     @Transactional
     public void rateRecipe(Long recipeId, Long userId, RecipeRatingRequestDto dto) {
@@ -44,6 +47,18 @@ public class RecipeRatingService {
         ratingRepository.save(rating);
 
         updateRecipeAverageRating(recipe);
+
+        // ✨ 코멘트가 있다면 댓글로 저장
+        if (dto.getComment() != null && !dto.getComment().isBlank()) {
+            RecipeComment comment = RecipeComment.builder()
+                    .user(user)
+                    .recipe(recipe)
+                    .comment(dto.getComment())
+                    .isDeleted(false)
+                    .build();
+
+            recipeCommentRepository.save(comment);
+        }
     }
 
     @Transactional

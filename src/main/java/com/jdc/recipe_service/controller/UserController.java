@@ -36,4 +36,5 @@ public class UserController {
         Page<MyRecipeSummaryDto> page = userService.getMyRecipes(userId, pageable);
         return ResponseEntity.ok(page);
     }
+
 }
