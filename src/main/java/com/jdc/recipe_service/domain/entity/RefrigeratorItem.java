@@ -7,9 +7,11 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "refrigerator_items", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"user_id", "ingredient_id"})
-})
+@Table(
+        name = "refrigerator_items",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "ingredient_id"}),
+        indexes = @Index(name = "idx_refrigerator_user", columnList = "user_id")  // ← 추가
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -27,5 +29,4 @@ public class RefrigeratorItem extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ingredient_id", nullable = false)
     private Ingredient ingredient;
-
 }
