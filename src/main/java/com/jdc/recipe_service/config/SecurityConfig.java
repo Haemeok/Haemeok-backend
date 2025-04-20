@@ -37,15 +37,77 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // CSRF OFF, CORS / 세션 stateless
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfig()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        // --- 로컬 프로필: 전부 허용 (H2 콘솔 등) ---
+        // --- 로컬 프로필: H2 콘솔, local-token만 풀고, 나머지는 운영과 동일하게 보안 처리 ---
         if (Arrays.asList(env.getActiveProfiles()).contains("local")) {
-            http.authorizeHttpRequests(a -> a.anyRequest().permitAll())
+            http
+                    .authorizeHttpRequests(auth -> auth
+                            // 1) 로컬 전용: H2 콘솔, JWT 발급용 엔드포인트
+                            .requestMatchers("/h2-console/**", "/local-token").permitAll()
+
+                            // 2) 공개 GET (인증 없이 모두 허용)
+                            .requestMatchers(HttpMethod.GET,
+                                    "/api/ingredients",
+                                    "/api/recipes/*/comments",
+                                    "/api/recipes/*/comments/*/replies",
+                                    "/api/recipes/*",
+                                    "/api/recipes/simple",
+                                    "/api/recipes/search",
+                                    "/api/recipes/by-tag",
+                                    "/api/recipes/by-dish-type",
+                                    "/api/recipes/dish-types",
+                                    "/api/tags",
+                                    "/api/users/*",
+                                    "/api/users/*/recipes"
+                            ).permitAll()
+
+                            // 3) 보호된 GET (JWT 필요)
+                            .requestMatchers(HttpMethod.GET,
+                                    "/api/me",
+                                    "/api/me/favorites",
+                                    "/api/me/fridge/items"
+                            ).authenticated()
+
+                            // 4) 보호된 POST
+                            .requestMatchers(HttpMethod.POST,
+                                    "/api/me/fridge/items",
+                                    "/api/recipes/*/comments",
+                                    "/api/recipes/*/comments/*/replies",
+                                    "/api/comments/*/like",
+                                    "/api/recipes",
+                                    "/api/recipes/presigned-urls",
+                                    "/api/recipes/*/like",
+                                    "/api/recipes/*/favorite"
+                            ).authenticated()
+
+                            // 5) 보호된 PUT
+                            .requestMatchers(HttpMethod.PUT,
+                                    "/api/me",
+                                    "/api/recipes/*",
+                                    "/api/recipes/*/rating",
+                                    "/api/ingredients"
+                            ).authenticated()
+
+                            // 6) 보호된 DELETE
+                            .requestMatchers(HttpMethod.DELETE,
+                                    "/api/me",
+                                    "/api/me/fridge/items",
+                                    "/api/recipes/*/comments/*",
+                                    "/api/recipes/*",
+                                    "/api/recipes/*/rating",
+                                    "/api/ingredients"
+                            ).authenticated()
+
+                            // 7) 나머지 요청은 모두 공개
+                            .anyRequest().permitAll()
+                    )
                     .headers(h -> h.frameOptions(frame -> frame.disable()));
+            http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+            http.exceptionHandling(e -> e.authenticationEntryPoint(entryPoint));
+
             return http.build();
         }
 
@@ -65,7 +127,9 @@ public class SecurityConfig {
 
                         // 2) GET 중 “마이페이지”만 인증 필요
                         .requestMatchers(HttpMethod.GET,
-                                "/api/me", "/api/me/favorites"
+                                "/api/me",
+                                "/api/me/favorites",
+                                "/api/me/fridge/items"
                         ).authenticated()
 
                         // 3) 읽기 전용 GET (모두 허용)
@@ -93,7 +157,8 @@ public class SecurityConfig {
                                 "/api/recipes",
                                 "/api/recipes/presigned-urls",
                                 "/api/recipes/*/like",
-                                "/api/recipes/*/favorite"
+                                "/api/recipes/*/favorite",
+                                "/api/me/fridge/items"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
@@ -110,7 +175,8 @@ public class SecurityConfig {
                                 "/api/recipes/*/comments/*",
                                 "/api/recipes/*",
                                 "/api/recipes/*/rating",
-                                "/api/me"
+                                "/api/me",
+                                "/api/me/fridge/items"
                         ).authenticated()
 
                         // 7) 나머지 전부 차단
