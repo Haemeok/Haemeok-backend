@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -26,13 +27,19 @@ public class RecipeSimpleDto {
     private long likeCount;
     private boolean likedByCurrentUser;
 
+    private BigDecimal avgRating;
+    private Long ratingCount;
+    private Integer cookingTime;
+
     public void setLikedByCurrentUser(boolean b) {
         likedByCurrentUser = b;
     }
 
     @QueryProjection
     public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName,
-                           LocalDateTime createdAt, int likeCount, boolean likedByCurrentUser) {
+                           LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
+                           Integer cookingTime,
+                           BigDecimal avgRating, Long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -40,5 +47,20 @@ public class RecipeSimpleDto {
         this.createdAt = createdAt;
         this.likeCount = likeCount;
         this.likedByCurrentUser = likedByCurrentUser;
+        this.cookingTime = cookingTime;
+        this.avgRating = avgRating;
+        this.ratingCount = ratingCount;
+    }
+
+    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName,
+                           LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser) {
+        this.id = id;
+        this.title = title;
+        this.imageUrl = imageUrl;
+        this.authorName = authorName;
+        this.createdAt = createdAt;
+        this.likeCount = likeCount;
+        this.likedByCurrentUser = likedByCurrentUser;
+        // 나머지 필드는 null로 두어도 됨
     }
 }

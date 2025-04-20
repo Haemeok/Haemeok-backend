@@ -23,5 +23,7 @@ public class MyRecipeSummaryDto {
     private String dishType;
     private LocalDateTime createdAt;
     private boolean isAiGenerated;
-    private boolean likedByCurrentUser;  // ← 추가!
+
+    @Builder.Default
+    private boolean likedByCurrentUser = false;
 }

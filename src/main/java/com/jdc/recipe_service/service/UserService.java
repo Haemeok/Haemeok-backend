@@ -16,11 +16,15 @@ import com.jdc.recipe_service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -93,7 +97,10 @@ public class UserService {
 
         if (!user.getNickname().equals(dto.getNickname())
                 && userRepository.findByNickname(dto.getNickname()).isPresent()) {
-            throw new RuntimeException("이미 사용 중인 닉네임입니다.");
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "이미 사용 중인 닉네임입니다."
+            );
         }
 
         UserMapper.updateEntityFromDto(dto, user);
@@ -151,19 +158,48 @@ public class UserService {
         return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
     }
 
-
-
     @Transactional(readOnly = true)
-    public Page<MyRecipeSummaryDto> getMyRecipes(Long userId, Pageable pageable) {
-        return recipeRepository.findByUserId(userId, pageable)
-                .map(recipe -> MyRecipeSummaryDto.builder()
+    public Page<MyRecipeSummaryDto> getUserRecipes(
+            Long targetUserId,
+            @Nullable Long viewerId,
+            Pageable pageable) {
+
+        // 1) 대상 유저 존재 체크 (404)
+        userRepository.findById(targetUserId)
+                .orElseThrow(() -> new RuntimeException("해당 사용자가 존재하지 않습니다."));
+
+        // 2) 페이징된 Recipe 엔티티 페이지 조회
+        Page<Recipe> recipesPage = recipeRepository.findByUserId(targetUserId, pageable);
+
+        // 3) viewerId가 있으면 bulk로 좋아요 누른 recipeId 집합 조회
+        Set<Long> likedIds;
+        if (viewerId != null && recipesPage.hasContent()) {
+            List<Long> ids = recipesPage.stream()
+                    .map(Recipe::getId)
+                    .toList();
+            likedIds = recipeLikeRepository
+                    .findByUserIdAndRecipeIdIn(viewerId, ids)
+                    .stream()
+                    .map(like -> like.getRecipe().getId())
+                    .collect(Collectors.toSet());
+        } else {
+            likedIds = Collections.emptySet();
+        }
+
+        // 4) DTO로 매핑 (빌더에 likedByCurrentUser 포함)
+        Page<MyRecipeSummaryDto> dtoPage = recipesPage.map(recipe ->
+                MyRecipeSummaryDto.builder()
                         .id(recipe.getId())
                         .title(recipe.getTitle())
                         .imageUrl(generateImageUrl(recipe.getImageKey()))
                         .dishType(recipe.getDishType().getDisplayName())
                         .createdAt(recipe.getCreatedAt())
                         .isAiGenerated(recipe.isAiGenerated())
-                        .build());
+                        .likedByCurrentUser(likedIds.contains(recipe.getId()))
+                        .build()
+        );
+
+        return dtoPage;
     }
 
 
