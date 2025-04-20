@@ -1,0 +1,63 @@
+package com.jdc.recipe_service.controller;
+
+import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
+import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
+import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.UserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+import static org.springframework.data.domain.Sort.Direction.DESC;
+
+@RestController
+@RequestMapping("/api/me")
+@RequiredArgsConstructor
+public class MyAccountController {
+
+    private final UserService userService;
+
+    //  내 정보 조회
+    @GetMapping
+    public ResponseEntity<UserResponseDTO> getMyInfo(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long userId = Long.valueOf(userDetails.getUsername());
+        return ResponseEntity.ok(userService.getUser(userId));
+    }
+
+    //  내 프로필 수정
+    @PutMapping
+    public ResponseEntity<UserResponseDTO> updateMyProfile(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody UserRequestDTO dto) {
+        Long userId = Long.valueOf(userDetails.getUsername());
+        return ResponseEntity.ok(userService.updateUser(userId, dto));
+    }
+
+    //  내 계정 삭제 (하드 삭제)
+    @DeleteMapping
+    public ResponseEntity<String> deleteMyAccount(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long userId = Long.valueOf(userDetails.getUsername());
+        userService.deleteUser(userId);
+        return ResponseEntity.ok("계정이 삭제되었습니다.");
+    }
+
+    // 내 즐겨찾기 조회
+    @GetMapping("/favorites")
+    public ResponseEntity<Page<RecipeSimpleDto>> getMyFavorites(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PageableDefault(size = 10, sort = "createdAt", direction = DESC) Pageable pageable) {
+        Long userId = Long.valueOf(userDetails.getUsername());
+        Page<RecipeSimpleDto> page = userService.getFavoriteRecipesByUser(userId, userId, pageable);
+        return ResponseEntity.ok(page);
+    }
+}

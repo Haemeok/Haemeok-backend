@@ -14,13 +14,14 @@ import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.exception.RecipeAccessDeniedException;
 import com.jdc.recipe_service.mapper.*;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -148,14 +149,20 @@ public class RecipeService {
 
 
     @Transactional(readOnly = true)
-    public Page<RecipeSimpleDto> getByTagWithLikeInfo(String tagName, Long currentUserId, Pageable pageable) throws BadRequestException {
-        // 1. Enum name 기준으로 변환 (예: "HOME_PARTY" → TagType.HOME_PARTY)
-        TagType tag = TagType.fromNameOrThrow(tagName);
+    public Page<RecipeSimpleDto> getByTagWithLikeInfo(
+            String tagName, Long currentUserId, Pageable pageable) {
 
-        // 2. 태그 기준 좋아요 수 포함된 Projection 조회
+        // 1) 잘못된 태그명이면 400으로 바로 응답
+        TagType tag;
+        try {
+            tag = TagType.fromNameOrThrow(tagName);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "유효하지 않은 태그입니다.", e);
+        }
+
         Page<RecipeSimpleDto> page = recipeRepository.findByTagWithLikeCount(tag, pageable);
-        List<RecipeSimpleDto> recipes = page.getContent();
-
+        var recipes = page.getContent();
         if (currentUserId == null) {
             return page; // 비로그인 유저는 like 정보 없이 그대로 반환
         }
@@ -374,7 +381,7 @@ public class RecipeService {
         if (!commentIds.isEmpty()) {
             commentLikeRepository.deleteByCommentIdIn(commentIds);
         }
-       // commentLikeRepository.deleteByCommentIdIn(commentIds);
+        // commentLikeRepository.deleteByCommentIdIn(commentIds);
 
         // 3. 댓글 삭제
         recipeCommentRepository.deleteByRecipeId(recipeId);

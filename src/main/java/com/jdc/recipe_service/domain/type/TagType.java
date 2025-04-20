@@ -2,6 +2,8 @@ package com.jdc.recipe_service.domain.type;
 
 import lombok.Getter;
 import org.apache.coyote.BadRequestException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 @Getter
 public enum TagType {
@@ -36,11 +38,19 @@ public enum TagType {
         throw new IllegalArgumentException("존재하지 않는 태그입니다: " + name);
     }
 
-    public static TagType fromNameOrThrow(String tagName) throws BadRequestException {
+    public static TagType fromNameOrThrow(String tagName) {
         try {
             return TagType.valueOf(tagName);
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException("잘못된 태그 이름입니다: " + tagName);
+            // 1) IllegalArgumentException 을 바로 던지고
+            // throw new IllegalArgumentException("잘못된 태그 이름입니다: " + tagName, e);
+
+            // 또는 2) 스프링 예외로 바로 매핑하고 싶다면 아래와 같이:
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "잘못된 태그 이름입니다: " + tagName,
+                    e
+            );
         }
     }
 }
