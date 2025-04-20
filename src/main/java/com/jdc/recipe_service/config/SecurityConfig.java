@@ -97,7 +97,8 @@ public class SecurityConfig {
                             // 6) 보호된 DELETE
                             .requestMatchers(HttpMethod.DELETE,
                                     "/api/me",
-                                    "/api/me/fridge/items",
+                                    "/api/me/fridge/items/*",
+                                    "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/comments/*",
                                     "/api/recipes/*",
                                     "/api/recipes/*/rating",
@@ -128,7 +129,7 @@ public class SecurityConfig {
                                 "/api/token/refresh", "/api/tags/**"
                         ).permitAll()
 
-                        // 2) GET 중 “마이페이지”만 인증 필요
+                        // 2) GET 중 인증 필요
                         .requestMatchers(HttpMethod.GET,
                                 "/api/me",
                                 "/api/me/favorites",
@@ -182,7 +183,8 @@ public class SecurityConfig {
                                 "/api/recipes/*",
                                 "/api/recipes/*/rating",
                                 "/api/me",
-                                "/api/me/fridge/items"
+                                "/api/me/fridge/items/*",
+                                "/api/me/fridge/items/bulk"
                         ).authenticated()
 
                         // 7) 나머지 전부 차단
