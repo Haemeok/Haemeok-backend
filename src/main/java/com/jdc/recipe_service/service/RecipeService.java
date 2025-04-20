@@ -301,7 +301,6 @@ public class RecipeService {
                 .build();
     }
 
-
     @Transactional
     public Long updateRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
         Recipe recipe = getRecipeOrThrow(recipeId);
@@ -382,7 +381,7 @@ public class RecipeService {
         if (!commentIds.isEmpty()) {
             commentLikeRepository.deleteByCommentIdIn(commentIds);
         }
-        // commentLikeRepository.deleteByCommentIdIn(commentIds);
+       // commentLikeRepository.deleteByCommentIdIn(commentIds);
 
         // 3. 댓글 삭제
         recipeCommentRepository.deleteByRecipeId(recipeId);

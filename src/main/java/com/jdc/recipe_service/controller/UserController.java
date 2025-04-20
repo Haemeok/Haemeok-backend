@@ -2,7 +2,6 @@ package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
-import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

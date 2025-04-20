@@ -34,7 +34,6 @@ public class CommentController {
                 recipeId, requestDto, userDetails.getUser());
         // REST 관례에 따라 201 Created
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
-
     }
 
     // 2) 대댓글 생성
