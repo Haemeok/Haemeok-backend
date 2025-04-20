@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponseItem;
@@ -29,20 +30,9 @@ public class RecipeUploadService {
     @Value("${app.s3.presigned-url-expiration-minutes}")
     private long expirationMinutes;
 
-    public PresignedUrlResponse generatePresignedUrls(PresignedUrlRequest request, Long userId) {
-        Long recipeId = request.getRecipeId();
-
-        List<PresignedUrlResponseItem> uploads = request.getFiles().stream().map(file -> {
-            String sanitizedFilename = file.getFilename().replaceAll("[^a-zA-Z0-9._-]", "");
-            String fileKey;
-
-            if ("main".equals(file.getType())) {
-                fileKey = String.format("recipes/%d/%d/main.jpg", userId, recipeId);
-            } else if ("step".equals(file.getType()) && file.getStepIndex() != null) {
-                fileKey = String.format("recipes/%d/%d/steps/%d.jpg", userId, recipeId, file.getStepIndex());
-            } else {
-                throw new IllegalArgumentException("잘못된 파일 타입 또는 stepIndex 누락");
-            }
+    public PresignedUrlResponse generatePresignedUrls(Long recipeId, Long userId, List<FileInfoRequest> files) {
+        List<PresignedUrlResponseItem> uploads = files.stream().map(file -> {
+            String fileKey = generateFileKey(userId, recipeId, file);
 
             PutObjectRequest objectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
@@ -56,10 +46,49 @@ public class RecipeUploadService {
                     .build();
 
             String presignedUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
-            return new PresignedUrlResponseItem(presignedUrl, fileKey);
+            return new PresignedUrlResponseItem(fileKey, presignedUrl);
         }).toList();
 
-        return new PresignedUrlResponse(uploads);
+        return new PresignedUrlResponse(recipeId, uploads);
     }
 
+    private String generateFileKey(Long userId, Long recipeId, FileInfoRequest file) {
+        return "main".equals(file.getType()) ?
+                String.format("recipes/%d/%d/main.jpg", userId, recipeId) :
+                String.format("recipes/%d/%d/steps/%d.jpg", userId, recipeId, file.getStepIndex());
+    }
+
+
+//    public PresignedUrlResponse generatePresignedUrls(PresignedUrlRequest request, Long userId) {
+//        Long recipeId = request.getRecipeId();
+//
+//        List<PresignedUrlResponseItem> uploads = request.getFiles().stream().map(file -> {
+//            String sanitizedFilename = file.getFilename().replaceAll("[^a-zA-Z0-9._-]", "");
+//            String fileKey;
+//
+//            if ("main".equals(file.getType())) {
+//                fileKey = String.format("recipes/%d/%d/main.jpg", userId, recipeId);
+//            } else if ("step".equals(file.getType()) && file.getStepIndex() != null) {
+//                fileKey = String.format("recipes/%d/%d/steps/%d.jpg", userId, recipeId, file.getStepIndex());
+//            } else {
+//                throw new IllegalArgumentException("잘못된 파일 타입 또는 stepIndex 누락");
+//            }
+//
+//            PutObjectRequest objectRequest = PutObjectRequest.builder()
+//                    .bucket(bucketName)
+//                    .key(fileKey)
+//                    .contentType(file.getContentType())
+//                    .build();
+//
+//            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+//                    .signatureDuration(Duration.ofMinutes(expirationMinutes))
+//                    .putObjectRequest(objectRequest)
+//                    .build();
+//
+//            String presignedUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
+//            return new PresignedUrlResponseItem(presignedUrl, fileKey);
+//        }).toList();
+//
+//        return new PresignedUrlResponse(uploads);
+//    }
 }

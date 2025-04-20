@@ -12,5 +12,6 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class PresignedUrlResponse {
+    private Long recipeId;
     private List<PresignedUrlResponseItem> uploads;
 }
