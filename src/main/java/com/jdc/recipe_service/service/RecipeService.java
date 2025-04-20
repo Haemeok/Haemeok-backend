@@ -381,7 +381,7 @@ public class RecipeService {
         if (!commentIds.isEmpty()) {
             commentLikeRepository.deleteByCommentIdIn(commentIds);
         }
-       // commentLikeRepository.deleteByCommentIdIn(commentIds);
+        // commentLikeRepository.deleteByCommentIdIn(commentIds);
 
         // 3. 댓글 삭제
         recipeCommentRepository.deleteByRecipeId(recipeId);
