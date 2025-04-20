@@ -8,6 +8,7 @@ import lombok.*;
         @UniqueConstraint(columnNames = {"name"})
 })
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
