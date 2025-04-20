@@ -70,6 +70,7 @@ public class SecurityConfig {
 
                         // 3) 읽기 전용 GET (모두 허용)
                         .requestMatchers(HttpMethod.GET,
+                                "/api/ingredients",
                                 "/api/recipes/*/comments",
                                 "/api/recipes/*/comments/*/replies",
                                 "/api/recipes/*",
@@ -85,6 +86,7 @@ public class SecurityConfig {
 
                         // 4) 인증 필요 POST
                         .requestMatchers(HttpMethod.POST,
+                                "/api/ingredients",
                                 "/api/recipes/*/comments",
                                 "/api/recipes/*/comments/*/replies",
                                 "/api/comments/*/like",
@@ -96,6 +98,7 @@ public class SecurityConfig {
 
                         // 5) 인증 필요 PUT
                         .requestMatchers(HttpMethod.PUT,
+                                "/api/ingredients",
                                 "/api/recipes/*",
                                 "/api/recipes/*/rating",
                                 "/api/me"
@@ -103,6 +106,7 @@ public class SecurityConfig {
 
                         // 6) 인증 필요 DELETE
                         .requestMatchers(HttpMethod.DELETE,
+                                "/api/ingredients",
                                 "/api/recipes/*/comments/*",
                                 "/api/recipes/*",
                                 "/api/recipes/*/rating",
