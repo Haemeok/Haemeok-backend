@@ -2,8 +2,6 @@ package com.jdc.recipe_service.domain.dto.recipe;
 
 
 import com.querydsl.core.annotations.QueryProjection;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -53,7 +51,8 @@ public class RecipeSimpleDto {
     }
 
     public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName,
-                           LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser) {
+                           LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
+                           Integer cookingTime, double avgRating, Long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -61,6 +60,12 @@ public class RecipeSimpleDto {
         this.createdAt = createdAt;
         this.likeCount = likeCount;
         this.likedByCurrentUser = likedByCurrentUser;
-        // 나머지 필드는 null로 두어도 됨
+        this.cookingTime = cookingTime;
+        this.avgRating = BigDecimal.valueOf(avgRating);
+        this.ratingCount = ratingCount != null ? ratingCount : 0L;
     }
+
+
+
+
 }

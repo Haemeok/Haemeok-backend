@@ -49,6 +49,13 @@ public class RecipeIngredientService {
         saveAll(recipe, ingredientDtos);
     }
 
+    public int updateIngredientsFromUser(Recipe recipe, List<RecipeIngredientRequestDto> dtos) {
+        recipeIngredientRepository.deleteByRecipeId(recipe.getId()); // 1. 기존 삭제
+        recipeIngredientRepository.flush(); // 💡 즉시 반영해서 중복 방지
+        return saveAll(recipe, dtos); // 2. 새로 저장
+    }
+
+
     private double parseQuantity(String quantityStr) {
         quantityStr = quantityStr.trim();
         if (quantityStr.contains("/")) {

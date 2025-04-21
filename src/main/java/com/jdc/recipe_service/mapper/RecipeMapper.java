@@ -1,12 +1,10 @@
 package com.jdc.recipe_service.mapper;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeUserCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.user.RecipeUserCreateRequestDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.type.DishType;
-
-import java.util.List;
 
 public class RecipeMapper {
 
