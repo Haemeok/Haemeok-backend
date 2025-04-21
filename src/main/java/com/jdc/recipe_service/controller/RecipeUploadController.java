@@ -1,48 +1,46 @@
-//package com.jdc.recipe_service.controller;
-//
-//import com.jdc.recipe_service.domain.dto.url.PresignedUrlRequest;
-//import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
-//import com.jdc.recipe_service.security.CustomUserDetails;
-//import com.jdc.recipe_service.service.RecipeUploadService;
-//import com.jdc.recipe_service.service.UserService;
-//import lombok.RequiredArgsConstructor;
-//import org.springframework.http.HttpStatus;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.security.core.Authentication;
-//import org.springframework.web.bind.annotation.*;
-//
-//@RestController
-//@RequestMapping("/api/recipes")
-//@RequiredArgsConstructor
-//public class RecipeUploadController {
-//
-//    private final RecipeUploadService recipeUploadService;
-//
-//    @PostMapping("/presigned-urls")
-//    public ResponseEntity<PresignedUrlResponse> getPresignedUrls(
-//            @RequestBody PresignedUrlRequest request,
-//            Authentication authentication
-//    ) {
-//        if (authentication == null || !authentication.isAuthenticated()) {
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-//        }
-//        Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
-//        return ResponseEntity.ok(recipeUploadService.generatePresignedUrls(request, userId));
-//    }
-//
-//    @PostMapping("/{recipeId}/presigned-urls")
-//    public ResponseEntity<PresignedUrlResponse> getPresignedUrls(
-//            @PathVariable Long recipeId,
-//            @RequestBody PresignedUrlRequest request,
-//            Authentication authentication
-//    ) {
-//        if (authentication == null || !authentication.isAuthenticated()) {
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-//        }
-//        Long userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getId();
-//        return ResponseEntity.ok(
-//                recipeUploadService.generatePresignedUrls(recipeId, userId, request));
-//    }
-//
-//}
-//
+package com.jdc.recipe_service.controller;
+
+import com.jdc.recipe_service.domain.dto.recipe.RecipeImageKeyUpdateRequest;
+import com.jdc.recipe_service.domain.dto.url.UpdatePresignedUrlRequest;
+import com.jdc.recipe_service.domain.dto.url.UpdatePresignedUrlResponse;
+import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.RecipeService;
+import com.jdc.recipe_service.service.RecipeUploadService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/recipes")
+@RequiredArgsConstructor
+public class RecipeUploadController {
+
+    private final RecipeUploadService recipeUploadService;
+    private final RecipeService recipeService;
+
+    // 이미지만 수정
+    @PutMapping("/{id}/images")
+    public ResponseEntity<Void> updateRecipeImageKeys(
+            @PathVariable Long id,
+            @RequestBody RecipeImageKeyUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        recipeService.updateImageKeys(id, userDetails.getUser().getId(), request);
+        return ResponseEntity.ok().build();
+    }
+
+    // 이미지 업로드용 Presigned URL 요청 (레시피 수정 시 사용)
+    @PostMapping("/{id}/presigned-urls")
+    public ResponseEntity<UpdatePresignedUrlResponse> getPresignedUrlsForUpdate(
+            @PathVariable Long id,
+            @RequestBody UpdatePresignedUrlRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails.getUser().getId();
+        UpdatePresignedUrlResponse response = recipeUploadService.generatePresignedUrlsForUpdate(id, userId, request.getFiles());
+        return ResponseEntity.ok(response);
+    }
+
+}
+

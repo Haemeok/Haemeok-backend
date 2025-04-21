@@ -58,7 +58,7 @@ public class SecurityConfig {
                                     "/api/recipes/search",
                                     "/api/recipes/by-tag",
                                     "/api/recipes/by-dish-type",
-                                    "/api/recipes/dish-types",
+                                    "/api/dish-types",
                                     "/api/tags",
                                     "/api/users/*",
                                     "/api/users/*/recipes"
@@ -78,20 +78,23 @@ public class SecurityConfig {
                                     "/api/recipes/*/comments/*/replies",
                                     "/api/comments/*/like",
                                     "/api/recipes",
-                                    "/api/recipes/presigned-urls",
+                                    "/api/recipes/*/presigned-urls",
                                     "/api/recipes/*/like",
                                     "/api/recipes/*/favorite",
                                     "/api/recipes/with-images",
-                                    "/api/me/fridge/items/bulk"
+                                    "/api/me/fridge/items/bulk",
+                                    "/api/recipes/user",
+                                    "/api/recipes/user/with-images"
                             ).authenticated()
 
                             // 5) 보호된 PUT
                             .requestMatchers(HttpMethod.PUT,
                                     "/api/me",
                                     "/api/recipes/*",
-                                    "/api/recipes/*/rating",
+                                    "/api/ratings/recipe/*",
                                     "/api/ingredients",
-                                    "/api/recipes/*/images"
+                                    "/api/recipes/*/images",
+                                    "/api/recipes/user/*"
                             ).authenticated()
 
                             // 6) 보호된 DELETE
@@ -101,7 +104,7 @@ public class SecurityConfig {
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/comments/*",
                                     "/api/recipes/*",
-                                    "/api/recipes/*/rating",
+                                    "/api/ratings/recipe/*",
                                     "/api/ingredients"
                             ).authenticated()
 
@@ -159,21 +162,24 @@ public class SecurityConfig {
                                 "/api/recipes/*/comments/*/replies",
                                 "/api/comments/*/like",
                                 "/api/recipes",
-                                "/api/recipes/presigned-urls",
+                                "/api/recipes/*/presigned-urls",
                                 "/api/recipes/*/like",
                                 "/api/recipes/*/favorite",
                                 "/api/me/fridge/items",
                                 "/api/recipes/with-images",
-                                "/api/me/fridge/items/bulk"
+                                "/api/me/fridge/items/bulk",
+                                "/api/recipes/user",
+                                "/api/recipes/user/with-images"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
                         .requestMatchers(HttpMethod.PUT,
                                 "/api/ingredients",
                                 "/api/recipes/*",
-                                "/api/recipes/*/rating",
+                                "/api/ratings/recipe/*",
                                 "/api/me",
-                                "/api/recipes/*/images"
+                                "/api/recipes/*/images",
+                                "/api/recipes/user/*"
                         ).authenticated()
 
                         // 6) 인증 필요 DELETE
@@ -181,7 +187,7 @@ public class SecurityConfig {
                                 "/api/ingredients",
                                 "/api/recipes/*/comments/*",
                                 "/api/recipes/*",
-                                "/api/recipes/*/rating",
+                                "/api/ratings/recipe/*",
                                 "/api/me",
                                 "/api/me/fridge/items/*",
                                 "/api/me/fridge/items/bulk"
