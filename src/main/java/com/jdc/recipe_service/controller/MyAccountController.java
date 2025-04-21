@@ -2,6 +2,7 @@ package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.dto.recipe.user.FavoriteRecipeDto;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -56,11 +57,14 @@ public class MyAccountController {
 
     // 내 즐겨찾기 조회
     @GetMapping("/favorites")
-    public ResponseEntity<Page<RecipeSimpleDto>> getMyFavorites(
+    public ResponseEntity<Page<FavoriteRecipeDto>> getMyFavorites(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = DESC) Pageable pageable) {
-        Long userId = Long.valueOf(userDetails.getUsername());
-        Page<RecipeSimpleDto> page = userService.getFavoriteRecipesByUser(userId, userId, pageable);
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        Long userId = userDetails.getUser().getId();
+        Page<FavoriteRecipeDto> page = userService.getFavoriteRecipesByUser(userId, userId, pageable);
         return ResponseEntity.ok(page);
     }
 

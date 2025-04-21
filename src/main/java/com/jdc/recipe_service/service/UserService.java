@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.dto.recipe.user.FavoriteRecipeDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
@@ -111,7 +112,7 @@ public class UserService {
 
     // 내 즐겨찾기 조회
     @Transactional(readOnly = true)
-    public Page<RecipeSimpleDto> getFavoriteRecipesByUser(
+    public Page<FavoriteRecipeDto> getFavoriteRecipesByUser(
             Long targetUserId,
             Long currentUserId,
             Pageable pageable) {
@@ -130,8 +131,12 @@ public class UserService {
                 .toList();
 
         // 3) bulk 좋아요 수 조회
-        Map<Long, Long> likeCountMap =
-                recipeLikeRepository.countLikesForRecipeIds(recipeIds);
+        List<Object[]> rawResults = recipeLikeRepository.countLikesRaw(recipeIds);
+        Map<Long, Long> likeCountMap = rawResults.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]
+                ));
 
         // 4) bulk 내 좋아요 여부 조회
         Set<Long> likedIds = (currentUserId != null)
@@ -142,8 +147,8 @@ public class UserService {
                 : Set.of();
 
         // 5) DTO 매핑
-        List<RecipeSimpleDto> dtos = recipes.stream()
-                .map(recipe -> RecipeSimpleDto.builder()
+        List<FavoriteRecipeDto> dtos = recipes.stream()
+                .map(recipe -> FavoriteRecipeDto.builder()
                         .id(recipe.getId())
                         .title(recipe.getTitle())
                         .imageUrl(generateImageUrl(recipe.getImageKey()))
