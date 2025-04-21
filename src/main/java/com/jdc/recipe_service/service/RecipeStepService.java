@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.user.RecipeStepUserRequestDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeStep;
@@ -48,6 +49,28 @@ public class RecipeStepService {
         }
     }
 
+    public void saveAllFromUser(Recipe recipe, List<RecipeStepUserRequestDto> dtos) {
+        for (RecipeStepUserRequestDto dto : dtos) {
+            RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
+            recipeStepRepository.save(step);
+
+            if (dto.getIngredients() == null) continue;
+
+            for (RecipeStepIngredientRequestDto ingDto : dto.getIngredients()) {
+                Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(ingDto.getName().trim())
+                        .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + ingDto.getName()));
+
+                String quantityRaw = ingDto.getQuantity().trim();
+
+                RecipeStepIngredient rsi = StepIngredientMapper.toEntity(
+                        new RecipeStepIngredientRequestDto(ingDto.getName(), quantityRaw), step, ingredient
+                );
+                recipeStepIngredientRepository.save(rsi);
+            }
+        }
+    }
+
+
     public void updateSteps(Recipe recipe, List<RecipeStepRequestDto> stepDtos) {
         List<RecipeStep> existingSteps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipe.getId());
         Map<Integer, RecipeStep> existingMap = existingSteps.stream()
@@ -76,6 +99,35 @@ public class RecipeStepService {
             updateStepIngredients(step, dto.getIngredients());
         }
     }
+
+    public void updateStepsFromUser(Recipe recipe, List<RecipeStepUserRequestDto> stepDtos) {
+        List<RecipeStep> existingSteps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipe.getId());
+        Map<Integer, RecipeStep> existingMap = existingSteps.stream()
+                .collect(Collectors.toMap(RecipeStep::getStepNumber, Function.identity()));
+
+        Set<Integer> newNumbers = stepDtos.stream().map(RecipeStepUserRequestDto::getStepNumber).collect(Collectors.toSet());
+
+        for (RecipeStep step : existingSteps) {
+            if (!newNumbers.contains(step.getStepNumber())) {
+                recipeStepIngredientRepository.deleteByStepId(step.getId());
+                recipeStepRepository.delete(step);
+            }
+        }
+
+        for (RecipeStepUserRequestDto dto : stepDtos) {
+            RecipeStep step = existingMap.get(dto.getStepNumber());
+            if (step != null) {
+                step.updateInstruction(dto.getInstruction());
+                step.updateStepImageKey(dto.getImageKey());
+            } else {
+                step = RecipeStepMapper.toEntity(dto, recipe);
+                step = recipeStepRepository.save(step);
+            }
+
+            updateStepIngredients(step, dto.getIngredients());
+        }
+    }
+
 
     private void updateStepIngredients(RecipeStep step, List<RecipeStepIngredientRequestDto> dtos) {
         if (dtos == null) return;

@@ -6,7 +6,8 @@ import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientDto;
-import com.jdc.recipe_service.domain.dto.url.PresignedUrlRequest;
+import com.jdc.recipe_service.domain.dto.recipe.user.RecipeUserCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.user.RecipeWithImageUserUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.*;
@@ -95,13 +96,13 @@ public class RecipeService {
         recipeStepService.saveAll(recipe, request.getRecipe().getSteps());
         recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
 
-        return recipeUploadService.generatePresignedUrls(recipe.getId(), userId, request.getFiles());
+        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
     }
 
 
 
     @Transactional
-    public Long createUserRecipe(RecipeCreateRequestDto dto, Long userId) {
+    public Long createUserRecipe(RecipeUserCreateRequestDto dto, Long userId) {
         // 1. 작성자 조회
         User user = getUserOrThrow(userId);
 
@@ -114,11 +115,29 @@ public class RecipeService {
         recipe.setTotalIngredientCost(totalCost); // ✅ 총 원가 저장
         recipeRepository.flush();
 
-        recipeStepService.saveAll(recipe, dto.getSteps());
+        recipeStepService.saveAllFromUser(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTagNames());
 
         return recipe.getId();
     }
+
+    @Transactional
+    public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUserUploadRequest request, Long userId) {
+        User user = getUserOrThrow(userId);
+
+        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
+        recipeRepository.save(recipe);
+
+        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
+        recipe.setTotalIngredientCost(totalCost);
+        recipeRepository.flush();
+
+        recipeStepService.saveAllFromUser(recipe, request.getRecipe().getSteps());
+        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
+
+        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
+    }
+
 
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> getAllRecipesSimple(Long currentUserId, Pageable pageable) {
@@ -350,7 +369,7 @@ public class RecipeService {
     }
 
     @Transactional
-    public Long updateUserRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
+    public Long updateUserRecipe(Long recipeId, Long userId, RecipeUserCreateRequestDto dto) {
         // 1. 레시피 조회 + 작성자 검증
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
@@ -370,10 +389,10 @@ public class RecipeService {
         );
 
         // 3. 재료/단계/태그 업데이트
-        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        int totalCost = recipeIngredientService.updateIngredientsFromUser(recipe, dto.getIngredients());
         recipe.setTotalIngredientCost(totalCost); // 총원가 갱신
 
-        recipeStepService.updateSteps(recipe, dto.getSteps());
+        recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTagNames());
 
         return recipe.getId();

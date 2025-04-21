@@ -3,6 +3,7 @@ package com.jdc.recipe_service.mapper;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.user.RecipeStepUserRequestDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeStep;
 
@@ -27,6 +28,16 @@ public class RecipeStepMapper {
                 .stepImageUrl(imageUrl) // ✅ 변환된 URL 주입
                 .action(step.getAction())
                 .ingredients(ingredients)
+                .build();
+    }
+
+
+    public static RecipeStep toEntity(RecipeStepUserRequestDto dto, Recipe recipe) {
+        return RecipeStep.builder()
+                .recipe(recipe)
+                .stepNumber(dto.getStepNumber())
+                .instruction(dto.getInstruction())
+                .imageKey(dto.getImageKey())
                 .build();
     }
 }

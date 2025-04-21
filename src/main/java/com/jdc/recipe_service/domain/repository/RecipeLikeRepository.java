@@ -7,7 +7,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -23,8 +22,9 @@ public interface RecipeLikeRepository extends JpaRepository<RecipeLike, Long> {
     void deleteByUserIdAndRecipeId(Long userId, Long recipeId);
     void deleteByRecipeId(Long recipeId);
 
-    @Query("SELECT rl.recipe.id AS recipeId, COUNT(rl) AS cnt FROM RecipeLike rl WHERE rl.recipe.id IN :recipeIds GROUP BY rl.recipe.id")
-    Map<Long, Long> countLikesForRecipeIds(@Param("recipeIds") List<Long> recipeIds);
+    @Query("SELECT rl.recipe.id, COUNT(rl) FROM RecipeLike rl WHERE rl.recipe.id IN :recipeIds GROUP BY rl.recipe.id")
+    List<Object[]> countLikesRaw(@Param("recipeIds") List<Long> recipeIds);
+
 
 
 }
