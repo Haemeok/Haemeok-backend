@@ -1,5 +1,6 @@
-package com.jdc.recipe_service.domain.dto.recipe.step;
+package com.jdc.recipe_service.domain.dto.recipe.user;
 
+import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientRequestDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
