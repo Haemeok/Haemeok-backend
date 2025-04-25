@@ -120,5 +120,8 @@ public class Recipe extends BaseTimeEntity {
        // this.isAiGenerated = false;
     }
 
+    public void updateImageKey(String imageKey) {
+        this.imageKey = imageKey;
+    }
 
 }

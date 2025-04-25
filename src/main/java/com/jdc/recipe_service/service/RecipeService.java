@@ -8,14 +8,17 @@ import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.user.RecipeUserCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.user.RecipeWithImageUserUploadRequest;
-import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
+import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.ImageStatus;
 import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.exception.RecipeAccessDeniedException;
 import com.jdc.recipe_service.mapper.*;
+import com.jdc.recipe_service.util.S3Util;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -45,6 +48,7 @@ public class RecipeService {
     private final UserRepository userRepository;
     private final RecipeCommentRepository recipeCommentRepository;
     private final CommentLikeRepository commentLikeRepository;
+    private final RecipeImageRepository recipeImageRepository;
 
     private final CommentService commentService;
     private final RecipeIngredientService recipeIngredientService;
@@ -52,6 +56,7 @@ public class RecipeService {
     private final RecipeTagService recipeTagService;
     private final RecipeRatingService recipeRatingService;
     private final RecipeUploadService recipeUploadService;
+    private final S3Util s3Util;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -83,21 +88,78 @@ public class RecipeService {
     }
 
     @Transactional
-    public PresignedUrlResponse createRecipeAndGenerateUrls(RecipeWithImageUploadRequest request, Long userId) {
+    public PresignedUrlResponse createRecipeAndPresignedUrls(RecipeWithImageUploadRequest req, Long userId) {
         User user = getUserOrThrow(userId);
+        RecipeCreateRequestDto dto = req.getRecipe();
 
-        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
+        Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipeRepository.save(recipe);
 
-        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
         recipe.setTotalIngredientCost(totalCost);
         recipeRepository.flush();
 
-        recipeStepService.saveAll(recipe, request.getRecipe().getSteps());
-        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
+        recipeStepService.saveAll(recipe, dto.getSteps());
+        recipeTagService.saveAll(recipe, dto.getTagNames());
 
-        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
+        List<PresignedUrlResponseItem> uploads = generatePresignedUrlsAndSaveImages(recipe, req.getFiles());
+
+        return PresignedUrlResponse.builder()
+                .recipeId(recipe.getId())
+                .uploads(uploads)
+                .build();
     }
+
+
+
+    @Transactional
+    public FinalizeResponse finalizeRecipeImages(Long recipeId) {
+        Recipe recipe = recipeRepository.findById(recipeId)
+                .orElseThrow(() -> new EntityNotFoundException("Recipe not found"));
+
+        List<RecipeImage> images = recipeImageRepository.findByRecipeId(recipeId);
+
+        List<String> activeImages = new ArrayList<>();
+        List<String> missingFiles = new ArrayList<>();
+
+        for (RecipeImage image : images) {
+            boolean exists = s3Util.doesObjectExist(image.getFileKey());
+            if (exists) {
+                image.updateStatusToActive();
+                activeImages.add(image.getFileKey());
+                if (image.getSlot().equals("main")) {
+                    recipe.updateImageKey(image.getFileKey());
+                }
+            } else {
+                missingFiles.add(image.getFileKey());
+            }
+        }
+
+        if (!missingFiles.isEmpty()) {
+            // 실패시키지 말고 누락 리스트로 리턴
+            return new FinalizeResponse(recipeId, activeImages, missingFiles);
+        }
+
+        // 누락 없이 정상 finalize
+        return new FinalizeResponse(recipeId, activeImages, List.of());
+    }
+
+//    @Transactional
+//    public PresignedUrlResponse createRecipeAndGenerateUrls(RecipeWithImageUploadRequest request, Long userId) {
+//        User user = getUserOrThrow(userId);
+//
+//        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
+//        recipeRepository.save(recipe);
+//
+//        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
+//        recipe.setTotalIngredientCost(totalCost);
+//        recipeRepository.flush();
+//
+//        recipeStepService.saveAll(recipe, request.getRecipe().getSteps());
+//        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
+//
+//        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
+//    }
 
 
 
@@ -122,21 +184,45 @@ public class RecipeService {
     }
 
     @Transactional
-    public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUserUploadRequest request, Long userId) {
+    public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUserUploadRequest req, Long userId) {
         User user = getUserOrThrow(userId);
+        RecipeUserCreateRequestDto dto = req.getRecipe();
 
-        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
+        Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipeRepository.save(recipe);
 
-        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
         recipe.setTotalIngredientCost(totalCost);
         recipeRepository.flush();
 
-        recipeStepService.saveAllFromUser(recipe, request.getRecipe().getSteps());
-        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
+        recipeStepService.saveAllFromUser(recipe, dto.getSteps());
+        recipeTagService.saveAll(recipe, dto.getTagNames());
 
-        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
+        List<PresignedUrlResponseItem> uploads = generatePresignedUrlsAndSaveImages(recipe, req.getFiles());
+
+        return PresignedUrlResponse.builder()
+                .recipeId(recipe.getId())
+                .uploads(uploads)
+                .build();
     }
+
+
+//    @Transactional
+//    public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUserUploadRequest request, Long userId) {
+//        User user = getUserOrThrow(userId);
+//
+//        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
+//        recipeRepository.save(recipe);
+//
+//        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
+//        recipe.setTotalIngredientCost(totalCost);
+//        recipeRepository.flush();
+//
+//        recipeStepService.saveAllFromUser(recipe, request.getRecipe().getSteps());
+//        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
+//
+//        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
+//    }
 
 
     @Transactional(readOnly = true)
@@ -423,6 +509,15 @@ public class RecipeService {
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
 
+        // ✅ b. S3 이미지 삭제 추가
+        List<RecipeImage> images = recipeImageRepository.findByRecipeId(recipeId);
+        List<String> fileKeys = images.stream()
+                .map(RecipeImage::getFileKey)
+                .toList();
+        if (!fileKeys.isEmpty()) {
+            s3Util.deleteFiles(fileKeys); // ✅ S3 파일 삭제
+        }
+
         // b.연관 엔티티 삭제
         // 좋아요 및 즐겨찾기 삭제
         recipeLikeRepository.deleteByRecipeId(recipeId);
@@ -464,6 +559,36 @@ public class RecipeService {
 
         return recipeId;
     }
+
+    private List<PresignedUrlResponseItem> generatePresignedUrlsAndSaveImages(Recipe recipe, List<FileInfoRequest> files) {
+        List<PresignedUrlResponseItem> uploads = new ArrayList<>();
+        List<RecipeImage> images = new ArrayList<>();
+
+        for (FileInfoRequest fileInfo : files) {
+            String slot = fileInfo.getType().equals("main")
+                    ? "main"
+                    : "step_" + fileInfo.getStepIndex();
+
+            String fileKey = "recipes/" + recipe.getId() + "/" + slot + ".jpg";
+            String presignedUrl = s3Util.createPresignedUrl(fileKey);
+
+            uploads.add(PresignedUrlResponseItem.builder()
+                    .fileKey(fileKey)
+                    .presignedUrl(presignedUrl)
+                    .build());
+
+            images.add(RecipeImage.builder()
+                    .recipe(recipe)
+                    .slot(slot)
+                    .fileKey(fileKey)
+                    .status(ImageStatus.PENDING)
+                    .build());
+        }
+
+        recipeImageRepository.saveAll(images);
+        return uploads;
+    }
+
 
 
     private Recipe getRecipeOrThrow(Long recipeId) {

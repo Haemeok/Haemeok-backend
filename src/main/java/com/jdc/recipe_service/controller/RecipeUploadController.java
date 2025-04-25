@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeImageKeyUpdateRequest;
+import com.jdc.recipe_service.domain.dto.url.FinalizeResponse;
 import com.jdc.recipe_service.domain.dto.url.UpdatePresignedUrlRequest;
 import com.jdc.recipe_service.domain.dto.url.UpdatePresignedUrlResponse;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -39,6 +40,12 @@ public class RecipeUploadController {
     ) {
         Long userId = userDetails.getUser().getId();
         UpdatePresignedUrlResponse response = recipeUploadService.generatePresignedUrlsForUpdate(id, userId, request.getFiles());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/finalize")
+    public ResponseEntity<FinalizeResponse> finalizeRecipeImages(@PathVariable Long id) {
+        FinalizeResponse response = recipeService.finalizeRecipeImages(id);
         return ResponseEntity.ok(response);
     }
 
