@@ -1,10 +1,11 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingRequestDto;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeRatingService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +27,7 @@ public class RecipeRatingController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         recipeRatingService.rateRecipe(id, userId, dto);
@@ -39,7 +40,7 @@ public class RecipeRatingController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         Double rating = recipeRatingService.getMyRating(id, userId);
@@ -52,7 +53,7 @@ public class RecipeRatingController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         recipeRatingService.deleteRating(id, userId);

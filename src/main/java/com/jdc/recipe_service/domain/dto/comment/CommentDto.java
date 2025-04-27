@@ -31,5 +31,5 @@ public class CommentDto {
 
     @JsonInclude(JsonInclude.Include.NON_NULL) // 👈 이 필드에만 적용!
     private Integer replyCount;
-
+    private boolean isDeleted;
 }

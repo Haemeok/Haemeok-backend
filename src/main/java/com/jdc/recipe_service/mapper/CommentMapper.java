@@ -29,6 +29,7 @@ public class CommentMapper {
                 .likeCount(0)
                 .likedByCurrentUser(false)
                 .replies(List.of())
+                .isDeleted(true)
                 .build();
     }
 

@@ -6,6 +6,8 @@ import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,9 +32,9 @@ public class RecipeFavoriteService {
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("유저가 존재하지 않습니다: " + userId));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피가 존재하지 않습니다: " + recipeId));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         favoriteRepository.save(RecipeFavorite.builder().user(user).recipe(recipe).build());
         return true; // 즐겨찾기 등록

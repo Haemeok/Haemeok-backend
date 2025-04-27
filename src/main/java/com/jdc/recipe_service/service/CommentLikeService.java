@@ -6,6 +6,8 @@ import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.CommentLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,9 +33,9 @@ public class CommentLikeService {
 
         // 좋아요 등록
         RecipeComment comment = recipeCommentRepository.findById(commentId)
-                .orElseThrow(() -> new RuntimeException("댓글이 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("유저가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         CommentLike newLike = CommentLike.builder()
                 .comment(comment)
@@ -41,6 +43,11 @@ public class CommentLikeService {
                 .build();
         commentLikeRepository.save(newLike);
         return true; // 좋아요 등록됨
+    }
+
+    @Transactional(readOnly = true)
+    public int countLikes(Long commentId) {
+        return commentLikeRepository.countByCommentId(commentId);
     }
 
 }

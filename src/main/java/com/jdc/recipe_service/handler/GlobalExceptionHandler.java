@@ -1,54 +1,70 @@
 package com.jdc.recipe_service.handler;
 
-import com.jdc.recipe_service.exception.CommentAccessDeniedException;
-import com.jdc.recipe_service.exception.RecipeAccessDeniedException;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Hidden;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.nio.file.AccessDeniedException;
 
 @RestControllerAdvice
 @Hidden
 @Slf4j
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler({ CommentAccessDeniedException.class, AccessDeniedException.class })
-    public ResponseEntity<String> handleCommentAccess(Exception ex) {
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(ex.getMessage());
-    }
-
-    @ExceptionHandler(RecipeAccessDeniedException.class)
-    public ResponseEntity<String> handleRecipeAccess(RecipeAccessDeniedException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("레시피 수정 권한이 없습니다.");
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleBadRequest(IllegalArgumentException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("잘못된 요청입니다: " + ex.getMessage());
-    }
-
     @Value("${spring.profiles.active:default}")
     private String activeProfile;
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<String> handleUnknownError(RuntimeException ex) {
-        log.error("예상치 못한 서버 오류 발생", ex);
-
-        if ("local".equals(activeProfile)) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("[" + ex.getClass().getSimpleName() + "] " + ex.getMessage());
-        }
-
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("예상치 못한 서버 오류가 발생했습니다.");
+    // 🔥 CustomException 처리
+    @ExceptionHandler(CustomException.class)
+    public ResponseEntity<ErrorResponse> handleCustomException(CustomException ex) {
+        ErrorCode errorCode = ex.getErrorCode();
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode));
     }
 
+    // 🔥 Validation 실패 (DTO 검증 실패)
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
+        String errorMessage = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .findFirst()
+                .map(fieldError -> fieldError.getDefaultMessage())
+                .orElse("잘못된 요청입니다.");
 
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(ErrorCode.INVALID_INPUT_VALUE.getCode(), errorMessage));
+    }
+
+    // 🔥 IllegalArgumentException -> 잘못된 요청
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("901", "잘못된 요청입니다: " + ex.getMessage()));
+    }
+
+    // 🔥 그 외 예상치 못한 에러
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleException(Exception ex) {
+        log.error("서버 에러 발생", ex);
+
+        if ("local".equals(activeProfile)) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("903", "[" + ex.getClass().getSimpleName() + "] " + ex.getMessage()));
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("903", "서버 내부 오류가 발생했습니다."));
+    }
 }

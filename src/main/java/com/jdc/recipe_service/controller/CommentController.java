@@ -2,7 +2,8 @@ package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.comment.CommentRequestDto;
-import com.jdc.recipe_service.exception.CommentAccessDeniedException;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.CommentService;
 import org.springframework.http.HttpStatus;
@@ -28,11 +29,10 @@ public class CommentController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         CommentDto created = commentService.createComment(
                 recipeId, requestDto, userDetails.getUser());
-        // REST 관례에 따라 201 Created
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -45,7 +45,7 @@ public class CommentController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         CommentDto created = commentService.createReply(
                 recipeId, parentId, requestDto, userDetails.getUser().getId());
@@ -56,12 +56,13 @@ public class CommentController {
     @GetMapping
     public ResponseEntity<List<CommentDto>> getAllCommentsWithLikes(
             @PathVariable Long recipeId,
+            @RequestParam(defaultValue = "createdAt") String sort,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null
                 ? userDetails.getUser().getId()
                 : null;
-        List<CommentDto> comments = commentService.getAllCommentsWithLikes(recipeId, userId);
+        List<CommentDto> comments = commentService.getAllCommentsWithLikes(recipeId, userId, sort);
         return ResponseEntity.ok(comments);
     }
 
@@ -86,15 +87,10 @@ public class CommentController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
-        try {
-            commentService.deleteComment(commentId, userId);
-            return ResponseEntity.ok("댓글이 삭제되었습니다.");
-        } catch (CommentAccessDeniedException ex) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ex.getMessage());
-        }
+        commentService.deleteComment(commentId, userId);
+        return ResponseEntity.ok("댓글이 삭제되었습니다.");
     }
 }

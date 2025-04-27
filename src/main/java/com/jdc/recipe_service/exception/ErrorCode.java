@@ -1,0 +1,63 @@
+package com.jdc.recipe_service.exception;
+
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+
+@Getter
+public enum ErrorCode {
+
+    // --- User (100) ---
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "101", "요청한 사용자가 존재하지 않습니다."),
+    DUPLICATE_NICKNAME(HttpStatus.CONFLICT, "102", "이미 사용 중인 닉네임입니다."),
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "103", "인증이 필요합니다."),
+    USER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "104", "다른 사용자의 리소스에 접근할 수 없습니다."),
+
+    // --- Recipe (200) ---
+    RECIPE_NOT_FOUND(HttpStatus.NOT_FOUND, "201", "요청한 레시피가 존재하지 않습니다."),
+    RECIPE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "202", "레시피에 대한 접근 권한이 없습니다."),
+    ALREADY_LIKED_RECIPE(HttpStatus.CONFLICT, "203", "이미 좋아요한 레시피입니다."),
+    ALREADY_FAVORITED_RECIPE(HttpStatus.CONFLICT, "204", "이미 즐겨찾기한 레시피입니다."),
+    INVALID_DISH_TYPE(HttpStatus.BAD_REQUEST, "205", "유효하지 않은 요리 유형(dishType)입니다."),
+    INVALID_TAG_NAME(HttpStatus.BAD_REQUEST, "206", "유효하지 않은 태그입니다."),
+    RATING_NOT_FOUND(HttpStatus.NOT_FOUND, "207", "요청한 레시피 평가가 존재하지 않습니다."),
+
+    // --- Comment (300) ---
+    COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "301", "요청한 댓글이 존재하지 않습니다."),
+    COMMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "302", "댓글에 대한 접근 권한이 없습니다."),
+    ALREADY_LIKED_COMMENT(HttpStatus.CONFLICT, "303", "이미 좋아요한 댓글입니다."),
+    INVALID_COMMENT_CONTENT(HttpStatus.BAD_REQUEST, "304", "댓글 내용이 유효하지 않습니다."),
+
+    // --- Ingredient (400) ---
+    INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "401", "요청한 재료가 존재하지 않습니다."),
+    INVALID_INGREDIENT_QUANTITY(HttpStatus.BAD_REQUEST, "402", "재료 수량이 유효하지 않습니다."),
+    INGREDIENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "403", "이미 존재하는 재료입니다."),
+
+    // --- Fridge (500) ---
+    FRIDGE_INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "501", "냉장고에 재료가 존재하지 않습니다."),
+    DUPLICATE_FRIDGE_INGREDIENT(HttpStatus.CONFLICT, "502", "이미 냉장고에 존재하는 재료입니다."),
+    INVALID_FRIDGE_INGREDIENT_QUANTITY(HttpStatus.BAD_REQUEST, "503", "냉장고 재료 수량이 유효하지 않습니다."),
+    FRIDGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "504", "냉장고에 대한 접근 권한이 없습니다."),
+
+    // --- Auth (800) ---
+    AUTHENTICATION_EXCEPTION(HttpStatus.UNAUTHORIZED, "801", "인증 실패입니다."),
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "802", "유효하지 않은 토큰입니다."),
+    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "803", "만료된 토큰입니다."),
+    AUTHORIZATION_EXCEPTION(HttpStatus.FORBIDDEN, "804", "인가되지 않은 요청입니다."),
+
+    // --- Common (900) ---
+    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "901", "잘못된 입력값입니다."),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "902", "허용되지 않은 메소드입니다."),
+    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "903", "서버 내부 오류입니다."),
+
+    ;
+
+    private final HttpStatus status;
+    private final String code;
+    private final String message;
+
+    ErrorCode(HttpStatus status, String code, String message) {
+        this.status = status;
+        this.code = code;
+        this.message = message;
+    }
+}
