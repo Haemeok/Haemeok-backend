@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.*;
+import com.jdc.recipe_service.domain.dto.url.FinalizeResponse;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
