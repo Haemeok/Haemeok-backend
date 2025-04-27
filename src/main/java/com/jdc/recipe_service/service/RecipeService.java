@@ -111,7 +111,6 @@ public class RecipeService {
     }
 
 
-
     @Transactional
     public FinalizeResponse finalizeRecipeImages(Long recipeId) {
         Recipe recipe = recipeRepository.findById(recipeId)
@@ -160,59 +159,6 @@ public class RecipeService {
 //
 //        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
 //    }
-
-
-
-    @Transactional
-    public FinalizeResponse finalizeRecipeImages(Long recipeId) {
-        Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new EntityNotFoundException("Recipe not found"));
-
-        List<RecipeImage> images = recipeImageRepository.findByRecipeId(recipeId);
-
-        List<String> activeImages = new ArrayList<>();
-        List<String> missingFiles = new ArrayList<>();
-
-        for (RecipeImage image : images) {
-            boolean exists = s3Util.doesObjectExist(image.getFileKey());
-            if (exists) {
-                image.updateStatusToActive();
-                activeImages.add(image.getFileKey());
-                if (image.getSlot().equals("main")) {
-                    recipe.updateImageKey(image.getFileKey());
-                }
-            } else {
-                missingFiles.add(image.getFileKey());
-            }
-        }
-
-        if (!missingFiles.isEmpty()) {
-            // 실패시키지 말고 누락 리스트로 리턴
-            return new FinalizeResponse(recipeId, activeImages, missingFiles);
-        }
-
-        // 누락 없이 정상 finalize
-        return new FinalizeResponse(recipeId, activeImages, List.of());
-    }
-
-//    @Transactional
-//    public PresignedUrlResponse createRecipeAndGenerateUrls(RecipeWithImageUploadRequest request, Long userId) {
-//        User user = getUserOrThrow(userId);
-//
-//        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
-//        recipeRepository.save(recipe);
-//
-//        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
-//        recipe.setTotalIngredientCost(totalCost);
-//        recipeRepository.flush();
-//
-//        recipeStepService.saveAll(recipe, request.getRecipe().getSteps());
-//        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
-//
-//        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
-//    }
-
-
 
     @Transactional
     public Long createUserRecipe(RecipeUserCreateRequestDto dto, Long userId) {
