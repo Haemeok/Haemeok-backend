@@ -10,6 +10,8 @@ import com.jdc.recipe_service.domain.entity.RecipeStepIngredient;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeStepIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeStepRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import lombok.RequiredArgsConstructor;
@@ -35,12 +37,9 @@ public class RecipeStepService {
 
             for (RecipeStepIngredientRequestDto ingDto : dto.getIngredients()) {
                 Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(ingDto.getName().trim())
-                        .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + ingDto.getName()));
+                        .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, ingDto.getName()));
 
-//                double quantity = parseQuantity(ingDto.getQuantity());
-//                String formattedQuantity = formatQuantityForDisplay(quantity);
                 String quantityRaw = ingDto.getQuantity().trim();
-
                 RecipeStepIngredient rsi = StepIngredientMapper.toEntity(
                         new RecipeStepIngredientRequestDto(ingDto.getName(), quantityRaw), step, ingredient
                 );
@@ -58,10 +57,9 @@ public class RecipeStepService {
 
             for (RecipeStepIngredientRequestDto ingDto : dto.getIngredients()) {
                 Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(ingDto.getName().trim())
-                        .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + ingDto.getName()));
+                        .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, ingDto.getName()));
 
                 String quantityRaw = ingDto.getQuantity().trim();
-
                 RecipeStepIngredient rsi = StepIngredientMapper.toEntity(
                         new RecipeStepIngredientRequestDto(ingDto.getName(), quantityRaw), step, ingredient
                 );
@@ -148,9 +146,9 @@ public class RecipeStepService {
         for (RecipeStepIngredientRequestDto dto : dtos) {
             String key = dto.getName().toLowerCase().trim();
             Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(dto.getName().trim())
-                    .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + dto.getName()));
+                    .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, dto.getName()));
 
-            String rawQuantity = dto.getQuantity().trim(); // ✅ 문자열 그대로 사용
+            String rawQuantity = dto.getQuantity().trim(); //문자열 그대로 사용
 
             RecipeStepIngredient existingIng = existingMap.get(key);
             if (existingIng != null) {

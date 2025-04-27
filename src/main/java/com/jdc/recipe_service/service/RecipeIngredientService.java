@@ -6,6 +6,8 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,14 +25,14 @@ public class RecipeIngredientService {
 
         for (RecipeIngredientRequestDto dto : dtos) {
             Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(dto.getName())
-                    .orElseThrow(() -> new RuntimeException("재료가 존재하지 않습니다: " + dto.getName()));
+                    .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, dto.getName()));
 
-            // ✅ 문자열 수량 → double 변환
+            // 문자열 수량 → double 변환
             double quantity;
             try {
                 quantity = parseQuantity(dto.getQuantity());
             } catch (NumberFormatException e) {
-                throw new RuntimeException("수량 형식이 올바르지 않습니다: " + dto.getQuantity());
+                throw new CustomException(ErrorCode.INVALID_INGREDIENT_QUANTITY, dto.getQuantity());
             }
 
             int unitPrice = ingredient.getPrice() != null ? ingredient.getPrice() : 0;

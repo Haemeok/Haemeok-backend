@@ -1,9 +1,10 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.CommentLikeService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -24,15 +25,17 @@ public class CommentLikeController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", "로그인이 필요합니다."));
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         boolean liked = commentLikeService.toggleLike(commentId, userId);
-        String message = liked ? "댓글 좋아요 등록 완료" : "댓글 좋아요 취소 완료";
+        int likeCount = commentLikeService.countLikes(commentId);
+
         return ResponseEntity.ok(Map.of(
                 "liked", liked,
-                "message", message
+                "likeCount", likeCount,
+                "message", liked ? "댓글 좋아요 등록 완료" : "댓글 좋아요 취소 완료"
         ));
     }
+
 }

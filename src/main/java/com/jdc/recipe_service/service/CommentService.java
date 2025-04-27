@@ -10,14 +10,14 @@ import com.jdc.recipe_service.domain.repository.CommentLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
-import com.jdc.recipe_service.exception.CommentAccessDeniedException;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.AccessDeniedException;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -67,7 +67,7 @@ public class CommentService {
 
     public CommentDto createComment(Long recipeId, CommentRequestDto dto, User user) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         RecipeComment comment = RecipeComment.builder()
                 .recipe(recipe)
@@ -82,13 +82,13 @@ public class CommentService {
 
     public CommentDto createReply(Long recipeId, Long parentId, CommentRequestDto dto, Long userId) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("유저가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         RecipeComment parent = recipeCommentRepository.findById(parentId)
-                .orElseThrow(() -> new RuntimeException("부모 댓글이 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
 
         RecipeComment reply = RecipeComment.builder()
                 .recipe(recipe)
@@ -103,13 +103,15 @@ public class CommentService {
     }
 
 
-    public List<CommentDto> getAllCommentsWithLikes(Long recipeId, Long currentUserId) {
+    public List<CommentDto> getAllCommentsWithLikes(Long recipeId, Long currentUserId, String sort) {
         List<RecipeComment> comments = recipeCommentRepository.findAllTopLevelComments(recipeId);
 
         List<Long> allCommentIds = comments.stream()
                 .flatMap(c -> Stream.concat(
                         Stream.of(c.getId()),
-                        c.getReplies().stream().filter(reply -> !reply.isDeleted()).map(RecipeComment::getId)
+                        c.getReplies().stream()
+                                .filter(reply -> !reply.isDeleted())
+                                .map(RecipeComment::getId)
                 ))
                 .toList();
 
@@ -120,16 +122,18 @@ public class CommentService {
                 ));
 
         Set<Long> likedCommentIds = commentLikeRepository.findLikedCommentIdsByUser(currentUserId, allCommentIds)
-                .stream().collect(Collectors.toSet());
+                .stream()
+                .collect(Collectors.toSet());
 
-        return comments.stream().map(comment -> {
+        List<CommentDto> commentDtos = new ArrayList<>(comments.stream().map(comment -> {
             List<CommentDto> replies = comment.getReplies().stream()
                     .filter(reply -> !reply.isDeleted())
                     .map(reply -> CommentMapper.toReplyDto(
                             reply,
                             likedCommentIds.contains(reply.getId()),
                             likeCounts.getOrDefault(reply.getId(), 0)
-                    )).toList();
+                    ))
+                    .toList();
 
             boolean isDeleted = comment.isDeleted();
             boolean hasReplies = !replies.isEmpty();
@@ -151,17 +155,29 @@ public class CommentService {
                         .replyCount(replies.size())
                         .build();
             }
-        }).filter(Objects::nonNull).toList();
+        }).filter(Objects::nonNull).toList());
+
+        // 🔥 정렬 처리
+        if ("like".equals(sort)) {
+            commentDtos.sort(Comparator.comparing(CommentDto::getLikeCount).reversed());
+        } else { // 기본 최신순
+            commentDtos.sort(Comparator.comparing(CommentDto::getCreatedAt).reversed());
+        }
+
+        return commentDtos;
     }
+
+
 
     @Transactional
     public void deleteComment(Long commentId, Long userId) {
         RecipeComment comment = recipeCommentRepository.findById(commentId)
-                .orElseThrow(() -> new RuntimeException("댓글이 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
 
         if (!comment.getUser().getId().equals(userId)) {
-            throw new CommentAccessDeniedException("본인의 댓글만 삭제할 수 있습니다.");
+            throw new CustomException(ErrorCode.COMMENT_ACCESS_DENIED);
         }
+
 
         boolean hasReplies = !comment.getReplies().isEmpty();
 

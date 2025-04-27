@@ -3,6 +3,8 @@ package com.jdc.recipe_service.controller;
 import com.jdc.recipe_service.domain.dto.recipe.user.RecipeUserCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.user.RecipeWithImageUserUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeService;
 import jakarta.validation.Valid;
@@ -28,7 +30,7 @@ public class RecipeUserController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         Long recipeId = recipeService.createUserRecipe(dto, userId);
@@ -42,10 +44,8 @@ public class RecipeUserController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            System.out.println("❌ userDetails is null"); // or log.warn
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        System.out.println("✅ 인증된 사용자: " + userDetails.getUsername());
         Long userId = userDetails.getUser().getId();
         PresignedUrlResponse response = recipeService.createUserRecipeAndGenerateUrls(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -59,7 +59,7 @@ public class RecipeUserController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         recipeService.updateUserRecipe(id, userId, dto);

@@ -9,6 +9,8 @@ import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRatingRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,9 +30,9 @@ public class RecipeRatingService {
     @Transactional
     public void rateRecipe(Long recipeId, Long userId, RecipeRatingRequestDto dto) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("유저가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         RecipeRating rating = ratingRepository.findByUserAndRecipe(user, recipe)
                 .map(existing -> {
@@ -64,12 +66,12 @@ public class RecipeRatingService {
     @Transactional
     public void deleteRating(Long recipeId, Long userId) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("유저가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         RecipeRating rating = ratingRepository.findByUserAndRecipe(user, recipe)
-                .orElseThrow(() -> new RuntimeException("해당 유저의 평가가 없습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.RATING_NOT_FOUND));
 
         ratingRepository.delete(rating);
 

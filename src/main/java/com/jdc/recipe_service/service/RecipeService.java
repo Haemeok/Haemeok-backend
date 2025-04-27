@@ -15,7 +15,8 @@ import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.ImageStatus;
 import com.jdc.recipe_service.domain.type.TagType;
-import com.jdc.recipe_service.exception.RecipeAccessDeniedException;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityNotFoundException;
@@ -26,8 +27,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
+
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -55,7 +55,6 @@ public class RecipeService {
     private final RecipeStepService recipeStepService;
     private final RecipeTagService recipeTagService;
     private final RecipeRatingService recipeRatingService;
-    private final RecipeUploadService recipeUploadService;
     private final S3Util s3Util;
 
     @Value("${app.s3.bucket-name}")
@@ -284,8 +283,7 @@ public class RecipeService {
         try {
             tag = TagType.fromNameOrThrow(tagName);
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "유효하지 않은 태그입니다.", e);
+            throw new CustomException(ErrorCode.INVALID_TAG_NAME);
         }
 
         Page<RecipeSimpleDto> page = recipeRepository.findByTagWithLikeCount(tag, pageable);
@@ -593,22 +591,22 @@ public class RecipeService {
 
     private Recipe getRecipeOrThrow(Long recipeId) {
         return recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
     }
 
     private Recipe getRecipeWithUserOrThrow(Long recipeId) {
         return recipeRepository.findWithUserById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피를 찾을 수 없습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
     }
 
     private User getUserOrThrow(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("유저가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
     private void validateOwnership(Recipe recipe, Long userId) {
         if (!recipe.getUser().getId().equals(userId)) {
-            throw new RecipeAccessDeniedException("권한이 없습니다.");
+            throw new CustomException(ErrorCode.RECIPE_ACCESS_DENIED);
         }
     }
 

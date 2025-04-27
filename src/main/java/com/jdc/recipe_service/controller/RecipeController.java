@@ -1,8 +1,9 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.*;
-import com.jdc.recipe_service.domain.dto.url.FinalizeResponse;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeService;
 import jakarta.validation.Valid;
@@ -28,7 +29,7 @@ public class RecipeController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         return ResponseEntity.ok(recipeService.createRecipe(dto, userId));
@@ -40,10 +41,8 @@ public class RecipeController {
             @RequestBody RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         if (userDetails == null) {
-            System.out.println("❌ userDetails is null");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        System.out.println("✅ 인증된 사용자: " + userDetails.getUsername());
         Long userId = userDetails.getUser().getId();
         PresignedUrlResponse response = recipeService.createRecipeAndPresignedUrls(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -57,7 +56,7 @@ public class RecipeController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
         Long updatedId = recipeService.updateRecipe(recipeId, userId, dto);
@@ -71,16 +70,11 @@ public class RecipeController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
-        try {
-            recipeService.deleteRecipe(recipeId, userId);
-            return ResponseEntity.ok("레시피가 성공적으로 삭제되었습니다.");
-        } catch (RuntimeException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ex.getMessage());
-        }
+        recipeService.deleteRecipe(recipeId, userId);
+        return ResponseEntity.ok("레시피가 성공적으로 삭제되었습니다.");
     }
 
 }
