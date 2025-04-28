@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service;
 import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemRequestDto;
 import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemBulkRequestDto;
 import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemResponseDto;
+import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemSummaryDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.RefrigeratorItem;
 import com.jdc.recipe_service.domain.entity.User;
@@ -38,7 +39,7 @@ public class RefrigeratorItemService {
      * 내 냉장고 아이템 조회(페이지 + 카테고리 필터)
      */
     @Transactional(readOnly = true)
-    public Page<RefrigeratorItemResponseDto> getMyItems(
+    public Page<RefrigeratorItemSummaryDto> getMyItems(
             Long userId, String category, Pageable pageable) {
 
         Page<RefrigeratorItem> page;
@@ -50,12 +51,11 @@ public class RefrigeratorItemService {
             page = repo.findByUserId(userId, pageable);
         }
 
-        return page.map(item -> RefrigeratorItemResponseDto.builder()
-                .id(item.getId())
-                .ingredient(IngredientMapper.toDto(item.getIngredient()))
-                .createdAt(item.getCreatedAt().format(fmt))
-                .updatedAt(item.getUpdatedAt().format(fmt))
-                .build()
+        return page.map(item ->
+                new RefrigeratorItemSummaryDto(
+                        item.getId(),
+                        IngredientMapper.toSummaryDto(item.getIngredient(),true)
+                )
         );
     }
 

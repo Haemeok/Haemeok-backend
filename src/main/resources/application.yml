@@ -3,7 +3,7 @@ spring:
     active: prod
 
 server:
-  forward-headers-strategy: framework
+  forward-headers-strategy: native
 
 springdoc:
   api-docs:

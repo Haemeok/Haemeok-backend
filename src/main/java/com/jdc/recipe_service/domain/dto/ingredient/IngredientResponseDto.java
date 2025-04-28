@@ -12,4 +12,5 @@ public class IngredientResponseDto {
     private String imageUrl;
     private Integer price;
     private String unit;
+    private boolean inFridge;
 }

@@ -27,14 +27,14 @@ public class RefrigeratorItemController {
      * GET /api/me/fridge/items?category={category}&page=0&size=20&sort=createdAt,desc
      */
     @GetMapping("/items")
-    public ResponseEntity<Page<RefrigeratorItemResponseDto>> getMyItems(
+    public ResponseEntity<Page<RefrigeratorItemSummaryDto>> getMyItems(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String category,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         Long userId = userDetails.getUser().getId();
-        Page<RefrigeratorItemResponseDto> page =
+        Page<RefrigeratorItemSummaryDto> page =
                 service.getMyItems(userId, category, pageable);
 
         return ResponseEntity.ok(page);
