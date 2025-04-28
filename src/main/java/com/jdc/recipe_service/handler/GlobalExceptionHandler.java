@@ -10,9 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice
+@RestControllerAdvice(annotations = {RestController.class})
 @Hidden
 @Slf4j
 public class GlobalExceptionHandler {
@@ -56,6 +57,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception ex) {
         log.error("서버 에러 발생", ex);
+
+        // ✅ Swagger 관련 예외는 통과시킨다
+        if (ex.getClass().getName().startsWith("org.springdoc")) {
+            throw new RuntimeException(ex);
+        }
 
         if ("local".equals(activeProfile)) {
             return ResponseEntity

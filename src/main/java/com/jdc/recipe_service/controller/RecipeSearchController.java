@@ -52,15 +52,15 @@ public class RecipeSearchController {
     // 4)태그로 조회
     @GetMapping("/by-tag")
     public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
-            @RequestParam String tag,
+            @RequestParam List<String> tagNames,
             Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        Long userId = (userDetails != null)
-                ? userDetails.getUser().getId()
-                : null;
+        Long userId = (userDetails != null) ? userDetails.getUser().getId() : null;
+        // 서비스 호출 시 첫 번째 태그만 넘긴다
         return ResponseEntity.ok(
-                recipeService.getByTagWithLikeInfo(tag, userId, pageable));
+                recipeService.getByTagWithLikeInfo(tagNames.get(0), userId, pageable)
+        );
     }
 
     //5) 디시타입으로 조회
