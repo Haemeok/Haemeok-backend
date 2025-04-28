@@ -126,11 +126,17 @@ public class SecurityConfig {
 
                         // 1) 공개 엔드포인트
                         .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/swagger-resources/**",
+                                "/webjars/**",
+                                "/api/token/refresh",
+                                "/api/tags/**",
                                 "/", "/oauth2/**", "/login/**", "/error",
-                                "/h2-console/**",
-                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml",
-                                "/api/token/refresh", "/api/tags/**"
+                                "/h2-console/**"
                         ).permitAll()
+
 
                         // 2) GET 중 인증 필요
                         .requestMatchers(HttpMethod.GET,
