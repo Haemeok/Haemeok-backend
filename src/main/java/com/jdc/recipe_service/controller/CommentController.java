@@ -6,6 +6,10 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.CommentService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -54,31 +58,33 @@ public class CommentController {
 
     // 3) 댓글 조회 (좋아요 포함)
     @GetMapping
-    public ResponseEntity<List<CommentDto>> getAllCommentsWithLikes(
+    public ResponseEntity<Page<CommentDto>> getAllCommentsWithLikes(
             @PathVariable Long recipeId,
-            @RequestParam(defaultValue = "createdAt") String sort,
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null
                 ? userDetails.getUser().getId()
                 : null;
-        List<CommentDto> comments = commentService.getAllCommentsWithLikes(recipeId, userId, sort);
+        Page<CommentDto> comments = commentService.getAllCommentsWithLikes(recipeId, userId, pageable);
         return ResponseEntity.ok(comments);
     }
 
     // 4) 대댓글 조회
     @GetMapping("/{parentId}/replies")
-    public ResponseEntity<List<CommentDto>> getReplies(
-            @PathVariable Long recipeId,
+    public ResponseEntity<Page<CommentDto>> getReplies(
+//            @PathVariable Long recipeId,
             @PathVariable Long parentId,
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.ASC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null
                 ? userDetails.getUser().getId()
                 : null;
-        List<CommentDto> replies = commentService.getRepliesWithLikes(parentId, userId);
+        Page<CommentDto> replies = commentService.getRepliesWithLikes(parentId, userId, pageable);
         return ResponseEntity.ok(replies);
     }
+
 
     // 5) 댓글 삭제
     @DeleteMapping("/{commentId}")

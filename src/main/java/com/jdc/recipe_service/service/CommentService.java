@@ -14,7 +14,10 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -103,7 +106,7 @@ public class CommentService {
     }
 
 
-    public List<CommentDto> getAllCommentsWithLikes(Long recipeId, Long currentUserId, String sort) {
+    public Page<CommentDto> getAllCommentsWithLikes(Long recipeId, Long currentUserId, Pageable pageable) {
         List<RecipeComment> comments = recipeCommentRepository.findAllTopLevelComments(recipeId);
 
         List<Long> allCommentIds = comments.stream()
@@ -125,7 +128,7 @@ public class CommentService {
                 .stream()
                 .collect(Collectors.toSet());
 
-        List<CommentDto> commentDtos = new ArrayList<>(comments.stream().map(comment -> {
+        List<CommentDto> commentDtos = comments.stream().map(comment -> {
             List<CommentDto> replies = comment.getReplies().stream()
                     .filter(reply -> !reply.isDeleted())
                     .map(reply -> CommentMapper.toReplyDto(
@@ -155,16 +158,28 @@ public class CommentService {
                         .replyCount(replies.size())
                         .build();
             }
-        }).filter(Objects::nonNull).toList());
+        }).filter(Objects::nonNull).toList();
 
         // 🔥 정렬 처리
-        if ("like".equals(sort)) {
-            commentDtos.sort(Comparator.comparing(CommentDto::getLikeCount).reversed());
-        } else { // 기본 최신순
-            commentDtos.sort(Comparator.comparing(CommentDto::getCreatedAt).reversed());
+        List<CommentDto> sorted = new ArrayList<>(commentDtos);
+        if (!pageable.getSort().isEmpty()) {
+            Sort.Order order = pageable.getSort().iterator().next();
+            if ("likeCount".equals(order.getProperty())) {
+                sorted.sort(Comparator.comparing(CommentDto::getLikeCount,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+            } else { // 기본 createdAt
+                sorted.sort(Comparator.comparing(CommentDto::getCreatedAt,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+            }
         }
 
-        return commentDtos;
+        // 🔥 페이지네이션 적용
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), sorted.size());
+
+        List<CommentDto> pageContent = start > sorted.size() ? Collections.emptyList() : sorted.subList(start, end);
+
+        return new PageImpl<>(pageContent, pageable, sorted.size());
     }
 
 
@@ -189,9 +204,11 @@ public class CommentService {
         }
     }
 
-    public List<CommentDto> getRepliesWithLikes(Long parentId, Long currentUserId) {
+    public Page<CommentDto> getRepliesWithLikes(Long parentId, Long currentUserId, Pageable pageable) {
         List<RecipeComment> replies = recipeCommentRepository.findByParentCommentIdOrderByCreatedAtAsc(parentId)
-                .stream().filter(reply -> !reply.isDeleted()).toList();
+                .stream()
+                .filter(reply -> !reply.isDeleted())
+                .toList();
 
         List<Long> replyIds = replies.stream().map(RecipeComment::getId).toList();
 
@@ -203,10 +220,33 @@ public class CommentService {
 
         Set<Long> likedIds = new HashSet<>(commentLikeRepository.findLikedCommentIdsByUser(currentUserId, replyIds));
 
-        return replies.stream().map(r -> CommentMapper.toReplyDto(
-                r,
-                likedIds.contains(r.getId()),
-                likeCounts.getOrDefault(r.getId(), 0)
-        )).toList();
+        List<CommentDto> replyDtos = replies.stream().map(reply ->
+                CommentMapper.toReplyDto(
+                        reply,
+                        likedIds.contains(reply.getId()),
+                        likeCounts.getOrDefault(reply.getId(), 0)
+                )
+        ).toList();
+
+        // 🔥 정렬 처리
+        List<CommentDto> sorted = new ArrayList<>(replyDtos);
+        if (!pageable.getSort().isEmpty()) {
+            Sort.Order order = pageable.getSort().iterator().next();
+            if ("likeCount".equals(order.getProperty())) {
+                sorted.sort(Comparator.comparing(CommentDto::getLikeCount,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+            } else { // 기본 createdAt
+                sorted.sort(Comparator.comparing(CommentDto::getCreatedAt,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+            }
+        }
+
+        // 🔥 페이지네이션 적용
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), sorted.size());
+        List<CommentDto> pageContent = start > sorted.size() ? Collections.emptyList() : sorted.subList(start, end);
+
+        return new PageImpl<>(pageContent, pageable, sorted.size());
     }
+
 }
