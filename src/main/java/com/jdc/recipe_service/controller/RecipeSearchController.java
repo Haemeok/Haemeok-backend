@@ -39,6 +39,7 @@ public class RecipeSearchController {
     @GetMapping("/simple")
     public ResponseEntity<Page<RecipeSimpleDto>> getAllSimple(
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         Long userId = (userDetails != null)
@@ -53,6 +54,7 @@ public class RecipeSearchController {
     @GetMapping("/by-tag")
     public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
             @RequestParam List<String> tagNames,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
@@ -84,6 +86,7 @@ public class RecipeSearchController {
             @RequestParam(required = false) String title,
             @RequestParam(required = false) String dishType,
             @RequestParam(required = false) List<String> tagNames,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
@@ -95,17 +98,4 @@ public class RecipeSearchController {
         return ResponseEntity.ok(
                 recipeService.searchRecipes(cond, pageable, userId));
     }
-
-//    @PostMapping("/search")
-//    public ResponseEntity<Page<RecipeSimpleDto>> search(
-//            @RequestBody RecipeSearchCondition cond,
-//            Pageable pageable,
-//            @AuthenticationPrincipal CustomUserDetails userDetails) {
-//
-//        Long userId = (userDetails != null)
-//                ? userDetails.getUser().getId()
-//                : null;
-//        return ResponseEntity.ok(
-//                recipeService.searchRecipes(cond, pageable, userId));
-//    }
 }
