@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -275,7 +276,6 @@ public class RecipeService {
     public Page<RecipeSimpleDto> getByTagWithLikeInfo(
             String tagName, Long currentUserId, Pageable pageable) {
 
-        // 1) 잘못된 태그명이면 400으로 바로 응답
         TagType tag;
         try {
             tag = TagType.fromNameOrThrow(tagName);
@@ -283,68 +283,85 @@ public class RecipeService {
             throw new CustomException(ErrorCode.INVALID_TAG_NAME);
         }
 
-        Page<RecipeSimpleDto> page = recipeRepository.findByTagWithLikeCount(tag, pageable);
-        var recipes = page.getContent();
-        if (currentUserId == null) {
-            return page; // 비로그인 유저는 like 정보 없이 그대로 반환
+        // ✅ 정렬 없이 전체 조회
+        Page<RecipeSimpleDto> page = recipeRepository.findByTagWithLikeCount(tag, Pageable.unpaged());
+        List<RecipeSimpleDto> recipes = new ArrayList<>(page.getContent());
+
+        if (currentUserId != null) {
+            List<Long> recipeIds = recipes.stream().map(RecipeSimpleDto::getId).toList();
+            Set<Long> likedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                    .stream()
+                    .map(rl -> rl.getRecipe().getId())
+                    .collect(Collectors.toSet());
+
+            recipes.forEach(dto -> {
+                if (likedRecipeIds.contains(dto.getId())) {
+                    dto.setLikedByCurrentUser(true);
+                }
+            });
         }
 
-        // 3. recipeIds 추출
-        List<Long> recipeIds = recipes.stream()
-                .map(RecipeSimpleDto::getId)
-                .toList();
-
-        // 4. 유저가 좋아요한 레시피 ID 조회
-        Set<Long> likedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                .stream()
-                .map(rl -> rl.getRecipe().getId())
-                .collect(Collectors.toSet());
-
-        // 5. 각 DTO에 likedByCurrentUser 반영
-        recipes.forEach(dto -> {
-            if (likedRecipeIds.contains(dto.getId())) {
-                dto.setLikedByCurrentUser(true);
+        // ✅ 정렬
+        if (!pageable.getSort().isEmpty()) {
+            Sort.Order order = pageable.getSort().iterator().next();
+            if ("likeCount".equals(order.getProperty())) {
+                recipes.sort(Comparator.comparing(RecipeSimpleDto::getLikeCount,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+            } else {
+                recipes.sort(Comparator.comparing(RecipeSimpleDto::getCreatedAt,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
             }
-        });
+        }
 
-        // 6. PageImpl로 다시 감싸서 반환
-        return new PageImpl<>(recipes, pageable, page.getTotalElements());
+        // ✅ 페이징
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), recipes.size());
+        List<RecipeSimpleDto> pageContent = start > recipes.size() ? List.of() : recipes.subList(start, end);
+
+        return new PageImpl<>(pageContent, pageable, recipes.size());
     }
 
     @Transactional(readOnly = true)
-    public Page<RecipeSimpleDto> getByDishTypeWithLikeInfo(String dishTypeEnumName, Long currentUserId, Pageable pageable) {
-        // enum name 기반으로 변환 ("FRY", "SOUP" 등)
+    public Page<RecipeSimpleDto> getByDishTypeWithLikeInfo(
+            String dishTypeEnumName, Long currentUserId, Pageable pageable) {
+
         DishType dishType = DishType.valueOf(dishTypeEnumName);
 
-        // DishType 조건에 따른 좋아요 수 포함된 Projection 조회
-        Page<RecipeSimpleDto> page = recipeRepository.findByDishTypeWithLikeCount(dishType, pageable);
-        List<RecipeSimpleDto> recipes = page.getContent();
+        Page<RecipeSimpleDto> page = recipeRepository.findByDishTypeWithLikeCount(dishType, Pageable.unpaged());
+        List<RecipeSimpleDto> recipes = new ArrayList<>(page.getContent());
 
-        if (currentUserId == null) {
-            return page;
+        if (currentUserId != null) {
+            List<Long> recipeIds = recipes.stream().map(RecipeSimpleDto::getId).toList();
+            Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                    .stream()
+                    .map(like -> like.getRecipe().getId())
+                    .collect(Collectors.toSet());
+
+            recipes.forEach(dto -> {
+                if (likedIds.contains(dto.getId())) {
+                    dto.setLikedByCurrentUser(true);
+                }
+            });
         }
 
-        // 1. 조회된 레시피 ID 목록 추출
-        List<Long> recipeIds = recipes.stream()
-                .map(RecipeSimpleDto::getId)
-                .toList();
-
-        // 2. 로그인 사용자가 좋아요 누른 레시피의 ID 목록 조회
-        Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                .stream()
-                .map(like -> like.getRecipe().getId())
-                .collect(Collectors.toSet());
-
-        // 3. 각 DTO에 좋아요 여부 적용
-        recipes.forEach(dto -> {
-            if (likedIds.contains(dto.getId())) {
-                dto.setLikedByCurrentUser(true);
+        if (!pageable.getSort().isEmpty()) {
+            Sort.Order order = pageable.getSort().iterator().next();
+            if ("likeCount".equals(order.getProperty())) {
+                recipes.sort(Comparator.comparing(RecipeSimpleDto::getLikeCount,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+            } else {
+                recipes.sort(Comparator.comparing(RecipeSimpleDto::getCreatedAt,
+                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
             }
-        });
+        }
 
-        // 4. PageImpl로 다시 감싸서 반환
-        return new PageImpl<>(recipes, pageable, page.getTotalElements());
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), recipes.size());
+        List<RecipeSimpleDto> pageContent = start > recipes.size() ? List.of() : recipes.subList(start, end);
+
+        return new PageImpl<>(pageContent, pageable, recipes.size());
     }
+
 
 
     @Transactional(readOnly = true)
