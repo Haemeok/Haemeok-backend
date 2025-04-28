@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "refrigerator_items",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "ingredient_id"}),
-        indexes = @Index(name = "idx_refrigerator_user", columnList = "user_id")  // ← 추가
+        indexes = @Index(name = "idx_refrigerator_user", columnList = "user_id")
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

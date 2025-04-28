@@ -23,6 +23,17 @@ public class IngredientMapper {
                 .imageUrl(entity.getImageUrl())
                 .price(entity.getPrice())
                 .unit(entity.getUnit())
+                .inFridge(false)
                 .build();
+    }
+
+    public static IngredientSummaryDto toSummaryDto(Ingredient entity, boolean inFridge) {
+        return new IngredientSummaryDto(
+                entity.getId(),
+                entity.getName(),
+                entity.getCategory(),
+                entity.getImageUrl(),
+                inFridge
+        );
     }
 }
