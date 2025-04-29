@@ -39,6 +39,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.title,
                         recipe.imageKey,
                         recipe.user.nickname,
+                        recipe.user.profileImage,
                         recipe.createdAt,
                         recipe.likes.size().castToNum(Long.class),
                         Expressions.constant(false), // 초기값 false
@@ -96,6 +97,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.title,
                         recipe.imageKey,
                         recipe.user.nickname,
+                        recipe.user.profileImage,
                         recipe.createdAt,
                         recipe.likes.size().castToNum(Long.class),
                         com.querydsl.core.types.dsl.Expressions.constant(false),
