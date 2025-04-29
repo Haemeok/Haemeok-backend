@@ -122,7 +122,13 @@ public class SecurityConfig {
         http
                 // HTTPS 강제
                 .requiresChannel(ch -> ch.anyRequest().requiresSecure())
+
+                .cors(cors -> cors.configurationSource(corsConfig()))
+                .csrf(AbstractHttpConfigurer::disable)
+
                 .authorizeHttpRequests(auth -> auth
+
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // 1) 공개 엔드포인트
                         .requestMatchers(

@@ -13,5 +13,5 @@ springdoc:
   swagger-ui:
     # UI가 여기서 스펙을 직접 읽어가도록
     url: /v3/api-docs
-    path: /swagger-ui.html
+    path: /swagger-ui
 
