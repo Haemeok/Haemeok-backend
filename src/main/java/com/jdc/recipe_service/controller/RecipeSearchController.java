@@ -83,7 +83,7 @@ public class RecipeSearchController {
     // 3) (검색, 태그, 디시타입) 복합 조건 조회 (읽기 전용)
     @GetMapping("/search")
     public ResponseEntity<Page<RecipeSimpleDto>> search(
-            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String q,
             @RequestParam(required = false) String dishType,
             @RequestParam(required = false) List<String> tagNames,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
@@ -94,7 +94,7 @@ public class RecipeSearchController {
                 ? userDetails.getUser().getId()
                 : null;
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(title, dishType, tagNames);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames);
         return ResponseEntity.ok(
                 recipeService.searchRecipes(cond, pageable, userId));
     }
