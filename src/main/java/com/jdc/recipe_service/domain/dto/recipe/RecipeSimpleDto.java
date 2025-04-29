@@ -20,6 +20,7 @@ public class RecipeSimpleDto {
     private String title;
     private String imageUrl;
     private String authorName;
+    private String profileImage;
     private LocalDateTime createdAt;
 
     private long likeCount;
@@ -34,7 +35,7 @@ public class RecipeSimpleDto {
     }
 
     @QueryProjection
-    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName,
+    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName, String profileImage,
                            LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
                            Integer cookingTime,
                            BigDecimal avgRating, Long ratingCount) {
@@ -42,6 +43,7 @@ public class RecipeSimpleDto {
         this.title = title;
         this.imageUrl = imageUrl;
         this.authorName = authorName;
+        this.profileImage = profileImage;
         this.createdAt = createdAt;
         this.likeCount = likeCount;
         this.likedByCurrentUser = likedByCurrentUser;
@@ -50,13 +52,14 @@ public class RecipeSimpleDto {
         this.ratingCount = ratingCount;
     }
 
-    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName,
+    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName, String profileImage,
                            LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
                            Integer cookingTime, double avgRating, Long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
         this.authorName = authorName;
+        this.profileImage = profileImage;
         this.createdAt = createdAt;
         this.likeCount = likeCount;
         this.likedByCurrentUser = likedByCurrentUser;
