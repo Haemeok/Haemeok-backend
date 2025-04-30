@@ -55,8 +55,10 @@ public class RefrigeratorItemService {
 
         return page.map(item ->
                 new RefrigeratorItemSummaryDto(
-                        item.getId(),
-                        IngredientMapper.toSummaryDto(item.getIngredient(),true)
+                        item.getIngredient().getId(),
+                        item.getIngredient().getName(),
+                        item.getIngredient().getCategory(),
+                        item.getIngredient().getImageUrl()
                 )
         );
     }

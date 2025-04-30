@@ -5,5 +5,6 @@ public record IngredientSummaryDto(
         String  name,
         String  category,
         String  imageUrl,
+        String unit,
         boolean inFridge
 ) { }

@@ -82,6 +82,7 @@ public class IngredientService {
                         ing.name,
                         ing.category,
                         ing.imageUrl,
+                        ing.unit,
                         ing.id.in(fridgeIds)         // inFridge 플래그
                 ))
                 .from(ing)

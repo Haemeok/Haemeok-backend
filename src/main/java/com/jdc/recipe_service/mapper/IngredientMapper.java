@@ -27,13 +27,4 @@ public class IngredientMapper {
                 .build();
     }
 
-    public static IngredientSummaryDto toSummaryDto(Ingredient entity, boolean inFridge) {
-        return new IngredientSummaryDto(
-                entity.getId(),
-                entity.getName(),
-                entity.getCategory(),
-                entity.getImageUrl(),
-                inFridge
-        );
-    }
 }
