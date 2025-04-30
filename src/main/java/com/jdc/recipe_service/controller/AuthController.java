@@ -5,6 +5,8 @@ import com.jdc.recipe_service.domain.dto.TokenResponseDTO;
 import com.jdc.recipe_service.domain.entity.RefreshToken;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/token")
@@ -29,14 +32,14 @@ public class AuthController {
         String refreshToken = request.getRefreshToken();
 
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            return ResponseEntity.badRequest().body("유효하지 않은 리프레시 토큰입니다.");
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
 
         RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken)
-                .orElse(null);
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
 
         if (savedToken == null || savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
-            return ResponseEntity.badRequest().body("리프레시 토큰이 만료되었거나 존재하지 않습니다.");
+            throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
         User user = savedToken.getUser();
@@ -60,44 +63,39 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
-        String accessToken = request.getHeader("Authorization");
+    public ResponseEntity<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @CookieValue(value = "refreshToken", required = false) String refreshToken,
+            HttpServletResponse response) {
 
-        if (accessToken == null || !accessToken.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Access token이 누락되었거나 형식이 잘못되었습니다.");
+        // Authorization 헤더 유효성 검사
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
+        String accessToken = authorization.substring(7);
+        if (!jwtTokenProvider.validateToken(accessToken)) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
 
-        String token = accessToken.substring(7);
-        if (!jwtTokenProvider.validateToken(token)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Access token이 유효하지 않습니다.");
+        try {
+            // DB에 등록된 refreshToken 삭제 (없어도 무시)
+            Optional.ofNullable(refreshToken)
+                    .flatMap(refreshTokenRepository::findByToken)
+                    .ifPresent(refreshTokenRepository::delete);
+
+            // 클라이언트 쿠키 삭제
+            Cookie deleteCookie = new Cookie("refreshToken", null);
+            deleteCookie.setHttpOnly(true);
+            deleteCookie.setSecure(true);
+            deleteCookie.setPath("/");
+            deleteCookie.setMaxAge(0);
+            response.addCookie(deleteCookie);
+
+            return ResponseEntity.ok().build();
+
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.LOGOUT_FAILED);
         }
-
-        // 쿠키에서 refreshToken 추출
-        String refreshToken = null;
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (cookie.getName().equals("refreshToken")) {
-                    refreshToken = cookie.getValue();
-                    break;
-                }
-            }
-        }
-
-        // refresh token 삭제
-        if (refreshToken != null) {
-            RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken).orElse(null);
-            if (savedToken != null) {
-                refreshTokenRepository.delete(savedToken);
-            }
-        }
-
-        // 쿠키 무효화
-        Cookie deleteCookie = new Cookie("refreshToken", null);
-        deleteCookie.setPath("/");
-        deleteCookie.setMaxAge(0);
-        response.addCookie(deleteCookie);
-
-        return ResponseEntity.ok("🧹 로그아웃 완료. Refresh token 삭제됨.");
     }
 
 }

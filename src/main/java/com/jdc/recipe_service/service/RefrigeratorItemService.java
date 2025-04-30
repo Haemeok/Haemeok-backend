@@ -10,6 +10,8 @@ import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.IngredientMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -62,15 +64,13 @@ public class RefrigeratorItemService {
     /** 냉장고에 재료 단건 추가 */
     public RefrigeratorItemResponseDto addItem(Long userId, RefrigeratorItemRequestDto dto) {
         User user = userRepo.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "사용자가 없습니다: " + userId));
+                .orElseThrow(() -> new CustomException(ErrorCode.FRIDGE_UNAUTHORIZED));
+
         Ingredient ing = ingRepo.findById(dto.getIngredientId())
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "재료가 없습니다: " + dto.getIngredientId()));
+                .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND));
 
         repo.findByUserIdAndIngredientId(userId, dto.getIngredientId())
-                .ifPresent(i -> { throw new ResponseStatusException(
-                        HttpStatus.CONFLICT, "이미 추가된 재료입니다."); });
+                .ifPresent(i -> { throw new CustomException(ErrorCode.DUPLICATE_FRIDGE_ITEM); });
 
         RefrigeratorItem saved = repo.save(
                 RefrigeratorItem.builder()
@@ -90,26 +90,23 @@ public class RefrigeratorItemService {
     /** 냉장고에서 재료 단건 제거 */
     public void removeItem(Long userId, Long ingredientId) {
         RefrigeratorItem item = repo.findByUserIdAndIngredientId(userId, ingredientId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "냉장고에 없습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.FRIDGE_ITEM_NOT_FOUND));
         repo.delete(item);
     }
 
     /** 냉장고에 재료 여러 개 Bulk 추가 */
     public void addItemsBulk(Long userId, List<Long> ingredientIds) {
         User user = userRepo.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "사용자가 없습니다: " + userId));
+                .orElseThrow(() -> new CustomException(ErrorCode.FRIDGE_UNAUTHORIZED));
 
         List<RefrigeratorItem> items = new ArrayList<>();
         for (Long id : ingredientIds) {
             Ingredient ing = ingRepo.findById(id)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND, "재료가 없습니다: " + id));
+                    .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND));
+
             Optional<RefrigeratorItem> exist = repo.findByUserIdAndIngredientId(userId, id);
             if (exist.isPresent()) {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT, "이미 추가된 재료입니다: " + id);
+                throw new CustomException(ErrorCode.DUPLICATE_FRIDGE_ITEM);
             }
             items.add(RefrigeratorItem.builder().user(user).ingredient(ing).build());
         }
@@ -121,8 +118,7 @@ public class RefrigeratorItemService {
         List<RefrigeratorItem> toDelete = new ArrayList<>();
         for (Long id : ingredientIds) {
             RefrigeratorItem item = repo.findByUserIdAndIngredientId(userId, id)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND, "냉장고에 없습니다: " + id));
+                    .orElseThrow(() -> new CustomException(ErrorCode.FRIDGE_ITEM_NOT_FOUND));
             toDelete.add(item);
         }
         repo.deleteAll(toDelete);
