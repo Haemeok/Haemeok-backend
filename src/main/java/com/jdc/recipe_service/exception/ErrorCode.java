@@ -30,25 +30,27 @@ public enum ErrorCode {
     // --- Ingredient (400) ---
     INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "401", "요청한 재료가 존재하지 않습니다."),
     INVALID_INGREDIENT_QUANTITY(HttpStatus.BAD_REQUEST, "402", "재료 수량이 유효하지 않습니다."),
-    INGREDIENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "403", "이미 존재하는 재료입니다."),
+    DUPLICATE_INGREDIENT(HttpStatus.CONFLICT, "403", "이미 존재하는 재료입니다."),
+    INVALID_INGREDIENT_REQUEST(HttpStatus.BAD_REQUEST, "404", "잘못된 재료 요청입니다."),
 
     // --- Fridge (500) ---
-    FRIDGE_INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "501", "냉장고에 재료가 존재하지 않습니다."),
-    DUPLICATE_FRIDGE_INGREDIENT(HttpStatus.CONFLICT, "502", "이미 냉장고에 존재하는 재료입니다."),
-    INVALID_FRIDGE_INGREDIENT_QUANTITY(HttpStatus.BAD_REQUEST, "503", "냉장고 재료 수량이 유효하지 않습니다."),
-    FRIDGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "504", "냉장고에 대한 접근 권한이 없습니다."),
+    INVALID_FRIDGE_REQUEST(HttpStatus.BAD_REQUEST, "501", "잘못된 냉장고 요청입니다."),
+    FRIDGE_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "502", "로그인이 필요합니다."),
+    FRIDGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "503", "냉장고 권한이 없습니다."),
+    FRIDGE_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "504", "냉장고에 재료가 없습니다."),
+    DUPLICATE_FRIDGE_ITEM(HttpStatus.CONFLICT, "505", "이미 냉장고에 존재하는 재료입니다."),
 
-    // --- Auth (800) ---
-    AUTHENTICATION_EXCEPTION(HttpStatus.UNAUTHORIZED, "801", "인증 실패입니다."),
-    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "802", "유효하지 않은 토큰입니다."),
-    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "803", "만료된 토큰입니다."),
-    AUTHORIZATION_EXCEPTION(HttpStatus.FORBIDDEN, "804", "인가되지 않은 요청입니다."),
+    // --- Auth (600) ---
+    INVALID_REFRESH_TOKEN(HttpStatus.BAD_REQUEST, "601", "유효하지 않은 리프레시 토큰입니다."),
+    REFRESH_TOKEN_EXPIRED(HttpStatus.BAD_REQUEST, "602", "리프레시 토큰이 만료되었습니다."),
+    AUTH_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "603", "인증이 필요합니다."),
+    LOGOUT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "604", "로그아웃 처리에 실패했습니다."),
 
     // --- Common (900) ---
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "901", "잘못된 입력값입니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "902", "허용되지 않은 메소드입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "903", "서버 내부 오류입니다."),
-
+    NULL_POINTER(HttpStatus.BAD_REQUEST, "904", "필수 데이터가 누락되었습니다."),
     // --- Search (950) ---
     SEARCH_FAILURE(HttpStatus.INTERNAL_SERVER_ERROR, "950", "검색 처리 중 오류가 발생했습니다."),
 

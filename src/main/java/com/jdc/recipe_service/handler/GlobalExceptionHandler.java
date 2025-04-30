@@ -73,4 +73,19 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse("903", "서버 내부 오류가 발생했습니다."));
     }
+
+    @ExceptionHandler(NullPointerException.class)
+    public ResponseEntity<ErrorResponse> handleNullPointerException(NullPointerException ex) {
+        log.warn("NullPointerException 발생", ex);
+
+        String msg = "필수 데이터가 누락되었습니다.";
+        if ("local".equals(activeProfile)) {
+            msg = "[NullPointerException] " + ex.getMessage();
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(ErrorCode.NULL_POINTER.getCode(), msg));
+    }
+
 }
