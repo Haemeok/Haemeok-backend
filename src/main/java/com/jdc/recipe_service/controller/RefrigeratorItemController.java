@@ -1,6 +1,9 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.fridge.*;
+import com.jdc.recipe_service.domain.type.IngredientType;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RefrigeratorItemService;
 import lombok.RequiredArgsConstructor;
@@ -12,8 +15,7 @@ import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-
-import java.util.List;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/me/fridge")
@@ -29,13 +31,23 @@ public class RefrigeratorItemController {
     @GetMapping("/items")
     public ResponseEntity<Page<RefrigeratorItemSummaryDto>> getMyItems(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestParam(required = false) String category,
+            @RequestParam(required = false, name = "category") String categoryCode,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         Long userId = userDetails.getUser().getId();
+
+        String koCategory = null;
+        if (categoryCode != null && !categoryCode.isBlank()) {
+            try {
+                koCategory = IngredientType.fromCode(categoryCode).getKor();
+            } catch (IllegalArgumentException e) {
+                throw new CustomException(ErrorCode.INVALID_FRIDGE_REQUEST);
+            }
+        }
+
         Page<RefrigeratorItemSummaryDto> page =
-                service.getMyItems(userId, category, pageable);
+                service.getMyItems(userId, koCategory, pageable);
 
         return ResponseEntity.ok(page);
     }

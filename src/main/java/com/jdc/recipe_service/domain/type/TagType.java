@@ -8,20 +8,20 @@ import org.springframework.web.server.ResponseStatusException;
 @Getter
 public enum TagType {
 
-    HOME_PARTY("🏠 홈파티"),
-    PICNIC("🌼 피크닉"),
-    CAMPING("🏕️ 캠핑"),
-    HEALTHY("🥗 다이어트 / 건강식"),
-    KIDS("👶 아이와 함께"),
-    SOLO("🍽️ 혼밥"),
-    DRINK("🍶 술안주"),
-    BRUNCH("🥐 브런치"),
-    LATE_NIGHT("🌙 야식"),
-    QUICK("⚡ 초스피드 / 간단 요리"),
-    HOLIDAY("🎉 기념일 / 명절"),
-    LUNCHBOX("🍱 도시락"),
-    AIR_FRYER("🔌에어프라이어"),
-    HANGOVER("🍲 해장");
+    home_party("🏠 홈파티"),
+    picnic("🌼 피크닉"),
+    camping("🏕️ 캠핑"),
+    healthy("🥗 다이어트 / 건강식"),
+    kids("👶 아이와 함께"),
+    solo("🍽️ 혼밥"),
+    drink("🍶 술안주"),
+    brunch("🥐 브런치"),
+    late_night("🌙 야식"),
+    quick("⚡ 초스피드 / 간단 요리"),
+    holiday("🎉 기념일 / 명절"),
+    lunchbox("🍱 도시락"),
+    air_fryer("🔌에어프라이어"),
+    hangover("🍲 해장");
 
     private final String displayName;
 
