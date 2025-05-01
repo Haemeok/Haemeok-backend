@@ -82,6 +82,7 @@ public class SecurityConfig {
                                     "/api/recipes/*/like",
                                     "/api/recipes/*/favorite",
                                     "/api/recipes/with-images",
+                                    "/api/token/logout",
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/user",
                                     "/api/recipes/user/with-images"
@@ -181,7 +182,8 @@ public class SecurityConfig {
                                 "/api/recipes/with-images",
                                 "/api/me/fridge/items/bulk",
                                 "/api/recipes/user",
-                                "/api/recipes/user/with-images"
+                                "/api/recipes/user/with-images",
+                                "/api/token/logout"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
