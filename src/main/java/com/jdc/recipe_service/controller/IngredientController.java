@@ -1,6 +1,9 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.ingredient.*;
+import com.jdc.recipe_service.domain.type.IngredientType;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.IngredientService;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/ingredients")
@@ -24,6 +29,7 @@ public class IngredientController {
      */
     @GetMapping
     public ResponseEntity<Page<IngredientSummaryDto>> search(
+            @RequestParam(required = false, name = "category") String categoryCode,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Boolean inFridge,
@@ -34,7 +40,17 @@ public class IngredientController {
                 ? userDetails.getUser().getId()
                 : null;
 
-        Page<IngredientSummaryDto> page = service.search(q, category, inFridge, userId, pageable);
+        String koCategory = null;
+        if (categoryCode != null && !categoryCode.isBlank()) {
+            try {
+                koCategory = IngredientType.fromCode(categoryCode).getKor();
+            } catch (IllegalArgumentException e) {
+                throw new CustomException(ErrorCode.INVALID_INGREDIENT_REQUEST);
+            }
+        }
+
+        Page<IngredientSummaryDto> page =
+                service.search(q, koCategory, inFridge, userId, pageable);
         return ResponseEntity.ok(page);
     }
 
