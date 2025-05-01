@@ -1,9 +1,10 @@
 package com.jdc.recipe_service.domain.type;
 
 import lombok.Getter;
-import org.apache.coyote.BadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Arrays;
 
 @Getter
 public enum TagType {
@@ -36,6 +37,16 @@ public enum TagType {
             }
         }
         throw new IllegalArgumentException("존재하지 않는 태그입니다: " + name);
+    }
+
+    public static TagType fromCode(String code) {
+        return Arrays.stream(TagType.values())
+                .filter(t -> t.name().equalsIgnoreCase(code))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "잘못된 태그 이름입니다: " + code
+                ));
     }
 
     public static TagType fromNameOrThrow(String tagName) {
