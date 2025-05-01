@@ -1,9 +1,11 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingResponseDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.CookingRecordService;
 import com.jdc.recipe_service.service.RecipeRatingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +21,7 @@ public class RecipeRatingController {
 
     private final RecipeRatingService recipeRatingService;
 
-    // 8) 평점 CRUD (인증 필수)
+    // 평점 CRUD (인증 필수)
     @PostMapping("/{id}")
     public ResponseEntity<?> rateRecipe(
             @PathVariable Long id,
@@ -30,7 +32,9 @@ public class RecipeRatingController {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
+
         recipeRatingService.rateRecipe(id, userId, dto);
+
         return ResponseEntity.ok(Map.of("message", "평점 등록 완료"));
     }
 

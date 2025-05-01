@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingResponseDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeComment;
 import com.jdc.recipe_service.domain.entity.RecipeRating;
@@ -11,6 +12,7 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.service.CookingRecordService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,9 +28,10 @@ public class RecipeRatingService {
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final RecipeCommentRepository recipeCommentRepository;
+    private final CookingRecordService cookingRecordService;
 
     @Transactional
-    public void rateRecipe(Long recipeId, Long userId, RecipeRatingRequestDto dto) {
+    public RecipeRatingResponseDto rateRecipe(Long recipeId, Long userId, RecipeRatingRequestDto dto) {
         Recipe recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
         User user = userRepository.findById(userId)
@@ -46,11 +49,11 @@ public class RecipeRatingService {
                         .build()
                 );
 
-        ratingRepository.save(rating);
+        RecipeRating saved = ratingRepository.save(rating);
 
         updateRecipeAverageRating(recipe);
 
-        // ✨ 코멘트가 있다면 댓글로 저장
+        // 코멘트가 있다면 댓글로 저장
         if (dto.getComment() != null && !dto.getComment().isBlank()) {
             RecipeComment comment = RecipeComment.builder()
                     .user(user)
@@ -61,10 +64,20 @@ public class RecipeRatingService {
 
             recipeCommentRepository.save(comment);
         }
+
+        // CookingRecord 생성
+        cookingRecordService.createRecordFromRating(
+                userId, recipeId, saved.getId()
+        );
+
+        return new RecipeRatingResponseDto(
+                saved.getId(),
+                saved.getRating()
+        );
     }
 
     @Transactional
-    public void deleteRating(Long recipeId, Long userId) {
+    public Long deleteRating(Long recipeId, Long userId) {
         Recipe recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
         User user = userRepository.findById(userId)
@@ -73,9 +86,14 @@ public class RecipeRatingService {
         RecipeRating rating = ratingRepository.findByUserAndRecipe(user, recipe)
                 .orElseThrow(() -> new CustomException(ErrorCode.RATING_NOT_FOUND));
 
+        Long deletedId = rating.getId();
         ratingRepository.delete(rating);
 
         updateRecipeAverageRating(recipe);
+
+        cookingRecordService.deleteByRatingId(rating.getId());
+
+        return deletedId;
     }
 
     public Double getMyRating(Long recipeId, Long userId) {

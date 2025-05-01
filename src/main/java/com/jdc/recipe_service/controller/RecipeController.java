@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.CookingRecordService;
 import com.jdc.recipe_service.service.RecipeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class RecipeController {
 
     private final RecipeService recipeService;
+    private final CookingRecordService cookingRecordService;
 
     // 1) 레시피 생성 (인증 필수)
     @PostMapping
@@ -75,6 +77,7 @@ public class RecipeController {
         }
         Long userId = userDetails.getUser().getId();
         recipeService.deleteRecipe(recipeId, userId);
+        cookingRecordService.deleteByRecipeId(recipeId);
         return ResponseEntity.ok("레시피가 성공적으로 삭제되었습니다.");
     }
 

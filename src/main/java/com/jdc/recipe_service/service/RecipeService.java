@@ -19,6 +19,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.util.ActionImageService;
+import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -51,13 +52,14 @@ public class RecipeService {
     private final RecipeCommentRepository recipeCommentRepository;
     private final CommentLikeRepository commentLikeRepository;
     private final RecipeImageRepository recipeImageRepository;
+    private final RecipeRatingRepository recipeRatingRepository;
 
     private final CommentService commentService;
     private final RecipeIngredientService recipeIngredientService;
     private final RecipeStepService recipeStepService;
     private final RecipeTagService recipeTagService;
+    private final CookingRecordService cookingRecordService;
     private final RecipeRatingService recipeRatingService;
-    private final ActionImageService actionImageService;
     private final S3Util s3Util;
 
     @Value("${app.s3.bucket-name}")
@@ -79,10 +81,26 @@ public class RecipeService {
         // 2. 레시피 저장
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipeRepository.save(recipe);
-
+        recipeRepository.flush();
 
         // 3. 하위 도메인 저장 처리
-        recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        recipe.setTotalIngredientCost(totalCost);
+
+        Integer providedMp = recipe.getMarketPrice(); // dto에 들어온 값
+        int marketPrice;
+        if (providedMp != null && providedMp > 0) {
+            // 이미 값이 있으면 그대로 사용
+            marketPrice = providedMp;
+        } else if (totalCost > 0) {
+            // 기본 30% 마진으로 랜덤 ±5%
+            int randomPercent = PricingUtil.randomizeMarginPercent(30);
+            marketPrice = PricingUtil.applyMargin(totalCost, randomPercent);
+        } else {
+            // cost가 0 이면 marketPrice도 0
+            marketPrice = 0;
+        }
+        recipe.setMarketPrice(marketPrice);
         recipeRepository.flush();
         recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTagNames());
@@ -145,22 +163,6 @@ public class RecipeService {
         return new FinalizeResponse(recipeId, activeImages, List.of());
     }
 
-//    @Transactional
-//    public PresignedUrlResponse createRecipeAndGenerateUrls(RecipeWithImageUploadRequest request, Long userId) {
-//        User user = getUserOrThrow(userId);
-//
-//        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
-//        recipeRepository.save(recipe);
-//
-//        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
-//        recipe.setTotalIngredientCost(totalCost);
-//        recipeRepository.flush();
-//
-//        recipeStepService.saveAll(recipe, request.getRecipe().getSteps());
-//        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
-//
-//        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
-//    }
 
     @Transactional
     public Long createUserRecipe(RecipeUserCreateRequestDto dto, Long userId) {
@@ -204,23 +206,6 @@ public class RecipeService {
                 .build();
     }
 
-
-//    @Transactional
-//    public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUserUploadRequest request, Long userId) {
-//        User user = getUserOrThrow(userId);
-//
-//        Recipe recipe = RecipeMapper.toEntity(request.getRecipe(), user);
-//        recipeRepository.save(recipe);
-//
-//        int totalCost = recipeIngredientService.saveAll(recipe, request.getRecipe().getIngredients());
-//        recipe.setTotalIngredientCost(totalCost);
-//        recipeRepository.flush();
-//
-//        recipeStepService.saveAllFromUser(recipe, request.getRecipe().getSteps());
-//        recipeTagService.saveAll(recipe, request.getRecipe().getTagNames());
-//
-//        return recipeUploadService.generatePresignedUrlsForCreate(recipe.getId(), userId, request.getFiles());
-//    }
 
 
     @Transactional(readOnly = true)
@@ -408,15 +393,13 @@ public class RecipeService {
 
         // ✅ 비용 계산 보정
         Integer totalCost = recipe.getTotalIngredientCost();
+        if (totalCost == null) totalCost = 0;
+
         Integer marketPrice = recipe.getMarketPrice();
 
-//        if (marketPrice == null && totalCost != null) {
-//            marketPrice = (int) Math.round(totalCost * 1.3); // 대충 30% 프리미엄 가정
-//        }
-
-        Integer savings = (marketPrice != null && totalCost != null)
+        Integer savings = (marketPrice != null)
                 ? marketPrice - totalCost
-                : null;
+                : (totalCost > 0 ? (int) Math.round(totalCost * 0.3) : 0);
 
         return RecipeDetailDto.builder()
                 .id(recipe.getId())
@@ -527,6 +510,10 @@ public class RecipeService {
         //a. 레시피 존재 및 삭제 권한 체크
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
+
+        cookingRecordService.deleteByRecipeId(recipeId);
+
+        recipeRatingRepository.deleteByRecipeId(recipeId);
 
         // ✅ b. S3 이미지 삭제 추가
         List<RecipeImage> images = recipeImageRepository.findByRecipeId(recipeId);
