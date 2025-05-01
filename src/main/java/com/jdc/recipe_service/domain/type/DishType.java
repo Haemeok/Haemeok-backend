@@ -31,4 +31,11 @@ public enum DishType {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown dish type: " + displayName));
     }
+
+    public static DishType fromCode(String code) {
+        return Arrays.stream(DishType.values())
+                .filter(type -> type.name().equalsIgnoreCase(code))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invalid dish type code: " + code));
+    }
 }
