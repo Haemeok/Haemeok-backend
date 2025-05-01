@@ -141,7 +141,8 @@ public class SecurityConfig {
                                 "/api/token/refresh",
                                 "/api/tags/**",
                                 "/", "/oauth2/**", "/login/**", "/error",
-                                "/h2-console/**"
+                                "/h2-console/**",
+                                "/api/opensearch/**"
                         ).permitAll()
 
 
