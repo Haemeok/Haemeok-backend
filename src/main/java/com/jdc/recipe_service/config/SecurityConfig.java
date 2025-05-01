@@ -165,7 +165,8 @@ public class SecurityConfig {
                                 "/api/recipes/dish-types",
                                 "/api/tags",
                                 "/api/users/*",
-                                "/api/users/*/recipes"
+                                "/api/users/*/recipes",
+                                "/api/search/**"
                         ).permitAll()
 
                         // 4) 인증 필요 POST
