@@ -16,8 +16,11 @@ public class RecipeStepRequestDto {
     private String instruction;
     private String imageKey; // 🔄 imageUrl → imageKey (S3 key 저장용)
     private List<String> stepImageKeys;
-//    private String cookingTools;
     private String action;
 
     private List<RecipeStepIngredientRequestDto> ingredients;
+
+    public void setImageKey(String imageKey) {
+        this.imageKey = imageKey;
+    }
 }

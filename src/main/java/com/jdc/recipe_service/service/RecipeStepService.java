@@ -14,6 +14,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
+import com.jdc.recipe_service.util.ActionImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -27,9 +28,17 @@ public class RecipeStepService {
     private final IngredientRepository ingredientRepository;
     private final RecipeStepRepository recipeStepRepository;
     private final RecipeStepIngredientRepository recipeStepIngredientRepository;
+    private final ActionImageService actionImageService;
 
     public void saveAll(Recipe recipe, List<RecipeStepRequestDto> dtos) {
+        int actionImageIndex = actionImageService.generateRandomIndex(); // ✅ 같은 레시피 내 고정
+
         for (RecipeStepRequestDto dto : dtos) {
+            if (actionImageService.isSupportedAction(dto.getAction())) {
+                String imageKey = actionImageService.generateImageKey(dto.getAction(), actionImageIndex);
+                dto.setImageKey(imageKey); // ✅ S3 key 저장
+            }
+
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
             recipeStepRepository.save(step);
 
@@ -39,14 +48,14 @@ public class RecipeStepService {
                 Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(ingDto.getName().trim())
                         .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, ingDto.getName()));
 
-                String quantityRaw = ingDto.getQuantity().trim();
                 RecipeStepIngredient rsi = StepIngredientMapper.toEntity(
-                        new RecipeStepIngredientRequestDto(ingDto.getName(), quantityRaw), step, ingredient
+                        ingDto, step, ingredient
                 );
                 recipeStepIngredientRepository.save(rsi);
             }
         }
     }
+
 
     public void saveAllFromUser(Recipe recipe, List<RecipeStepUserRequestDto> dtos) {
         for (RecipeStepUserRequestDto dto : dtos) {

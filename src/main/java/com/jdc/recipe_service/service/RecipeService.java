@@ -18,6 +18,7 @@ import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
+import com.jdc.recipe_service.util.ActionImageService;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -56,7 +57,7 @@ public class RecipeService {
     private final RecipeStepService recipeStepService;
     private final RecipeTagService recipeTagService;
     private final RecipeRatingService recipeRatingService;
-    private final RecipeUploadService recipeUploadService;
+    private final ActionImageService actionImageService;
     private final S3Util s3Util;
 
     @Value("${app.s3.bucket-name}")
@@ -253,7 +254,13 @@ public class RecipeService {
 
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
-        Page<RecipeSimpleDto> page = recipeRepository.search(condition, pageable, userId);
+
+        String title = condition.getTitle();
+        DishType dishType = condition.getDishTypeEnum();
+        List<TagType> tagTypes = condition.getTagEnums();
+
+        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, pageable, userId);
+
 
         if (userId != null) {
             List<Long> recipeIds = page.getContent().stream()
@@ -278,7 +285,7 @@ public class RecipeService {
 
         TagType tag;
         try {
-            tag = TagType.fromNameOrThrow(tagName);
+            tag = TagType.fromCode(tagName);
         } catch (IllegalArgumentException e) {
             throw new CustomException(ErrorCode.INVALID_TAG_NAME);
         }
@@ -323,9 +330,9 @@ public class RecipeService {
 
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> getByDishTypeWithLikeInfo(
-            String dishTypeEnumName, Long currentUserId, Pageable pageable) {
+            String dishTypeCode, Long currentUserId, Pageable pageable) {
 
-        DishType dishType = DishType.valueOf(dishTypeEnumName);
+        DishType dishType = DishType.fromCode(dishTypeCode); // valueOf → fromCode
 
         Page<RecipeSimpleDto> page = recipeRepository.findByDishTypeWithLikeCount(dishType, Pageable.unpaged());
         List<RecipeSimpleDto> recipes = new ArrayList<>(page.getContent());
