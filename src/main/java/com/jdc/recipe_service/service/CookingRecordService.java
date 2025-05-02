@@ -92,14 +92,17 @@ public class CookingRecordService {
         return new CalendarMonthSummaryDto(daily, monthlyTotal);
     }
 
-    /** 특정 일자의 기록 리스트 */
+    /** 특정 일자의 생 엔티티 리스트 */
     @Transactional(readOnly = true)
-    public List<CookingRecordDto> getDailyRecords(Long userId, LocalDate date) {
+    public List<com.jdc.recipe_service.domain.entity.CookingRecord> getDailyRecordEntities(
+            Long userId, LocalDate date) {
+
         var start = date.atStartOfDay();
         var end   = start.plusDays(1);
-        return repo.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(userId, start, end).stream()
-                .map(CookingRecordDto::from)
-                .toList();
+
+        return repo.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                userId, start, end
+        );
     }
 
     /** 개별 기록 상세 */
