@@ -77,7 +77,6 @@ public class RecipeController {
         }
         Long userId = userDetails.getUser().getId();
         recipeService.deleteRecipe(recipeId, userId);
-        cookingRecordService.deleteByRecipeId(recipeId);
         return ResponseEntity.ok("레시피가 성공적으로 삭제되었습니다.");
     }
 

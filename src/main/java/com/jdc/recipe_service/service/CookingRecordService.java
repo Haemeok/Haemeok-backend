@@ -63,11 +63,6 @@ public class CookingRecordService {
         repo.deleteByRatingId(ratingId);
     }
 
-    /** 레시피 삭제 시점에 호출하여 연관 기록 모두 삭제 */
-    @Transactional
-    public void deleteByRecipeId(Long recipeId) {
-        repo.deleteByRecipeId(recipeId);
-    }
 
     /** 월별 달력 요약(일별 절약액 + 월합계) */
     @Transactional(readOnly = true)
