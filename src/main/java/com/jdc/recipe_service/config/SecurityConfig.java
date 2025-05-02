@@ -83,6 +83,7 @@ public class SecurityConfig {
                                     "/api/recipes/*/like",
                                     "/api/recipes/*/favorite",
                                     "/api/recipes/with-images",
+                                    "/api/ratings/recipe/*",
                                     "/api/token/logout",
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/user",
@@ -93,7 +94,6 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.PUT,
                                     "/api/me",
                                     "/api/recipes/*",
-                                    "/api/ratings/recipe/*",
                                     "/api/ingredients",
                                     "/api/recipes/*/images",
                                     "/api/recipes/user/*"
@@ -187,6 +187,7 @@ public class SecurityConfig {
                                 "/api/me/fridge/items/bulk",
                                 "/api/recipes/user",
                                 "/api/recipes/user/with-images",
+                                "/api/ratings/recipe/*",
                                 "/api/token/logout"
                         ).authenticated()
 
@@ -194,7 +195,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,
                                 "/api/ingredients",
                                 "/api/recipes/*",
-                                "/api/ratings/recipe/*",
                                 "/api/me",
                                 "/api/recipes/*/images",
                                 "/api/recipes/user/*"
