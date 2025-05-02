@@ -68,7 +68,8 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.GET,
                                     "/api/me",
                                     "/api/me/favorites",
-                                    "/api/me/fridge/items"
+                                    "/api/me/fridge/items",
+                                    "/api/me/calendar/**"
                             ).authenticated()
 
                             // 4) 보호된 POST
@@ -150,7 +151,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/me",
                                 "/api/me/favorites",
-                                "/api/me/fridge/items"
+                                "/api/me/fridge/items",
+                                "/api/me/calendar/**"
                         ).authenticated()
 
                         // 3) 읽기 전용 GET (모두 허용)
