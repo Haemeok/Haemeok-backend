@@ -91,7 +91,6 @@ public class RecipeRatingService {
 
         updateRecipeAverageRating(recipe);
 
-        cookingRecordService.deleteByRatingId(rating.getId());
 
         return deletedId;
     }

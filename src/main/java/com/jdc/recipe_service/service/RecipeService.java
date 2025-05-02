@@ -511,10 +511,6 @@ public class RecipeService {
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
 
-        cookingRecordService.deleteByRecipeId(recipeId);
-
-        recipeRatingRepository.deleteByRecipeId(recipeId);
-
         // ✅ b. S3 이미지 삭제 추가
         List<RecipeImage> images = recipeImageRepository.findByRecipeId(recipeId);
         List<String> fileKeys = images.stream()
@@ -598,7 +594,7 @@ public class RecipeService {
 
 
     private Recipe getRecipeOrThrow(Long recipeId) {
-        return recipeRepository.findById(recipeId)
+        return recipeRepository.findWithUserById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
     }
 
