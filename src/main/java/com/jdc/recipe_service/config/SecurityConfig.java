@@ -169,7 +169,7 @@ public class SecurityConfig {
                                 "/api/recipes/search",
                                 "/api/recipes/by-tag",
                                 "/api/recipes/by-dish-type",
-                                "/api/recipes/dish-types",
+                                "/api/dish-types",
                                 "/api/tags",
                                 "/api/users/*",
                                 "/api/users/*/recipes",
