@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.util;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -14,18 +15,21 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class S3Util {
 
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
 
-    @Value("${cloud.aws.s3.bucket}")
+    @Value("${app.s3.bucket-name}")
     private String bucketName;
 
     /**
      * presigned URL 생성
      */
     public String createPresignedUrl(String fileKey) {
+        log.info("📦 S3Presigner class: {}", s3Presigner.getClass().getName());
+
         PutObjectRequest objectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(fileKey)
@@ -69,6 +73,19 @@ public class S3Util {
 
         s3Client.deleteObjects(deleteRequest);
     }
+
+    public boolean isZeroByteFile(String fileKey) {
+        try {
+            HeadObjectResponse response = s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileKey)
+                    .build());
+            return response.contentLength() == 0;
+        } catch (S3Exception e) {
+            return false; // 존재하지 않으면 false
+        }
+    }
+
 
     /**
      * S3의 full URL 생성
