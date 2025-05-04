@@ -31,4 +31,7 @@ public class Ingredient {
 
     @Column
     private String unit;
+
+    @Column(name = "calorie", nullable = true)
+    private Integer calorie;
 }
