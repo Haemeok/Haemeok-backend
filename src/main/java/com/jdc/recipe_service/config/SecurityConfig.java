@@ -85,6 +85,7 @@ public class SecurityConfig {
                                     "/api/recipes/*/favorite",
                                     "/api/ratings/recipe/*",
                                     "/api/token/logout",
+                                    "/api/token/logout/all",
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/private",
                                     "/api/recipes/*/finalize"
@@ -189,6 +190,7 @@ public class SecurityConfig {
                                 "/api/me/fridge/items/bulk",
                                 "/api/ratings/recipe/*",
                                 "/api/token/logout",
+                                "/api/token/logout/all",
                                 "/api/recipes/*/private",
                                 "/api/recipes/*/finalize"
                         ).authenticated()
