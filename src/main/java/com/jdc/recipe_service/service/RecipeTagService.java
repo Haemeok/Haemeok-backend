@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.repository.RecipeTagRepository;
 import com.jdc.recipe_service.domain.type.TagType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -65,5 +66,10 @@ public class RecipeTagService {
                 recipeTagRepository.save(newTag);
             }
         }
+    }
+
+    @Transactional
+    public void deleteAllByRecipeId(Long recipeId) {
+        recipeTagRepository.deleteByRecipeId(recipeId);
     }
 }

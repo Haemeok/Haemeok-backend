@@ -41,4 +41,10 @@ public class RecipeLikeService {
         return true; // 좋아요 등록
     }
 
+    @Transactional
+    public void deleteByRecipeId(Long recipeId) {
+        likeRepository.deleteByRecipeId(recipeId);
+    }
+
+
 }
