@@ -69,7 +69,8 @@ public class SecurityConfig {
                                     "/api/me",
                                     "/api/me/favorites",
                                     "/api/me/fridge/items",
-                                    "/api/me/calendar/**"
+                                    "/api/me/calendar/**",
+                                    "/api/ratings/recipe/*/me"
                             ).authenticated()
 
                             // 4) 보호된 POST
@@ -82,12 +83,11 @@ public class SecurityConfig {
                                     "/api/recipes/*/presigned-urls",
                                     "/api/recipes/*/like",
                                     "/api/recipes/*/favorite",
-                                    "/api/recipes/with-images",
                                     "/api/ratings/recipe/*",
                                     "/api/token/logout",
                                     "/api/me/fridge/items/bulk",
-                                    "/api/recipes/user",
-                                    "/api/recipes/user/with-images"
+                                    "/api/recipes/*/private",
+                                    "/api/recipes/*/finalize"
                             ).authenticated()
 
                             // 5) 보호된 PUT
@@ -95,8 +95,7 @@ public class SecurityConfig {
                                     "/api/me",
                                     "/api/recipes/*",
                                     "/api/ingredients",
-                                    "/api/recipes/*/images",
-                                    "/api/recipes/user/*"
+                                    "/api/recipes/*/images"
                             ).authenticated()
 
                             // 6) 보호된 DELETE
@@ -110,7 +109,10 @@ public class SecurityConfig {
                                     "/api/ingredients"
                             ).authenticated()
 
-                            // 7) 나머지 요청은 모두 공개
+                            // 7) 관리자용 API
+                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                            // 8) 나머지 요청은 모두 공개
                             .anyRequest().permitAll()
                     )
                     .headers(h -> h.frameOptions(frame -> frame.disable()));
@@ -152,7 +154,8 @@ public class SecurityConfig {
                                 "/api/me",
                                 "/api/me/favorites",
                                 "/api/me/fridge/items",
-                                "/api/me/calendar/**"
+                                "/api/me/calendar/**",
+                                "/api/ratings/recipe/*/me"
                         ).authenticated()
 
                         // 3) 읽기 전용 GET (모두 허용)
@@ -183,12 +186,11 @@ public class SecurityConfig {
                                 "/api/recipes/*/like",
                                 "/api/recipes/*/favorite",
                                 "/api/me/fridge/items",
-                                "/api/recipes/with-images",
                                 "/api/me/fridge/items/bulk",
-                                "/api/recipes/user",
-                                "/api/recipes/user/with-images",
                                 "/api/ratings/recipe/*",
-                                "/api/token/logout"
+                                "/api/token/logout",
+                                "/api/recipes/*/private",
+                                "/api/recipes/*/finalize"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
@@ -196,8 +198,7 @@ public class SecurityConfig {
                                 "/api/ingredients",
                                 "/api/recipes/*",
                                 "/api/me",
-                                "/api/recipes/*/images",
-                                "/api/recipes/user/*"
+                                "/api/recipes/*/images"
                         ).authenticated()
 
                         // 6) 인증 필요 DELETE
@@ -211,7 +212,10 @@ public class SecurityConfig {
                                 "/api/me/fridge/items/bulk"
                         ).authenticated()
 
-                        // 7) 나머지 전부 차단
+                        // 7) 관리자용 API
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                        // 8) 나머지 전부 차단
                         .anyRequest().denyAll()
                 )
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
