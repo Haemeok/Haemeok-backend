@@ -33,6 +33,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag recipeTag = QRecipeTag.recipeTag;
 
+        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
+
         var query = queryFactory
                 .select(new QRecipeSimpleDto(
                         recipe.id,
@@ -50,6 +52,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .from(recipe)
                 .leftJoin(recipe.tags, recipeTag)
                 .where(
+                        privacyCondition,
                         titleContains(title),
                         dishTypeEq(dishType),
                         tagIn(tagTypes)
@@ -88,6 +91,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     public Page<RecipeSimpleDto> findAllSimpleWithRatingAndCookingInfo(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
 
+        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
+
         List<RecipeSimpleDto> content = queryFactory
                 .select(new QRecipeSimpleDto(
                         recipe.id,
@@ -97,23 +102,27 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.user.profileImage,
                         recipe.createdAt,
                         recipe.likes.size().castToNum(Long.class),
-                        com.querydsl.core.types.dsl.Expressions.constant(false),
+                        com.querydsl.core.types.dsl.Expressions.constant(false), // likedByCurrentUser: 나중에 세팅
                         recipe.cookingTime,
                         recipe.avgRating,
                         recipe.ratingCount.coalesce(0L)
                 ))
                 .from(recipe)
+                .where(privacyCondition)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
 
+        // ✅ total도 동일 조건 적용
         Long total = queryFactory
                 .select(recipe.count())
                 .from(recipe)
+                .where(privacyCondition)
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
+
 
 
     private OrderSpecifier<?> getOrderSpecifier(Pageable pageable) {

@@ -30,6 +30,7 @@ public class RecipeDetailDto {
     private String youtubeUrl;
     private List<String> cookingTools;
     private boolean isAiGenerated;
+    private boolean isPrivate;
 
     private Integer servings;
 

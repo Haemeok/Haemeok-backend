@@ -200,6 +200,7 @@ public class UserService {
                         .dishType(recipe.getDishType().getDisplayName())
                         .createdAt(recipe.getCreatedAt())
                         .isAiGenerated(recipe.isAiGenerated())
+                        .isPrivate(recipe.getIsPrivate())
                         .likedByCurrentUser(likedIds.contains(recipe.getId()))
                         .build()
         );

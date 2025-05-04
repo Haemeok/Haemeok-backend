@@ -38,6 +38,7 @@
         private Integer servings;
         private Integer totalIngredientCost;
         private Integer marketPrice;
+        private Boolean isPrivate;
 
         private List<RecipeIngredientRequestDto> ingredients;
         private List<RecipeStepRequestDto> steps;
