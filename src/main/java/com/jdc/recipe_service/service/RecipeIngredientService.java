@@ -25,10 +25,7 @@ public class RecipeIngredientService {
         int totalCost = 0;
 
         for (RecipeIngredientRequestDto dto : dtos) {
-            Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(dto.getName())
-                    .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, dto.getName()));
-
-            // 문자열 수량 → double 변환
+            // 1. 수량 파싱
             double quantity;
             try {
                 quantity = parseQuantity(dto.getQuantity());
@@ -36,7 +33,20 @@ public class RecipeIngredientService {
                 throw new CustomException(ErrorCode.INVALID_INGREDIENT_QUANTITY, dto.getQuantity());
             }
 
-            int unitPrice = ingredient.getPrice() != null ? ingredient.getPrice() : 0;
+            // 2. 재료 탐색 (존재 여부 확인)
+            Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(dto.getName()).orElse(null);
+
+            int unitPrice;
+            if (ingredient != null) {
+                unitPrice = (ingredient.getPrice() != null) ? ingredient.getPrice() : 0;
+            } else {
+                // 없는 재료면 가격, 단위 필수
+                if (dto.getCustomPrice() == null || dto.getCustomUnit() == null) {
+                    throw new CustomException(ErrorCode.CUSTOM_INGREDIENT_INFO_MISSING, dto.getName());
+                }
+                unitPrice = dto.getCustomPrice().intValue();
+            }
+
             totalCost += (int) Math.round(quantity * unitPrice);
 
             RecipeIngredient entity = RecipeIngredientMapper.toEntity(dto, recipe, ingredient);
@@ -45,6 +55,7 @@ public class RecipeIngredientService {
 
         return totalCost;
     }
+
 
     public void updateIngredients(Recipe recipe, List<RecipeIngredientRequestDto> ingredientDtos) {
         recipeIngredientRepository.deleteByRecipeId(recipe.getId());

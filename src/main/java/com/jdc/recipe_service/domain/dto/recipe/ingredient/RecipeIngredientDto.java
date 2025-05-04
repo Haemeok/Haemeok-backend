@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.domain.dto.recipe.ingredient;
 
+import com.jdc.recipe_service.domain.entity.Ingredient;
+import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,4 +24,20 @@ public class RecipeIngredientDto {
     private String quantity;
     private String unit;
     private Integer price;
+
+    public static RecipeIngredientDto from(RecipeIngredient ri) {
+        Ingredient ingredient = ri.getIngredient();
+        boolean isCustom = (ingredient == null);
+
+        return RecipeIngredientDto.builder()
+                .ingredientId(isCustom ? null : ingredient.getId())
+                .name(isCustom ? ri.getCustomName() : ingredient.getName())
+                .quantity(ri.getQuantity())
+                .unit(isCustom ? ri.getCustomUnit() : ri.getUnit())
+                .price(isCustom
+                        ? (ri.getCustomPrice() != null ? ri.getCustomPrice().intValue() : null)
+                        : (ingredient.getPrice() != null ? ingredient.getPrice() : 0))
+                .build();
+    }
+
 }

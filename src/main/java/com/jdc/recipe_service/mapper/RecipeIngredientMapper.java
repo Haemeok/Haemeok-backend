@@ -14,31 +14,40 @@ public class RecipeIngredientMapper {
         return RecipeIngredient.builder()
                 .recipe(recipe)
                 .ingredient(ingredient)
+                .customName(ingredient == null ? dto.getName() : null)
+                .customPrice(ingredient == null ? dto.getCustomPrice() : null)
+                .customUnit(ingredient == null ? dto.getCustomUnit() : null)
                 .quantity(dto.getQuantity())
-                .unit(ingredient.getUnit())
+                .unit(ingredient != null ? ingredient.getUnit() : null)
                 .build();
     }
 
     public static RecipeIngredientDto toDto(RecipeIngredient entity) {
-        int unitPrice = entity.getIngredient().getPrice() != null ? entity.getIngredient().getPrice() : 0;
-        double quantityValue;
+        Ingredient ingredient = entity.getIngredient(); // ⭐ null 가능성 처리
+        boolean isCustom = (ingredient == null);
 
+        double quantityValue;
         try {
             quantityValue = parseQuantity(entity.getQuantity());
         } catch (Exception e) {
-            quantityValue = 0.0; // 실패 시 가격은 0 처리
+            quantityValue = 0.0;
         }
+
+        int unitPrice = isCustom
+                ? (entity.getCustomPrice() != null ? entity.getCustomPrice().intValue() : 0)
+                : (ingredient.getPrice() != null ? ingredient.getPrice() : 0);
 
         int totalPrice = (int) Math.round(quantityValue * unitPrice);
 
         return RecipeIngredientDto.builder()
-                .ingredientId(entity.getIngredient().getId())
-                .name(entity.getIngredient().getName())
-                .quantity(formatQuantityForDisplay(entity.getQuantity())) // ✅ 포맷팅 적용
-                .unit(entity.getUnit())
+                .ingredientId(isCustom ? null : ingredient.getId())
+                .name(isCustom ? entity.getCustomName() : ingredient.getName())
+                .quantity(formatQuantityForDisplay(entity.getQuantity()))
+                .unit(isCustom ? entity.getCustomUnit() : entity.getUnit())
                 .price(totalPrice)
                 .build();
     }
+
 
     public static List<RecipeIngredientDto> toDtoList(List<RecipeIngredient> entities) {
         return entities.stream().map(RecipeIngredientMapper::toDto).toList();

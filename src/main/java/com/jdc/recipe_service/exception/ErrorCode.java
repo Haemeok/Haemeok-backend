@@ -35,6 +35,7 @@ public enum ErrorCode {
     INVALID_INGREDIENT_QUANTITY(HttpStatus.BAD_REQUEST, "402", "재료 수량이 유효하지 않습니다."),
     DUPLICATE_INGREDIENT(HttpStatus.CONFLICT, "403", "이미 존재하는 재료입니다."),
     INVALID_INGREDIENT_REQUEST(HttpStatus.BAD_REQUEST, "404", "잘못된 재료 요청입니다."),
+    CUSTOM_INGREDIENT_INFO_MISSING(HttpStatus.BAD_REQUEST, "405", "새로운 재료는 가격과 단위를 함께 입력해야 합니다."),
 
     // --- Fridge (500) ---
     INVALID_FRIDGE_REQUEST(HttpStatus.BAD_REQUEST, "501", "잘못된 냉장고 요청입니다."),
