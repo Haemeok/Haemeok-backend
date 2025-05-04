@@ -40,4 +40,9 @@ public class RecipeFavoriteService {
         return true; // 즐겨찾기 등록
     }
 
+    @Transactional
+    public void deleteByRecipeId(Long recipeId) {
+        favoriteRepository.deleteByRecipeId(recipeId);
+    }
+
 }

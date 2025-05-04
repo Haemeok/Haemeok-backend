@@ -11,6 +11,7 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -55,6 +56,11 @@ public class RecipeIngredientService {
         recipeIngredientRepository.deleteByRecipeId(recipe.getId()); // 1. 기존 삭제
         recipeIngredientRepository.flush(); // 💡 즉시 반영해서 중복 방지
         return saveAll(recipe, dtos); // 2. 새로 저장
+    }
+
+    @Transactional
+    public void deleteAllByRecipeId(Long recipeId) {
+        recipeIngredientRepository.deleteByRecipeId(recipeId);
     }
 
 
