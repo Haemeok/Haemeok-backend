@@ -3,6 +3,8 @@ package com.jdc.recipe_service.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "recipe_step_ingredients", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"step_id", "ingredient_id"})
@@ -34,6 +36,10 @@ public class RecipeStepIngredient {
 
     @Column(length = 20)
     private String unit;
+
+    private String customName;
+    private String customUnit;
+    private BigDecimal customPrice;
 
     public void updateQuantityAndUnit(String quantity, String unit) {
         this.quantity = quantity;

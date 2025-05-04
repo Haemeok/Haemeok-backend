@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 
 /**
  *
@@ -18,5 +20,7 @@ import lombok.NoArgsConstructor;
 public class RecipeIngredientRequestDto {
     private String name;
     private String quantity;
-    //private String unit;
+
+    private BigDecimal customPrice;
+    private String customUnit;
 }

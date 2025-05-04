@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "recipe_ingredients", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"recipe_id", "ingredient_id"})
@@ -31,6 +33,10 @@ public class RecipeIngredient {
 
     @Column(length = 20)
     private String unit;
+
+    private String customName;
+    private BigDecimal customPrice;
+    private String customUnit;
 
     public void updateQuantityAndUnit(String quantity, String unit) {
         this.quantity = quantity;
