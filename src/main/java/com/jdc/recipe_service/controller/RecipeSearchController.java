@@ -4,7 +4,7 @@ import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.security.CustomUserDetails;
-import com.jdc.recipe_service.service.RecipeService;
+import com.jdc.recipe_service.service.RecipeSearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,9 +20,9 @@ import java.util.List;
 @RequestMapping("/api/recipes")
 @RequiredArgsConstructor
 public class RecipeSearchController {
-    private final RecipeService recipeService;
+    private final RecipeSearchService recipeService;
 
-    // 2) 레시피 단건 조회 (읽기 전용, 선택 인증)
+    // 레시피 단건 조회 (읽기 전용, 선택 인증)
     @GetMapping("/{recipeId}")
     public ResponseEntity<RecipeDetailDto> getRecipe(
             @PathVariable Long recipeId,
@@ -35,7 +35,7 @@ public class RecipeSearchController {
                 recipeService.getRecipeDetail(recipeId, userId));
     }
 
-    // 2) 전체 간단 조회 (읽기 전용)
+    // 전체 간단 조회 (읽기 전용)
     @GetMapping("/simple")
     public ResponseEntity<Page<RecipeSimpleDto>> getAllSimple(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -50,7 +50,7 @@ public class RecipeSearchController {
         return ResponseEntity.ok(result);
     }
 
-    // 4)태그로 조회
+    // 태그로 조회
     @GetMapping("/by-tag")
     public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
             @RequestParam List<String> tagNames,
@@ -65,7 +65,7 @@ public class RecipeSearchController {
         );
     }
 
-    //5) 디시타입으로 조회
+    // 디시타입으로 조회
     @GetMapping("/by-dish-type")
     public ResponseEntity<Page<RecipeSimpleDto>> byDish(
             @RequestParam String dishType,
@@ -80,7 +80,7 @@ public class RecipeSearchController {
                 recipeService.getByDishTypeWithLikeInfo(dishType, userId, pageable));
     }
 
-    // 3) (검색, 태그, 디시타입) 복합 조건 조회 (읽기 전용)
+    // (검색, 태그, 디시타입) 복합 조건 조회 (읽기 전용)
     @GetMapping("/search")
     public ResponseEntity<Page<RecipeSimpleDto>> search(
             @RequestParam(required = false) String q,
