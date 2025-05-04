@@ -20,6 +20,9 @@ public enum ErrorCode {
     INVALID_DISH_TYPE(HttpStatus.BAD_REQUEST, "205", "유효하지 않은 요리 유형(dishType)입니다."),
     INVALID_TAG_NAME(HttpStatus.BAD_REQUEST, "206", "유효하지 않은 태그입니다."),
     RATING_NOT_FOUND(HttpStatus.NOT_FOUND, "207", "요청한 레시피 평가가 존재하지 않습니다."),
+    CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE(HttpStatus.BAD_REQUEST, "208", "이미지 없이 AI 생성 레시피를 공개로 설정할 수 없습니다."),
+    USER_RECIPE_IMAGE_REQUIRED(HttpStatus.BAD_REQUEST, "209", "유저가 작성한 레시피에는 메인 이미지가 반드시 포함되어야 합니다."),
+    RECIPE_PRIVATE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "210", "비공개 레시피에 대한 접근 권한이 없습니다."),
 
     // --- Comment (300) ---
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "301", "요청한 댓글이 존재하지 않습니다."),

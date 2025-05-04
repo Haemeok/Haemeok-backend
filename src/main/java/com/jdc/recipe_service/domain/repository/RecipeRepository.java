@@ -19,8 +19,13 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
 
     //로그인 조회
-    @EntityGraph(attributePaths = {"user"})
-    @Query("select r from Recipe r where r.id = :recipeId")
+//    @EntityGraph(attributePaths = {"user"})
+//    @Query("select r from Recipe r where r.id = :recipeId")
+    @Query("""
+    SELECT r FROM Recipe r
+    JOIN FETCH r.user
+    WHERE r.id = :recipeId
+""")
     Optional<Recipe> findWithUserById(@Param("recipeId") Long recipeId);
 
     //사용자가 쓴 레시피 조회
@@ -42,6 +47,7 @@ JOIN r.tags rt
 LEFT JOIN RecipeLike rl ON rl.recipe = r
 LEFT JOIN RecipeRating rr ON rr.recipe = r
 WHERE rt.tag = :tag
+AND r.isPrivate = false
 GROUP BY r.id, r.title, r.imageKey, u.nickname, u.profileImage, r.createdAt, r.cookingTime
 """)
     Page<RecipeSimpleDto> findByTagWithLikeCount(@Param("tag") TagType tag, Pageable pageable);
@@ -60,6 +66,7 @@ JOIN r.user u
 LEFT JOIN RecipeLike rl ON rl.recipe = r
 LEFT JOIN RecipeRating rr ON rr.recipe = r
 WHERE r.dishType = :dishType
+AND r.isPrivate = false
 GROUP BY r.id, r.title, r.imageKey, u.nickname, u.profileImage, r.createdAt, r.cookingTime
 """)
     Page<RecipeSimpleDto> findByDishTypeWithLikeCount(@Param("dishType") DishType dishType, Pageable pageable);

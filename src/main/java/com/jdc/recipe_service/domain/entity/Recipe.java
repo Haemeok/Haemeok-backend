@@ -18,7 +18,6 @@ import java.util.List;
         }
 )
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
@@ -74,11 +73,10 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Integer servings = 1; // 기본값 1인분
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isPrivate = false; // 기본값 공개
 
-//    @Column(nullable = false)
-//    @Builder.Default
-//    private Boolean isPrivate = false; // 기본값 공개
-//
     @Column
     @Builder.Default
     private Integer totalIngredientCost = 0; // 재료 기준 가격
@@ -124,4 +122,23 @@ public class Recipe extends BaseTimeEntity {
         this.imageKey = imageKey;
     }
 
+    public void updateAiGenerated(boolean isAi) {
+        this.isAiGenerated = isAi;
+    }
+
+    public void updateTotalIngredientCost(Integer totalCost) {
+        this.totalIngredientCost = totalCost;
+    }
+
+    public void updateMarketPrice(Integer price) {
+        this.marketPrice = price;
+    }
+
+    public void updateAvgRating(BigDecimal avgRating) {
+        this.avgRating = avgRating;
+    }
+
+    public void updateIsPrivate(Boolean isPrivate) {
+        this.isPrivate = isPrivate;
+    }
 }
