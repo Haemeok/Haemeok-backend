@@ -11,6 +11,7 @@ import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -98,4 +99,35 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/logout/all")
+    @Transactional
+    public ResponseEntity<Void> logoutAll(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            HttpServletResponse response) {
+
+        // (A) Authorization 헤더 유효성 검사
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
+        String accessToken = authorization.substring(7);
+        if (!jwtTokenProvider.validateToken(accessToken)) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
+
+        // (B) 유저 ID 추출
+        Long userId = jwtTokenProvider.getUserIdFromToken(accessToken);
+
+        // (C) 유저의 모든 리프레시 토큰 삭제
+        refreshTokenRepository.deleteByUserId(userId);
+
+        // (D) 클라이언트 쿠키 삭제
+        Cookie deleteCookie = new Cookie("refreshToken", null);
+        deleteCookie.setHttpOnly(true);
+        deleteCookie.setSecure(true);
+        deleteCookie.setPath("/");
+        deleteCookie.setMaxAge(0);
+        response.addCookie(deleteCookie);
+
+        return ResponseEntity.ok().build();
+    }
 }
