@@ -204,6 +204,23 @@ public class CommentService {
         }
     }
 
+    @Transactional
+    public void deleteAllByRecipeId(Long recipeId) {
+        // 1. 댓글 ID 목록 조회
+        List<RecipeComment> comments = recipeCommentRepository.findByRecipeId(recipeId);
+        List<Long> commentIds = comments.stream()
+                .map(RecipeComment::getId)
+                .toList();
+
+        // 2. 댓글 좋아요 삭제
+        if (!commentIds.isEmpty()) {
+            commentLikeRepository.deleteByCommentIdIn(commentIds);
+        }
+
+        // 3. 댓글 삭제
+        recipeCommentRepository.deleteByRecipeId(recipeId);
+    }
+
     public Page<CommentDto> getRepliesWithLikes(Long parentId, Long currentUserId, Pageable pageable) {
         List<RecipeComment> replies = recipeCommentRepository.findByParentCommentIdOrderByCreatedAtAsc(parentId)
                 .stream()
