@@ -3,6 +3,7 @@ package com.jdc.recipe_service.opensearch.service;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.ingredient.IngredientSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import org.opensearch.action.search.SearchRequest;
@@ -19,18 +20,19 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class OpenSearchService {
 
     private final RestHighLevelClient client;
+    private final RefrigeratorItemRepository fridgeRepo;
 
-    public OpenSearchService(RestHighLevelClient client) {
+
+    public OpenSearchService(RestHighLevelClient client, RefrigeratorItemRepository fridgeRepo) {
         this.client = client;
+        this.fridgeRepo = fridgeRepo;
     }
 
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition cond, Pageable pg, Long uid) {
@@ -88,64 +90,93 @@ public class OpenSearchService {
             Pageable pageable
     ) {
         try {
-            // 1) BoolQuery 구성
-            BoolQueryBuilder bool = QueryBuilders.boolQuery();
-            if (q != null)       bool.must(QueryBuilders.matchQuery("name", q));
-            if (categoryFilter != null)
-                bool.filter(QueryBuilders.termQuery("category.keyword", categoryFilter));
-            if (inFridgeFilter != null)
-                bool.filter(QueryBuilders.termQuery("inFridge", inFridgeFilter));
+            // 1) 사용자 냉장고 재료 ID 집합 조회
+            Set<Long> fridgeIds = (userId != null)
+                    ? fridgeRepo.findByUserId(userId, Pageable.unpaged())
+                    .stream()
+                    .map(item -> item.getIngredient().getId())
+                    .collect(Collectors.toSet())
+                    : Collections.emptySet();
 
-            // 2) SearchSourceBuilder
+            // 2) BoolQuery 구성 (prefix 검색 + 카테고리 필터)
+            BoolQueryBuilder bool = QueryBuilders.boolQuery();
+            if (q != null && !q.isBlank()) {
+                bool.must(QueryBuilders.matchPhrasePrefixQuery("name", q));
+            }
+            if (categoryFilter != null && !categoryFilter.isBlank()) {
+                bool.filter(QueryBuilders.termQuery("category.keyword", categoryFilter));
+            }
+
+            // 3) OpenSearch 에 전체 결과 요청 (size는 예상 최대치, 예: 전체 재료 수)
             SearchSourceBuilder src = new SearchSourceBuilder()
                     .query(bool)
-                    .from((int) pageable.getOffset())
-                    .size(pageable.getPageSize());
-            // (필요 시 정렬 추가)
+                    .size(1_000);  // 재료가 많지 않다는 가정 하에
 
-            // 3) 요청 실행
+            // (필요 시 ES 단 정렬도 추가할 수 있으나, 아래 애플리케이션 레벨 정렬로 대체)
             SearchResponse resp = client.search(
                     new SearchRequest("ingredients").source(src),
                     RequestOptions.DEFAULT
             );
 
-            // 4) DTO 변환 (5-arg record 생성자 호출)
-            List<IngredientSummaryDto> list = Arrays.stream(resp.getHits().getHits())
+            // 4) DTO 변환 + 동적 inFridge 플래그 셋팅
+            List<IngredientSummaryDto> all = Arrays.stream(resp.getHits().getHits())
                     .map(hit -> {
                         Map<String,Object> m = hit.getSourceAsMap();
-                        Long    id        = Long.valueOf(hit.getId());
-                        String  name      = (String) m.get("name");
-                        String  category  = m.get("category") != null
-                                ? m.get("category").toString()
-                                : "";
-                        String  imageUrl  = m.get("imageUrl") != null
-                                ? m.get("imageUrl").toString()
-                                : "";
-                        String  unit      = m.get("unit") != null
-                                ? m.get("unit").toString()
-                                : "";
-                        Object  fridgeVal = m.get("inFridge");
-                        boolean inFridge  = fridgeVal instanceof Boolean
-                                ? (Boolean) fridgeVal
-                                : (fridgeVal instanceof Number
-                                ? ((Number) fridgeVal).intValue() == 1
-                                : false);
+                        Long id       = Long.valueOf(hit.getId());
+                        String name   = Objects.toString(m.get("name"), "");
+                        String category = Objects.toString(m.get("category"), "");
+                        String imageUrl = Objects.toString(m.get("imageUrl"), "");
+                        String unit   = Objects.toString(m.get("unit"), "");
+                        boolean inFridge = fridgeIds.contains(id);
 
-                        // IngredientSummaryDto record 의 생성자는
-                        // (Long id, String name, String category, String imageUrl, boolean inFridge)
                         return new IngredientSummaryDto(
-                                id,
-                                name,
-                                category,
-                                imageUrl,
-                                unit,
-                                inFridge
+                                id, name, category, imageUrl, unit, inFridge
                         );
                     })
                     .collect(Collectors.toList());
 
-            // 5) 페이지 조립
-            return new PageImpl<>(list, pageable, resp.getHits().getTotalHits().value);
+            // 5) 애플리케이션 레벨 필터링 (inFridge)
+            List<IngredientSummaryDto> filtered = (inFridgeFilter != null)
+                    ? all.stream()
+                    .filter(dto -> dto.inFridge() == inFridgeFilter)  // ← dto.isInFridge() → dto.inFridge()
+                    .collect(Collectors.toList())
+                    : all;
+
+            // 6) 애플리케이션 레벨 정렬 (Pageable.getSort())
+            if (pageable.getSort().isSorted()) {
+                Comparator<IngredientSummaryDto> comp = null;
+                for (Sort.Order order : pageable.getSort()) {
+                    Comparator<IngredientSummaryDto> c;
+                    switch (order.getProperty()) {
+                        case "name":
+                            c = Comparator.comparing(IngredientSummaryDto::name,
+                                    String.CASE_INSENSITIVE_ORDER);
+                            break;
+                        case "category":
+                            c = Comparator.comparing(IngredientSummaryDto::category,
+                                    String.CASE_INSENSITIVE_ORDER);
+                            break;
+                        default:
+                            continue;
+                    }
+                    if (!order.isAscending()) {
+                        c = c.reversed();
+                    }
+                    comp = (comp == null) ? c : comp.thenComparing(c);
+                }
+                if (comp != null) {
+                    filtered.sort(comp);
+                }
+            }
+
+            // 7) 애플리케이션 레벨 페이징
+            int total = filtered.size();
+            int start = (int) pageable.getOffset();
+            int end   = Math.min(start + pageable.getPageSize(), total);
+            List<IngredientSummaryDto> pageList =
+                    (start > total) ? Collections.emptyList() : filtered.subList(start, end);
+
+            return new PageImpl<>(pageList, pageable, total);
 
         } catch (IOException e) {
             throw new CustomException(

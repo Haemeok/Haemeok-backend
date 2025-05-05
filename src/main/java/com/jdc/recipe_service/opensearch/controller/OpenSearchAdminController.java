@@ -14,17 +14,37 @@ public class OpenSearchAdminController {
 
     private final OpenSearchIndexService indexService;
 
-    /** recipes 인덱스를 생성하는 관리자용 API */
-    @PostMapping("/create-index")
-    public ResponseEntity<?> createIndex() {
+    /**
+     * 'ingredients' 인덱스를 삭제하고 재생성 모든 재료를 다시 인덱싱
+     */
+    @PostMapping("/ingredients/index")
+    public ResponseEntity<Map<String, Boolean>> recreateIngredientsIndex() {
+        boolean reindexed = indexService.recreateIngredientIndex();
+        return ResponseEntity.ok(Map.of("reindexed", reindexed));
+    }
+
+    /**
+     * 'ingredients' 인덱스를 삭제
+     */
+    @DeleteMapping("/ingredients/index")
+    public ResponseEntity<Map<String, Boolean>> deleteIngredientsIndex() {
+        boolean deleted = indexService.deleteIngredientIndex();
+        return ResponseEntity.ok(Map.of("deleted", deleted));
+    }
+
+    /**
+     * 지정한 이름의 인덱스를 삭제
+     */
+    @DeleteMapping("/index/{name}")
+    public ResponseEntity<Map<String, Boolean>> deleteIndexByName(
+            @PathVariable("name") String indexName) {
+        boolean deleted;
         try {
-            boolean ok = indexService.createRecipeIndex();
-            return ResponseEntity.ok(Map.of("created", ok));
-        } catch (IOException e) {
-            return ResponseEntity.status(500).body(Map.of(
-                    "error", "인덱스 생성 실패",
-                    "message", e.getMessage()
-            ));
+            deleted = indexService.deleteIndex(indexName);
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(Map.of("error", false));
         }
+        return ResponseEntity.ok(Map.of("deleted", deleted));
     }
 }
