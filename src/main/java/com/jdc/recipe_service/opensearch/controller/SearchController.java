@@ -70,7 +70,7 @@ public class SearchController {
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "10") int size
     ) {
-        if (prefix.length() < 2) {
+        if (prefix.length() < 1) {
             return ResponseEntity.ok(List.of());
         }
         List<String> suggestions = suggestionService.suggestIngredientNames(prefix, category,  size);
@@ -88,7 +88,7 @@ public class SearchController {
             @RequestParam(required = false) Boolean inFridge,
             @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        if (prefix.length() < 2) {
+        if (prefix.length() < 1) {
             return ResponseEntity.ok(List.of());
         }
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
