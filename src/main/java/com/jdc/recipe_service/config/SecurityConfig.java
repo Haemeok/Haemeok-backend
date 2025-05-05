@@ -156,8 +156,7 @@ public class SecurityConfig {
                                 "/api/me/favorites",
                                 "/api/me/fridge/items",
                                 "/api/me/calendar/**",
-                                "/api/ratings/recipe/*/me",
-                                "/api/search/**"
+                                "/api/ratings/recipe/*/me"
                         ).authenticated()
 
                         // 3) 읽기 전용 GET (모두 허용)
