@@ -5,6 +5,7 @@ import org.apache.http.HttpRequestInterceptor;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestHighLevelClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,13 +17,15 @@ import software.amazon.awssdk.regions.Region;
 @Configuration
 public class OpenSearchConfig {
 
-//    @Value("${opensearch.host}") private String host;
-//    @Value("${opensearch.port}") private int port;
-//    @Value("${opensearch.scheme}") private String scheme;
-    private static final String HOST = "vpc-haemeok-opensearch-j5fpdfk5shdxy6snew5j2rnnim.ap-northeast-2.es.amazonaws.com";
-    private static final int PORT = 443;
-    private static final String SCHEME = "https";
+    @Value("${opensearch.host}")
+    private String HOST;
 
+    // 기본값 지정
+    @Value("${opensearch.port:443}")
+    private int PORT;
+
+    @Value("${opensearch.scheme:https}")
+    private String SCHEME;
     private static final String SERVICE_NAME = "es";
     private static final Region AWS_REGION = Region.AP_NORTHEAST_2;
 

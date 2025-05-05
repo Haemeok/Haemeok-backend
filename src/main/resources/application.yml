@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: prod
+    active: local
 
 server:
   forward-headers-strategy: framework
@@ -16,6 +16,4 @@ springdoc:
     path: /swagger-ui
 
 opensearch:
-  host: vpc-haemeok-opensearch-j5fpdfk5shdxy6snew5j2rnnim.ap-northeast-2.es.amazonaws.com
-  port: 443
-  scheme: https
+  host: ${OPENSEARCH_HOST}
