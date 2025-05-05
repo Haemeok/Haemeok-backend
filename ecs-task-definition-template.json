@@ -9,6 +9,7 @@
       "essential": true,
       "portMappings": [
         {
+          "name": "haemeok-app-8080-tcp",
           "containerPort": 8080,
           "hostPort": 8080,
           "protocol": "tcp"
@@ -28,7 +29,13 @@
         { "name": "NAVER_CLIENT_ID", "value": "${NAVER_CLIENT_ID}" },
         { "name": "NAVER_CLIENT_SECRET", "value": "${NAVER_CLIENT_SECRET}" },
         { "name": "CLOUD_AWS_REGION_STATIC", "value": "${CLOUD_AWS_REGION_STATIC}" },
-        { "name": "CLOUD_AWS_S3_BUCKET", "value": "${CLOUD_AWS_S3_BUCKET}" }
+        { "name": "CLOUD_AWS_S3_BUCKET", "value": "${CLOUD_AWS_S3_BUCKET}" },
+        { "name": "AWS_ACCESS_KEY_ID", "value": "${AWS_ACCESS_KEY_ID}" },
+        { "name": "AWS_SECRET_ACCESS_KEY", "value": "${AWS_SECRET_ACCESS_KEY}" },
+        { "name": "APP_S3_BUCKET_NAME", "value": "${APP_S3_BUCKET_NAME}" },
+        { "name": "APP_S3_UPLOAD_BASE_PATH", "value": "${APP_S3_UPLOAD_BASE_PATH}" },
+        { "name": "APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES", "value": "${APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES}" },
+        { "name": "OPENSEARCH_HOST", "value": "${OPENSEARCH_HOST}"}
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

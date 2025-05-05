@@ -63,7 +63,12 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           CLOUD_AWS_REGION_STATIC: ${{ secrets.CLOUD_AWS_REGION_STATIC }}
           CLOUD_AWS_S3_BUCKET: ${{ secrets.CLOUD_AWS_S3_BUCKET }}
-
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          APP_S3_BUCKET_NAME: ${{ secrets.APP_S3_BUCKET_NAME }}
+          APP_S3_UPLOAD_BASE_PATH: ${{ secrets.APP_S3_UPLOAD_BASE_PATH }}
+          APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES: ${{ secrets.APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES }}
+          OPENSEARCH_HOST: ${{ secrets.OPENSEARCH_HOST }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
