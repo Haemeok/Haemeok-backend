@@ -142,6 +142,7 @@ public class RecipeSearchService {
                     .collect(Collectors.toSet());
 
             recipes.forEach(dto -> {
+                dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
                 if (likedRecipeIds.contains(dto.getId())) {
                     dto.setLikedByCurrentUser(true);
                 }
@@ -185,6 +186,7 @@ public class RecipeSearchService {
                     .collect(Collectors.toSet());
 
             recipes.forEach(dto -> {
+                dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
                 if (likedIds.contains(dto.getId())) {
                     dto.setLikedByCurrentUser(true);
                 }

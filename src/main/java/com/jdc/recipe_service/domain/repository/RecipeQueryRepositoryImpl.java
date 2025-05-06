@@ -12,6 +12,7 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +28,18 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
     private final JPAQueryFactory queryFactory;
     private final RecipeLikeRepository recipeLikeRepository;
+
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
+
 
     @Override
     public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Pageable pageable, Long currentUserId) {
@@ -63,6 +76,10 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .limit(pageable.getPageSize());
 
         List<RecipeSimpleDto> content = query.fetch();
+
+        if (!content.isEmpty()) {
+            content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
+        }
 
         if (currentUserId != null && !content.isEmpty()) {
             List<Long> recipeIds = content.stream().map(RecipeSimpleDto::getId).toList();
@@ -112,6 +129,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
+
+        content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
 
         // ✅ total도 동일 조건 적용
         Long total = queryFactory
