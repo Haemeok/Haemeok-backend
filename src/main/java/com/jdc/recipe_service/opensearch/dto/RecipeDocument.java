@@ -1,0 +1,25 @@
+package com.jdc.recipe_service.opensearch.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class RecipeDocument {
+    private Long id;
+    private String title;
+    private String description;
+    private String ingredients;
+    private List<String> tags;
+    private String dishType;
+    private String createdAt;
+    private int likeCount;
+    private int cookingTime;
+    private String imageUrl;
+}

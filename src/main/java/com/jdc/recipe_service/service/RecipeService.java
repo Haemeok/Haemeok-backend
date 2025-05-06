@@ -9,6 +9,7 @@ import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
+import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class RecipeService {
     private final CommentService commentService;
     private final RecipeImageService recipeImageService;
     private final RecipeLikeService recipeLikeService;
+    private final RecipeIndexingService recipeIndexingService;
     private final S3Util s3Util;
 
     @Transactional
@@ -82,6 +84,8 @@ public class RecipeService {
             recipeStepService.saveAllFromUser(recipe, dto.getSteps());
         }        recipeTagService.saveAll(recipe, dto.getTagNames());
 
+        recipeIndexingService.indexRecipe(recipe);
+
         List<PresignedUrlResponseItem> uploads = recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles());
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
@@ -116,6 +120,8 @@ public class RecipeService {
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTagNames());
 
+        recipeIndexingService.updateRecipe(recipe);
+
         return recipe.getId();
     }
 
@@ -147,6 +153,8 @@ public class RecipeService {
 
         // 레시피 자체 삭제
         recipeRepository.delete(recipe);
+
+        recipeIndexingService.deleteRecipe(recipeId);
 
         return recipeId;
     }
