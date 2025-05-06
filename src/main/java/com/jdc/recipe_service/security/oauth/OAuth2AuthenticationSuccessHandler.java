@@ -3,12 +3,13 @@ package com.jdc.recipe_service.security.oauth;
 import com.jdc.recipe_service.domain.entity.RefreshToken;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -55,15 +56,16 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             }
         }
 
-        // 리프레시 토큰을 HttpOnly 쿠키에 저장
-        Cookie cookie = new Cookie("refreshToken", refreshToken);
-        cookie.setHttpOnly(true); // JS 접근 금지
-        //cookie.setSecure(true);   // HTTPS에서만 전송됨
-        cookie.setPath("/");      // 모든 경로에서 접근 가능
-        cookie.setMaxAge(7 * 24 * 60 * 60); // 7일 유효
-        response.addCookie(cookie);
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(true)        // HTTPS에서만 전송
+                .path("/")           // 모든 경로에서 접근 가능
+                .maxAge(7 * 24 * 60 * 60)
+                .sameSite("None")    // 크로스-사이트에서도 허용
+                .build();
 
-        // accessToken만 리다이렉트 URI에 포함
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
         String referer = request.getHeader("Referer");
 
         String redirectBase;
