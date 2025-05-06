@@ -34,6 +34,10 @@ public class RecipeSimpleDto {
         likedByCurrentUser = b;
     }
 
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
     @QueryProjection
     public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName, String profileImage,
                            LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
