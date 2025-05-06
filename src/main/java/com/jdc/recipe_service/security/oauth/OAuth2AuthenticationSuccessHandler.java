@@ -58,10 +58,10 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
-                .secure(true)        // HTTPS에서만 전송
-                .path("/")           // 모든 경로에서 접근 가능
+                .secure(true)
+                .path("/")
                 .maxAge(7 * 24 * 60 * 60)
-                .sameSite("None")    // 크로스-사이트에서도 허용
+                .sameSite("None")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
