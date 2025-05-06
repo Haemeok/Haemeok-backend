@@ -8,13 +8,14 @@ import org.opensearch.client.RestHighLevelClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
 import io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor;
+import org.springframework.context.annotation.Profile;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
 import software.amazon.awssdk.regions.Region;
 
 @Configuration
+@Profile("!local")
 public class OpenSearchConfig {
 
     @Value("${opensearch.host}")
@@ -31,7 +32,6 @@ public class OpenSearchConfig {
 
     @Bean(destroyMethod = "close")
     public RestHighLevelClient openSearchClient() {
-        // ▶ 두 번째 인자를 AwsV4HttpSigner.create() 로 바꿉니다
         HttpRequestInterceptor interceptor = new AwsRequestSigningApacheInterceptor(
                 SERVICE_NAME,
                 AwsV4HttpSigner.create(),

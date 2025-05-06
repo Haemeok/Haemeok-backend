@@ -59,7 +59,7 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "youtube_url", length = 255)
     private String youtubeUrl;
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "recipe_cooking_tools", joinColumns = @JoinColumn(name = "recipe_id"))
     @Column(name = "tool", length = 50)
     @BatchSize(size = 10)
