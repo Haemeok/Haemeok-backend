@@ -5,9 +5,13 @@ import com.jdc.recipe_service.domain.type.DishType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 
 @Entity
@@ -88,10 +92,11 @@ public class Recipe extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
     @BatchSize(size = 10)
-    private List<RecipeTag> tags;
+    private Set<RecipeTag> tags = new HashSet<>();
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
     @BatchSize(size = 20)
+    @Fetch(FetchMode.SUBSELECT)
     private List<RecipeIngredient> ingredients;
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)

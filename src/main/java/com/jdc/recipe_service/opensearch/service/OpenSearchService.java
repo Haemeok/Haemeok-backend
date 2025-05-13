@@ -3,80 +3,110 @@ package com.jdc.recipe_service.opensearch.service;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.ingredient.IngredientSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import lombok.RequiredArgsConstructor;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+
 @Service
+@RequiredArgsConstructor
 public class OpenSearchService {
 
+    private final RecipeRepository recipeRepository;
     private final RestHighLevelClient client;
     private final RefrigeratorItemRepository fridgeRepo;
 
 
-    public OpenSearchService(RestHighLevelClient client, RefrigeratorItemRepository fridgeRepo) {
-        this.client = client;
-        this.fridgeRepo = fridgeRepo;
-    }
-
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition cond, Pageable pg, Long uid) {
         try {
+            // 1) BoolQueryBuilder 구성 & 퍼지 매칭 적용
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
-            if (cond.getTitle() != null)
-                bool.must(QueryBuilders.multiMatchQuery(cond.getTitle(), "title","description","ingredients"));
-            if (cond.getDishType() != null)
+            if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
+                bool.must(
+                        QueryBuilders.matchQuery("title", cond.getTitle())
+                                .fuzziness(Fuzziness.AUTO)
+                                .prefixLength(2)
+                                .maxExpansions(50)
+                );
+            }
+            if (cond.getDishType() != null) {
                 bool.filter(QueryBuilders.termQuery("dishType.keyword", cond.getDishType()));
-            if (cond.getTagNames() != null && !cond.getTagNames().isEmpty())
+            }
+            if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
                 bool.filter(QueryBuilders.termsQuery("tags.keyword", cond.getTagNames()));
+            }
 
+            // 2) SearchSourceBuilder 생성 (하이라이팅 제거됨)
             SearchSourceBuilder src = new SearchSourceBuilder()
                     .query(bool)
-                    .from((int)pg.getOffset())
+                    .from((int) pg.getOffset())
                     .size(pg.getPageSize());
+
+            // 정렬
             pg.getSort().forEach(o ->
                     src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
             );
 
-            SearchResponse resp = client.search(
-                    new SearchRequest("recipes").source(src),
-                    RequestOptions.DEFAULT
-            );
+            // 3) 검색 실행
+            SearchResponse resp = client.search(new SearchRequest("recipes").source(src), RequestOptions.DEFAULT);
+            SearchHits hits = resp.getHits();
 
-            List<RecipeSimpleDto> list = Arrays.stream(resp.getHits().getHits())
-                    .map(h -> {
-                        Map<String,Object> m = h.getSourceAsMap();
+            // 4) ID 추출 → DB 로드 → DTO 변환 (기존 로직 그대로)
+            List<Long> ids = Arrays.stream(hits.getHits())
+                    .map(h -> Long.valueOf(h.getId()))
+                    .collect(Collectors.toList());
+            if (ids.isEmpty()) {
+                return new PageImpl<>(Collections.emptyList(), pg, hits.getTotalHits().value);
+            }
+
+            List<Recipe> recipes = recipeRepository.findAllById(ids);
+            Map<Long, Recipe> recipeMap = recipes.stream()
+                    .collect(Collectors.toMap(Recipe::getId, Function.identity()));
+
+            List<RecipeSimpleDto> list = ids.stream()
+                    .filter(recipeMap::containsKey)
+                    .map(id -> {
+                        Recipe r = recipeMap.get(id);
                         return new RecipeSimpleDto(
-                                Long.valueOf(h.getId()),
-                                (String)m.get("title"),
-                                (String)m.get("imageUrl"),
-                                (String)m.get("authorName"),
-                                (String)m.get("profileImage"),
-                                LocalDateTime.parse((String)m.get("createdAt")),
-                                ((Number)m.getOrDefault("likeCount",0)).longValue(),
+                                r.getId(),
+                                r.getTitle(),   // highlighting 제거, 원본 title 사용
+                                r.getImageKey() == null ? null :
+                                        String.format("https://%s.s3.%s.amazonaws.com/%s",
+                                                "버킷명", "리전", r.getImageKey()),
+                                r.getUser().getNickname(),
+                                r.getUser().getProfileImage(),
+                                r.getCreatedAt(),
+                                r.getLikes().size(),
                                 false,
-                                new BigDecimal(m.getOrDefault("avgRating","0").toString()),
-                                ((Number)m.getOrDefault("ratingCount",0)).longValue(),
-                                ((Number)m.getOrDefault("cookingTime",0)).intValue()
+                                r.getAvgRating(),
+                                r.getRatingCount(),
+                                r.getCookingTime() == null ? 0 : r.getCookingTime()
                         );
-                    }).collect(Collectors.toList());
+                    })
+                    .collect(Collectors.toList());
 
-            return new PageImpl<>(list, pg, resp.getHits().getTotalHits().value);
+            return new PageImpl<>(list, pg, hits.getTotalHits().value);
+
         } catch (IOException e) {
             throw new CustomException(ErrorCode.SEARCH_FAILURE, e.getMessage());
         }
