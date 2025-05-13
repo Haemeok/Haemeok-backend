@@ -15,7 +15,7 @@ public class RecipeDocument {
     private Long id;
     private String title;
     private String description;
-    private String ingredients;
+    private List<String> ingredients;
     private List<String> tags;
     private String dishType;
     private String createdAt;

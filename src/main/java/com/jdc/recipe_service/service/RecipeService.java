@@ -12,6 +12,7 @@ import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.S3Util;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ public class RecipeService {
     private final RecipeLikeService recipeLikeService;
     private final RecipeIndexingService recipeIndexingService;
     private final S3Util s3Util;
+    private final EntityManager em;
 
     @Transactional
     public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUploadRequest req, Long userId, RecipeSourceType sourceType) {
@@ -84,7 +86,18 @@ public class RecipeService {
             recipeStepService.saveAllFromUser(recipe, dto.getSteps());
         }        recipeTagService.saveAll(recipe, dto.getTagNames());
 
-        recipeIndexingService.indexRecipe(recipe);
+        // 중간에 강제 반영 & 캐시 초기화
+        em.flush();  // 지금까지 변경된 INSERT/UPDATE SQL을 모두 DB에 전송
+        em.clear();  // 1차 캐시(영속성 컨텍스트)를 비워서, 이후 find 호출 시 DB에서 다시 로드
+
+        // 저장된 recipeId
+        Long id = recipe.getId();
+
+        // 페치조인으로 연관관계까지 모두 로드
+        Recipe full = recipeRepository.findWithAllRelationsById(id)
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+
+        recipeIndexingService.indexRecipe(full);
 
         List<PresignedUrlResponseItem> uploads = recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles());
         return PresignedUrlResponse.builder()
@@ -120,7 +133,14 @@ public class RecipeService {
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTagNames());
 
-        recipeIndexingService.updateRecipe(recipe);
+        // 중간에 강제 반영 & 캐시 초기화
+        em.flush();  // 지금까지 변경된 INSERT/UPDATE SQL을 모두 DB에 전송
+        em.clear();  // 1차 캐시(영속성 컨텍스트)를 비워서, 이후 find 호출 시 DB에서 다시 로드
+
+        Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+
+        recipeIndexingService.updateRecipe(full);
 
         return recipe.getId();
     }
