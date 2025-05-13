@@ -71,4 +71,12 @@ GROUP BY r.id, r.title, r.imageKey, u.nickname, u.profileImage, r.createdAt, r.c
 """)
     Page<RecipeSimpleDto> findByDishTypeWithLikeCount(@Param("dishType") DishType dishType, Pageable pageable);
 
+
+    Optional<Recipe> findById(Long id);
+
+    @EntityGraph(attributePaths = {
+            "ingredients.ingredient",
+            "tags.tag"
+    })
+    Optional<Recipe> findWithAllRelationsById(Long id);
 }

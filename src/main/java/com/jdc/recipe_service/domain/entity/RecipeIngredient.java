@@ -34,6 +34,9 @@ public class RecipeIngredient {
     @Column(length = 20)
     private String unit;
 
+    @Column(name = "price")
+    private Integer price;
+
     private String customName;
     private BigDecimal customPrice;
     private String customUnit;
