@@ -47,9 +47,10 @@ public class RecipeIngredientService {
                 unitPrice = dto.getCustomPrice().intValue();
             }
 
+            int calculatedPrice = (int) Math.round(quantity * unitPrice);
             totalCost += (int) Math.round(quantity * unitPrice);
 
-            RecipeIngredient entity = RecipeIngredientMapper.toEntity(dto, recipe, ingredient);
+            RecipeIngredient entity = RecipeIngredientMapper.toEntity(dto, recipe, ingredient, calculatedPrice);
             recipeIngredientRepository.save(entity);
         }
 
