@@ -237,15 +237,11 @@ public class RecipeService {
         }
 
         // 3. 공개 여부 처리
-        if (missingFiles.isEmpty()) {
-            if (!recipe.isAiGenerated()) {
-                // 유저 생성 레시피이고 메인 이미지가 있다면 공개 전환
-                if (hasMainImageUploaded) {
-                    recipe.updateIsPrivate(false);
-                }
-            }
-            // AI 생성 레시피는 항상 비공개 유지 (이미 생성 시 설정됨)
+        if (missingFiles.isEmpty() && !recipe.isAiGenerated() && hasMainImageUploaded) {
+            recipe.updateIsPrivate(false);
         }
+
+        em.flush();
 
         // 4. 응답 반환
         return new FinalizeResponse(recipeId, activeImages, missingFiles);
