@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,9 +22,15 @@ public class MyRecipeSummaryDto {
     private String title;
     private String imageUrl;
     private String dishType;
-    private LocalDateTime createdAt;
     private boolean isAiGenerated;
     private boolean isPrivate;
+
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
+    private LocalDateTime createdAt;
 
     @Builder.Default
     private boolean likedByCurrentUser = false;

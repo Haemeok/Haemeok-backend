@@ -1,8 +1,8 @@
 package com.jdc.recipe_service.domain.dto.comment;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.jdc.recipe_service.domain.dto.user.CommentUserDto;
-import com.jdc.recipe_service.domain.dto.user.UserDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,6 +20,12 @@ import java.util.List;
 public class CommentDto {
     private Long id;
     private String content;
+
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     private LocalDateTime createdAt;
     private CommentUserDto author;
 
@@ -29,7 +35,7 @@ public class CommentDto {
     @Builder.Default
     private List<CommentDto> replies = new ArrayList<>();
 
-    @JsonInclude(JsonInclude.Include.NON_NULL) // 👈 이 필드에만 적용!
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private Integer replyCount;
     private boolean isDeleted;
 }

@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
@@ -54,7 +55,17 @@ public class RecipeDetailDto {
     private Integer marketPrice;
     private Integer savings; // averagePrice - measuredPrice 계산값
 
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     private LocalDateTime createdAt;
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     private LocalDateTime updatedAt;
 
 }

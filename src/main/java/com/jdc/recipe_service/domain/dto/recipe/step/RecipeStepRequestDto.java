@@ -14,7 +14,7 @@ import java.util.List;
 public class RecipeStepRequestDto {
     private int stepNumber;
     private String instruction;
-    private String imageKey; // 🔄 imageUrl → imageKey (S3 key 저장용)
+    private String imageKey;
     private List<String> stepImageKeys;
     private String action;
 

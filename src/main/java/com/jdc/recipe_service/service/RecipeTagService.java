@@ -46,11 +46,11 @@ public class RecipeTagService {
                 .collect(Collectors.toSet());
 
         // 기존 태그 중 삭제할 것
-        for (RecipeTag tag : existingTags) {
-            if (!newTagTypes.contains(tag.getTag())) {
-                recipeTagRepository.delete(tag);
-            }
-        }
+        List<RecipeTag> tagsToRemove = existingTags.stream()
+                .filter(tag -> !newTagTypes.contains(tag.getTag()))
+                .toList();
+
+        recipeTagRepository.deleteAll(tagsToRemove);
 
         // 새로운 태그 중 추가할 것
         Set<TagType> existingTypes = existingTags.stream()

@@ -12,7 +12,6 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
-import com.jdc.recipe_service.service.CookingRecordService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -108,6 +107,5 @@ public class RecipeRatingService {
     private void updateRecipeAverageRating(Recipe recipe) {
         double avg = ratingRepository.calculateAverageByRecipeId(recipe.getId());
         recipe.updateAvgRating(BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP));
-        recipeRepository.save(recipe);
     }
 }

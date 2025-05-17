@@ -7,6 +7,7 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 
 import java.util.List;
+import java.util.Optional;
 
 public class RecipeIngredientMapper {
 
@@ -27,7 +28,8 @@ public class RecipeIngredientMapper {
         Ingredient ingredient = entity.getIngredient(); // ⭐ null 가능성 처리
         boolean isCustom = (ingredient == null);
 
-        int totalPrice = entity.getPrice();
+        int totalPrice = Optional.ofNullable(entity.getPrice())
+                .orElse(0);
 
         return RecipeIngredientDto.builder()
                 .ingredientId(isCustom ? null : ingredient.getId())

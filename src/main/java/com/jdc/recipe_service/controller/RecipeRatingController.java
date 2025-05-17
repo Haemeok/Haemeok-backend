@@ -1,11 +1,9 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingResponseDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
-import com.jdc.recipe_service.service.CookingRecordService;
 import com.jdc.recipe_service.service.RecipeRatingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

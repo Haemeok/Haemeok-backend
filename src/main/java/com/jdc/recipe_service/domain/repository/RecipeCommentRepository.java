@@ -19,12 +19,24 @@ public interface RecipeCommentRepository extends JpaRepository<RecipeComment, Lo
     @Query("SELECT c FROM RecipeComment c JOIN FETCH c.user " +
             "WHERE c.recipe.id = :recipeId AND c.parentComment IS NULL " +
             "ORDER BY c.createdAt DESC")
-    List<RecipeComment> findTop3ByRecipeIdAndParentCommentIsNull(@Param("recipeId") Long recipeId, Pageable pageable);
+    List<RecipeComment> findAllTopLevelComments(@Param("recipeId") Long recipeId);
+
+    @Query("""
+        SELECT DISTINCT c 
+        FROM RecipeComment c
+        LEFT JOIN FETCH c.user
+        LEFT JOIN FETCH c.replies r
+        LEFT JOIN FETCH r.user
+        WHERE c.recipe.id = :recipeId
+          AND c.parentComment IS NULL
+        ORDER BY c.createdAt DESC
+        """)
+    List<RecipeComment> findAllWithRepliesAndUsers(@Param("recipeId") Long recipeId, Pageable pageable);
 
     @Query("SELECT c FROM RecipeComment c JOIN FETCH c.user " +
             "WHERE c.recipe.id = :recipeId AND c.parentComment IS NULL " +
             "ORDER BY c.createdAt DESC")
-    List<RecipeComment> findAllTopLevelComments(@Param("recipeId") Long recipeId);
+    List<RecipeComment> findTop3ByRecipeIdAndParentCommentIsNull(@Param("recipeId") Long recipeId, Pageable pageable);
 
     void deleteByRecipeId(Long recipeId);
 

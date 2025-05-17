@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.querydsl.core.annotations.QueryProjection;
 import lombok.*;
 
@@ -21,6 +22,11 @@ public class RecipeSimpleDto {
     private String imageUrl;
     private String authorName;
     private String profileImage;
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     private LocalDateTime createdAt;
 
     private long likeCount;
