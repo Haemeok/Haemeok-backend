@@ -31,7 +31,6 @@ public class AdminRecipeService {
     private final RecipeLikeService recipeLikeService;
     private final RecipeFavoriteService recipeFavoriteService;
     private final CommentService commentService;
-
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final S3Util s3Util;
@@ -46,16 +45,7 @@ public class AdminRecipeService {
         int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
         recipe.updateTotalIngredientCost(totalCost);
 
-        Integer providedMp = dto.getMarketPrice();
-        int marketPrice;
-        if (providedMp != null && providedMp > 0) {
-            marketPrice = providedMp;
-        } else if (totalCost > 0) {
-            int randomPercent = PricingUtil.randomizeMarginPercent(30);
-            marketPrice = PricingUtil.applyMargin(totalCost, randomPercent);
-        } else {
-            marketPrice = 0;
-        }
+        int marketPrice = calculateMarketPrice(dto.getMarketPrice(), totalCost);
         recipe.updateMarketPrice(marketPrice);
 
         recipeStepService.saveAll(recipe, dto.getSteps());
@@ -71,16 +61,18 @@ public class AdminRecipeService {
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipeRepository.save(recipe);
-
         int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
         recipe.updateTotalIngredientCost(totalCost);
+
+        int marketPrice = calculateMarketPrice(dto.getMarketPrice(), totalCost);
+        recipe.updateMarketPrice(marketPrice);
+
         recipeRepository.flush();
 
         recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTagNames());
 
         List<PresignedUrlResponseItem> uploads = generatePresignedUrlsAndSaveImages(recipe, req.getFiles());
-
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
                 .uploads(uploads)
@@ -94,23 +86,13 @@ public class AdminRecipeService {
 
         for (RecipeCreateRequestDto dto : recipeDtos) {
             Recipe recipe = RecipeMapper.toEntity(dto, user);
-            recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate()); // 기본값 false
-
+            recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
             recipeRepository.save(recipe);
 
             int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
             recipe.updateTotalIngredientCost(totalCost);
 
-            Integer providedMp = dto.getMarketPrice();
-            int marketPrice;
-            if (providedMp != null && providedMp > 0) {
-                marketPrice = providedMp;
-            } else if (totalCost > 0) {
-                int randomPercent = PricingUtil.randomizeMarginPercent(30);
-                marketPrice = PricingUtil.applyMargin(totalCost, randomPercent);
-            } else {
-                marketPrice = 0;
-            }
+            int marketPrice = calculateMarketPrice(dto.getMarketPrice(), totalCost);
             recipe.updateMarketPrice(marketPrice);
 
             recipeStepService.saveAll(recipe, dto.getSteps());
@@ -118,8 +100,69 @@ public class AdminRecipeService {
 
             result.add(recipe.getId());
         }
-
         return result;
+    }
+
+    @Transactional
+    public Long updateRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
+        Recipe recipe = getRecipeOrThrow(recipeId);
+        if (!recipe.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.RECIPE_ACCESS_DENIED);
+        }
+
+        recipe.update(
+                dto.getTitle(),
+                dto.getDescription(),
+                DishType.fromDisplayName(dto.getDishType()),
+                dto.getCookingTime(),
+                dto.getImageKey(),
+                dto.getYoutubeUrl(),
+                dto.getCookingTools(),
+                dto.getServings(),
+                null, // totalIngredientCost (아래에서 계산됨)
+                dto.getMarketPrice()
+        );
+
+        int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
+        int newTotalCost = recipeIngredientService.updateIngredients(recipe, dto.getIngredients());
+
+        // 총원가 변경 시만 marketPrice 갱신
+        if (!Objects.equals(prevTotalCost, newTotalCost)) {
+            recipe.updateTotalIngredientCost(newTotalCost);
+
+            if (dto.getMarketPrice() != null && dto.getMarketPrice() > 0) {
+                recipe.updateMarketPrice(dto.getMarketPrice());
+            } else {
+                int margin = PricingUtil.randomizeMarginPercent(30);
+                int mp = PricingUtil.applyMargin(newTotalCost, margin);
+                recipe.updateMarketPrice(mp);
+            }
+        }
+
+        recipeStepService.updateSteps(recipe, dto.getSteps());
+        recipeTagService.updateTags(recipe, dto.getTagNames());
+
+        recipeRepository.flush();
+        return recipe.getId();
+    }
+
+    @Transactional
+    public Long deleteRecipe(Long recipeId, Long userId, Boolean isAdmin) {
+        Recipe recipe = getRecipeOrThrow(recipeId);
+        if (!isAdmin) {
+            validateOwnership(recipe, userId);
+        }
+
+        recipeImageService.deleteImagesByRecipeId(recipeId);
+        recipeLikeService.deleteByRecipeId(recipeId);
+        recipeFavoriteService.deleteByRecipeId(recipeId);
+        commentService.deleteAllByRecipeId(recipeId);
+        recipeStepService.deleteAllByRecipeId(recipeId);
+        recipeIngredientService.deleteAllByRecipeId(recipeId);
+        recipeTagService.deleteAllByRecipeId(recipeId);
+
+        recipeRepository.delete(recipe);
+        return recipeId;
     }
 
     private List<PresignedUrlResponseItem> generatePresignedUrlsAndSaveImages(Recipe recipe, List<FileInfoRequest> files) {
@@ -127,10 +170,7 @@ public class AdminRecipeService {
         List<RecipeImage> images = new ArrayList<>();
 
         for (FileInfoRequest fileInfo : files) {
-            String slot = fileInfo.getType().equals("main")
-                    ? "main"
-                    : "step_" + fileInfo.getStepIndex();
-
+            String slot = fileInfo.getType().equals("main") ? "main" : "step_" + fileInfo.getStepIndex();
             String fileKey = "recipes/" + recipe.getId() + "/" + slot + ".jpg";
             String presignedUrl = s3Util.createPresignedUrl(fileKey);
 
@@ -151,66 +191,15 @@ public class AdminRecipeService {
         return uploads;
     }
 
-    @Transactional
-    public Long updateRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
-        Recipe recipe = getRecipeOrThrow(recipeId);
-        if (!recipe.getUser().getId().equals(userId)) {
-            throw new CustomException(ErrorCode.RECIPE_ACCESS_DENIED);
+    private int calculateMarketPrice(Integer providedMp, int totalCost) {
+        if (providedMp != null && providedMp > 0) {
+            return providedMp;
+        } else if (totalCost > 0) {
+            int randomPercent = PricingUtil.randomizeMarginPercent(30);
+            return PricingUtil.applyMargin(totalCost, randomPercent);
+        } else {
+            return 0;
         }
-
-        recipe.update(
-                dto.getTitle(),
-                dto.getDescription(),
-                DishType.fromDisplayName(dto.getDishType()),
-                dto.getCookingTime(),
-                dto.getImageKey(),
-                dto.getYoutubeUrl(),
-                dto.getCookingTools(),
-                dto.getServings(),
-                dto.getTotalIngredientCost(),
-                dto.getMarketPrice()
-        );
-
-        recipeIngredientService.updateIngredients(recipe, dto.getIngredients());
-        recipeStepService.updateSteps(recipe, dto.getSteps());
-        recipeTagService.updateTags(recipe, dto.getTagNames());
-
-        recipeRepository.flush();
-        return recipe.getId();
-    }
-
-    @Transactional
-    public Long deleteRecipe(Long recipeId, Long userId, Boolean isAdmin) {
-        //a. 레시피 존재 및 삭제 권한 체크
-        Recipe recipe = getRecipeOrThrow(recipeId);
-        if (!isAdmin) {
-            validateOwnership(recipe, userId);
-        }
-
-        //S3 이미지 + DB 삭제 (서비스로 위임)
-        recipeImageService.deleteImagesByRecipeId(recipeId);
-
-        // 연관 엔티티 삭제
-        // 좋아요 및 즐겨찾기 삭제
-        recipeLikeService.deleteByRecipeId(recipeId);
-        recipeFavoriteService.deleteByRecipeId(recipeId);
-
-        // 댓글 + 댓글 좋아요 삭제 (서비스로 위임)
-        commentService.deleteAllByRecipeId(recipeId);
-
-        // 조리 단계 + 단계 재료 삭제
-        recipeStepService.deleteAllByRecipeId(recipeId);
-
-        // 레시피 재료 삭제
-        recipeIngredientService.deleteAllByRecipeId(recipeId);
-
-        // 레시피 태그 삭제
-        recipeTagService.deleteAllByRecipeId(recipeId);
-
-        // 레시피 자체 삭제
-        recipeRepository.delete(recipe);
-
-        return recipeId;
     }
 
     private Recipe getRecipeOrThrow(Long recipeId) {

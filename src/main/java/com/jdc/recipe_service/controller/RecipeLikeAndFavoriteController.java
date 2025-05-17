@@ -15,7 +15,7 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/recipes")
-public class RecipeLikeController {
+public class RecipeLikeAndFavoriteController {
 
     private final RecipeLikeService likeService;
     private final RecipeFavoriteService favoriteService;

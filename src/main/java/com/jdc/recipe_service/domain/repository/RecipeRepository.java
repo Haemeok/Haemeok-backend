@@ -19,14 +19,19 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
 
     //로그인 조회
-//    @EntityGraph(attributePaths = {"user"})
-//    @Query("select r from Recipe r where r.id = :recipeId")
     @Query("""
     SELECT r FROM Recipe r
     JOIN FETCH r.user
     WHERE r.id = :recipeId
 """)
     Optional<Recipe> findWithUserById(@Param("recipeId") Long recipeId);
+
+    @Query("""
+    SELECT r FROM Recipe r
+    LEFT JOIN FETCH r.steps
+    WHERE r.id = :recipeId
+""")
+    Optional<Recipe> findWithStepsById(@Param("recipeId") Long recipeId);
 
     //사용자가 쓴 레시피 조회
     Page<Recipe> findByUserId(Long userId, Pageable pageable);

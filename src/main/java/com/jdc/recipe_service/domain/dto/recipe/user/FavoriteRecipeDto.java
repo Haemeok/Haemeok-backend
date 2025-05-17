@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.dto.recipe.user;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,6 +17,10 @@ public class FavoriteRecipeDto {
     private String title;
     private String imageUrl;
     private String authorName;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC")
     private LocalDateTime createdAt;
 
     private long likeCount;

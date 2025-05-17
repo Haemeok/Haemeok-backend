@@ -34,9 +34,6 @@ public class RecipeStep {
     @Column(name = "step_image_key")
     private String imageKey;
 
-//    @Column(name = "cooking_tools", columnDefinition = "TEXT")
-//    private String cookingTools;
-
     @Column(length = 50)
     private String action;
 
@@ -53,9 +50,6 @@ public class RecipeStep {
         this.imageKey = imageKey;
     }
 
-//    public void updateCookingTools(String cookingTools) {
-//        this.cookingTools = cookingTools;
-//    }
     public void updateAction(String action) {
         this.action = action;
     }

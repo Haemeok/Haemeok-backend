@@ -10,9 +10,6 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class CommentRequestDto {
-    @NotNull
-    private Long userId;
-
     @NotBlank
     private String content;
 }

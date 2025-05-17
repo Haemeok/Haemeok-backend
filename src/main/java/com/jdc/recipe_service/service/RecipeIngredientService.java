@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,8 +27,14 @@ public class RecipeIngredientService {
     public int saveAll(Recipe recipe, List<RecipeIngredientRequestDto> dtos) {
         int totalCost = 0;
 
+        // ✅ 1. 전체 재료 캐싱
+        Map<String, Ingredient> ingredientMap = ingredientRepository.findAll().stream()
+                .collect(Collectors.toMap(i -> i.getName().toLowerCase().trim(), Function.identity()));
+
         for (RecipeIngredientRequestDto dto : dtos) {
-            // 1. 수량 파싱
+            String nameKey = dto.getName().toLowerCase().trim();
+
+            // 2. 수량 파싱
             double quantity;
             try {
                 quantity = parseQuantity(dto.getQuantity());
@@ -33,14 +42,13 @@ public class RecipeIngredientService {
                 throw new CustomException(ErrorCode.INVALID_INGREDIENT_QUANTITY, dto.getQuantity());
             }
 
-            // 2. 재료 탐색 (존재 여부 확인)
-            Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(dto.getName()).orElse(null);
+            // 3. 재료 탐색 (Map에서 조회)
+            Ingredient ingredient = ingredientMap.get(nameKey);
 
             int unitPrice;
             if (ingredient != null) {
                 unitPrice = (ingredient.getPrice() != null) ? ingredient.getPrice() : 0;
             } else {
-                // 없는 재료면 가격, 단위 필수
                 if (dto.getCustomPrice() == null || dto.getCustomUnit() == null) {
                     throw new CustomException(ErrorCode.CUSTOM_INGREDIENT_INFO_MISSING, dto.getName());
                 }
@@ -48,7 +56,7 @@ public class RecipeIngredientService {
             }
 
             int calculatedPrice = (int) Math.round(quantity * unitPrice);
-            totalCost += (int) Math.round(quantity * unitPrice);
+            totalCost += calculatedPrice;
 
             RecipeIngredient entity = RecipeIngredientMapper.toEntity(dto, recipe, ingredient, calculatedPrice);
             recipeIngredientRepository.save(entity);
@@ -57,24 +65,22 @@ public class RecipeIngredientService {
         return totalCost;
     }
 
-
-    public void updateIngredients(Recipe recipe, List<RecipeIngredientRequestDto> ingredientDtos) {
+    public int updateIngredients(Recipe recipe, List<RecipeIngredientRequestDto> ingredientDtos) {
         recipeIngredientRepository.deleteByRecipeId(recipe.getId());
-        recipeIngredientRepository.flush(); // 중복 방지
-        saveAll(recipe, ingredientDtos);
+        recipeIngredientRepository.flush();
+        return saveAll(recipe, ingredientDtos);
     }
 
     public int updateIngredientsFromUser(Recipe recipe, List<RecipeIngredientRequestDto> dtos) {
-        recipeIngredientRepository.deleteByRecipeId(recipe.getId()); // 1. 기존 삭제
-        recipeIngredientRepository.flush(); // 💡 즉시 반영해서 중복 방지
-        return saveAll(recipe, dtos); // 2. 새로 저장
+        recipeIngredientRepository.deleteByRecipeId(recipe.getId());
+        recipeIngredientRepository.flush();
+        return saveAll(recipe, dtos);
     }
 
     @Transactional
     public void deleteAllByRecipeId(Long recipeId) {
         recipeIngredientRepository.deleteByRecipeId(recipeId);
     }
-
 
     private double parseQuantity(String quantityStr) {
         quantityStr = quantityStr.trim();
@@ -91,7 +97,6 @@ public class RecipeIngredientService {
         return Double.parseDouble(quantityStr);
     }
 
-    // ✅ 보여줄 때: 1.0 → "1", 1/2 → "1/2" 그대로
     public static String formatQuantityForDisplay(String originalInput) {
         try {
             double value = parseQuantityStatic(originalInput);
@@ -101,7 +106,7 @@ public class RecipeIngredientService {
                 return originalInput;
             }
         } catch (Exception e) {
-            return originalInput; // 파싱 실패 시 그대로 출력
+            return originalInput;
         }
     }
 
@@ -120,4 +125,3 @@ public class RecipeIngredientService {
         return Double.parseDouble(quantityStr);
     }
 }
-
