@@ -127,13 +127,27 @@ public class RecipeService {
         );
 
         // 3. 재료/단계/태그 업데이트
-        int totalCost = recipeIngredientService.updateIngredientsFromUser(recipe, dto.getIngredients());
-        recipe.updateTotalIngredientCost(totalCost); // 총원가 갱신
+        int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
+
+        // 3. 재료/단계/태그 업데이트
+        int newTotalCost = recipeIngredientService.updateIngredientsFromUser(recipe, dto.getIngredients());
+
+        // 🔄 원가 바뀐 경우만 marketPrice도 갱신
+        if (!Objects.equals(newTotalCost, prevTotalCost)) {
+            recipe.updateTotalIngredientCost(newTotalCost);
+
+            if (dto.getMarketPrice() != null && dto.getMarketPrice() > 0) {
+                recipe.updateMarketPrice(dto.getMarketPrice());
+            } else {
+                int margin = PricingUtil.randomizeMarginPercent(30);
+                int mp = PricingUtil.applyMargin(newTotalCost, margin);
+                recipe.updateMarketPrice(mp);
+            }
+        }
 
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTagNames());
 
-        // 중간에 강제 반영 & 캐시 초기화
         em.flush();  // 지금까지 변경된 INSERT/UPDATE SQL을 모두 DB에 전송
         em.clear();  // 1차 캐시(영속성 컨텍스트)를 비워서, 이후 find 호출 시 DB에서 다시 로드
 
@@ -181,7 +195,8 @@ public class RecipeService {
 
     @Transactional
     public FinalizeResponse finalizeRecipeImages(Long recipeId, Long callerUserId, boolean isAdmin) {
-        Recipe recipe = getRecipeOrThrow(recipeId);
+        Recipe recipe = recipeRepository.findWithStepsById(recipeId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         // 1. 권한 체크
         if (!isAdmin && !recipe.getUser().getId().equals(callerUserId)) {
@@ -205,6 +220,16 @@ public class RecipeService {
                 if ("main".equals(image.getSlot())) {
                     recipe.updateImageKey(image.getFileKey());
                     hasMainImageUploaded = true;
+                }
+
+                else if (image.getSlot().startsWith("step_")) {
+                    int stepIndex = Integer.parseInt(image.getSlot().split("_")[1]);
+                    recipe.getSteps().stream()
+                            .filter(step -> step.getStepNumber() == stepIndex)
+                            .findFirst()
+                            .ifPresent(step -> {
+                                step.updateStepImageKey(image.getFileKey());
+                            });
                 }
             } else {
                 missingFiles.add(image.getFileKey());
