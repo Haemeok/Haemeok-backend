@@ -7,9 +7,11 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.util.PricingUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -63,6 +65,19 @@ public class CookingRecordService {
         repo.deleteByRatingId(ratingId);
     }
 
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    private String generateImageUrl(String key) {
+        return key == null
+                ? null
+                : String.format("https://%s.s3.%s.amazonaws.com/%s",
+                bucketName, region, key);
+    }
+
 
     /** 월별 달력 요약(일별 절약액 + 월합계) */
     @Transactional(readOnly = true)
@@ -71,12 +86,18 @@ public class CookingRecordService {
 
         List<CalendarDaySummaryDto> daily = raw.stream()
                 .map(arr -> {
-                    java.sql.Date sqlDate = (java.sql.Date) arr[0];
+                    LocalDate date = ((java.sql.Date) arr[0]).toLocalDate();
                     long totalSavings    = ((Number) arr[1]).longValue();
-                    return new CalendarDaySummaryDto(
-                            sqlDate.toLocalDate(),
-                            totalSavings
-                    );
+                    LocalDateTime start = date.atStartOfDay();
+                    LocalDateTime end = start.plusDays(1);
+                    List<CookingRecord> records = repo
+                            .findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(userId, start, end);
+                    long totalCount = records.size();
+                    String oldestKey = records.isEmpty()
+                            ? null
+                            : records.get(records.size() - 1).getRecipe().getImageKey();
+                    String firstImageUrl = generateImageUrl(oldestKey);
+                    return new CalendarDaySummaryDto(date, totalSavings, totalCount, firstImageUrl);
                 })
                 .toList();
 

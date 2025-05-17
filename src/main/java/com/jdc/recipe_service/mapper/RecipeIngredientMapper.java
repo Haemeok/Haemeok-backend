@@ -10,7 +10,7 @@ import java.util.List;
 
 public class RecipeIngredientMapper {
 
-    public static RecipeIngredient toEntity(RecipeIngredientRequestDto dto, Recipe recipe, Ingredient ingredient) {
+    public static RecipeIngredient toEntity(RecipeIngredientRequestDto dto, Recipe recipe, Ingredient ingredient, int calculatedPrice) {
         return RecipeIngredient.builder()
                 .recipe(recipe)
                 .ingredient(ingredient)
@@ -19,6 +19,7 @@ public class RecipeIngredientMapper {
                 .customUnit(ingredient == null ? dto.getCustomUnit() : null)
                 .quantity(dto.getQuantity())
                 .unit(ingredient != null ? ingredient.getUnit() : null)
+                .price(calculatedPrice)
                 .build();
     }
 
@@ -26,18 +27,7 @@ public class RecipeIngredientMapper {
         Ingredient ingredient = entity.getIngredient(); // ⭐ null 가능성 처리
         boolean isCustom = (ingredient == null);
 
-        double quantityValue;
-        try {
-            quantityValue = parseQuantity(entity.getQuantity());
-        } catch (Exception e) {
-            quantityValue = 0.0;
-        }
-
-        int unitPrice = isCustom
-                ? (entity.getCustomPrice() != null ? entity.getCustomPrice().intValue() : 0)
-                : (ingredient.getPrice() != null ? ingredient.getPrice() : 0);
-
-        int totalPrice = (int) Math.round(quantityValue * unitPrice);
+        int totalPrice = entity.getPrice();
 
         return RecipeIngredientDto.builder()
                 .ingredientId(isCustom ? null : ingredient.getId())
@@ -56,11 +46,13 @@ public class RecipeIngredientMapper {
     // ✅ 숫자 변환 로직 (fraction or decimal)
     private static double parseQuantity(String quantityStr) {
         quantityStr = quantityStr.trim();
+        quantityStr = quantityStr.replaceAll("[^0-9./]", "");
         if (quantityStr.contains("/")) {
             String[] parts = quantityStr.split("/");
             if (parts.length == 2) {
                 double numerator = Double.parseDouble(parts[0]);
                 double denominator = Double.parseDouble(parts[1]);
+                if (denominator == 0) throw new NumberFormatException("0으로 나눌 수 없습니다");
                 return numerator / denominator;
             } else {
                 throw new NumberFormatException("잘못된 분수: " + quantityStr);

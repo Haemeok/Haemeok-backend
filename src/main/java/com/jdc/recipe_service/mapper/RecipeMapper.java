@@ -18,8 +18,8 @@ public class RecipeMapper {
                 .youtubeUrl(dto.getYoutubeUrl())
                 .cookingTools(dto.getCookingTools())
                 .servings(dto.getServings())
-                .marketPrice(dto.getMarketPrice())
-                .totalIngredientCost(dto.getTotalIngredientCost())
+                .marketPrice(null)
+                .totalIngredientCost(0)
                 .build();
     }
 
