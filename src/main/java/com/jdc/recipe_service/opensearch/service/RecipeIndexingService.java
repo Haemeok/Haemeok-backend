@@ -150,7 +150,7 @@ public class RecipeIndexingService {
         List<String> tagNames = Optional.ofNullable(recipe.getTags())
                 .orElse(Collections.emptySet())
                 .stream()
-                .map(t -> t.getTag().getDisplayName())
+                .map(t -> t.getTag().name())
                 .filter(name -> name != null && !name.isBlank())
                 .toList();
 
@@ -163,7 +163,7 @@ public class RecipeIndexingService {
                 .description(recipe.getDescription())
                 .ingredients(ingredientNames)
                 .tags(tagNames)
-                .dishType(recipe.getDishType().getDisplayName())
+                .dishType(recipe.getDishType().name())
                 .createdAt(recipe.getCreatedAt().toString())
                 .likeCount(likeCount)
                 .cookingTime(Optional.ofNullable(recipe.getCookingTime()).orElse(0))

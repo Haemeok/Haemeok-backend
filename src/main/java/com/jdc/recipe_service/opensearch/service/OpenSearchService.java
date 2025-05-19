@@ -4,6 +4,7 @@ import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.ingredient.IngredientSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.exception.CustomException;
@@ -33,14 +34,16 @@ import java.util.stream.Collectors;
 public class OpenSearchService {
 
     private final RecipeRepository recipeRepository;
+    private final RecipeLikeRepository recipeLikeRepository;
     private final RestHighLevelClient client;
     private final RefrigeratorItemRepository fridgeRepo;
 
 
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition cond, Pageable pg, Long uid) {
         try {
-            // 1) BoolQueryBuilder 구성 & 퍼지 매칭 적용
+            // 1) BoolQueryBuilder 구성
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
+
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
                 bool.must(
                         QueryBuilders.matchQuery("title", cond.getTitle())
@@ -49,20 +52,26 @@ public class OpenSearchService {
                                 .maxExpansions(50)
                 );
             }
-            if (cond.getDishType() != null) {
-                bool.filter(QueryBuilders.termQuery("dishType.keyword", cond.getDishType()));
-            }
-            if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
-                bool.filter(QueryBuilders.termsQuery("tags.keyword", cond.getTagNames()));
+
+            if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
+                bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
             }
 
-            // 2) SearchSourceBuilder 생성 (하이라이팅 제거됨)
+            if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
+                bool.filter(QueryBuilders.termsQuery("tags", cond.getTagNames()));
+            }
+
+            // ⭐ 조건이 아무것도 없을 경우 match_all 적용
+            if (bool.must().isEmpty() && bool.filter().isEmpty()) {
+                bool.must(QueryBuilders.matchAllQuery());
+            }
+
+            // 2) SearchSourceBuilder 생성
             SearchSourceBuilder src = new SearchSourceBuilder()
                     .query(bool)
                     .from((int) pg.getOffset())
                     .size(pg.getPageSize());
 
-            // 정렬
             pg.getSort().forEach(o ->
                     src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
             );
@@ -71,25 +80,36 @@ public class OpenSearchService {
             SearchResponse resp = client.search(new SearchRequest("recipes").source(src), RequestOptions.DEFAULT);
             SearchHits hits = resp.getHits();
 
-            // 4) ID 추출 → DB 로드 → DTO 변환 (기존 로직 그대로)
+            // 4) ID 추출
             List<Long> ids = Arrays.stream(hits.getHits())
                     .map(h -> Long.valueOf(h.getId()))
                     .collect(Collectors.toList());
+
+
             if (ids.isEmpty()) {
-                return new PageImpl<>(Collections.emptyList(), pg, hits.getTotalHits().value);
+                return new PageImpl<>(Collections.emptyList(), pg, 0);
             }
 
+            // 5) DB에서 상세 조회
             List<Recipe> recipes = recipeRepository.findAllById(ids);
             Map<Long, Recipe> recipeMap = recipes.stream()
                     .collect(Collectors.toMap(Recipe::getId, Function.identity()));
 
+            // 6) 유저 좋아요 체크
+            Set<Long> likedIds = (uid != null)
+                    ? recipeLikeRepository.findByUserIdAndRecipeIdIn(uid, ids).stream()
+                    .map(like -> like.getRecipe().getId())
+                    .collect(Collectors.toSet())
+                    : Collections.emptySet();
+
+            // 7) DTO 변환
             List<RecipeSimpleDto> list = ids.stream()
                     .filter(recipeMap::containsKey)
                     .map(id -> {
                         Recipe r = recipeMap.get(id);
                         return new RecipeSimpleDto(
                                 r.getId(),
-                                r.getTitle(),   // highlighting 제거, 원본 title 사용
+                                r.getTitle(),
                                 r.getImageKey() == null ? null :
                                         String.format("https://%s.s3.%s.amazonaws.com/%s",
                                                 "버킷명", "리전", r.getImageKey()),
@@ -97,7 +117,7 @@ public class OpenSearchService {
                                 r.getUser().getProfileImage(),
                                 r.getCreatedAt(),
                                 r.getLikes().size(),
-                                false,
+                                likedIds.contains(r.getId()),
                                 r.getAvgRating(),
                                 r.getRatingCount(),
                                 r.getCookingTime() == null ? 0 : r.getCookingTime()
@@ -111,6 +131,7 @@ public class OpenSearchService {
             throw new CustomException(ErrorCode.SEARCH_FAILURE, e.getMessage());
         }
     }
+
 
     public Page<IngredientSummaryDto> searchIngredients(
             String q,
