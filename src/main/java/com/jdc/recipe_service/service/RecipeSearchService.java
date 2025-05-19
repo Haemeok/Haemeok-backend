@@ -104,13 +104,15 @@ public class RecipeSearchService {
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
-        boolean useOpenSearch = shouldUseOpenSearch(); // 아래 정의
+        return searchWithQuerydsl(condition, pageable, userId);
 
-        if (useOpenSearch) {
-            return openSearchService.searchRecipes(condition, pageable, userId);
-        } else {
-            return searchWithQuerydsl(condition, pageable, userId);
-        }
+//        boolean useOpenSearch = shouldUseOpenSearch(); // 아래 정의
+//
+//        if (useOpenSearch) {
+//            return openSearchService.searchRecipes(condition, pageable, userId);
+//        } else {
+//            return searchWithQuerydsl(condition, pageable, userId);
+//        }
     }
 
 
