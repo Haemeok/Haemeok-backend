@@ -9,6 +9,7 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.opensearch.keyword.KeywordService;
 import lombok.RequiredArgsConstructor;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -18,6 +19,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.springframework.data.domain.*;
@@ -37,36 +39,52 @@ public class OpenSearchService {
     private final RecipeLikeRepository recipeLikeRepository;
     private final RestHighLevelClient client;
     private final RefrigeratorItemRepository fridgeRepo;
+    private final KeywordService keywordService;
 
 
-    public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition cond, Pageable pg, Long uid) {
+    public Page<RecipeSimpleDto> searchRecipes(
+            RecipeSearchCondition cond,
+            Pageable pg,
+            Long uid) {
+
         try {
             // 1) BoolQueryBuilder 구성
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
+            // 1-1) 제목(Title) 검색 + 키워드 기록
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
-                bool.must(
-                        QueryBuilders.matchQuery("title", cond.getTitle())
-                                .fuzziness(Fuzziness.AUTO)
-                                .prefixLength(2)
-                                .maxExpansions(50)
+                String title = cond.getTitle().trim();
+                keywordService.record(title);
+
+                BoolQueryBuilder titleQuery = QueryBuilders.boolQuery()
+                        .should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title))
+                        .should(QueryBuilders.matchQuery("title.infix", title));
+
+                bool.must(titleQuery);
+            }
+
+            // 1-2) DishType 필터 (exact match)
+            if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
+                bool.filter(
+                        QueryBuilders.termQuery("dishType", cond.getDishType())
                 );
             }
 
-            if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
-                bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
-            }
-
+            // 1-3) Tags 필터 (AND 조건으로 각각 termQuery 추가)
             if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
-                bool.filter(QueryBuilders.termsQuery("tags", cond.getTagNames()));
+                for (String tag : cond.getTagNames()) {
+                    bool.filter(
+                            QueryBuilders.termQuery("tags", tag)
+                    );
+                }
             }
 
-            // ⭐ 조건이 아무것도 없을 경우 match_all 적용
+            // 1-4) 아무 조건도 없으면 match_all
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {
                 bool.must(QueryBuilders.matchAllQuery());
             }
 
-            // 2) SearchSourceBuilder 생성
+            // 2) SearchSourceBuilder 생성 (페이징, 정렬)
             SearchSourceBuilder src = new SearchSourceBuilder()
                     .query(bool)
                     .from((int) pg.getOffset())
@@ -76,8 +94,11 @@ public class OpenSearchService {
                     src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
             );
 
-            // 3) 검색 실행
-            SearchResponse resp = client.search(new SearchRequest("recipes").source(src), RequestOptions.DEFAULT);
+            // 3) OpenSearch 실행
+            SearchResponse resp = client.search(
+                    new SearchRequest("recipes").source(src),
+                    RequestOptions.DEFAULT
+            );
             SearchHits hits = resp.getHits();
 
             // 4) ID 추출
@@ -85,24 +106,24 @@ public class OpenSearchService {
                     .map(h -> Long.valueOf(h.getId()))
                     .collect(Collectors.toList());
 
-
+            // 5) 결과가 없으면 빈 페이지 반환
             if (ids.isEmpty()) {
                 return new PageImpl<>(Collections.emptyList(), pg, 0);
             }
 
-            // 5) DB에서 상세 조회
+            // 6) JPA 로직으로 DTO 변환
             List<Recipe> recipes = recipeRepository.findAllById(ids);
             Map<Long, Recipe> recipeMap = recipes.stream()
                     .collect(Collectors.toMap(Recipe::getId, Function.identity()));
 
-            // 6) 유저 좋아요 체크
+            // 7) 유저 좋아요 체크
             Set<Long> likedIds = (uid != null)
                     ? recipeLikeRepository.findByUserIdAndRecipeIdIn(uid, ids).stream()
                     .map(like -> like.getRecipe().getId())
                     .collect(Collectors.toSet())
                     : Collections.emptySet();
 
-            // 7) DTO 변환
+            // 8) 순서 보장하며 DTO 리스트로 변환
             List<RecipeSimpleDto> list = ids.stream()
                     .filter(recipeMap::containsKey)
                     .map(id -> {
@@ -123,12 +144,14 @@ public class OpenSearchService {
                                 r.getCookingTime() == null ? 0 : r.getCookingTime()
                         );
                     })
-                    .collect(Collectors.toList());
+                    .toList();
 
+            // 9) PageImpl 으로 감싸서 반환
             return new PageImpl<>(list, pg, hits.getTotalHits().value);
 
         } catch (IOException e) {
-            throw new CustomException(ErrorCode.SEARCH_FAILURE, e.getMessage());
+            // 검색 실패 시 커스텀 예외 던지기
+            throw new CustomException(ErrorCode.SEARCH_FAILURE, "OpenSearch 조회 실패: " + e.getMessage());
         }
     }
 
