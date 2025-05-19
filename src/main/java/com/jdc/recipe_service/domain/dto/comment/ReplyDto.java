@@ -9,15 +9,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Getter
-@Builder(toBuilder = true)
+@Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class CommentDto {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class ReplyDto {
     private Long id;
     private String content;
 
@@ -27,10 +25,8 @@ public class CommentDto {
             timezone = "UTC"
     )
     private LocalDateTime createdAt;
+
     private CommentUserDto author;
     private int likeCount;
     private boolean likedByCurrentUser;
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    private Integer replyCount;
-    private boolean isDeleted;
 }

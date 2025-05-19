@@ -2,6 +2,8 @@ package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.comment.CommentRequestDto;
+import com.jdc.recipe_service.domain.dto.comment.CommentWithRepliesDto;
+import com.jdc.recipe_service.domain.dto.comment.ReplyDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -70,19 +72,24 @@ public class CommentController {
         return ResponseEntity.ok(comments);
     }
 
-    // 4) 대댓글 조회
-    @GetMapping("/{parentId}/replies")
-    public ResponseEntity<Page<CommentDto>> getReplies(
-            @PathVariable Long parentId,
+    // 4) 대댓글 조회(좋아요 포함)
+    @GetMapping("/{commentId}/replies")
+    public ResponseEntity<CommentWithRepliesDto> getCommentWithReplies(
+            @PathVariable Long recipeId,
+            @PathVariable Long commentId,
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.ASC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        Long userId = userDetails != null
+        Long currentUserId = userDetails != null
                 ? userDetails.getUser().getId()
                 : null;
-        Page<CommentDto> replies = commentService.getRepliesWithLikes(parentId, userId, pageable);
-        return ResponseEntity.ok(replies);
+
+        CommentDto parent = commentService.findByIdAndRecipeId(commentId, recipeId, currentUserId);
+        Page<ReplyDto> page = commentService.getRepliesWithLikes(commentId, currentUserId, pageable);
+
+        return ResponseEntity.ok(new CommentWithRepliesDto(parent, page));
     }
+
 
 
     // 5) 댓글 삭제
