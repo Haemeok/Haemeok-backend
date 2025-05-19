@@ -17,3 +17,6 @@ springdoc:
 
 opensearch:
   host: ${OPENSEARCH_HOST}
+
+search:
+  engine: auto  # auto | opensearch | querydsl

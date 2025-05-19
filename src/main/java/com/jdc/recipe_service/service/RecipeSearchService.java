@@ -21,7 +21,12 @@ import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import com.jdc.recipe_service.mapper.UserMapper;
+import com.jdc.recipe_service.opensearch.service.OpenSearchService;
+import com.jdc.recipe_service.util.SearchProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.RestHighLevelClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -38,6 +43,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RecipeSearchService {
 
     private final RecipeRepository recipeRepository;
@@ -50,6 +56,10 @@ public class RecipeSearchService {
 
     private final RecipeRatingService recipeRatingService;
     private final CommentService commentService;
+    private final OpenSearchService openSearchService;
+    private final SearchProperties searchProperties;
+    private final RestHighLevelClient client;
+
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -91,9 +101,22 @@ public class RecipeSearchService {
         return new PageImpl<>(content, pageable, page.getTotalElements());
     }
 
-
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
+
+        boolean useOpenSearch = shouldUseOpenSearch(); // 아래 정의
+
+        if (useOpenSearch) {
+            return openSearchService.searchRecipes(condition, pageable, userId);
+        } else {
+            return searchWithQuerydsl(condition, pageable, userId);
+        }
+    }
+
+
+
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> searchWithQuerydsl(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
         String title = condition.getTitle();
         DishType dishType = condition.getDishTypeEnum();
@@ -285,6 +308,31 @@ public class RecipeSearchService {
                 .updatedAt(recipe.getUpdatedAt())
                 .build();
     }
+
+    private boolean shouldUseOpenSearch() {
+        if ("opensearch".equals(searchProperties.getEngine())) {
+            log.info("🔍 Using OpenSearch (explicit setting)");
+            return true;
+        }
+
+        if ("querydsl".equals(searchProperties.getEngine())) {
+            log.info("🔍 Using QueryDSL (explicit setting)");
+            return false;
+        }
+
+        // auto 모드 - ping으로 결정
+        try {
+            boolean result = client.ping(RequestOptions.DEFAULT);
+            log.info("🔍 Using {} (auto mode via ping)", result ? "OpenSearch" : "QueryDSL");
+            return result;
+        } catch (Exception e) {
+            log.warn("❌ OpenSearch ping failed: {}", e.getMessage());
+            log.info("🔍 Falling back to QueryDSL (auto mode)");
+            return false;
+        }
+    }
+
+
 
     private Recipe getRecipeWithUserOrThrow(Long recipeId) {
         return recipeRepository.findWithUserById(recipeId)
