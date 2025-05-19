@@ -44,52 +44,81 @@ public class RecipeIndexingService {
      */
     public boolean createRecipeIndex() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("recipes");
+
+        // index.max_ngram_diff를 18 이상으로 올려줍니다.
         request.settings("""
-        {
-          "analysis": {
-            "filter": {
-              "my_synonym": {
-                "type": "synonym",
-                "synonyms": ["감자,포테이토", "김치,kimchi"]
-              }
+    {
+      "index": {
+        "max_ngram_diff": 18
+      },
+      "analysis": {
+        "filter": {
+          "infix_ngram": {
+            "type":     "ngram",
+            "min_gram": 2,
+            "max_gram": 20
+          },
+          "my_synonym": {
+            "type": "synonym",
+            "synonyms": ["감자,포테이토", "김치,kimchi"]
+          }
+        },
+        "tokenizer": {
+          "edge_ngram_tokenizer": {
+            "type": "edge_ngram",
+            "min_gram": 1,
+            "max_gram": 20,
+            "token_chars": ["letter"]
+          }
+        },
+        "analyzer": {
+          "autocomplete_analyzer": {
+            "tokenizer": "edge_ngram_tokenizer",
+            "filter": ["lowercase","my_synonym"]
+          },
+          "infix_analyzer": {
+            "tokenizer": "standard",
+            "filter": ["lowercase","infix_ngram"]
+          }
+        }
+      }
+    }
+    """, XContentType.JSON);
+
+        request.mapping("""
+    {
+      "properties": {
+        "title": {
+          "type": "text",
+          "fields": {
+            "prefix": {
+              "type":     "text",
+              "analyzer": "autocomplete_analyzer"
             },
-            "tokenizer": {
-              "autocomplete_tokenizer": {
-                "type": "edge_ngram",
-                "min_gram": 1,
-                "max_gram": 20,
-                "token_chars": ["letter"]
-              }
-            },
-            "analyzer": {
-              "autocomplete_analyzer": {
-                "tokenizer": "autocomplete_tokenizer",
-                "filter": ["lowercase", "my_synonym"]
-              }
+            "infix": {
+              "type":              "text",
+              "analyzer":          "infix_analyzer",
+              "search_analyzer":   "standard"
             }
           }
-        }
-        """, XContentType.JSON);
-        request.mapping("""
-        {
-          "properties": {
-            "title":       { "type":"text", "analyzer":"autocomplete_analyzer" },
-            "description": { "type":"text" },
-            "dishType":    { "type":"keyword" },
-            "ingredients": { "type":"text", "analyzer":"autocomplete_analyzer" },
-            "tags":        { "type":"keyword" },
-            "createdAt":   { "type":"date" },
-            "likeCount":   { "type":"integer" },
-            "cookingTime": { "type":"integer" },
-            "imageUrl":    { "type":"keyword" }
-          }
-        }
-        """, XContentType.JSON);
+        },
+        "description": { "type":"text" },
+        "dishType":    { "type":"keyword" },
+        "ingredients": { "type":"text", "analyzer":"autocomplete_analyzer" },
+        "tags":        { "type":"keyword" },
+        "createdAt":   { "type":"date" },
+        "likeCount":   { "type":"integer" },
+        "cookingTime": { "type":"integer" },
+        "imageUrl":    { "type":"keyword" }
+      }
+    }
+    """, XContentType.JSON);
 
         CreateIndexResponse res = client.indices().create(request, RequestOptions.DEFAULT);
         log.info("✅ recipes 인덱스 생성 완료: acknowledged={}", res.isAcknowledged());
         return res.isAcknowledged();
     }
+
 
     public void indexRecipe(Recipe recipe) {
         indexRecipe(recipe.getId());

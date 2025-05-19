@@ -45,6 +45,23 @@ public class SearchController {
         return ResponseEntity.ok(page);
     }
 
+    /** 레시피 제목 자동완성 제안 */
+    @GetMapping("/recipes/suggest")
+    public List<String> suggestRecipes(@RequestParam String prefix,
+                                       @RequestParam(defaultValue = "10") int size) {
+        if (prefix.isBlank()) {
+            return List.of();
+        }
+        return suggestionService.suggestRecipeTitles(prefix, size);
+    }
+
+    /** 🔥 전체 누적 인기 검색어 Top N */
+    @GetMapping("/keywords/top")
+    public List<String> topKeywords(
+            @RequestParam(defaultValue = "10") int size) {
+        return suggestionService.getTopSearchKeywords(size);
+    }
+
     /** 재료 검색 */
     @GetMapping("/ingredients")
     public ResponseEntity<Page<IngredientSummaryDto>> searchIngredients(
