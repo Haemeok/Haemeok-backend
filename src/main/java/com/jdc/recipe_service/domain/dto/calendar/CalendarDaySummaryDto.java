@@ -1,13 +1,15 @@
 package com.jdc.recipe_service.domain.dto.calendar;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 
 import java.time.LocalDate;
 
 @Getter
 public class CalendarDaySummaryDto {
-
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'Z'")
     private LocalDate date;
+
     private Long totalSavings;
     private Long totalCount;
     private String firstImageUrl;
