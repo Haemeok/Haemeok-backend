@@ -2,14 +2,12 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.comment.CommentRequestDto;
+import com.jdc.recipe_service.domain.dto.comment.ReplyDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeComment;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.projection.CommentLikeCountProjection;
-import com.jdc.recipe_service.domain.repository.CommentLikeRepository;
-import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
-import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
@@ -87,7 +85,7 @@ public class CommentService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        RecipeComment parent = recipeCommentRepository.findById(parentId)
+        RecipeComment parent = recipeCommentRepository.findByIdAndRecipeId(parentId, recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
 
         RecipeComment reply = RecipeComment.builder()
@@ -144,7 +142,7 @@ public class CommentService {
         List<CommentDto> dtos = comments.stream()
                 .map(comment -> {
                     // 대댓글 DTO
-                    List<CommentDto> replies = comment.getReplies().stream()
+                    List<ReplyDto> replies = comment.getReplies().stream()
                             .filter(r -> !r.isDeleted())
                             .map(r -> CommentMapper.toReplyDto(
                                     r,
@@ -159,7 +157,6 @@ public class CommentService {
                     if (isDeleted && hasReplies) {
                         return CommentMapper.toDeletedDto(comment)
                                 .toBuilder()
-                                .replies(replies)
                                 .replyCount(replies.size())
                                 .build();
                     } else if (isDeleted) {
@@ -170,7 +167,6 @@ public class CommentService {
                                         likedByUser.contains(comment.getId()),
                                         likeCountMap.getOrDefault(comment.getId(), 0)
                                 ).toBuilder()
-                                .replies(replies)
                                 .replyCount(replies.size())
                                 .build();
                     }
@@ -199,6 +195,27 @@ public class CommentService {
                 : sorted.subList(start, end);
 
         return new PageImpl<>(pageContent, pageable, sorted.size());
+    }
+
+    public CommentDto findByIdAndRecipeId(Long commentId, Long recipeId, Long currentUserId) {
+        RecipeComment comment = recipeCommentRepository.findByIdAndRecipeId(commentId, recipeId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+
+        // 좋아요 카운트 & 여부
+        int likeCount = commentLikeRepository.countByCommentId(commentId);
+        boolean isLiked = currentUserId != null
+                && commentLikeRepository.existsByCommentIdAndUserId(commentId, currentUserId);
+
+        // 보여줄 대댓글 개수
+        int replyCount = (int) comment.getReplies().stream()
+                .filter(r -> !r.isDeleted())
+                .count();
+
+        // 매핑 & replyCount 주입
+        return CommentMapper.toDto(comment, isLiked, likeCount)
+                .toBuilder()
+                .replyCount(replyCount)
+                .build();
     }
 
 
@@ -239,49 +256,75 @@ public class CommentService {
         recipeCommentRepository.deleteByRecipeId(recipeId);
     }
 
-    public Page<CommentDto> getRepliesWithLikes(Long parentId, Long currentUserId, Pageable pageable) {
-        List<RecipeComment> replies = recipeCommentRepository.findByParentCommentIdOrderByCreatedAtAsc(parentId)
-                .stream()
-                .filter(reply -> !reply.isDeleted())
+
+    public Page<ReplyDto> getRepliesWithLikes(
+            Long parentId,
+            Long currentUserId,
+            Pageable pageable
+    ) {
+        // 1) 원본 sort 에서 likeCount 정렬 정보 분리
+        Sort originalSort = pageable.getSort();
+        Sort.Order likeOrder = originalSort.getOrderFor("likeCount");
+
+        // 2) DB 쿼리를 위한 sort: likeCount 제외한 나머지 (e.g. createdAt)
+        List<Sort.Order> dbOrders = originalSort.stream()
+                .filter(o -> !"likeCount".equals(o.getProperty()))
+                .toList();
+        Sort dbSort = dbOrders.isEmpty() ? Sort.unsorted() : Sort.by(dbOrders);
+        Pageable dbPageable = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                dbSort
+        );
+
+        // 3) DB에서 createdAt 기준 페이징 조회
+        Page<RecipeComment> replyPage =
+                recipeCommentRepository.findByParentCommentId(parentId, dbPageable);
+
+        // 4) 좋아요 통계를 위한 댓글 ID 리스트
+        List<Long> replyIds = replyPage.getContent().stream()
+                .map(RecipeComment::getId)
                 .toList();
 
-        List<Long> replyIds = replies.stream().map(RecipeComment::getId).toList();
-
-        Map<Long, Integer> likeCounts = commentLikeRepository.countLikesByCommentIds(replyIds).stream()
+        Map<Long, Integer> likeCounts = commentLikeRepository
+                .countLikesByCommentIds(replyIds).stream()
                 .collect(Collectors.toMap(
                         CommentLikeCountProjection::getCommentId,
                         CommentLikeCountProjection::getLikeCount
                 ));
 
-        Set<Long> likedIds = new HashSet<>(commentLikeRepository.findLikedCommentIdsByUser(currentUserId, replyIds));
+        Set<Long> likedIds = (currentUserId != null)
+                ? new HashSet<>(commentLikeRepository.findLikedCommentIdsByUser(currentUserId, replyIds))
+                : Collections.emptySet();
 
-        List<CommentDto> replyDtos = replies.stream().map(reply ->
-                CommentMapper.toReplyDto(
-                        reply,
-                        likedIds.contains(reply.getId()),
-                        likeCounts.getOrDefault(reply.getId(), 0)
-                )
-        ).toList();
+        // 5) 엔티티 → DTO 변환 (Stream.toList() 는 불변이므로, 가변 리스트로 복사)
+        List<ReplyDto> immutableDtos = replyPage.getContent().stream()
+                .map(r -> CommentMapper.toReplyDto(
+                        r,
+                        likedIds.contains(r.getId()),
+                        likeCounts.getOrDefault(r.getId(), 0)
+                ))
+                .toList();
+        List<ReplyDto> dtos = new ArrayList<>(immutableDtos);
 
-        // 🔥 정렬 처리
-        List<CommentDto> sorted = new ArrayList<>(replyDtos);
-        if (!pageable.getSort().isEmpty()) {
-            Sort.Order order = pageable.getSort().iterator().next();
-            if ("likeCount".equals(order.getProperty())) {
-                sorted.sort(Comparator.comparing(CommentDto::getLikeCount,
-                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
-            } else { // 기본 createdAt
-                sorted.sort(Comparator.comparing(CommentDto::getCreatedAt,
-                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+        // 6) in-memory로 likeCount 정렬 적용 (요청에 likeCount 정렬이 있으면)
+        if (likeOrder != null) {
+            Comparator<ReplyDto> comp = Comparator.comparing(ReplyDto::getLikeCount);
+            if (!likeOrder.isAscending()) {
+                comp = comp.reversed();
             }
+            dtos.sort(comp);
         }
 
-        // 🔥 페이지네이션 적용
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), sorted.size());
-        List<CommentDto> pageContent = start > sorted.size() ? Collections.emptyList() : sorted.subList(start, end);
-
-        return new PageImpl<>(pageContent, pageable, sorted.size());
+        // 7) PageImpl 로 감싸서 원래 pageable 과 totalElements 유지
+        return new PageImpl<>(
+                dtos,
+                pageable,
+                replyPage.getTotalElements()
+        );
     }
 
+
+
 }
+

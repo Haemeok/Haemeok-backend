@@ -1,10 +1,8 @@
 package com.jdc.recipe_service.mapper;
 
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
+import com.jdc.recipe_service.domain.dto.comment.ReplyDto;
 import com.jdc.recipe_service.domain.entity.RecipeComment;
-
-
-import java.util.List;
 
 public class CommentMapper {
 
@@ -16,7 +14,6 @@ public class CommentMapper {
                 .author(UserMapper.toCommentUserDto(comment.getUser()))
                 .likeCount(likeCount)
                 .likedByCurrentUser(isLiked)
-                .replies(List.of())
                 .build();
     }
 
@@ -28,17 +25,16 @@ public class CommentMapper {
                 .author(null)
                 .likeCount(0)
                 .likedByCurrentUser(false)
-                .replies(List.of())
                 .isDeleted(true)
                 .build();
     }
 
-    public static CommentDto toReplyDto(RecipeComment comment, boolean isLiked, int likeCount) {
-        return CommentDto.builder()
-                .id(comment.getId())
-                .content(comment.getComment())
-                .createdAt(comment.getCreatedAt())
-                .author(UserMapper.toCommentUserDto(comment.getUser()))
+    public static ReplyDto toReplyDto(RecipeComment c, boolean isLiked, int likeCount) {
+        return ReplyDto.builder()
+                .id(c.getId())
+                .content(c.getComment())
+                .createdAt(c.getCreatedAt())
+                .author(UserMapper.toCommentUserDto(c.getUser()))
                 .likeCount(likeCount)
                 .likedByCurrentUser(isLiked)
                 .build();
@@ -52,7 +48,6 @@ public class CommentMapper {
                 .author(UserMapper.toCommentUserDto(comment.getUser()))
                 .likeCount(0)
                 .likedByCurrentUser(false)
-                .replies(List.of())
                 .build();
     }
 }
