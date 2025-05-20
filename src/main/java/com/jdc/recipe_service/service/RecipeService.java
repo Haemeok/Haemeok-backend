@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.entity.*;
@@ -11,6 +12,7 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.util.PricingUtil;
+import com.jdc.recipe_service.util.PromptBuilder;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,9 @@ public class RecipeService {
     private final RecipeIndexingService recipeIndexingService;
     private final S3Util s3Util;
     private final EntityManager em;
+    private final ReplicateService replicateService;
+    private final ObjectMapper objectMapper;
+
 
     @Transactional
     public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUploadRequest req, Long userId, RecipeSourceType sourceType) {
@@ -270,6 +275,25 @@ public class RecipeService {
             }
         }
     }
+
+    @Transactional
+    public RecipeWithImageUploadRequest buildRecipeFromAiRequest(RecipeWithImageUploadRequest req) {
+        AiRecipeRequestDto aiReq = req.getAiRequest();
+        if (aiReq == null) throw new CustomException(ErrorCode.NULL_POINTER, "AI 요청 필드 누락");
+
+        try {
+            String prompt = PromptBuilder.buildPrompt(aiReq);
+            String json = replicateService.generateRecipeJson(prompt);
+            RecipeCreateRequestDto generated = objectMapper.readValue(json, RecipeCreateRequestDto.class);
+
+            req.setRecipe(generated);
+            req.setFiles(Collections.emptyList());
+            return req;
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI 레시피 생성 실패: " + e.getMessage());
+        }
+    }
+
 
     @Transactional
     public boolean togglePrivacy(Long recipeId, Long userId) {
