@@ -15,7 +15,7 @@ public class ReplicateService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${replicate.token}")
+    @Value("${REPLICATE_TOKEN}")
     private String apiToken;
 
     public String generateRecipeJson(String prompt) throws InterruptedException {
