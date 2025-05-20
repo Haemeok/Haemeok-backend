@@ -147,11 +147,19 @@ public class CookingRecordService {
         boolean cookedToday = false;
 
         if (result != null) {
+            if (result.length > 0 && result[0] != null) {
+                log.info("Service - Result[0] type: {}", result[0].getClass().getName());
+                log.info("Service - Result[0] value: {}", result[0]);
+            }
             if (result.length == 2) {
                 streak = ((Number) result[0]).intValue();
                 cookedToday = ((Number) result[1]).intValue() == 1;
                 log.debug("Service - parsed streak = {}, cookedToday = {}", streak, cookedToday);
-            } else {
+            }
+            else if(result.length>2){
+                log.warn("Service - unexpected result length: {} (bigger than 2)", result.length);
+            }
+            else {
                 log.warn("Service - unexpected result length: {} (expected 2)", result.length);
             }
         } else {

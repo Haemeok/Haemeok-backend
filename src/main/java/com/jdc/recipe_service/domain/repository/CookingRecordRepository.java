@@ -65,6 +65,7 @@ SELECT
          WHERE dgk.cook_date <= (SELECT streak_end_date FROM TargetStreakEndDate)
         ), 0) AS streak,
     (SELECT did_cook_today FROM CookedTodayInfo) AS cooked_today
+FROM DUAL
 """, nativeQuery = true)
     Object[] findStreakAndTodayFlag(@Param("userId") Long userId);
 
