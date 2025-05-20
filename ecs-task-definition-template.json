@@ -35,7 +35,8 @@
         { "name": "APP_S3_BUCKET_NAME", "value": "${APP_S3_BUCKET_NAME}" },
         { "name": "APP_S3_UPLOAD_BASE_PATH", "value": "${APP_S3_UPLOAD_BASE_PATH}" },
         { "name": "APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES", "value": "${APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES}" },
-        { "name": "OPENSEARCH_HOST", "value": "${OPENSEARCH_HOST}"}
+        { "name": "OPENSEARCH_HOST", "value": "${OPENSEARCH_HOST}"},
+        { "name": "REPLICATE_TOKEN", "value": "${REPLICATE_TOKEN}"}
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

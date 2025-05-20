@@ -68,7 +68,8 @@ jobs:
           APP_S3_BUCKET_NAME: ${{ secrets.APP_S3_BUCKET_NAME }}
           APP_S3_UPLOAD_BASE_PATH: ${{ secrets.APP_S3_UPLOAD_BASE_PATH }}
           APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES: ${{ secrets.APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES }}
-          OPENSEARCH_HOST: ${{ secrets.OPENSEARCH_HOST }}
+          OPENSEARCH_HOST: ${{ secrets.OPENSEARCH_HOST }},
+          REPLICATE_TOKEN: ${{ secrets.REPLICATE_TOKEN }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
