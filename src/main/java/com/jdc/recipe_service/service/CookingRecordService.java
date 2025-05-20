@@ -133,7 +133,9 @@ public class CookingRecordService {
     /** 불꽃(연속 요리 일수와 오늘 요리 여부) */
     @Transactional(readOnly = true)
     public CookingStreakDto getCookingStreakInfo(Long userId) {
+        System.out.println("Service - getCookingStreakInfo - userId: " + userId);
         Object[] result = repo.findStreakAndTodayFlag(userId);
+        System.out.println("Service - Result from DB: " + java.util.Arrays.toString(result)); // 또는 로거 사용
 
         int streak = 0;
         boolean cookedToday = false;

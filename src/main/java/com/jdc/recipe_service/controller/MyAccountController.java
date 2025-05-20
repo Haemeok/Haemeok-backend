@@ -99,6 +99,7 @@ public class MyAccountController {
         }
 
         Long userId = userDetails.getUser().getId();
+        System.out.println("API - getMyCookingStreak - userId: " + userId);
         CookingStreakDto stats = cookingService.getCookingStreakInfo(userId);
         return ResponseEntity.ok(stats);
     }
