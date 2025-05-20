@@ -1,11 +1,13 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.domain.dto.calendar.CookingStreakDto;
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.user.FavoriteRecipeDto;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.CookingRecordService;
 import com.jdc.recipe_service.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,8 @@ import static org.springframework.data.domain.Sort.Direction.DESC;
 public class MyAccountController {
 
     private final UserService userService;
+    private final CookingRecordService cookingService;
+
 
     //  내 정보 조회
     @GetMapping
@@ -84,5 +88,18 @@ public class MyAccountController {
                 userService.getUserRecipes(myId, myId, pageable);
 
         return ResponseEntity.ok(page);
+    }
+
+    @GetMapping("/streak")
+    public ResponseEntity<CookingStreakDto> getMyCookingStreak(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Long userId = userDetails.getUser().getId();
+        CookingStreakDto stats = cookingService.getCookingStreakInfo(userId);
+        return ResponseEntity.ok(stats);
     }
 }

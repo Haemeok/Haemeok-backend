@@ -129,4 +129,20 @@ public class CookingRecordService {
                 .orElseThrow(() -> new IllegalArgumentException("Record not found"));
         return CookingRecordDto.from(rec);
     }
+
+    /** 불꽃(연속 요리 일수와 오늘 요리 여부) */
+    @Transactional(readOnly = true)
+    public CookingStreakDto getCookingStreakInfo(Long userId) {
+        Object[] result = repo.findStreakAndTodayFlag(userId);
+
+        int streak = 0;
+        boolean cookedToday = false;
+
+        if (result != null && result.length == 2) {
+            streak = ((Number) result[0]).intValue();
+            cookedToday = ((Number) result[1]).intValue() == 1;
+        }
+
+        return new CookingStreakDto(streak, cookedToday);
+    }
 }
