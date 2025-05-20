@@ -6,6 +6,8 @@ build/
 !**/src/test/**/build/
 
 src/main/resources/application-local.yml
+data/local_haemeok_db.mv.db
+data/local_haemeok_db.trace.db
 
 ### STS ###
 .apt_generated

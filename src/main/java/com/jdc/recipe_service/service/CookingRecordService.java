@@ -10,11 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -24,7 +21,6 @@ public class CookingRecordService {
     private final CookingRecordRepository repo;
     private final UserRepository userRepo;
     private final RecipeRepository recipeRepo;
-    private static final Logger log = LoggerFactory.getLogger(CookingRecordService.class);
 
 
     /** 별점 작성 시점에 호출하여 기록 생성 */
@@ -138,33 +134,15 @@ public class CookingRecordService {
     /** 불꽃(연속 요리 일수와 오늘 요리 여부) */
     @Transactional(readOnly = true)
     public CookingStreakDto getCookingStreakInfo(Long userId) {
-        log.debug("Service - getCookingStreakInfo - userId: {}", userId);
 
-        Object[] result = repo.findStreakAndTodayFlag(userId);
-        log.debug("Service - raw result from DB: {}", Arrays.toString(result));
-
-        int streak = 0;
-        boolean cookedToday = false;
-
-        if (result != null) {
-            if (result.length > 0 && result[0] != null) {
-                log.info("Service - Result[0] type: {}", result[0].getClass().getName());
-                log.info("Service - Result[0] value: {}", result[0]);
-            }
-            if (result.length == 2) {
-                streak = ((Number) result[0]).intValue();
-                cookedToday = ((Number) result[1]).intValue() == 1;
-                log.debug("Service - parsed streak = {}, cookedToday = {}", streak, cookedToday);
-            }
-            else if(result.length>2){
-                log.warn("Service - unexpected result length: {} (bigger than 2)", result.length);
-            }
-            else {
-                log.warn("Service - unexpected result length: {} (expected 2)", result.length);
-            }
-        } else {
-            log.warn("Service - result is null");
+        var rows = repo.findStreakAndTodayFlag(userId);
+        if (rows.isEmpty()) {
+            return new CookingStreakDto(0, false);
         }
+
+        Object[] row = rows.get(0);   //
+        int streak = ((Number) row[0]).intValue();
+        boolean cookedToday = ((Number) row[1]).intValue() == 1;
         return new CookingStreakDto(streak, cookedToday);
     }
 }

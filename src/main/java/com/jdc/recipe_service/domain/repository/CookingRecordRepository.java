@@ -67,7 +67,7 @@ SELECT
     (SELECT did_cook_today FROM CookedTodayInfo) AS cooked_today
 FROM DUAL
 """, nativeQuery = true)
-    Object[] findStreakAndTodayFlag(@Param("userId") Long userId);
+    List<Object[]> findStreakAndTodayFlag(@Param("userId") Long userId);
 
     List<CookingRecord> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
             Long userId, LocalDateTime start, LocalDateTime end
