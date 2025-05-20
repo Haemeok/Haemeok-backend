@@ -50,6 +50,10 @@ public enum ErrorCode {
     AUTH_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "603", "인증이 필요합니다."),
     LOGOUT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "604", "로그아웃 처리에 실패했습니다."),
 
+    // --- AI (700) ---
+    AI_RECIPE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "701", "AI 레시피 생성에 실패했습니다."),
+    INVALID_AI_RECIPE_REQUEST(HttpStatus.BAD_REQUEST, "702", "AI 레시피 요청 형식이 잘못되었습니다."),
+
     // --- Common (900) ---
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "901", "잘못된 입력값입니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "902", "허용되지 않은 메소드입니다."),
