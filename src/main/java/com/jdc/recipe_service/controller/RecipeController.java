@@ -36,6 +36,10 @@ public class RecipeController {
         }
 
         RecipeSourceType sourceType = RecipeSourceType.fromNullable(source);
+
+        if (sourceType == RecipeSourceType.AI) {
+            request = recipeService.buildRecipeFromAiRequest(request);
+        }
         PresignedUrlResponse response = recipeService.createUserRecipeAndGenerateUrls(
                 request,
                 userDetails.getUser().getId(),

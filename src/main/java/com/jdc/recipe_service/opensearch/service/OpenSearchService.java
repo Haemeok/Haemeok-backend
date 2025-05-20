@@ -48,82 +48,78 @@ public class OpenSearchService {
             Long uid) {
 
         try {
-            // 1) BoolQueryBuilder 구성
+            // 1) BoolQueryBuilder
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
-            // 1-1) 제목(Title) 검색 + 키워드 기록
+            // 1-1) Title: prefix + infix
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
                 String title = cond.getTitle().trim();
                 keywordService.record(title);
 
-                BoolQueryBuilder titleQuery = QueryBuilders.boolQuery()
+                var titleQuery = QueryBuilders.boolQuery()
                         .should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title))
                         .should(QueryBuilders.matchQuery("title.infix", title));
 
                 bool.must(titleQuery);
             }
 
-            // 1-2) DishType 필터 (exact match)
+            // 1-2) DishType filter
             if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
-                bool.filter(
-                        QueryBuilders.termQuery("dishType", cond.getDishType())
-                );
+                bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
             }
 
-            // 1-3) Tags 필터 (AND 조건으로 각각 termQuery 추가)
+            // 1-3) Tags filter (AND)
             if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
                 for (String tag : cond.getTagNames()) {
-                    bool.filter(
-                            QueryBuilders.termQuery("tags", tag)
-                    );
+                    bool.filter(QueryBuilders.termQuery("tags", tag));
                 }
             }
 
-            // 1-4) 아무 조건도 없으면 match_all
+            // 1-4) match_all if no condition
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {
                 bool.must(QueryBuilders.matchAllQuery());
             }
 
-            // 2) SearchSourceBuilder 생성 (페이징, 정렬)
-            SearchSourceBuilder src = new SearchSourceBuilder()
+            // 2) SearchSourceBuilder (paging + sort)
+            var src = new SearchSourceBuilder()
                     .query(bool)
                     .from((int) pg.getOffset())
                     .size(pg.getPageSize());
-
             pg.getSort().forEach(o ->
-                    src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
+                    src.sort(o.getProperty(),
+                            o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
             );
 
-            // 3) OpenSearch 실행
+            // 3) Execute search
             SearchResponse resp = client.search(
                     new SearchRequest("recipes").source(src),
                     RequestOptions.DEFAULT
             );
             SearchHits hits = resp.getHits();
 
-            // 4) ID 추출
+            // 4) Extract IDs
             List<Long> ids = Arrays.stream(hits.getHits())
                     .map(h -> Long.valueOf(h.getId()))
                     .collect(Collectors.toList());
-
-            // 5) 결과가 없으면 빈 페이지 반환
             if (ids.isEmpty()) {
                 return new PageImpl<>(Collections.emptyList(), pg, 0);
             }
 
-            // 6) JPA 로직으로 DTO 변환
+            // 5) Load via JPA + map by ID
             List<Recipe> recipes = recipeRepository.findAllById(ids);
             Map<Long, Recipe> recipeMap = recipes.stream()
                     .collect(Collectors.toMap(Recipe::getId, Function.identity()));
 
-            // 7) 유저 좋아요 체크
-            Set<Long> likedIds = (uid != null)
-                    ? recipeLikeRepository.findByUserIdAndRecipeIdIn(uid, ids).stream()
-                    .map(like -> like.getRecipe().getId())
+            // 6) Check user likes
+            Set<Long> likedIds = uid != null
+                    ? recipeLikeRepository
+                    .findByUserIdAndRecipeIdIn(uid, ids)
+                    .stream()
+                    .map(l -> l.getRecipe().getId())
                     .collect(Collectors.toSet())
                     : Collections.emptySet();
 
-            // 8) 순서 보장하며 DTO 리스트로 변환
+            // 7) Build DTO list in original order
             List<RecipeSimpleDto> list = ids.stream()
                     .filter(recipeMap::containsKey)
                     .map(id -> {
@@ -131,9 +127,9 @@ public class OpenSearchService {
                         return new RecipeSimpleDto(
                                 r.getId(),
                                 r.getTitle(),
-                                r.getImageKey() == null ? null :
-                                        String.format("https://%s.s3.%s.amazonaws.com/%s",
-                                                "버킷명", "리전", r.getImageKey()),
+                                r.getImageKey() == null ? null
+                                        : String.format("https://%s.s3.%s.amazonaws.com/%s",
+                                        "버킷명","리전",r.getImageKey()),
                                 r.getUser().getNickname(),
                                 r.getUser().getProfileImage(),
                                 r.getCreatedAt(),
@@ -144,14 +140,15 @@ public class OpenSearchService {
                                 r.getCookingTime() == null ? 0 : r.getCookingTime()
                         );
                     })
-                    .toList();
+                    .collect(Collectors.toList());
 
-            // 9) PageImpl 으로 감싸서 반환
             return new PageImpl<>(list, pg, hits.getTotalHits().value);
 
         } catch (IOException e) {
-            // 검색 실패 시 커스텀 예외 던지기
-            throw new CustomException(ErrorCode.SEARCH_FAILURE, "OpenSearch 조회 실패: " + e.getMessage());
+            throw new CustomException(
+                    ErrorCode.SEARCH_FAILURE,
+                    "OpenSearch 조회 실패: " + e.getMessage()
+            );
         }
     }
 
