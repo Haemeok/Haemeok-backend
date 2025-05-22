@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.dto.RecipeDocument;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
@@ -25,7 +26,6 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class RecipeIndexingService {
 
     private final RestHighLevelClient client;
@@ -115,9 +115,15 @@ public class RecipeIndexingService {
         }
         """, XContentType.JSON);
 
-        CreateIndexResponse res = client.indices().create(request, RequestOptions.DEFAULT);
-        log.info("✅ recipes 인덱스 생성 완료: acknowledged={}", res.isAcknowledged());
-        return res.isAcknowledged();
+        try {
+            CreateIndexResponse res = client.indices().create(request, RequestOptions.DEFAULT);
+            return res.isAcknowledged();
+        } catch (IOException e) {
+            throw new CustomException(
+                    ErrorCode.SEARCH_FAILURE,
+                    "OpenSearch 인덱스 생성 실패: " + e.getMessage()
+            );
+        }
     }
 
 
@@ -133,14 +139,14 @@ public class RecipeIndexingService {
     public void indexRecipe(Long recipeId) {
         Recipe recipe = recipeRepository
                 .findWithAllRelationsById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피를 찾을 수 없습니다: " + recipeId));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
         doIndex(recipe);
     }
 
     public void updateRecipe(Long recipeId) {
         Recipe recipe = recipeRepository
                 .findWithAllRelationsById(recipeId)
-                .orElseThrow(() -> new RuntimeException("레시피를 찾을 수 없습니다: " + recipeId));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
         doUpdate(recipe);
     }
 
@@ -151,9 +157,11 @@ public class RecipeIndexingService {
         try {
             DeleteRequest request = new DeleteRequest("recipes", recipeId.toString());
             client.delete(request, RequestOptions.DEFAULT);
-            log.info("✅ 레시피 색인 삭제 완료: id={}", recipeId);
         } catch (IOException e) {
-            log.error("OpenSearch 색인 삭제 실패: {}", e.getMessage(), e);
+            throw new CustomException(
+                    ErrorCode.SEARCH_FAILURE,
+                    "OpenSearch 색인 삭제 실패: " + e.getMessage()
+            );
         }
     }
 
@@ -208,11 +216,11 @@ public class RecipeIndexingService {
                     .id(recipe.getId().toString())
                     .source(objectMapper.writeValueAsString(doc), XContentType.JSON);
             client.index(req, RequestOptions.DEFAULT);
-            log.info("✅ 레시피 색인 완료: id={}", recipe.getId());
         } catch (IOException e) {
-            log.error("색인 실패: {}", e.getMessage(), e);
-            throw new RuntimeException(e);
-        }
+            throw new CustomException(
+                    ErrorCode.SEARCH_FAILURE,
+                    "레시피 색인 실패: " + e.getMessage()
+            );        }
     }
 
     private void doUpdate(Recipe recipe) {
@@ -221,10 +229,11 @@ public class RecipeIndexingService {
             UpdateRequest req = new UpdateRequest("recipes", recipe.getId().toString())
                     .doc(objectMapper.writeValueAsString(doc), XContentType.JSON);
             client.update(req, RequestOptions.DEFAULT);
-            log.info("✅ 레시피 색인 업데이트 완료: id={}", recipe.getId());
         } catch (IOException e) {
-            log.error("색인 업데이트 실패: {}", e.getMessage(), e);
-            throw new RuntimeException(e);
+            throw new CustomException(
+                    ErrorCode.SEARCH_FAILURE,
+                    "레시피 색인 업데이트 실패: " + e.getMessage()
+            );
         }
     }
 
