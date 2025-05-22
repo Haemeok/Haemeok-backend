@@ -35,6 +35,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -310,29 +311,45 @@ public class RecipeSearchService {
                 .build();
     }
 
-    private boolean shouldUseOpenSearch() {
-        if ("opensearch".equals(searchProperties.getEngine())) {
-            log.info("🔍 Using OpenSearch (explicit setting)");
+    private boolean shouldUseOpenSearch(RecipeSearchCondition cond) {
+        String engine = searchProperties.getEngine();
+
+        // 1) explicit override
+        if ("opensearch".equalsIgnoreCase(engine)) {
+            log.info("🔍 Using OpenSearch (explicit)");
             return true;
         }
-
-        if ("querydsl".equals(searchProperties.getEngine())) {
-            log.info("🔍 Using QueryDSL (explicit setting)");
+        if ("querydsl".equalsIgnoreCase(engine)) {
+            log.info("🔍 Using QueryDSL (explicit)");
             return false;
         }
 
-        // auto 모드 - ping으로 결정
+        // 2) auto 모드: ES 서버 살아있다면 조건 있는 경우에 한해 ES 사용
+        boolean pingOk = false;
         try {
-            boolean result = client.ping(RequestOptions.DEFAULT);
-            log.info("🔍 Using {} (auto mode via ping)", result ? "OpenSearch" : "QueryDSL");
-            return result;
-        } catch (Exception e) {
+            pingOk = client.ping(RequestOptions.DEFAULT);
+        } catch (IOException e) {
             log.warn("❌ OpenSearch ping failed: {}", e.getMessage());
-            log.info("🔍 Falling back to QueryDSL (auto mode)");
-            return false;
         }
-    }
 
+        if (pingOk) {
+            boolean hasKeyword  = cond.getTitle()    != null && !cond.getTitle().isBlank();
+            boolean hasDishType = cond.getDishType() != null && !cond.getDishType().isBlank();
+            boolean hasTags     = cond.getTagNames() != null && !cond.getTagNames().isEmpty();
+
+            if (hasKeyword || hasDishType || hasTags) {
+                log.info("🔍 Using OpenSearch (auto mode; conditions present)");
+                return true;
+            } else {
+                log.info("🔍 Skipping OpenSearch (auto mode; no conditions)");
+                return false;
+            }
+        }
+
+        // 3) ping 실패 시 fallback
+        log.info("🔍 Falling back to QueryDSL (ping failed)");
+        return false;
+    }
 
 
     private Recipe getRecipeWithUserOrThrow(Long recipeId) {
