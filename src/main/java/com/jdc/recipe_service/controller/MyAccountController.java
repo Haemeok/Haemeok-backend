@@ -3,7 +3,6 @@ package com.jdc.recipe_service.controller;
 import com.jdc.recipe_service.domain.dto.calendar.CookingStreakDto;
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
-import com.jdc.recipe_service.domain.dto.recipe.user.FavoriteRecipeDto;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -20,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 import static org.springframework.data.domain.Sort.Direction.DESC;
 
@@ -61,16 +59,18 @@ public class MyAccountController {
 
     // 내 즐겨찾기 조회
     @GetMapping("/favorites")
-    public ResponseEntity<Page<FavoriteRecipeDto>> getMyFavorites(
+    public ResponseEntity<Page<RecipeSimpleDto>> getMyFavorites(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = DESC) Pageable pageable) {
         if (userDetails == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
         Long userId = userDetails.getUser().getId();
-        Page<FavoriteRecipeDto> page = userService.getFavoriteRecipesByUser(userId, userId, pageable);
+        Page<RecipeSimpleDto> page = userService.getFavoriteRecipesByUser(userId, userId, pageable);
         return ResponseEntity.ok(page);
     }
+
 
     // 내가 작성한 레시피 조회
     @GetMapping("/recipes")

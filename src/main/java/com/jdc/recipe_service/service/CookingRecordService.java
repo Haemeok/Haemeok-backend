@@ -26,6 +26,9 @@ public class CookingRecordService {
     /** 별점 작성 시점에 호출하여 기록 생성 */
     @Transactional
     public void createRecordFromRating(Long userId, Long recipeId, Long ratingId) {
+        if (repo.existsByRatingId(ratingId)) {
+            return;
+        }
         var user = userRepo.getReferenceById(userId);
         var recipe = recipeRepo.findById(recipeId)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid recipeId"));
