@@ -80,4 +80,6 @@ FROM DUAL
     @Modifying
     @Query("DELETE FROM CookingRecord c WHERE c.recipe.id = :recipeId")
     void deleteByRecipeId(@Param("recipeId") Long recipeId);
+
+    boolean existsByRatingId(Long ratingId);
 }

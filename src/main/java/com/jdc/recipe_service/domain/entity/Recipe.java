@@ -120,7 +120,6 @@ public class Recipe extends BaseTimeEntity {
         this.servings = servings;
         this.totalIngredientCost = totalIngredientCost;
         this.marketPrice = marketPrice;
-       // this.isAiGenerated = false;
     }
 
     public void updateImageKey(String imageKey) {
@@ -146,4 +145,6 @@ public class Recipe extends BaseTimeEntity {
     public void updateIsPrivate(Boolean isPrivate) {
         this.isPrivate = isPrivate;
     }
+
+    public void updateRatingCount(Long ratingCount) {this.ratingCount = ratingCount;}
 }

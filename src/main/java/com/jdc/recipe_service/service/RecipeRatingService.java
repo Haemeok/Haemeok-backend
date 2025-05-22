@@ -106,6 +106,9 @@ public class RecipeRatingService {
 
     private void updateRecipeAverageRating(Recipe recipe) {
         double avg = ratingRepository.calculateAverageByRecipeId(recipe.getId());
+        long count = ratingRepository.countByRecipeId(recipe.getId());
+
         recipe.updateAvgRating(BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP));
+        recipe.updateRatingCount(count);
     }
 }
