@@ -1,12 +1,15 @@
 package com.jdc.recipe_service.opensearch.controller;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
-import com.jdc.recipe_service.domain.dto.ingredient.IngredientSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.opensearch.dto.IngredientSearchDto;
+import com.jdc.recipe_service.opensearch.service.IngredientSearchService;
 import com.jdc.recipe_service.opensearch.service.OpenSearchSuggestionService;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -18,16 +21,12 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/search")
+@RequiredArgsConstructor
 public class SearchController {
 
     private final OpenSearchService searchService;
     private final OpenSearchSuggestionService suggestionService;
-
-
-    public SearchController(OpenSearchService searchService, OpenSearchSuggestionService suggestionService) {
-        this.searchService = searchService;
-        this.suggestionService = suggestionService;
-    }
+    private final IngredientSearchService ingredientSearchService;
 
     /** 레시피 검색 */
     @GetMapping("/recipes")
@@ -62,55 +61,29 @@ public class SearchController {
         return suggestionService.getTopSearchKeywords(size);
     }
 
-    /** 재료 검색 */
+    /**
+     * 색인 기반 재료 검색
+     * q, category, sort, dir, page, size 지원
+     */
     @GetMapping("/ingredients")
-    public ResponseEntity<Page<IngredientSummaryDto>> searchIngredients(
+    public ResponseEntity<Page<IngredientSearchDto>> searchIngredients(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) Boolean inFridge,
-            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC)
-            Pageable pageable,
-            @AuthenticationPrincipal CustomUserDetails userDetails
+            @RequestParam(defaultValue = "name") String sort,
+            @RequestParam(defaultValue = "asc") String dir,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
-        Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        Page<IngredientSummaryDto> page = searchService.searchIngredients(q, category, inFridge, userId, pageable);
-        return ResponseEntity.ok(page);
+        final int MAX_PAGE_SIZE = 50;
+        int safeSize = Math.min(size, MAX_PAGE_SIZE);
+
+        Pageable pageable = PageRequest.of(
+                page, safeSize,
+                Sort.by(Sort.Direction.fromString(dir), sort)
+        );
+        Page<IngredientSearchDto> result =
+                ingredientSearchService.search(q, category, pageable);
+        return ResponseEntity.ok(result);
     }
 
-    /**
-     * 자동완성 제안 API
-     * 최소 2글자 이상에서 호출 권장
-     */
-    @GetMapping("/ingredients/suggest")
-    public ResponseEntity<List<String>> suggest(
-            @RequestParam String prefix,
-            @RequestParam(required = false) String category,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        if (prefix.length() < 1) {
-            return ResponseEntity.ok(List.of());
-        }
-        List<String> suggestions = suggestionService.suggestIngredientNames(prefix, category,  size);
-        return ResponseEntity.ok(suggestions);
-    }
-
-    /**
-     * 풀 DTO 자동완성 제안 API
-     * 최소 2글자 이상에서 호출 권장
-     */
-    @GetMapping("/ingredients/suggest-full")
-    public ResponseEntity<List<IngredientSummaryDto>> suggestFull(
-            @RequestParam String prefix,
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) Boolean inFridge,
-            @RequestParam(defaultValue = "10") int size,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        if (prefix.length() < 1) {
-            return ResponseEntity.ok(List.of());
-        }
-        Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        List<IngredientSummaryDto> suggestions =
-                suggestionService.suggestFull(prefix, category, inFridge, size, userId);
-        return ResponseEntity.ok(suggestions);
-    }
 }
