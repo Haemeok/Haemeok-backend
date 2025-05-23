@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.dto.user;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.jdc.recipe_service.domain.entity.User;
 import lombok.*;
 
@@ -14,19 +15,20 @@ public class UserResponseDTO {
     private String nickname;
     private String profileImage;
     private String introduction;
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     private LocalDateTime createdAt;
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     private LocalDateTime updatedAt;
 
-    //추후 삭제
     private String provider;
 
-    public UserResponseDTO(User user) {
-        this.id = user.getId();
-        this.nickname = user.getNickname();
-        this.profileImage = user.getProfileImage();
-        this.introduction = user.getIntroduction();
-        this.createdAt = user.getCreatedAt();
-        this.updatedAt = user.getUpdatedAt();
 
-    }
 }
