@@ -15,7 +15,7 @@ public class RecipeStepMapper {
                 .recipe(recipe)
                 .stepNumber(dto.getStepNumber())
                 .instruction(dto.getInstruction())
-                .imageKey(dto.getImageKey()) // 🔄 stepImageUrl → stepImageKey
+                .imageKey(dto.getImageKey())
                 .action(dto.getAction())
                 .build();
     }
@@ -24,7 +24,7 @@ public class RecipeStepMapper {
         return RecipeStepDto.builder()
                 .stepNumber(step.getStepNumber())
                 .instruction(step.getInstruction())
-                .stepImageUrl(imageUrl) // ✅ 변환된 URL 주입
+                .stepImageUrl(imageUrl)
                 .action(step.getAction())
                 .ingredients(ingredients)
                 .build();

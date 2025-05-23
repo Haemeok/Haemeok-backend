@@ -22,7 +22,6 @@ import java.util.List;
 public class RecipeSearchController {
     private final RecipeSearchService recipeService;
 
-    // 레시피 단건 조회 (읽기 전용, 선택 인증)
     @GetMapping("/{recipeId}")
     public ResponseEntity<RecipeDetailDto> getRecipe(
             @PathVariable Long recipeId,
@@ -35,7 +34,6 @@ public class RecipeSearchController {
                 recipeService.getRecipeDetail(recipeId, userId));
     }
 
-    // 전체 간단 조회 (읽기 전용)
     @GetMapping("/simple")
     public ResponseEntity<Page<RecipeSimpleDto>> getAllSimple(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -50,7 +48,6 @@ public class RecipeSearchController {
         return ResponseEntity.ok(result);
     }
 
-    // 태그로 조회
     @GetMapping("/by-tag")
     public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
             @RequestParam List<String> tagNames,
@@ -59,13 +56,11 @@ public class RecipeSearchController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = (userDetails != null) ? userDetails.getUser().getId() : null;
-        // 서비스 호출 시 첫 번째 태그만 넘긴다
         return ResponseEntity.ok(
                 recipeService.getByTagWithLikeInfo(tagNames.get(0), userId, pageable)
         );
     }
 
-    // 디시타입으로 조회
     @GetMapping("/by-dish-type")
     public ResponseEntity<Page<RecipeSimpleDto>> byDish(
             @RequestParam String dishType,
@@ -80,7 +75,6 @@ public class RecipeSearchController {
                 recipeService.getByDishTypeWithLikeInfo(dishType, userId, pageable));
     }
 
-    // (검색, 태그, 디시타입) 복합 조건 조회 (읽기 전용)
     @GetMapping("/search")
     public ResponseEntity<Page<RecipeSimpleDto>> search(
             @RequestParam(required = false) String q,

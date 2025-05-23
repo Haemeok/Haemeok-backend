@@ -2,11 +2,11 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
-import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.entity.RecipeStep;
 import com.jdc.recipe_service.domain.entity.RecipeStepIngredient;
-import com.jdc.recipe_service.domain.repository.IngredientRepository;
+import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeStepIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeStepRepository;
 import com.jdc.recipe_service.exception.CustomException;
@@ -25,164 +25,184 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RecipeStepService {
-    private final IngredientRepository ingredientRepository;
+
+    private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepRepository recipeStepRepository;
     private final RecipeStepIngredientRepository recipeStepIngredientRepository;
     private final ActionImageService actionImageService;
 
+    @Transactional(readOnly = true)
     public List<RecipeStep> getStepsByRecipeId(Long recipeId) {
         return recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
     }
 
+    @Transactional
     public void saveAll(Recipe recipe, List<RecipeStepRequestDto> dtos) {
-        Map<String, Ingredient> ingredientMap = loadIngredientMap();
+        // 레시피별 재료 맵 로드
+        Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
         int actionImageIndex = actionImageService.generateRandomIndex();
 
         for (RecipeStepRequestDto dto : dtos) {
             if (actionImageService.isSupportedAction(dto.getAction())) {
-                String imageKey = actionImageService.generateImageKey(dto.getAction(), actionImageIndex);
-                dto.setImageKey(imageKey);
+                dto.setImageKey(actionImageService.generateImageKey(dto.getAction(), actionImageIndex));
             }
 
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
             recipeStepRepository.save(step);
-
-            saveStepIngredients(dto.getIngredients(), step, ingredientMap);
+            saveStepIngredients(dto.getIngredients(), step, riMap);
         }
     }
 
+    @Transactional
     public void saveAllFromUser(Recipe recipe, List<RecipeStepRequestDto> dtos) {
-        Map<String, Ingredient> ingredientMap = loadIngredientMap();
+        Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
 
         for (RecipeStepRequestDto dto : dtos) {
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
             recipeStepRepository.save(step);
-
-            saveStepIngredients(dto.getIngredients(), step, ingredientMap);
+            saveStepIngredients(dto.getIngredients(), step, riMap);
         }
     }
 
-    public void updateSteps(Recipe recipe, List<RecipeStepRequestDto> stepDtos) {
-        Map<String, Ingredient> ingredientMap = loadIngredientMap();
-
-        List<RecipeStep> existingSteps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipe.getId());
-        Map<Integer, RecipeStep> existingMap = existingSteps.stream()
+    @Transactional
+    public void updateSteps(Recipe recipe, List<RecipeStepRequestDto> dtos) {
+        Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
+        List<RecipeStep> existing = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipe.getId());
+        Map<Integer, RecipeStep> existingMap = existing.stream()
                 .collect(Collectors.toMap(RecipeStep::getStepNumber, Function.identity()));
+        Set<Integer> newNums = dtos.stream()
+                .map(RecipeStepRequestDto::getStepNumber)
+                .collect(Collectors.toSet());
 
-        Set<Integer> newNumbers = stepDtos.stream().map(RecipeStepRequestDto::getStepNumber).collect(Collectors.toSet());
+        // 삭제
+        existing.stream()
+                .filter(s -> !newNums.contains(s.getStepNumber()))
+                .forEach(recipeStepRepository::delete);
 
-        for (RecipeStep step : existingSteps) {
-            if (!newNumbers.contains(step.getStepNumber())) {
-                recipeStepRepository.delete(step); // orphanRemoval 자동 작동
-            }
-        }
-
-        for (RecipeStepRequestDto dto : stepDtos) {
+        // 생성·수정
+        for (RecipeStepRequestDto dto : dtos) {
             RecipeStep step = existingMap.get(dto.getStepNumber());
-            if (step != null) {
+            if (step == null) {
+                step = RecipeStepMapper.toEntity(dto, recipe);
+                recipeStepRepository.save(step);
+            } else {
                 step.updateInstruction(dto.getInstruction());
                 step.updateStepImageKey(dto.getImageKey());
                 step.updateAction(dto.getAction());
-            } else {
-                step = RecipeStepMapper.toEntity(dto, recipe);
-                recipeStepRepository.save(step);
             }
-
-            updateStepIngredients(step, dto.getIngredients(), ingredientMap);
+            updateStepIngredients(step, dto.getIngredients(), riMap);
         }
     }
 
-    public void updateStepsFromUser(Recipe recipe, List<RecipeStepRequestDto> stepDtos) {
-        Map<String, Ingredient> ingredientMap = loadIngredientMap();
-
-        List<RecipeStep> existingSteps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipe.getId());
-        Map<Integer, RecipeStep> existingMap = existingSteps.stream()
+    @Transactional
+    public void updateStepsFromUser(Recipe recipe, List<RecipeStepRequestDto> dtos) {
+        Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
+        List<RecipeStep> existing = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipe.getId());
+        Map<Integer, RecipeStep> existingMap = existing.stream()
                 .collect(Collectors.toMap(RecipeStep::getStepNumber, Function.identity()));
+        Set<Integer> newNums = dtos.stream()
+                .map(RecipeStepRequestDto::getStepNumber)
+                .collect(Collectors.toSet());
 
-        Set<Integer> newNumbers = stepDtos.stream().map(RecipeStepRequestDto::getStepNumber).collect(Collectors.toSet());
+        existing.stream()
+                .filter(s -> !newNums.contains(s.getStepNumber()))
+                .forEach(recipeStepRepository::delete);
 
-        for (RecipeStep step : existingSteps) {
-            if (!newNumbers.contains(step.getStepNumber())) {
-                recipeStepRepository.delete(step); // orphanRemoval 자동 작동
-            }
-        }
-
-        for (RecipeStepRequestDto dto : stepDtos) {
+        for (RecipeStepRequestDto dto : dtos) {
             RecipeStep step = existingMap.get(dto.getStepNumber());
-            if (step != null) {
+            if (step == null) {
+                step = RecipeStepMapper.toEntity(dto, recipe);
+                recipeStepRepository.save(step);
+            } else {
                 step.updateInstruction(dto.getInstruction());
                 step.updateStepImageKey(dto.getImageKey());
-            } else {
-                step = RecipeStepMapper.toEntity(dto, recipe);
-                recipeStepRepository.save(step);
             }
-
-            updateStepIngredients(step, dto.getIngredients(), ingredientMap);
+            updateStepIngredients(step, dto.getIngredients(), riMap);
         }
     }
 
-    private void saveStepIngredients(List<RecipeStepIngredientRequestDto> dtos, RecipeStep step, Map<String, Ingredient> ingredientMap) {
+    private void saveStepIngredients(
+            List<RecipeStepIngredientRequestDto> dtos,
+            RecipeStep step,
+            Map<String, RecipeIngredient> riMap
+    ) {
         if (dtos == null) return;
 
-        for (RecipeStepIngredientRequestDto ingDto : dtos) {
-            String nameKey = ingDto.getName().trim().toLowerCase();
-            Ingredient ingredient = ingredientMap.get(nameKey);
-            boolean isCustom = (ingredient == null);
-
-            if (isCustom && ingDto.getCustomUnit() == null) {
-                throw new CustomException(ErrorCode.CUSTOM_INGREDIENT_INFO_MISSING, ingDto.getName());
+        for (RecipeStepIngredientRequestDto dto : dtos) {
+            String key = dto.getName().trim().toLowerCase();
+            RecipeIngredient ri = riMap.get(key);
+            if (ri == null) {
+                throw new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, dto.getName());
             }
-
-            RecipeStepIngredient rsi = StepIngredientMapper.toEntity(ingDto, step, ingredient);
+            RecipeStepIngredient rsi = StepIngredientMapper.toEntity(dto, step, ri);
             recipeStepIngredientRepository.save(rsi);
         }
     }
 
-    private void updateStepIngredients(RecipeStep step, List<RecipeStepIngredientRequestDto> dtos, Map<String, Ingredient> ingredientMap) {
+    private void updateStepIngredients(
+            RecipeStep step,
+            List<RecipeStepIngredientRequestDto> dtos,
+            Map<String, RecipeIngredient> riMap
+    ) {
         if (dtos == null) return;
 
+        // 기존
         List<RecipeStepIngredient> existing = new ArrayList<>(step.getStepIngredients());
         Map<String, RecipeStepIngredient> existingMap = existing.stream()
-                .collect(Collectors.toMap(i -> i.getIngredient() != null ? i.getIngredient().getName().toLowerCase().trim() : i.getCustomName().toLowerCase().trim(), Function.identity()));
+                .collect(Collectors.toMap(
+                        i -> {
+                            if (i.getRecipeIngredient() != null) {
+                                return i.getRecipeIngredient().getIngredient().getName().toLowerCase().trim();
+                            } else {
+                                return i.getCustomName().toLowerCase().trim();
+                            }
+                        },
+                        Function.identity()
+                ));
 
-        Set<String> newNames = dtos.stream().map(i -> i.getName().toLowerCase().trim()).collect(Collectors.toSet());
+        Set<String> newKeys = dtos.stream()
+                .map(d -> d.getName().toLowerCase().trim())
+                .collect(Collectors.toSet());
 
-        for (RecipeStepIngredient ing : existing) {
-            String name = ing.getIngredient() != null ? ing.getIngredient().getName() : ing.getCustomName();
-            if (!newNames.contains(name.toLowerCase().trim())) {
-                step.getStepIngredients().remove(ing);
-                recipeStepIngredientRepository.delete(ing);
-            }
-        }
+        // 삭제
+        existing.stream()
+                .filter(i -> {
+                    String name = i.getRecipeIngredient() != null
+                            ? i.getRecipeIngredient().getIngredient().getName()
+                            : i.getCustomName();
+                    return !newKeys.contains(name.toLowerCase().trim());
+                })
+                .forEach(i -> {
+                    step.getStepIngredients().remove(i);
+                    recipeStepIngredientRepository.delete(i);
+                });
 
+        // 생성·수정
         for (RecipeStepIngredientRequestDto dto : dtos) {
             String key = dto.getName().toLowerCase().trim();
-            Ingredient ingredient = ingredientMap.get(key);
-            boolean isCustom = (ingredient == null);
-
-            if (isCustom && dto.getCustomUnit() == null) {
-                throw new CustomException(ErrorCode.CUSTOM_INGREDIENT_INFO_MISSING, dto.getName());
+            RecipeIngredient ri = riMap.get(key);
+            if (ri == null) {
+                throw new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, dto.getName());
             }
 
-            String rawQuantity = dto.getQuantity().trim();
-            RecipeStepIngredient existingIng = existingMap.get(key);
-
-            if (existingIng != null) {
-                if (!Objects.equals(existingIng.getQuantity(), rawQuantity)) {
-                    existingIng.updateQuantityAndUnit(rawQuantity, isCustom ? dto.getCustomUnit() : ingredient.getUnit());
-                    recipeStepIngredientRepository.save(existingIng);
+            RecipeStepIngredient exist = existingMap.get(key);
+            if (exist != null) {
+                // quantity 또는 unit 변경 감지
+                String rawQty = dto.getQuantity().trim();
+                String newUnit = ri.getIngredient() == null
+                        ? dto.getCustomUnit()
+                        : ri.getIngredient().getUnit();
+                if (!Objects.equals(exist.getQuantity(), rawQty)
+                        || !Objects.equals(exist.getUnit(), newUnit)) {
+                    exist.updateQuantityAndUnit(rawQty, newUnit);
+                    recipeStepIngredientRepository.save(exist);
                 }
             } else {
-                RecipeStepIngredient newIng = StepIngredientMapper.toEntity(dto, step, ingredient);
+                RecipeStepIngredient newIng = StepIngredientMapper.toEntity(dto, step, ri);
                 recipeStepIngredientRepository.save(newIng);
                 step.getStepIngredients().add(newIng);
             }
         }
-    }
-
-    private Map<String, Ingredient> loadIngredientMap() {
-        return ingredientRepository.findAll().stream()
-                .collect(Collectors.toMap(i -> i.getName().toLowerCase(), Function.identity()));
     }
 
     @Transactional
@@ -194,22 +214,19 @@ public class RecipeStepService {
         recipeStepRepository.deleteByRecipeId(recipeId);
     }
 
-    private double parseQuantity(String quantityStr) {
-        quantityStr = quantityStr.trim();
-        if (quantityStr.contains("/")) {
-            String[] parts = quantityStr.split("/");
-            if (parts.length == 2) {
-                double numerator = Double.parseDouble(parts[0]);
-                double denominator = Double.parseDouble(parts[1]);
-                return numerator / denominator;
-            } else {
-                throw new NumberFormatException("Invalid fraction: " + quantityStr);
-            }
-        }
-        return Double.parseDouble(quantityStr);
-    }
-
-    private String formatQuantityForDisplay(double value) {
-        return value % 1 == 0 ? String.valueOf((int) value) : String.valueOf(value);
+    private Map<String, RecipeIngredient> loadRecipeIngredientMap(Long recipeId) {
+        return recipeIngredientRepository
+                .findByRecipeId(recipeId)
+                .stream()
+                .collect(Collectors.toMap(
+                        ri -> {
+                            if (ri.getIngredient() != null) {
+                                return ri.getIngredient().getName().toLowerCase().trim();
+                            } else {
+                                return ri.getCustomName().toLowerCase().trim();
+                            }
+                        },
+                        Function.identity()
+                ));
     }
 }
