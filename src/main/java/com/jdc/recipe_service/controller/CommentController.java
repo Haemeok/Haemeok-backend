@@ -27,7 +27,6 @@ public class CommentController {
 
     private final CommentService commentService;
 
-    // 1) 댓글 생성 (상위 댓글)
     @PostMapping
     public ResponseEntity<CommentDto> createComment(
             @PathVariable Long recipeId,
@@ -42,9 +41,8 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    // 2) 대댓글 생성
     @PostMapping("/{parentId}/replies")
-    public ResponseEntity<CommentDto> createReply(
+    public ResponseEntity<ReplyDto> createReply(
             @PathVariable Long recipeId,
             @PathVariable Long parentId,
             @Valid @RequestBody CommentRequestDto requestDto,
@@ -53,12 +51,11 @@ public class CommentController {
         if (userDetails == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        CommentDto created = commentService.createReply(
+        ReplyDto created = commentService.createReply(
                 recipeId, parentId, requestDto, userDetails.getUser().getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    // 3) 댓글 조회 (좋아요 포함)
     @GetMapping
     public ResponseEntity<Page<CommentDto>> getAllCommentsWithLikes(
             @PathVariable Long recipeId,
@@ -72,7 +69,6 @@ public class CommentController {
         return ResponseEntity.ok(comments);
     }
 
-    // 4) 대댓글 조회(좋아요 포함)
     @GetMapping("/{commentId}/replies")
     public ResponseEntity<CommentWithRepliesDto> getCommentWithReplies(
             @PathVariable Long recipeId,
@@ -90,9 +86,6 @@ public class CommentController {
         return ResponseEntity.ok(new CommentWithRepliesDto(parent, page));
     }
 
-
-
-    // 5) 댓글 삭제
     @DeleteMapping("/{commentId}")
     public ResponseEntity<String> deleteComment(
             @PathVariable Long commentId,

@@ -17,17 +17,6 @@ public class CommentMapper {
                 .build();
     }
 
-    public static CommentDto toDeletedDto(RecipeComment comment) {
-        return CommentDto.builder()
-                .id(comment.getId())
-                .content("삭제된 댓글입니다.")
-                .createdAt(comment.getCreatedAt())
-                .author(null)
-                .likeCount(0)
-                .likedByCurrentUser(false)
-                .isDeleted(true)
-                .build();
-    }
 
     public static ReplyDto toReplyDto(RecipeComment c, boolean isLiked, int likeCount) {
         return ReplyDto.builder()
@@ -40,14 +29,4 @@ public class CommentMapper {
                 .build();
     }
 
-    public static CommentDto toSimpleDto(RecipeComment comment) {
-        return CommentDto.builder()
-                .id(comment.getId())
-                .content(comment.getComment())
-                .createdAt(comment.getCreatedAt())
-                .author(UserMapper.toCommentUserDto(comment.getUser()))
-                .likeCount(0)
-                .likedByCurrentUser(false)
-                .build();
-    }
 }

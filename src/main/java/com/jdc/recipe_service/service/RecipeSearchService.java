@@ -305,7 +305,7 @@ public class RecipeSearchService {
                 .ingredients(ingredients)
                 .steps(stepDtos)
                 .comments(commentDtos)
-                .commentCount(recipeCommentRepository.countVisibleComments(recipeId))
+                .commentCount(recipeCommentRepository.countByRecipeId(recipeId))
                 .createdAt(recipe.getCreatedAt())
                 .updatedAt(recipe.getUpdatedAt())
                 .build();

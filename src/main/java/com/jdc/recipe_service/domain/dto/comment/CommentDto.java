@@ -31,6 +31,5 @@ public class CommentDto {
     private int likeCount;
     private boolean likedByCurrentUser;
     @JsonInclude(JsonInclude.Include.ALWAYS)
-    private Integer replyCount;
-    private boolean isDeleted;
+    private int replyCount = 0;
 }
