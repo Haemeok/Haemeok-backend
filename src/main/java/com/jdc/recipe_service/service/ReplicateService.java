@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+// List import는 더 이상 필요 없습니다.
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +27,6 @@ public class ReplicateService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiToken);
 
-        // ✅ Deployment 기반 endpoint
         String url = "https://api.replicate.com/v1/deployments/haemeok/qwen3-recipe-deploy/predictions";
 
         Map<String, Object> body = Map.of(
@@ -36,7 +36,6 @@ public class ReplicateService {
         try {
             System.out.println("📤 Replicate POST 요청 시작");
 
-            // 1) 모델 실행 요청
             ResponseEntity<Map> response = restTemplate.postForEntity(
                     url,
                     new HttpEntity<>(body, headers),
@@ -52,13 +51,31 @@ public class ReplicateService {
             }
 
             String predictionId = (String) responseBody.get("id");
-            String getUrl = (String) ((Map<?, ?>) responseBody.get("urls")).get("get");
+            // urls 맵에서 get URL을 안전하게 추출
+            Map<?, ?> urlsMap = (Map<?, ?>) responseBody.get("urls");
+            if (urlsMap == null || urlsMap.get("get") == null) {
+                throw new CustomException(
+                        ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                        "Replicate 응답에서 get URL을 찾을 수 없습니다."
+                );
+            }
+            String getUrl = (String) urlsMap.get("get");
             System.out.println("🆔 생성된 prediction id = " + predictionId);
 
-            // 2) 상태 폴링
             String status;
-            List<String> output = null;
+            String output = null;
+            int pollCount = 0;
+            int maxPolls = 180;
+
+            Map<String, Object> pollBody = null; // 🔔 pollBody를 루프 외부에서 선언 및 초기화
+
             do {
+                if (pollCount++ > maxPolls) {
+                    throw new CustomException(
+                            ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                            "Replicate 처리 시간 초과 (폴링 횟수 제한 도달)"
+                    );
+                }
                 Thread.sleep(2000);
                 ResponseEntity<Map> poll = restTemplate.exchange(
                         getUrl,
@@ -66,29 +83,58 @@ public class ReplicateService {
                         new HttpEntity<>(headers),
                         Map.class
                 );
-                Map<String, Object> pollBody = poll.getBody();
+                pollBody = poll.getBody(); // 🔔 루프 내에서는 값만 할당
+                if (pollBody == null) {
+                    throw new CustomException(
+                            ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                            "Replicate 폴링 응답이 비어있습니다."
+                    );
+                }
                 status = (String) pollBody.get("status");
-                output = (List<String>) pollBody.get("output");
+
+                if (pollBody.get("output") != null) {
+                    if (pollBody.get("output") instanceof List) {
+                        List<?> outputList = (List<?>) pollBody.get("output");
+                        if (!outputList.isEmpty() && outputList.get(0) instanceof String) {
+                            output = (String) outputList.get(0);
+                        }
+                    } else if (pollBody.get("output") instanceof String) {
+                        output = (String) pollBody.get("output");
+                    }
+                }
 
                 System.out.println("🔄 status = " + status);
                 System.out.println("📦 output = " + output);
             } while ("starting".equals(status) || "processing".equals(status));
 
-            // 3) 실패 시 CustomException 으로 던지기
             if (!"succeeded".equals(status)) {
+                // 이제 pollBody에 접근 가능
+                Object errorDetails = pollBody != null ? pollBody.get("error") : "N/A";
+                System.err.println("Replicate 실행 실패. Status: " + status + ", Error: " + errorDetails);
+                Object replicateLogs = pollBody != null ? pollBody.get("logs") : "N/A";
+                if (replicateLogs instanceof String && !((String) replicateLogs).isEmpty()) {
+                    System.err.println("Replicate Logs: " + replicateLogs);
+                }
                 throw new CustomException(
                         ErrorCode.AI_RECIPE_GENERATION_FAILED,
-                        "Replicate 실행 실패: " + status
+                        "Replicate 실행 실패: " + status + (errorDetails != null ? " - " + errorDetails.toString() : "")
                 );
             }
 
-            return output != null && !output.isEmpty() ? output.get(0) : null;
+            return output;
 
         } catch (RestClientException e) {
             e.printStackTrace();
             throw new CustomException(
                     ErrorCode.AI_RECIPE_GENERATION_FAILED,
                     "Replicate API 호출 실패: " + e.getMessage()
+            );
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // 인터럽트 상태 복원
+            e.printStackTrace();
+            throw new CustomException(
+                    ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                    "Replicate 폴링 중 인터럽트 발생: " + e.getMessage()
             );
         }
     }

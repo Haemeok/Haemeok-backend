@@ -289,6 +289,8 @@ public class RecipeService {
             req.setRecipe(generated);
             req.setFiles(Collections.emptyList());
             return req;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException jsonEx) {
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI JSON 파싱 실패: " + jsonEx.getMessage());
         } catch (Exception e) {
             throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI 레시피 생성 실패: " + e.getMessage());
         }
