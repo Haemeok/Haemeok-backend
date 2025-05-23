@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-// List import는 더 이상 필요 없습니다.
 import java.util.List;
 import java.util.Map;
 
@@ -22,7 +21,7 @@ public class ReplicateService {
     @Value("${REPLICATE_TOKEN}")
     private String apiToken;
 
-    public String generateRecipeJson(String prompt) throws InterruptedException {
+    public String generateRecipeJson(String prompt) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiToken);
@@ -51,7 +50,6 @@ public class ReplicateService {
             }
 
             String predictionId = (String) responseBody.get("id");
-            // urls 맵에서 get URL을 안전하게 추출
             Map<?, ?> urlsMap = (Map<?, ?>) responseBody.get("urls");
             if (urlsMap == null || urlsMap.get("get") == null) {
                 throw new CustomException(
@@ -67,7 +65,7 @@ public class ReplicateService {
             int pollCount = 0;
             int maxPolls = 180;
 
-            Map<String, Object> pollBody = null; // 🔔 pollBody를 루프 외부에서 선언 및 초기화
+            Map<String, Object> pollBody = null;
 
             do {
                 if (pollCount++ > maxPolls) {
@@ -83,7 +81,7 @@ public class ReplicateService {
                         new HttpEntity<>(headers),
                         Map.class
                 );
-                pollBody = poll.getBody(); // 🔔 루프 내에서는 값만 할당
+                pollBody = poll.getBody();
                 if (pollBody == null) {
                     throw new CustomException(
                             ErrorCode.AI_RECIPE_GENERATION_FAILED,
@@ -108,7 +106,6 @@ public class ReplicateService {
             } while ("starting".equals(status) || "processing".equals(status));
 
             if (!"succeeded".equals(status)) {
-                // 이제 pollBody에 접근 가능
                 Object errorDetails = pollBody != null ? pollBody.get("error") : "N/A";
                 System.err.println("Replicate 실행 실패. Status: " + status + ", Error: " + errorDetails);
                 Object replicateLogs = pollBody != null ? pollBody.get("logs") : "N/A";
@@ -130,7 +127,7 @@ public class ReplicateService {
                     "Replicate API 호출 실패: " + e.getMessage()
             );
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // 인터럽트 상태 복원
+            Thread.currentThread().interrupt();
             e.printStackTrace();
             throw new CustomException(
                     ErrorCode.AI_RECIPE_GENERATION_FAILED,
