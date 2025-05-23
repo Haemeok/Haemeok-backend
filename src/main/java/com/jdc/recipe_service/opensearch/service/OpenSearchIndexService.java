@@ -6,9 +6,12 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -41,14 +44,11 @@ public class OpenSearchIndexService {
      */
     public boolean deleteIngredientIndex() {
         try {
-            Request req = new Request("DELETE", "/ingredients");
-            Response resp = client.getLowLevelClient().performRequest(req);
-            return resp.getStatusLine().getStatusCode() == 200;
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
-                return false;
-            }
-            throw new CustomException(ErrorCode.SEARCH_FAILURE, e.getMessage());
+            DeleteIndexRequest req = new DeleteIndexRequest("ingredients")
+                    .indicesOptions(IndicesOptions.lenientExpandOpen());
+            AcknowledgedResponse resp = client.indices()
+                    .delete(req, RequestOptions.DEFAULT);
+            return resp.isAcknowledged();
         } catch (IOException e) {
             throw new CustomException(ErrorCode.SEARCH_FAILURE, e.getMessage());
         }
@@ -65,6 +65,7 @@ public class OpenSearchIndexService {
         request.settings(Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)
+                .put("analysis.filter.nori_readingform.type", "nori_readingform")
 
                 //동의어 필터 정의
                 .put("analysis.filter.synonym_filter.type", "synonym")
