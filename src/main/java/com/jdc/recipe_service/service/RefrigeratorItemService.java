@@ -1,7 +1,6 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemRequestDto;
-import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemBulkRequestDto;
 import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemResponseDto;
 import com.jdc.recipe_service.domain.dto.fridge.RefrigeratorItemSummaryDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
@@ -16,12 +15,9 @@ import com.jdc.recipe_service.mapper.IngredientMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -34,8 +30,6 @@ public class RefrigeratorItemService {
     private final RefrigeratorItemRepository repo;
     private final UserRepository       userRepo;
     private final IngredientRepository ingRepo;
-
-    private final DateTimeFormatter fmt = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     /**
      * 내 냉장고 아이템 조회(페이지 + 카테고리 필터)
@@ -84,8 +78,7 @@ public class RefrigeratorItemService {
         return RefrigeratorItemResponseDto.builder()
                 .id(saved.getId())
                 .ingredient(IngredientMapper.toDto(ing))
-                .createdAt(saved.getCreatedAt().format(fmt))
-                .updatedAt(saved.getUpdatedAt().format(fmt))
+                .createdAt(saved.getCreatedAt())
                 .build();
     }
 

@@ -1,6 +1,9 @@
 package com.jdc.recipe_service.domain.dto.calendar;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
+
+import java.time.LocalDateTime;
 
 @Getter
 public class CookingRecordDto {
@@ -10,7 +13,12 @@ public class CookingRecordDto {
     private Integer ingredientCost;
     private Integer marketPrice;
     private Integer savings;
-    private String createdAt;
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
+    private LocalDateTime createdAt;
 
     public static CookingRecordDto from(com.jdc.recipe_service.domain.entity.CookingRecord e) {
         var dto = new CookingRecordDto();
@@ -20,7 +28,7 @@ public class CookingRecordDto {
         dto.ingredientCost = e.getIngredientCost();
         dto.marketPrice    = e.getMarketPrice();
         dto.savings        = e.getSavings();
-        dto.createdAt      = e.getCreatedAt().toString();
+        dto.createdAt      = e.getCreatedAt();
         return dto;
     }
 }
