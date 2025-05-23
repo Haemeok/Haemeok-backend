@@ -97,10 +97,14 @@ public class CookingRecordService {
                     List<CookingRecord> records = repo
                             .findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(userId, start, end);
                     long totalCount = records.size();
-                    String oldestKey = records.isEmpty()
-                            ? null
-                            : records.get(records.size() - 1).getRecipe().getImageKey();
-                    String firstImageUrl = generateImageUrl(oldestKey);
+
+                    String imageKey = records.stream()
+                            .map(r -> r.getRecipe().getImageKey())
+                            .filter(key -> key != null && !key.isBlank())
+                            .findFirst()
+                            .orElse(null);
+
+                    String firstImageUrl = generateImageUrl(imageKey);
                     return new CalendarDaySummaryDto(date, totalSavings, totalCount, firstImageUrl);
                 })
                 .toList();
