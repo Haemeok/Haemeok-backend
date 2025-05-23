@@ -18,12 +18,14 @@ import org.opensearch.search.sort.SortOrder;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class IngredientSearchService {
@@ -88,13 +90,13 @@ public class IngredientSearchService {
             long total = resp.getHits().getTotalHits().value;
             List<IngredientSearchDto> list = List.of(resp.getHits().getHits())
                     .stream()
-                    .map(this::mapToDto)      // SearchHit → DTO
+                    .map(this::mapToDto)
                     .collect(Collectors.toList());
 
             return new PageImpl<>(list, pageable, total);
 
-        } catch (IOException e) {
-            //OpenSearch I/O 오류 발생 시 JPA 대체 검색 시도
+        } catch (Exception e) {
+            log.warn("OpenSearch 검색 실패: {} (페일백 시도)", e.getMessage());
             try {
                 return fallbackSearch(q, category, pageable);
             } catch (Exception ex) {
@@ -103,12 +105,6 @@ public class IngredientSearchService {
                         "재료 대체 검색 처리 중 오류: " + ex.getMessage()
                 );
             }
-
-        } catch (Exception e) {
-            throw new CustomException(
-                    ErrorCode.INGREDIENT_SEARCH_ERROR,
-                    "재료 검색 처리 중 오류: " + e.getMessage()
-            );
         }
     }
 
