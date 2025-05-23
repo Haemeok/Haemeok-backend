@@ -7,8 +7,6 @@ public class PromptBuilder {
         String ingredientsString = String.join(", ", request.getIngredients());
         String tagsString = String.join(", ", request.getTagNames());
 
-        // AI에게 보여줄 좋은 품질의 레시피 JSON 예시 (김치찌개)
-        // 이 예시에는 현실적인 재료의 양 (특히 국물의 양과 대파의 단위/양)이 포함되어 있습니다.
         String fewShotExample = """
             {
               "title": "돼지고기 김치찌개",
@@ -68,12 +66,12 @@ public class PromptBuilder {
 
                         생성 시작:
                         """,
-                fewShotExample, // 예시 JSON 전달
+                fewShotExample,
                 request.getDishType(),
                 request.getCookingTime(),
                 ingredientsString,
                 tagsString,
-                request.getDishType() // JSON 출력 지침 6번의 %s 에 해당 (국물 요리 시 물 양 조절 힌트)
+                request.getDishType()
         );
     }
 }
