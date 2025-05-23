@@ -1,11 +1,13 @@
 package com.jdc.recipe_service.opensearch.service;
 
+import com.jdc.recipe_service.domain.type.IngredientType;
 import com.jdc.recipe_service.opensearch.dto.IngredientSearchDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.RequestOptions;
@@ -17,8 +19,10 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,6 +64,16 @@ public class IngredientSearchService {
             String category,
             Pageable pageable
     ) {
+        // 영어 코드를 한글 카테고리로 변환
+        String korCategory = null;
+        if (StringUtils.hasText(category)) {
+            try {
+                korCategory = IngredientType.fromCode(category).getKor();
+            } catch (IllegalArgumentException e) {
+                korCategory = category;
+            }
+        }
+
         // OpenSearch용 BoolQuery 조립
         BoolQueryBuilder bool = QueryBuilders.boolQuery();
         if (q != null && !q.isBlank()) {
@@ -67,8 +81,8 @@ public class IngredientSearchService {
         } else {
             bool.must(QueryBuilders.matchAllQuery());
         }
-        if (category != null && !category.isBlank()) {
-            bool.filter(QueryBuilders.termQuery("category.keyword", category));
+        if (korCategory != null) {
+            bool.filter(QueryBuilders.termQuery("category.keyword", korCategory));
         }
 
         // 페이징·정렬 설정
@@ -95,39 +109,37 @@ public class IngredientSearchService {
 
             return new PageImpl<>(list, pageable, total);
 
+        } catch (IOException | OpenSearchStatusException e) {
+            log.warn("OpenSearch 검색 실패 ({}), 페일백 시도", e.getMessage());
+            return fallbackSearch(q, korCategory, pageable);
         } catch (Exception e) {
-            log.warn("OpenSearch 검색 실패: {} (페일백 시도)", e.getMessage());
-            try {
-                return fallbackSearch(q, category, pageable);
-            } catch (Exception ex) {
-                throw new CustomException(
-                        ErrorCode.INGREDIENT_FALLBACK_SEARCH_ERROR,
-                        "재료 대체 검색 처리 중 오류: " + ex.getMessage()
-                );
-            }
+            throw new CustomException(
+                    ErrorCode.INGREDIENT_SEARCH_ERROR,
+                    "재료 검색 처리 중 오류: " + e.getMessage()
+            );
         }
     }
 
     /** OpenSearch 실패 시 JPA 조회로 대체 */
     private Page<IngredientSearchDto> fallbackSearch(
             String q,
-            String category,
+            String korCategory,
             Pageable pageable
     ) {
-        Page<Ingredient> page = ingredientRepo.findAll((root, cq, cb) -> {
-            var preds = cb.conjunction();
-            if (q != null && !q.isBlank()) {
-                preds.getExpressions().add(
-                        cb.like(cb.lower(root.get("name")), "%" + q.toLowerCase() + "%")
-                );
-            }
-            if (category != null && !category.isBlank()) {
-                preds.getExpressions().add(
-                        cb.equal(root.get("category"), category)
-                );
-            }
-            return preds;
-        }, pageable);
+        Specification<Ingredient> spec = Specification.where(null);
+
+        if (StringUtils.hasText(q)) {
+            spec = spec.and((root, cq, cb) ->
+                    cb.like(cb.lower(root.get("name")), "%" + q.toLowerCase() + "%")
+            );
+        }
+        if (StringUtils.hasText(korCategory)) {
+            spec = spec.and((root, cq, cb) ->
+                    cb.equal(root.get("category"), korCategory)
+            );
+        }
+
+        Page<Ingredient> page = ingredientRepo.findAll(spec, pageable);
 
         List<IngredientSearchDto> list = page.stream()
                 .map(ing -> {

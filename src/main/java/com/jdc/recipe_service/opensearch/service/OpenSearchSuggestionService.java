@@ -1,9 +1,7 @@
 package com.jdc.recipe_service.opensearch.service;
 
-import com.jdc.recipe_service.domain.dto.ingredient.IngredientSummaryDto;
 import com.jdc.recipe_service.opensearch.keyword.SearchKeyword;
 import com.jdc.recipe_service.opensearch.keyword.SearchKeywordRepository;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -11,12 +9,7 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.suggest.Suggest;
-import org.opensearch.search.suggest.SuggestBuilder;
-import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
