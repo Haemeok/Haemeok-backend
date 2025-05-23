@@ -25,7 +25,6 @@ public class ReplyDto {
             timezone = "UTC"
     )
     private LocalDateTime createdAt;
-
     private CommentUserDto author;
     private int likeCount;
     private boolean likedByCurrentUser;

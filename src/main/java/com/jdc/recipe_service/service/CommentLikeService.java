@@ -22,16 +22,13 @@ public class CommentLikeService {
 
     @Transactional
     public boolean toggleLike(Long commentId, Long userId) {
-        // 이미 좋아요를 눌렀는지 확인
         CommentLike existing = commentLikeRepository.findByCommentIdAndUserId(commentId, userId);
 
         if (existing != null) {
-            // 좋아요 취소
             commentLikeRepository.delete(existing);
-            return false; // 좋아요 취소됨
+            return false;
         }
 
-        // 좋아요 등록
         RecipeComment comment = recipeCommentRepository.findById(commentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
         User user = userRepository.findById(userId)
@@ -42,7 +39,7 @@ public class CommentLikeService {
                 .user(user)
                 .build();
         commentLikeRepository.save(newLike);
-        return true; // 좋아요 등록됨
+        return true;
     }
 
     @Transactional(readOnly = true)

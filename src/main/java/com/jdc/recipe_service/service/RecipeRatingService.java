@@ -58,7 +58,6 @@ public class RecipeRatingService {
                     .user(user)
                     .recipe(recipe)
                     .comment(dto.getComment())
-                    .isDeleted(false)
                     .build();
 
             recipeCommentRepository.save(comment);

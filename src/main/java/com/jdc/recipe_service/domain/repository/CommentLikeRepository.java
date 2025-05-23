@@ -27,7 +27,5 @@ public interface CommentLikeRepository extends JpaRepository<CommentLike, Long> 
             "GROUP BY cl.comment.id")
     List<CommentLikeCountProjection> countLikesByCommentIds(@Param("commentIds") List<Long> commentIds);
 
-    void deleteAllByCommentId(Long commentId);
-
     void deleteByCommentIdIn(List<Long> commentIds);
 }
