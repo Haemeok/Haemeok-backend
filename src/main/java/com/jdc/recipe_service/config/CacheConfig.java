@@ -15,7 +15,7 @@ public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager() {
-        CaffeineCacheManager cm = new CaffeineCacheManager("ingSuggest","ingSuggestFull");
+        CaffeineCacheManager cm = new CaffeineCacheManager("ingredientSearch");
         cm.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(500)
                 .expireAfterWrite(Duration.ofMinutes(10))
