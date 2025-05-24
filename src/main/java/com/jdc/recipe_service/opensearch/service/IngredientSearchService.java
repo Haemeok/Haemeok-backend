@@ -90,10 +90,16 @@ public class IngredientSearchService {
                 .query(bool)
                 .from((int) pageable.getOffset())
                 .size(pageable.getPageSize());
-        pageable.getSort().forEach(o ->
-                src.sort(o.getProperty(),
-                        o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
-        );
+        pageable.getSort().forEach(o -> {
+            String field = o.getProperty();
+            if ("name".equals(field)) {
+                field = "name.keyword";
+            }
+            src.sort(
+                    field,
+                    o.isAscending() ? SortOrder.ASC : SortOrder.DESC
+            );
+        });
 
         try {
             // OpenSearch 실행
