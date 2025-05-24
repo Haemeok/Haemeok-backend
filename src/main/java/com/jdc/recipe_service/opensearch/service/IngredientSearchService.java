@@ -81,8 +81,8 @@ public class IngredientSearchService {
         } else {
             bool.must(QueryBuilders.matchAllQuery());
         }
-        if (korCategory != null) {
-            bool.filter(QueryBuilders.termQuery("category.keyword", korCategory));
+        if (StringUtils.hasText(korCategory)) {
+            bool.filter(QueryBuilders.termQuery("category", korCategory));
         }
 
         // 페이징·정렬 설정
