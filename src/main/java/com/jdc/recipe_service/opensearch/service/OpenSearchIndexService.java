@@ -65,7 +65,6 @@ public class OpenSearchIndexService {
         request.settings(Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)
-                .put("analysis.filter.nori_readingform.type", "nori_readingform")
 
                 //동의어 필터 정의
                 .put("analysis.filter.synonym_filter.type", "synonym")
@@ -133,12 +132,11 @@ public class OpenSearchIndexService {
                 .put("analysis.tokenizer.edge_ngram_tokenizer.max_gram", 20)
                 .putList("analysis.tokenizer.edge_ngram_tokenizer.token_chars", "letter")
 
-                // analyzer 정의 (초성 + 동의어 + nori_readingform)
+                // analyzer 정의 (초성 + 동의어)
                 .put("analysis.analyzer.korean_edge_ngram.tokenizer", "edge_ngram_tokenizer")
                 .putList("analysis.analyzer.korean_edge_ngram.filter",
                         "lowercase",
-                        "synonym_filter",
-                        "nori_readingform"
+                        "synonym_filter"
                 )
         );
 
@@ -148,7 +146,7 @@ public class OpenSearchIndexService {
             "name": {
               "type": "text",
               "analyzer": "korean_edge_ngram",
-              "search_analyzer": "nori_smart",
+              "search_analyzer": "korean_edge_ngram",
               "fields": {
                 "keyword": { "type": "keyword" }
               }
