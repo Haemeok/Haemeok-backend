@@ -127,6 +127,7 @@ public class OpenSearchService {
                                 r.getImageKey() == null ? null
                                         : String.format("https://%s.s3.%s.amazonaws.com/%s",
                                         "버킷명","리전",r.getImageKey()),
+                                r.getUser().getId(),
                                 r.getUser().getNickname(),
                                 r.getUser().getProfileImage(),
                                 r.getCreatedAt(),

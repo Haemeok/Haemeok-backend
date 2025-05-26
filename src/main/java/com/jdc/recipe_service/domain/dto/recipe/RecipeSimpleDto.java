@@ -20,6 +20,7 @@ public class RecipeSimpleDto {
     private Long id;
     private String title;
     private String imageUrl;
+    private Long authorId;
     private String authorName;
     private String profileImage;
     @JsonFormat(
@@ -45,13 +46,14 @@ public class RecipeSimpleDto {
     }
 
     @QueryProjection
-    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName, String profileImage,
+    public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId,  String authorName, String profileImage,
                            LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
                            Integer cookingTime,
                            BigDecimal avgRating, Long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
+        this.authorId = authorId;
         this.authorName = authorName;
         this.profileImage = profileImage;
         this.createdAt = createdAt;
@@ -62,12 +64,13 @@ public class RecipeSimpleDto {
         this.ratingCount = ratingCount;
     }
 
-    public RecipeSimpleDto(Long id, String title, String imageUrl, String authorName, String profileImage,
+    public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                            LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
                            Integer cookingTime, double avgRating, Long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
+        this.authorId = authorId;
         this.authorName = authorName;
         this.profileImage = profileImage;
         this.createdAt = createdAt;
