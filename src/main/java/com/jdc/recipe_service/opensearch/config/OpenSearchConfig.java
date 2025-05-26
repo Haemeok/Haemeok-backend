@@ -15,20 +15,19 @@ import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
 import software.amazon.awssdk.regions.Region;
 
 @Configuration
-@Profile("!local")
+@Profile("!local") // "local" 프로파일이 아닐 때 활성화
 public class OpenSearchConfig {
 
     @Value("${opensearch.host}")
     private String HOST;
 
-    // 기본값 지정
     @Value("${opensearch.port:443}")
     private int PORT;
 
     @Value("${opensearch.scheme:https}")
     private String SCHEME;
-    private static final String SERVICE_NAME = "es";
-    private static final Region AWS_REGION = Region.AP_NORTHEAST_2;
+    private static final String SERVICE_NAME = "es"; // OpenSearch Service의 경우 "aoss" 또는 "es"
+    private static final Region AWS_REGION = Region.AP_NORTHEAST_2; // 사용하시는 리전으로
 
     @Bean(destroyMethod = "close")
     public RestHighLevelClient openSearchClient() {
@@ -43,6 +42,15 @@ public class OpenSearchConfig {
                 .setHttpClientConfigCallback(httpClientBuilder ->
                         httpClientBuilder.addInterceptorLast(interceptor)
                 );
+
+        // === 여기서 타임아웃 설정 추가 ===
+        builder.setRequestConfigCallback(
+                requestConfigBuilder -> requestConfigBuilder
+                        .setConnectTimeout(5000)    // 연결 타임아웃 (5초)
+                        .setSocketTimeout(10000)    // 소켓 타임아웃 (데이터 대기 시간, 10초)
+                        .setConnectionRequestTimeout(1000) // 커넥션 풀에서 커넥션 가져오는 타임아웃 (1초)
+        );
+        // === 타임아웃 설정 추가 끝 ===
 
         return new RestHighLevelClient(builder);
     }
