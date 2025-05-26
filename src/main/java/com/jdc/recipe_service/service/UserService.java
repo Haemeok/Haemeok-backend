@@ -149,6 +149,7 @@ public class UserService {
                             recipe.getId(),
                             recipe.getTitle(),
                             recipe.getImageKey(), // 나중에 setImageUrl()로 변환
+                            recipe.getUser().getId(),
                             recipe.getUser().getNickname(),
                             recipe.getUser().getProfileImage(),
                             recipe.getCreatedAt(),
@@ -167,60 +168,6 @@ public class UserService {
         return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
     }
 
-
-
-//    // 내 즐겨찾기 조회
-//    @Transactional(readOnly = true)
-//    public Page<FavoriteRecipeDto> getFavoriteRecipesByUser(
-//            Long targetUserId,
-//            Long currentUserId,
-//            Pageable pageable) {
-//
-//        // 1) 페이징된 즐겨찾기 엔티티 조회
-//        Page<RecipeFavorite> favPage =
-//                recipeFavoriteRepository.findByUserId(targetUserId, pageable);
-//
-//        // 2) Recipe 객체 리스트 추출
-//        List<Recipe> recipes = favPage.getContent().stream()
-//                .map(RecipeFavorite::getRecipe)
-//                .toList();
-//
-//        List<Long> recipeIds = recipes.stream()
-//                .map(Recipe::getId)
-//                .toList();
-//
-//        // 3) bulk 좋아요 수 조회
-//        List<Object[]> rawResults = recipeLikeRepository.countLikesRaw(recipeIds);
-//        Map<Long, Long> likeCountMap = rawResults.stream()
-//                .collect(Collectors.toMap(
-//                        row -> (Long) row[0],
-//                        row -> (Long) row[1]
-//                ));
-//
-//        // 4) bulk 내 좋아요 여부 조회
-//        Set<Long> likedIds = (currentUserId != null)
-//                ? recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-//                .stream()
-//                .map(like -> like.getRecipe().getId())
-//                .collect(Collectors.toSet())
-//                : Set.of();
-//
-//        // 5) DTO 매핑
-//        List<FavoriteRecipeDto> dtos = recipes.stream()
-//                .map(recipe -> FavoriteRecipeDto.builder()
-//                        .id(recipe.getId())
-//                        .title(recipe.getTitle())
-//                        .imageUrl(generateImageUrl(recipe.getImageKey()))
-//                        .authorName(recipe.getUser().getNickname())
-//                        .createdAt(recipe.getCreatedAt())
-//                        .likeCount(likeCountMap.getOrDefault(recipe.getId(), 0L)) // 🔥 여기 bulk 적용
-//                        .likedByCurrentUser(likedIds.contains(recipe.getId()))
-//                        .build())
-//                .toList();
-//
-//        // 6) PageImpl로 감싸서 반환
-//        return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
-//    }
 
     @Transactional(readOnly = true)
     public Page<MyRecipeSummaryDto> getUserRecipes(
