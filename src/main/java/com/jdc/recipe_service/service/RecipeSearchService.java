@@ -24,14 +24,16 @@ import com.jdc.recipe_service.mapper.UserMapper;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
 import com.jdc.recipe_service.util.SearchProperties;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,7 +46,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class RecipeSearchService {
 
     private final RecipeRepository recipeRepository;
@@ -58,9 +59,11 @@ public class RecipeSearchService {
     private final RecipeRatingService recipeRatingService;
     private final CommentService commentService;
     private final OpenSearchService openSearchService;
-    private final SearchProperties searchProperties;
-    private final RestHighLevelClient client;
 
+    private final SearchProperties searchProperties;
+    private static final Logger log = LoggerFactory.getLogger(RecipeSearchService.class);
+    private final RestHighLevelClient client;
+    private volatile boolean isOpenSearchHealthy = true;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -76,27 +79,23 @@ public class RecipeSearchService {
 
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> getAllRecipesSimple(Long currentUserId, Pageable pageable) {
-        // 1. QueryDSL 기반 projection + 페이징
         Page<RecipeSimpleDto> page = recipeRepository.findAllSimpleWithRatingAndCookingInfo(pageable);
 
         if (currentUserId == null) {
-            return page; // 비회원은 likedByCurrentUser false 상태 그대로 반환
+            return page;
         }
 
         List<RecipeSimpleDto> content = page.getContent();
 
-        // 2. 레시피 ID 목록 추출
         List<Long> recipeIds = content.stream()
                 .map(RecipeSimpleDto::getId)
                 .toList();
 
-        // 3. 유저가 좋아요 누른 레시피 ID 조회
         Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
                 .stream()
                 .map(like -> like.getRecipe().getId())
                 .collect(Collectors.toSet());
 
-        // 4. liked 상태 반영
         content.forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
 
         return new PageImpl<>(content, pageable, page.getTotalElements());
@@ -105,15 +104,17 @@ public class RecipeSearchService {
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
-        return searchWithQuerydsl(condition, pageable, userId);
+//        return searchWithQuerydsl(condition, pageable, userId);
+        log.info("RecipeSearchService.searchRecipes - Condition: title='{}', dishType='{}', tags='{}'",
+                condition.getTitle(), condition.getDishType(), condition.getTagNames());
 
-//        boolean useOpenSearch = shouldUseOpenSearch(); // 아래 정의
-//
-//        if (useOpenSearch) {
-//            return openSearchService.searchRecipes(condition, pageable, userId);
-//        } else {
-//            return searchWithQuerydsl(condition, pageable, userId);
-//        }
+        boolean useOpenSearch = shouldUseOpenSearch(condition);
+
+        if (useOpenSearch) {
+            return openSearchService.searchRecipes(condition, pageable, userId);
+        } else {
+            return searchWithQuerydsl(condition, pageable, userId);
+        }
     }
 
 
@@ -155,7 +156,6 @@ public class RecipeSearchService {
             throw new CustomException(ErrorCode.INVALID_TAG_NAME);
         }
 
-        //정렬 없이 전체 조회
         Page<RecipeSimpleDto> page = recipeRepository.findByTagWithLikeCount(tag, Pageable.unpaged());
         List<RecipeSimpleDto> recipes = new ArrayList<>(page.getContent());
 
@@ -174,7 +174,6 @@ public class RecipeSearchService {
             });
         }
 
-        // ✅ 정렬
         if (!pageable.getSort().isEmpty()) {
             Sort.Order order = pageable.getSort().iterator().next();
             if ("likeCount".equals(order.getProperty())) {
@@ -186,7 +185,6 @@ public class RecipeSearchService {
             }
         }
 
-        // ✅ 페이징
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), recipes.size());
         List<RecipeSimpleDto> pageContent = start > recipes.size() ? List.of() : recipes.subList(start, end);
@@ -198,7 +196,7 @@ public class RecipeSearchService {
     public Page<RecipeSimpleDto> getByDishTypeWithLikeInfo(
             String dishTypeCode, Long currentUserId, Pageable pageable) {
 
-        DishType dishType = DishType.fromCode(dishTypeCode); // valueOf → fromCode
+        DishType dishType = DishType.fromCode(dishTypeCode);
 
         Page<RecipeSimpleDto> page = recipeRepository.findByDishTypeWithLikeCount(dishType, Pageable.unpaged());
         List<RecipeSimpleDto> recipes = new ArrayList<>(page.getContent());
@@ -276,7 +274,6 @@ public class RecipeSearchService {
 
         List<CommentDto> commentDtos = commentService.getTop3CommentsWithLikes(recipeId, currentUserId);
 
-        // ✅ 비용 계산 보정
         int totalCost = recipe.getTotalIngredientCost() != null ? recipe.getTotalIngredientCost() : 0;
         int marketPrice = recipe.getMarketPrice() != null ? recipe.getMarketPrice() : 0;
         int savings = marketPrice - totalCost;
@@ -311,44 +308,64 @@ public class RecipeSearchService {
                 .build();
     }
 
+
+    @Scheduled(initialDelay = 5000, fixedRate = 10000) // 애플리케이션 시작 5초 후 첫 실행, 이후 10초 간격
+    public void checkOpenSearchHealth() {
+        boolean currentHealth;
+        try {
+            currentHealth = client.ping(RequestOptions.DEFAULT);
+
+            if (!currentHealth && this.isOpenSearchHealthy) {
+                log.warn("⚠️ OpenSearch PING 응답이 false입니다. 비정상 상태로 간주합니다.");
+            }
+        } catch (IOException e) {
+            currentHealth = false;
+            if (this.isOpenSearchHealthy) {
+                log.warn("❌ OpenSearch PING 실패 (IOException), 서버 다운 또는 네트워크 문제일 수 있습니다: {}", e.getMessage());
+            } else {
+                log.debug("❌ OpenSearch PING이 계속 실패 중입니다 (IOException): {}", e.getMessage());
+            }
+        } catch (Exception e) {
+            currentHealth = false;
+            log.error("🚨 OpenSearch PING 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
+        }
+
+        if (this.isOpenSearchHealthy != currentHealth) {
+            log.info("🔄 OpenSearch 건강 상태 변경: {} -> {}", this.isOpenSearchHealthy ? "정상" : "비정상", currentHealth ? "정상" : "비정상");
+            this.isOpenSearchHealthy = currentHealth;
+        } else if (currentHealth) {
+            log.debug("💚 OpenSearch 서버 상태 양호합니다 (변경 없음).");
+        }
+    }
+
     private boolean shouldUseOpenSearch(RecipeSearchCondition cond) {
         String engine = searchProperties.getEngine();
 
-        // 1) explicit override
         if ("opensearch".equalsIgnoreCase(engine)) {
-            log.info("🔍 Using OpenSearch (explicit)");
+            log.info("🔍 OpenSearch 사용 (설정 파일에 명시됨)");
             return true;
         }
         if ("querydsl".equalsIgnoreCase(engine)) {
-            log.info("🔍 Using QueryDSL (explicit)");
+            log.info("🔍 QueryDSL 사용 (설정 파일에 명시됨)");
             return false;
         }
 
-        // 2) auto 모드: ES 서버 살아있다면 조건 있는 경우에 한해 ES 사용
-        boolean pingOk = false;
-        try {
-            pingOk = client.ping(RequestOptions.DEFAULT);
-        } catch (IOException e) {
-            log.warn("❌ OpenSearch ping failed: {}", e.getMessage());
-        }
-
-        if (pingOk) {
-            boolean hasKeyword  = cond.getTitle()    != null && !cond.getTitle().isBlank();
+        if (this.isOpenSearchHealthy) {
+            boolean hasKeyword = cond.getTitle() != null && !cond.getTitle().isBlank();
             boolean hasDishType = cond.getDishType() != null && !cond.getDishType().isBlank();
-            boolean hasTags     = cond.getTagNames() != null && !cond.getTagNames().isEmpty();
+            boolean hasTags = cond.getTagNames() != null && !cond.getTagNames().isEmpty();
 
             if (hasKeyword || hasDishType || hasTags) {
-                log.info("🔍 Using OpenSearch (auto mode; conditions present)");
+                log.info("🔍 OpenSearch 사용 (서버 상태 양호, 검색 조건 존재 - 자동 모드)");
                 return true;
             } else {
-                log.info("🔍 Skipping OpenSearch (auto mode; no conditions)");
+                log.info("🔍 QueryDSL 사용 (OpenSearch 서버 상태는 양호하나 검색 조건 없음 - 자동 모드)");
                 return false;
             }
+        } else {
+            log.warn("⚠️ QueryDSL 사용 (OpenSearch 서버 상태 비정상 - 자동 모드)");
+            return false;
         }
-
-        // 3) ping 실패 시 fallback
-        log.info("🔍 Falling back to QueryDSL (ping failed)");
-        return false;
     }
 
 

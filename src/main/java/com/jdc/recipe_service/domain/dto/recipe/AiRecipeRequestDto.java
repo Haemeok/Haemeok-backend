@@ -12,5 +12,5 @@ public class AiRecipeRequestDto {
     private List<String> ingredients;
     private List<String> tagNames;
     private String dishType;
-    private int cookingTime;
+    private Integer cookingTime;
 }
