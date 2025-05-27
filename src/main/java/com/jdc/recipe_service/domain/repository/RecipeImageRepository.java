@@ -15,4 +15,6 @@ public interface RecipeImageRepository extends JpaRepository<RecipeImage, Long> 
     @Modifying
     @Query("DELETE FROM RecipeImage i WHERE i.recipe.id = :recipeId")
     void deleteByRecipeId(Long recipeId);
+
+    void deleteByFileKey(String fileKey);
 }

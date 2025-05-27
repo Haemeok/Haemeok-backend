@@ -29,8 +29,7 @@ public class RecipeCreateRequestDto {
     private String dishType;
 
     private Integer cookingTime;
-    private String imageKey; // 🔄 imageUrl → imageKey (S3 key 저장용)
-    private List<String> stepImageKeys;
+    private String imageKey;
     private String youtubeUrl;
     private List<String> cookingTools;
 

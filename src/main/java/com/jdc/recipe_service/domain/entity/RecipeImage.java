@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.entity;
 
+import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.type.ImageStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -12,7 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class RecipeImage {
+public class RecipeImage extends BaseTimeEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -20,7 +21,7 @@ public class RecipeImage {
     @ManyToOne(fetch = FetchType.LAZY)
     private Recipe recipe;
 
-    private String slot; // 예: main, step_0, step_1
+    private String slot;
 
     private String fileKey;
 

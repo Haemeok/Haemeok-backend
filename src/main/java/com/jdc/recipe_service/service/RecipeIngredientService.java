@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
+import com.jdc.recipe_service.domain.repository.RecipeStepIngredientRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 public class RecipeIngredientService {
     private final IngredientRepository ingredientRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
+    private final RecipeStepIngredientRepository recipeStepIngredientRepository;
 
     public int saveAll(Recipe recipe, List<RecipeIngredientRequestDto> dtos) {
         int totalCost = 0;
@@ -71,11 +73,18 @@ public class RecipeIngredientService {
         return saveAll(recipe, ingredientDtos);
     }
 
+    @Transactional
     public int updateIngredientsFromUser(Recipe recipe, List<RecipeIngredientRequestDto> dtos) {
+        List<RecipeIngredient> existingIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+        for (RecipeIngredient ri : existingIngredients) {
+            recipeStepIngredientRepository.deleteByRecipeIngredientId(ri.getId());
+        }
+        recipeIngredientRepository.flush();
         recipeIngredientRepository.deleteByRecipeId(recipe.getId());
         recipeIngredientRepository.flush();
         return saveAll(recipe, dtos);
     }
+
 
     @Transactional
     public void deleteAllByRecipeId(Long recipeId) {
