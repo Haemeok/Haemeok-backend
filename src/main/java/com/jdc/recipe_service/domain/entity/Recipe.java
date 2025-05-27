@@ -92,6 +92,7 @@ public class Recipe extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
     @BatchSize(size = 10)
+    @Builder.Default
     private Set<RecipeTag> tags = new HashSet<>();
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)

@@ -44,7 +44,6 @@ public class RecipeService {
     private final ReplicateService replicateService;
     private final ObjectMapper objectMapper;
 
-
     @Transactional
     public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUploadRequest req, Long userId, RecipeSourceType sourceType) {
         User user = getUserOrThrow(userId);
@@ -91,14 +90,11 @@ public class RecipeService {
             recipeStepService.saveAllFromUser(recipe, dto.getSteps());
         }        recipeTagService.saveAll(recipe, dto.getTagNames());
 
-        // 중간에 강제 반영 & 캐시 초기화
-        em.flush();  // 지금까지 변경된 INSERT/UPDATE SQL을 모두 DB에 전송
-        em.clear();  // 1차 캐시(영속성 컨텍스트)를 비워서, 이후 find 호출 시 DB에서 다시 로드
+        em.flush();
+        em.clear();
 
-        // 저장된 recipeId
         Long id = recipe.getId();
 
-        // 페치조인으로 연관관계까지 모두 로드
         Recipe full = recipeRepository.findWithAllRelationsById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
@@ -111,33 +107,30 @@ public class RecipeService {
                 .build();
     }
 
+
     @Transactional
-    public Long updateUserRecipe(Long recipeId, Long userId, RecipeCreateRequestDto dto) {
-        // 1. 레시피 조회 + 작성자 검증
+    public PresignedUrlResponse updateUserRecipe(Long recipeId, Long userId, RecipeWithImageUploadRequest req) {
+        RecipeCreateRequestDto dto = req.getRecipe();
+
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
 
-        // 2. 레시피 자체 필드 업데이트
         recipe.update(
                 dto.getTitle(),
                 dto.getDescription(),
                 DishType.fromDisplayName(dto.getDishType()),
                 dto.getCookingTime(),
                 dto.getImageKey(),
-                null, // youtubeUrl은 유저 입력 안 함
+                null,
                 dto.getCookingTools(),
                 dto.getServings(),
-                null, // totalCost은 아래에서 계산
+                null,
                 dto.getMarketPrice()
         );
 
-        // 3. 재료/단계/태그 업데이트
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
-
-        // 3. 재료/단계/태그 업데이트
         int newTotalCost = recipeIngredientService.updateIngredientsFromUser(recipe, dto.getIngredients());
 
-        // 🔄 원가 바뀐 경우만 marketPrice도 갱신
         if (!Objects.equals(newTotalCost, prevTotalCost)) {
             recipe.updateTotalIngredientCost(newTotalCost);
 
@@ -153,44 +146,45 @@ public class RecipeService {
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTagNames());
 
-        em.flush();  // 지금까지 변경된 INSERT/UPDATE SQL을 모두 DB에 전송
-        em.clear();  // 1차 캐시(영속성 컨텍스트)를 비워서, 이후 find 호출 시 DB에서 다시 로드
+        em.flush();
+        em.clear();
 
         Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         recipeIndexingService.updateRecipe(full);
 
-        return recipe.getId();
+        List<FileInfoRequest> files = req.getFiles();
+        List<PresignedUrlResponseItem> uploads = Collections.emptyList();
+
+        if (files != null && !files.isEmpty()) {
+            uploads = recipeImageService.generateAndSavePresignedUrls(full, files);
+        }
+
+        return PresignedUrlResponse.builder()
+                .recipeId(recipe.getId())
+                .uploads(uploads)
+                .build();
     }
 
     @Transactional
     public Long deleteRecipe(Long recipeId, Long userId) {
-        //a. 레시피 존재 및 삭제 권한 체크
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
 
-        //S3 이미지 + DB 삭제 (서비스로 위임)
         recipeImageService.deleteImagesByRecipeId(recipeId);
 
-        // 연관 엔티티 삭제
-        // 좋아요 및 즐겨찾기 삭제
         recipeLikeService.deleteByRecipeId(recipeId);
         recipeFavoriteService.deleteByRecipeId(recipeId);
 
-        // 댓글 + 댓글 좋아요 삭제 (서비스로 위임)
         commentService.deleteAllByRecipeId(recipeId);
 
-        // 조리 단계 + 단계 재료 삭제
         recipeStepService.deleteAllByRecipeId(recipeId);
 
-        // 레시피 재료 삭제
         recipeIngredientService.deleteAllByRecipeId(recipeId);
 
-        // 레시피 태그 삭제
         recipeTagService.deleteAllByRecipeId(recipeId);
 
-        // 레시피 자체 삭제
         recipeRepository.delete(recipe);
 
         recipeIndexingService.deleteRecipe(recipeId);
@@ -203,19 +197,15 @@ public class RecipeService {
         Recipe recipe = recipeRepository.findWithStepsById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
-        // 1. 권한 체크
         if (!isAdmin && !recipe.getUser().getId().equals(callerUserId)) {
             throw new CustomException(ErrorCode.RECIPE_ACCESS_DENIED);
         }
 
         List<RecipeImage> images = recipeImageService.getImagesByRecipeId(recipeId);
-
-        List<String> activeImages = new ArrayList<>();
+        Set<String> activeImages = new LinkedHashSet<>();
         List<String> missingFiles = new ArrayList<>();
-
         boolean hasMainImageUploaded = false;
 
-        // 2. S3 업로드 여부 확인 및 활성화 처리
         for (RecipeImage image : images) {
             boolean exists = s3Util.doesObjectExist(image.getFileKey());
             if (exists) {
@@ -225,38 +215,32 @@ public class RecipeService {
                 if ("main".equals(image.getSlot())) {
                     recipe.updateImageKey(image.getFileKey());
                     hasMainImageUploaded = true;
-                }
-
-                else if (image.getSlot().startsWith("step_")) {
+                } else if (image.getSlot().startsWith("step_")) {
                     int stepIndex = Integer.parseInt(image.getSlot().split("_")[1]);
                     recipe.getSteps().stream()
                             .filter(step -> step.getStepNumber() == stepIndex)
                             .findFirst()
-                            .ifPresent(step -> {
-                                step.updateStepImageKey(image.getFileKey());
-                            });
+                            .ifPresent(step -> step.updateStepImageKey(image.getFileKey()));
                 }
             } else {
                 missingFiles.add(image.getFileKey());
             }
         }
 
-        // 3. 공개 여부 처리
         if (missingFiles.isEmpty() && !recipe.isAiGenerated() && hasMainImageUploaded) {
             recipe.updateIsPrivate(false);
         }
 
         em.flush();
 
-        // 4. 응답 반환
-        return new FinalizeResponse(recipeId, activeImages, missingFiles);
+        return new FinalizeResponse(recipeId, new ArrayList<>(activeImages), missingFiles);
     }
 
 
     @Transactional
     public void updateImageKeys(Long recipeId, Long userId, RecipeImageKeyUpdateRequest request) {
         Recipe recipe = getRecipeOrThrow(recipeId);
-        validateOwnership(recipe, userId); // 작성자 권한 체크
+        validateOwnership(recipe, userId);
 
         if (!recipe.isAiGenerated() && (request.getImageKey() == null || request.getImageKey().isBlank())) {
             throw new CustomException(ErrorCode.USER_RECIPE_IMAGE_REQUIRED);
@@ -302,8 +286,7 @@ public class RecipeService {
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
 
-        // AI 생성이고 이미지 없으면 공개 전환 불가
-        boolean newValue = !recipe.getIsPrivate(); // 사용자가 공개로 바꾸려는 의도
+        boolean newValue = !recipe.getIsPrivate();
 
         if (recipe.isAiGenerated() && !newValue && recipe.getImageKey() == null) {
             throw new CustomException(ErrorCode.CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE);

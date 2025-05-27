@@ -14,6 +14,9 @@ import java.math.BigDecimal;
 public class RecipeStepIngredientRequestDto {
     private String name;
     private String quantity;
-
     private String customUnit;
+
+    public String getCustomName() {
+        return name;
+    }
 }
