@@ -20,11 +20,12 @@ public class RecipeStepMapper {
                 .build();
     }
 
-    public static RecipeStepDto toDto(RecipeStep step, List<RecipeStepIngredientDto> ingredients, String imageUrl) {
+    public static RecipeStepDto toDto(RecipeStep step, List<RecipeStepIngredientDto> ingredients, String imageUrl, String imageKey) {
         return RecipeStepDto.builder()
                 .stepNumber(step.getStepNumber())
                 .instruction(step.getInstruction())
                 .stepImageUrl(imageUrl)
+                .stepImageKey(imageKey)
                 .action(step.getAction())
                 .ingredients(ingredients)
                 .build();
