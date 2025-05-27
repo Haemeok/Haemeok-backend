@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
@@ -49,20 +50,32 @@ public class RecipeController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // 레시피 수정
+//    @PostMapping("/ai/generate")
+//    public ResponseEntity<RecipeCreateRequestDto> previewAiRecipe(
+//            @RequestBody @Valid AiRecipeRequestDto aiReq) {
+//        RecipeCreateRequestDto generated = recipeService.generateAiRecipe(aiReq);
+//        return ResponseEntity.ok(generated);
+//    }
+
     @PutMapping("/{recipeId}")
-    public ResponseEntity<Map<String, Long>> updateRecipe(
+    public ResponseEntity<PresignedUrlResponse> updateRecipe(
             @PathVariable Long recipeId,
-            @RequestBody @Valid RecipeCreateRequestDto dto,
+            @RequestBody @Valid RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        Long updatedId = recipeService.updateUserRecipe(recipeId, userDetails.getUser().getId(), dto);
-        return ResponseEntity.ok(Map.of("recipeId", updatedId));
+        PresignedUrlResponse response = recipeService.updateUserRecipe(
+                recipeId,
+                userDetails.getUser().getId(),
+                request
+        );
+
+        return ResponseEntity.ok(response);
     }
+
 
     // 레시피 삭제
     @DeleteMapping("/{recipeId}")

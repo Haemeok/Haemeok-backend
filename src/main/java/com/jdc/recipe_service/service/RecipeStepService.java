@@ -146,52 +146,72 @@ public class RecipeStepService {
     ) {
         if (dtos == null) return;
 
-        // 기존
+        // 기존 매핑: 정식 재료는 "id:{ingredientId}", 커스텀 재료는 "custom:{name}"
         List<RecipeStepIngredient> existing = new ArrayList<>(step.getStepIngredients());
         Map<String, RecipeStepIngredient> existingMap = existing.stream()
+                .filter(i -> i.getIngredient() != null || i.getCustomName() != null)
                 .collect(Collectors.toMap(
-                        i -> {
-                            if (i.getRecipeIngredient() != null) {
-                                return i.getRecipeIngredient().getIngredient().getName().toLowerCase().trim();
-                            } else {
-                                return i.getCustomName().toLowerCase().trim();
-                            }
-                        },
-                        Function.identity()
+                        i -> i.getIngredient() != null
+                                ? "id:" + i.getIngredient().getId()
+                                : "custom:" + i.getCustomName().toLowerCase().trim(),
+                        Function.identity(),
+                        (a, b) -> a
                 ));
 
+        // 신규 재료 key
         Set<String> newKeys = dtos.stream()
-                .map(d -> d.getName().toLowerCase().trim())
+                .map(d -> {
+                    String name = d.getName() != null ? d.getName() : d.getCustomName();
+                    if (name == null || name.isBlank()) {
+                        throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료명(name/customName)은 필수입니다.");
+                    }
+                    RecipeIngredient ri = riMap.get(name.toLowerCase().trim());
+                    if (ri == null) {
+                        throw new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, name);
+                    }
+                    return ri.getIngredient() != null
+                            ? "id:" + ri.getIngredient().getId()
+                            : "custom:" + ri.getCustomName().toLowerCase().trim();
+                })
                 .collect(Collectors.toSet());
 
         // 삭제
         existing.stream()
                 .filter(i -> {
-                    String name = i.getRecipeIngredient() != null
-                            ? i.getRecipeIngredient().getIngredient().getName()
-                            : i.getCustomName();
-                    return !newKeys.contains(name.toLowerCase().trim());
+                    String key = i.getIngredient() != null
+                            ? "id:" + i.getIngredient().getId()
+                            : "custom:" + i.getCustomName().toLowerCase().trim();
+                    return !newKeys.contains(key);
                 })
                 .forEach(i -> {
                     step.getStepIngredients().remove(i);
                     recipeStepIngredientRepository.delete(i);
                 });
 
-        // 생성·수정
+        // 생성/수정
         for (RecipeStepIngredientRequestDto dto : dtos) {
-            String key = dto.getName().toLowerCase().trim();
-            RecipeIngredient ri = riMap.get(key);
-            if (ri == null) {
-                throw new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, dto.getName());
+            String rawName = dto.getName() != null ? dto.getName() : dto.getCustomName();
+            if (rawName == null || rawName.isBlank()) {
+                throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료명(name/customName)은 필수입니다.");
             }
 
-            RecipeStepIngredient exist = existingMap.get(key);
+            String key = rawName.toLowerCase().trim();
+            RecipeIngredient ri = riMap.get(key);
+            if (ri == null) {
+                throw new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, rawName);
+            }
+
+            String matchKey = ri.getIngredient() != null
+                    ? "id:" + ri.getIngredient().getId()
+                    : "custom:" + ri.getCustomName().toLowerCase().trim();
+
+            RecipeStepIngredient exist = existingMap.get(matchKey);
             if (exist != null) {
-                // quantity 또는 unit 변경 감지
-                String rawQty = dto.getQuantity().trim();
+                String rawQty = dto.getQuantity() != null ? dto.getQuantity().trim() : ri.getQuantity(); // ✅ 상위 재료에서 대체
                 String newUnit = ri.getIngredient() == null
                         ? dto.getCustomUnit()
                         : ri.getIngredient().getUnit();
+
                 if (!Objects.equals(exist.getQuantity(), rawQty)
                         || !Objects.equals(exist.getUnit(), newUnit)) {
                     exist.updateQuantityAndUnit(rawQty, newUnit);
@@ -204,6 +224,7 @@ public class RecipeStepService {
             }
         }
     }
+
 
     @Transactional
     public void deleteAllByRecipeId(Long recipeId) {

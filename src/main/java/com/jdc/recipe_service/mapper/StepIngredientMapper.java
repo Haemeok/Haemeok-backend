@@ -27,7 +27,7 @@ public class StepIngredientMapper {
                 .ingredient(isCustom ? null : recipeIngredient.getIngredient())
                 .quantity(quantity)
                 .unit(unit)
-                .customName(isCustom ? recipeIngredient.getCustomName() : null)
+                .customName(isCustom && recipeIngredient.getCustomName() != null ? recipeIngredient.getCustomName().trim() : null)
                 .customUnit(isCustom ? recipeIngredient.getCustomUnit() : null)
                 .customPrice(isCustom ? recipeIngredient.getCustomPrice() : null)
                 .build();
