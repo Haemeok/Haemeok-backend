@@ -76,7 +76,6 @@ public class RecipeImageService {
                 .toList();
 
         if (!"local".equals(activeProfile) && !fileKeys.isEmpty()) {
-            // 1. 0바이트 파일 필터링 (선택 사항)
             List<String> emptyKeys = new ArrayList<>();
             for (String key : fileKeys) {
                 if (s3Util.isZeroByteFile(key)) {
@@ -84,21 +83,23 @@ public class RecipeImageService {
                 }
             }
 
-            // 2. S3에서 삭제
             try {
                 s3Util.deleteFiles(fileKeys);
             } catch (Exception e) {
                 log.error("❌ S3 파일 삭제 실패 - recipeId: {}, keys: {}, error: {}", recipeId, fileKeys, e.getMessage(), e);
             }
 
-            // 3. 0바이트 로그
             if (!emptyKeys.isEmpty()) {
                 log.warn("⚠️ 0바이트 이미지 파일 삭제됨: {}", emptyKeys);
             }
         }
 
-        // 4. DB 삭제
         recipeImageRepository.deleteAll(images);
+    }
+
+    @Transactional
+    public void deleteByFileKey(String fileKey) {
+        recipeImageRepository.deleteByFileKey(fileKey);
     }
 
 }

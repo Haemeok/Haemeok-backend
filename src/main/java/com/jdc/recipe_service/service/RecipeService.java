@@ -208,22 +208,38 @@ public class RecipeService {
 
         for (RecipeImage image : images) {
             boolean exists = s3Util.doesObjectExist(image.getFileKey());
-            if (exists) {
-                image.updateStatusToActive();
-                activeImages.add(image.getFileKey());
 
-                if ("main".equals(image.getSlot())) {
-                    recipe.updateImageKey(image.getFileKey());
-                    hasMainImageUploaded = true;
-                } else if (image.getSlot().startsWith("step_")) {
-                    int stepIndex = Integer.parseInt(image.getSlot().split("_")[1]);
-                    recipe.getSteps().stream()
-                            .filter(step -> step.getStepNumber() == stepIndex)
-                            .findFirst()
-                            .ifPresent(step -> step.updateStepImageKey(image.getFileKey()));
-                }
-            } else {
+            boolean isStepImage = image.getSlot() != null && image.getSlot().startsWith("step_");
+            Integer stepIndex = null;
+            if (isStepImage) {
+                try {
+                    stepIndex = Integer.parseInt(image.getSlot().split("_")[1]);
+                } catch (Exception ignored) {}
+            }
+
+            Integer finalStepIndex = stepIndex;
+            boolean isUnlinkedStepImage = isStepImage && stepIndex != null && recipe.getSteps().stream()
+                    .filter(step -> step.getStepNumber() == finalStepIndex)
+                    .allMatch(step -> step.getImageKey() == null);
+
+            if (!exists || isUnlinkedStepImage) {
+                recipeImageService.deleteByFileKey(image.getFileKey());
                 missingFiles.add(image.getFileKey());
+                continue;
+            }
+
+            image.updateStatusToActive();
+            activeImages.add(image.getFileKey());
+
+            if ("main".equals(image.getSlot())) {
+                recipe.updateImageKey(image.getFileKey());
+                hasMainImageUploaded = true;
+            } else if (stepIndex != null) {
+                Integer finalStepIndex1 = stepIndex;
+                recipe.getSteps().stream()
+                        .filter(step -> step.getStepNumber() == finalStepIndex1)
+                        .findFirst()
+                        .ifPresent(step -> step.updateStepImageKey(image.getFileKey()));
             }
         }
 

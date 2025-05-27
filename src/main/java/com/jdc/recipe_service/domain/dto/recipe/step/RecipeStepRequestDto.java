@@ -15,7 +15,6 @@ public class RecipeStepRequestDto {
     private int stepNumber;
     private String instruction;
     private String imageKey;
-    private List<String> stepImageKeys;
     private String action;
 
     private List<RecipeStepIngredientRequestDto> ingredients;

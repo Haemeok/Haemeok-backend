@@ -47,7 +47,7 @@ public class RecipeStep {
     }
 
     public void updateStepImageKey(String imageKey) {
-        this.imageKey = imageKey;
+        this.imageKey = imageKey != null && !imageKey.isBlank() ? imageKey : null;
     }
 
     public void updateAction(String action) {
