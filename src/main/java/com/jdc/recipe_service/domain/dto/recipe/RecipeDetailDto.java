@@ -28,6 +28,7 @@ public class RecipeDetailDto {
     private String description;
     private Integer cookingTime;
     private String imageUrl;
+    private String imageKey;
     private String youtubeUrl;
     private List<String> cookingTools;
     private boolean isAiGenerated;
@@ -49,11 +50,9 @@ public class RecipeDetailDto {
     private List<CommentDto> comments;
     private long commentCount;
 
-    //추가
-//    private Boolean isPrivate;
     private Integer totalIngredientCost;
     private Integer marketPrice;
-    private Integer savings; // averagePrice - measuredPrice 계산값
+    private Integer savings;
 
     @JsonFormat(
             shape = JsonFormat.Shape.STRING,

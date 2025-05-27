@@ -269,7 +269,7 @@ public class RecipeSearchService {
             List<RecipeStepIngredientDto> usedIngredients = StepIngredientMapper.toDtoList(step.getStepIngredients());
 
             String stepImageUrl = generateImageUrl(step.getImageKey());
-            return RecipeStepMapper.toDto(step, usedIngredients, stepImageUrl);
+            return RecipeStepMapper.toDto(step, usedIngredients, stepImageUrl, step.getImageKey());
         }).toList();
 
         List<CommentDto> commentDtos = commentService.getTop3CommentsWithLikes(recipeId, currentUserId);
@@ -286,6 +286,7 @@ public class RecipeSearchService {
                 .cookingTime(recipe.getCookingTime())
                 .ratingInfo(ratingInfo)
                 .imageUrl(generateImageUrl(recipe.getImageKey()))
+                .imageKey(recipe.getImageKey())
                 .youtubeUrl(recipe.getYoutubeUrl())
                 .cookingTools(recipe.getCookingTools())
                 .servings(recipe.getServings())
@@ -309,7 +310,7 @@ public class RecipeSearchService {
     }
 
 
-    @Scheduled(initialDelay = 5000, fixedRate = 10000) // 애플리케이션 시작 5초 후 첫 실행, 이후 10초 간격
+    @Scheduled(initialDelay = 5000, fixedRate = 10000)
     public void checkOpenSearchHealth() {
         boolean currentHealth;
         try {
