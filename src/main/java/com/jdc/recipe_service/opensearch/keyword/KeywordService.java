@@ -2,6 +2,7 @@ package com.jdc.recipe_service.opensearch.keyword;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -10,7 +11,7 @@ public class KeywordService {
 
     private final SearchKeywordRepository repo;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(String kw) {
         repo.findByKeyword(kw)
                 .ifPresentOrElse(

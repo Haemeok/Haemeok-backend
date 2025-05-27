@@ -19,7 +19,6 @@ public class SearchKeyword {
     @Column(nullable = false)
     private long count;
 
-    /** 도메인 메서드로 증가 동작만 노출 */
     public void increment() {
         this.count++;
     }
