@@ -45,10 +45,8 @@ public class OpenSearchService {
             Long uid) {
 
         try {
-            // 1) BoolQueryBuilder
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
-            // 1-1) Title: prefix + infix
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
                 String title = cond.getTitle().trim();
                 keywordService.record(title);
@@ -60,24 +58,20 @@ public class OpenSearchService {
                 bool.must(titleQuery);
             }
 
-            // 1-2) DishType filter
             if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
                 bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
             }
 
-            // 1-3) Tags filter (AND)
             if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
                 for (String tag : cond.getTagNames()) {
                     bool.filter(QueryBuilders.termQuery("tags", tag));
                 }
             }
 
-            // 1-4) match_all if no condition
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {
                 bool.must(QueryBuilders.matchAllQuery());
             }
 
-            // 2) SearchSourceBuilder (paging + sort)
             var src = new SearchSourceBuilder()
                     .query(bool)
                     .from((int) pg.getOffset())
@@ -87,14 +81,12 @@ public class OpenSearchService {
                             o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
             );
 
-            // 3) Execute search
             SearchResponse resp = client.search(
                     new SearchRequest("recipes").source(src),
                     RequestOptions.DEFAULT
             );
             SearchHits hits = resp.getHits();
 
-            // 4) Extract IDs
             List<Long> ids = Arrays.stream(hits.getHits())
                     .map(h -> Long.valueOf(h.getId()))
                     .collect(Collectors.toList());
@@ -102,12 +94,10 @@ public class OpenSearchService {
                 return new PageImpl<>(Collections.emptyList(), pg, 0);
             }
 
-            // 5) Load via JPA + map by ID
             List<Recipe> recipes = recipeRepository.findAllById(ids);
             Map<Long, Recipe> recipeMap = recipes.stream()
                     .collect(Collectors.toMap(Recipe::getId, Function.identity()));
 
-            // 6) Check user likes
             Set<Long> likedIds = uid != null
                     ? recipeLikeRepository
                     .findByUserIdAndRecipeIdIn(uid, ids)
@@ -116,7 +106,6 @@ public class OpenSearchService {
                     .collect(Collectors.toSet())
                     : Collections.emptySet();
 
-            // 7) Build DTO list in original order
             List<RecipeSimpleDto> list = ids.stream()
                     .filter(recipeMap::containsKey)
                     .map(id -> {
