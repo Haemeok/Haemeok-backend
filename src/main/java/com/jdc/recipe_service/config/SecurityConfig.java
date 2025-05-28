@@ -72,7 +72,8 @@ public class SecurityConfig {
                                     "/api/me/fridge/items",
                                     "/api/me/calendar/**",
                                     "/api/me/streak",
-                                    "/api/ratings/recipe/*/me"
+                                    "/api/ratings/recipe/*/me",
+                                    "/api/users/*/profile-image/presign"
                             ).authenticated()
 
                             // 4) 보호된 POST
@@ -98,7 +99,8 @@ public class SecurityConfig {
                                     "/api/me",
                                     "/api/recipes/*",
                                     "/api/ingredients",
-                                    "/api/recipes/*/images"
+                                    "/api/recipes/*/images",
+                                    "/api/users/*"
                             ).authenticated()
 
                             // 6) 보호된 DELETE
@@ -110,6 +112,11 @@ public class SecurityConfig {
                                     "/api/recipes/*",
                                     "/api/ratings/recipe/*",
                                     "/api/ingredients"
+                            ).authenticated()
+
+                            .requestMatchers(HttpMethod.PATCH,
+                                    "/api/users/*",
+                                    "/api/me"
                             ).authenticated()
 
                             // 7) 관리자용 API
@@ -159,7 +166,8 @@ public class SecurityConfig {
                                 "/api/me/fridge/items",
                                 "/api/me/calendar/**",
                                 "/api/me/streak",
-                                "/api/ratings/recipe/*/me"
+                                "/api/ratings/recipe/*/me",
+                                "/api/users/*/profile-image/presign"
                         ).authenticated()
 
                         // 3) 읽기 전용 GET (모두 허용)
@@ -203,7 +211,8 @@ public class SecurityConfig {
                                 "/api/ingredients",
                                 "/api/recipes/*",
                                 "/api/me",
-                                "/api/recipes/*/images"
+                                "/api/recipes/*/images",
+                                "/api/users/*"
                         ).authenticated()
 
                         // 6) 인증 필요 DELETE
@@ -216,11 +225,16 @@ public class SecurityConfig {
                                 "/api/me/fridge/items/*",
                                 "/api/me/fridge/items/bulk"
                         ).authenticated()
+                        // 7) 인증 필요 PATCH
+                        .requestMatchers(HttpMethod.PATCH,
+                                "/api/users/*",
+                                "/api/me"
+                        ).authenticated()
 
-                        // 7) 관리자용 API
+                        // 8) 관리자용 API
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                        // 8) 나머지 전부 차단
+                        // 9) 나머지 전부 차단
                         .anyRequest().denyAll()
                 )
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
