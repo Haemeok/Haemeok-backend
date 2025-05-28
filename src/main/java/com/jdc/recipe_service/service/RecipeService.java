@@ -209,38 +209,31 @@ public class RecipeService {
         for (RecipeImage image : images) {
             boolean exists = s3Util.doesObjectExist(image.getFileKey());
 
-            boolean isStepImage = image.getSlot() != null && image.getSlot().startsWith("step_");
-            Integer stepIndex = null;
-            if (isStepImage) {
-                try {
-                    stepIndex = Integer.parseInt(image.getSlot().split("_")[1]);
-                } catch (Exception ignored) {}
-            }
-
-            Integer finalStepIndex = stepIndex;
-            boolean isUnlinkedStepImage = isStepImage && stepIndex != null && recipe.getSteps().stream()
-                    .filter(step -> step.getStepNumber() == finalStepIndex)
-                    .allMatch(step -> step.getImageKey() == null);
-
-            if (!exists || isUnlinkedStepImage) {
+            if (!exists) {
                 recipeImageService.deleteByFileKey(image.getFileKey());
                 missingFiles.add(image.getFileKey());
                 continue;
             }
 
-            image.updateStatusToActive();
-            activeImages.add(image.getFileKey());
-
-            if ("main".equals(image.getSlot())) {
+            String slot = image.getSlot();
+            if ("main".equals(slot)) {
                 recipe.updateImageKey(image.getFileKey());
                 hasMainImageUploaded = true;
-            } else if (stepIndex != null) {
-                Integer finalStepIndex1 = stepIndex;
+            } else if (slot != null && slot.startsWith("step_")) {
+                int stepIndex;
+                try {
+                    stepIndex = Integer.parseInt(slot.split("_")[1]);
+                } catch (NumberFormatException e) {
+                    continue;
+                }
                 recipe.getSteps().stream()
-                        .filter(step -> step.getStepNumber() == finalStepIndex1)
+                        .filter(step -> step.getStepNumber() == stepIndex)
                         .findFirst()
                         .ifPresent(step -> step.updateStepImageKey(image.getFileKey()));
             }
+
+            image.updateStatusToActive();
+            activeImages.add(image.getFileKey());
         }
 
         if (missingFiles.isEmpty() && !recipe.isAiGenerated() && hasMainImageUploaded) {
@@ -248,9 +241,9 @@ public class RecipeService {
         }
 
         em.flush();
-
         return new FinalizeResponse(recipeId, new ArrayList<>(activeImages), missingFiles);
     }
+
 
 
     @Transactional
