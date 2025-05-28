@@ -37,13 +37,21 @@ public class User extends BaseTimeEntity {
     @Column(name = "profile_image", length = 255)
     private String profileImage;
 
+    @Column(name = "profile_image_key", length = 255)
+    private String profileImageKey;
+
     @Column(length = 255)
     private String introduction;
 
 
     public void updateProfile(String nickname, String profileImage, String introduction) {
-        this.nickname = nickname;
-        this.profileImage = profileImage;
-        this.introduction = introduction;
+        if (nickname     != null) this.nickname     = nickname;
+        if (profileImage != null) this.profileImage = profileImage;
+        if (introduction != null) this.introduction = introduction;
+    }
+    public void updateProfileImageKey(String profileImageKey) {
+        if (profileImageKey != null && !profileImageKey.isBlank()) {
+            this.profileImageKey = profileImageKey;
+        }
     }
 }

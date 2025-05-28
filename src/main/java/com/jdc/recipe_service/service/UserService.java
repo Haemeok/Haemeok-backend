@@ -2,7 +2,9 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponseItem;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
+import com.jdc.recipe_service.domain.dto.user.UserPatchDTO;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -12,22 +14,20 @@ import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.UserMapper;
+import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +39,7 @@ public class UserService {
     private final RecipeFavoriteRepository recipeFavoriteRepository;
     private final RecipeLikeRepository recipeLikeRepository;
     private final RecipeRepository recipeRepository;
+    private final S3Util s3Util;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -49,6 +50,45 @@ public class UserService {
     public String generateImageUrl(String key) {
         return key == null ? null :
                 String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
+
+    // presigned URL 생성
+    @Transactional(readOnly = true)
+    public PresignedUrlResponseItem generateProfileImagePresign(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        String key = String.format("profiles/%d/%s.jpg", userId, UUID.randomUUID());
+        String presignedUrl = s3Util.createPresignedUrl(key);
+        return PresignedUrlResponseItem.builder()
+                .fileKey(key)
+                .presignedUrl(presignedUrl)
+                .build();
+    }
+
+    //  프로필 수정 (관리자 or 나)
+    public UserResponseDTO updateUser(Long id, UserPatchDTO dto) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        if (!user.getNickname().equals(dto.getNickname())
+                && userRepository.findByNickname(dto.getNickname()).isPresent()) {
+            throw new CustomException(ErrorCode.DUPLICATE_NICKNAME);
+        }
+
+        user.updateProfile(dto.getNickname(), null, dto.getIntroduction());
+
+        if (dto.getProfileImageKey() != null) {
+            String key = dto.getProfileImageKey();
+            if (key.isBlank()) {
+                user.updateProfile(null, null, null);               // profileImage → null
+                user.updateProfileImageKey(null);
+            } else {
+                user.updateProfileImageKey(key);
+                user.updateProfile(null, generateImageUrl(key), null);
+            }
+        }
+
+        return UserMapper.toDto(user);
     }
 
     // 관리자 전용: 사용자 생성
@@ -69,14 +109,14 @@ public class UserService {
     // 관리자 전용: 하드 삭제
     public void deleteUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         userRepository.delete(user);
     }
 
     // 유저 정보 조회(관리자 or 나)
     public UserResponseDTO getUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         return UserMapper.toDto(user);
     }
 
@@ -85,26 +125,8 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserDto getPublicProfile(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         return UserMapper.toSimpleDto(user);
-    }
-
-
-    //  프로필 수정 (관리자 or 나)
-    public UserResponseDTO updateUser(Long id, UserRequestDTO dto) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
-
-        if (!user.getNickname().equals(dto.getNickname())
-                && userRepository.findByNickname(dto.getNickname()).isPresent()) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "이미 사용 중인 닉네임입니다."
-            );
-        }
-
-        UserMapper.updateEntityFromDto(dto, user);
-        return UserMapper.toDto(user);
     }
 
     @Transactional(readOnly = true)
@@ -177,7 +199,7 @@ public class UserService {
 
         // 1) 대상 유저 존재 체크 (404)
         userRepository.findById(targetUserId)
-                .orElseThrow(() -> new RuntimeException("해당 사용자가 존재하지 않습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         // 2) 페이징된 Recipe 엔티티 페이지 조회
         Page<Recipe> recipesPage = recipeRepository.findByUserId(targetUserId, pageable);
@@ -213,6 +235,5 @@ public class UserService {
 
         return dtoPage;
     }
-
 
 }

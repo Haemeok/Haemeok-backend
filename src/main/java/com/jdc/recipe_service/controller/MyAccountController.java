@@ -3,8 +3,10 @@ package com.jdc.recipe_service.controller;
 import com.jdc.recipe_service.domain.dto.calendar.CookingStreakDto;
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
-import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
+import com.jdc.recipe_service.domain.dto.user.UserPatchDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.CookingRecordService;
 import com.jdc.recipe_service.service.UserService;
@@ -14,7 +16,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -35,23 +36,33 @@ public class MyAccountController {
     @GetMapping
     public ResponseEntity<UserResponseDTO> getMyInfo(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
         Long userId = Long.valueOf(userDetails.getUsername());
         return ResponseEntity.ok(userService.getUser(userId));
     }
 
     //  내 프로필 수정
-    @PutMapping
-    public ResponseEntity<UserResponseDTO> updateMyProfile(
+    @PatchMapping
+    public ResponseEntity<UserResponseDTO> patchMyProfile(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Valid @RequestBody UserRequestDTO dto) {
+            @Valid @RequestBody UserPatchDTO dto) throws CustomException {
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
         Long userId = Long.valueOf(userDetails.getUsername());
-        return ResponseEntity.ok(userService.updateUser(userId, dto));
+        UserResponseDTO updated = userService.updateUser(userId, dto);
+        return ResponseEntity.ok(updated);
     }
 
     //  내 계정 삭제 (하드 삭제)
     @DeleteMapping
     public ResponseEntity<String> deleteMyAccount(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
         Long userId = Long.valueOf(userDetails.getUsername());
         userService.deleteUser(userId);
         return ResponseEntity.ok("계정이 삭제되었습니다.");
@@ -63,9 +74,8 @@ public class MyAccountController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = DESC) Pageable pageable) {
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
-
         Long userId = userDetails.getUser().getId();
         Page<RecipeSimpleDto> page = userService.getFavoriteRecipesByUser(userId, userId, pageable);
         return ResponseEntity.ok(page);
@@ -78,11 +88,9 @@ public class MyAccountController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
-
         Long myId = userDetails.getUser().getId();
         Page<MyRecipeSummaryDto> page =
                 userService.getUserRecipes(myId, myId, pageable);
@@ -95,9 +103,8 @@ public class MyAccountController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
-
         Long userId = userDetails.getUser().getId();
         CookingStreakDto stats = cookingService.getCookingStreakInfo(userId);
         return ResponseEntity.ok(stats);

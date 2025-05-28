@@ -51,13 +51,4 @@ public class UserMapper {
                 .build();
     }
 
-    // 요청 DTO로 유저 일부 필드만 업데이트
-    public static void updateEntityFromDto(UserRequestDTO dto, User user) {
-        user.updateProfile(
-                dto.getNickname() != null ? dto.getNickname() : user.getNickname(),
-                dto.getProfileImage() != null ? dto.getProfileImage() : user.getProfileImage(),
-                dto.getIntroduction() != null ? dto.getIntroduction() : user.getIntroduction()
-        );
-    }
-
 }
