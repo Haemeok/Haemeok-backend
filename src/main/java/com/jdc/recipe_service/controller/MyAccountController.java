@@ -68,7 +68,6 @@ public class MyAccountController {
         return ResponseEntity.ok("계정이 삭제되었습니다.");
     }
 
-    // 내 즐겨찾기 조회
     @GetMapping("/favorites")
     public ResponseEntity<Page<RecipeSimpleDto>> getMyFavorites(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -82,7 +81,6 @@ public class MyAccountController {
     }
 
 
-    // 내가 작성한 레시피 조회
     @GetMapping("/recipes")
     public ResponseEntity<Page<MyRecipeSummaryDto>> getMyRecipes(
             @AuthenticationPrincipal CustomUserDetails userDetails,

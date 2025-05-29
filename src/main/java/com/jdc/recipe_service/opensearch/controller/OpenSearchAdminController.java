@@ -149,11 +149,8 @@ public class OpenSearchAdminController {
     @PostMapping("/reindex-recipes")
     public ResponseEntity<Map<String, Boolean>> reindexAllRecipes() {
         recipeRepository.findAll().stream()
-                // (혹시 null이 섞여 들어올 수 있다면)
                 .filter(Objects::nonNull)
-                // Recipe → Long id 로 변환
                 .map(Recipe::getId)
-                // id 기반 indexRecipe(Long) 호출
                 .forEach(recipeIndexingService::indexRecipe);
         return ResponseEntity.ok(Map.of("reindexed", true));
     }

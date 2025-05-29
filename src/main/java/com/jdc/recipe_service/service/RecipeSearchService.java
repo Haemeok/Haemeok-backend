@@ -104,10 +104,6 @@ public class RecipeSearchService {
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
-//        return searchWithQuerydsl(condition, pageable, userId);
-        log.info("RecipeSearchService.searchRecipes - Condition: title='{}', dishType='{}', tags='{}'",
-                condition.getTitle(), condition.getDishType(), condition.getTagNames());
-
         boolean useOpenSearch = shouldUseOpenSearch(condition);
 
         if (useOpenSearch) {

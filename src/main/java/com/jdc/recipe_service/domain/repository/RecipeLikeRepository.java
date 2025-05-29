@@ -19,7 +19,6 @@ public interface RecipeLikeRepository extends JpaRepository<RecipeLike, Long> {
 
     Optional<RecipeLike> findByUserIdAndRecipeId(Long userId, Long recipeId);
 
-    void deleteByUserIdAndRecipeId(Long userId, Long recipeId);
     void deleteByRecipeId(Long recipeId);
 
     @Query("SELECT rl.recipe.id, COUNT(rl) FROM RecipeLike rl WHERE rl.recipe.id IN :recipeIds GROUP BY rl.recipe.id")

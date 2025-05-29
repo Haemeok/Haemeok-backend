@@ -17,7 +17,7 @@ public class AiRecipeDetails {
     private Long recipeId;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @MapsId  //FK를 PK로 지정
+    @MapsId
     @JoinColumn(name = "recipe_id")
     private Recipe recipe;
 
@@ -35,7 +35,6 @@ public class AiRecipeDetails {
         this.aiGeneratedAt = LocalDateTime.now();
     }
 
-    // 도메인 메서드: AI 정보 업데이트
     public void updateAiDetails(String creatorComment, String aiPrompt) {
         this.creatorComment = creatorComment;
         this.aiPrompt = aiPrompt;

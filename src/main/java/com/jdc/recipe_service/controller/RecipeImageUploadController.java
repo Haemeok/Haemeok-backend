@@ -22,7 +22,6 @@ public class RecipeImageUploadController {
     private final RecipeUploadService recipeUploadService;
     private final RecipeService recipeService;
 
-    // 이미지만 수정
     @PutMapping("/{recipeId}/images")
     public ResponseEntity<Void> updateRecipeImageKeys(
             @PathVariable Long recipeId,
@@ -33,7 +32,6 @@ public class RecipeImageUploadController {
         return ResponseEntity.ok().build();
     }
 
-    // 이미지 업로드용 Presigned URL 요청 (레시피 수정 시 사용)
     @PostMapping("/{recipeId}/presigned-urls")
     public ResponseEntity<UpdatePresignedUrlResponse> getPresignedUrlsForUpdate(
             @PathVariable Long recipeId,

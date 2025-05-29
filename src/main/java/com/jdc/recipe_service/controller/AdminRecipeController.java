@@ -26,7 +26,6 @@ public class AdminRecipeController {
 
     private final AdminRecipeService recipeService;
 
-    // 크롤링 레시피 생성
     @PostMapping
     public ResponseEntity<Map<String, Long>> createCrawledRecipe(
             @RequestBody @Valid RecipeCreateRequestDto dto,
@@ -51,7 +50,6 @@ public class AdminRecipeController {
         ));
     }
 
-    // 크롤링 + 이미지 Presigned URL 생성
     @PostMapping("/with-images")
     public ResponseEntity<PresignedUrlResponse> createCrawledRecipeWithPresignedUrls(
             @RequestBody RecipeWithImageUploadRequest request,
@@ -61,7 +59,6 @@ public class AdminRecipeController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // 크롤링 레시피 수정
     @PutMapping("/{recipeId}")
     public ResponseEntity<Map<String, Long>> updateCrawledRecipe(
             @PathVariable Long recipeId,
@@ -73,7 +70,6 @@ public class AdminRecipeController {
         return ResponseEntity.ok(Map.of("recipeId", updatedId));
     }
 
-    // 크롤링 레시피 삭제
     @DeleteMapping("/{recipeId}")
     public ResponseEntity<String> deleteCrawledRecipe(
             @PathVariable Long recipeId,

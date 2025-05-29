@@ -29,7 +29,7 @@ public class RecipeLikeService {
 
         if (like.isPresent()) {
             likeRepository.delete(like.get());
-            return false; // 좋아요 취소
+            return false;
         }
 
         User user = userRepository.findById(userId)
@@ -38,7 +38,7 @@ public class RecipeLikeService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         likeRepository.save(RecipeLike.builder().user(user).recipe(recipe).build());
-        return true; // 좋아요 등록
+        return true;
     }
 
     @Transactional

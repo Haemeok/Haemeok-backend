@@ -12,6 +12,5 @@ import lombok.NoArgsConstructor;
 public class RecipeRatingRequestDto {
     private double rating;
 
-    //추후 활성화 예정
     private String comment;
 }

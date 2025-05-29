@@ -38,7 +38,6 @@ public class RecipeStepService {
 
     @Transactional
     public void saveAll(Recipe recipe, List<RecipeStepRequestDto> dtos) {
-        // 레시피별 재료 맵 로드
         Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
         int actionImageIndex = actionImageService.generateRandomIndex();
 
@@ -74,12 +73,10 @@ public class RecipeStepService {
                 .map(RecipeStepRequestDto::getStepNumber)
                 .collect(Collectors.toSet());
 
-        // 삭제
         existing.stream()
                 .filter(s -> !newNums.contains(s.getStepNumber()))
                 .forEach(recipeStepRepository::delete);
 
-        // 생성·수정
         for (RecipeStepRequestDto dto : dtos) {
             RecipeStep step = existingMap.get(dto.getStepNumber());
             if (step == null) {
@@ -146,7 +143,6 @@ public class RecipeStepService {
     ) {
         if (dtos == null) return;
 
-        // 기존 매핑: 정식 재료는 "id:{ingredientId}", 커스텀 재료는 "custom:{name}"
         List<RecipeStepIngredient> existing = new ArrayList<>(step.getStepIngredients());
         Map<String, RecipeStepIngredient> existingMap = existing.stream()
                 .filter(i -> i.getIngredient() != null || i.getCustomName() != null)
@@ -158,7 +154,6 @@ public class RecipeStepService {
                         (a, b) -> a
                 ));
 
-        // 신규 재료 key
         Set<String> newKeys = dtos.stream()
                 .map(d -> {
                     String name = d.getName() != null ? d.getName() : d.getCustomName();
@@ -175,7 +170,6 @@ public class RecipeStepService {
                 })
                 .collect(Collectors.toSet());
 
-        // 삭제
         existing.stream()
                 .filter(i -> {
                     String key = i.getIngredient() != null
@@ -188,7 +182,6 @@ public class RecipeStepService {
                     recipeStepIngredientRepository.delete(i);
                 });
 
-        // 생성/수정
         for (RecipeStepIngredientRequestDto dto : dtos) {
             String rawName = dto.getName() != null ? dto.getName() : dto.getCustomName();
             if (rawName == null || rawName.isBlank()) {

@@ -12,7 +12,7 @@ public enum RecipeSourceType {
         try {
             return RecipeSourceType.valueOf(source.toUpperCase());
         } catch (IllegalArgumentException e) {
-            return USER; // 잘못된 값이 들어와도 기본값 USER
+            return USER;
         }
     }
 }

@@ -119,14 +119,13 @@ public class AdminRecipeService {
                 dto.getYoutubeUrl(),
                 dto.getCookingTools(),
                 dto.getServings(),
-                null, // totalIngredientCost (아래에서 계산됨)
+                null,
                 dto.getMarketPrice()
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
         int newTotalCost = recipeIngredientService.updateIngredients(recipe, dto.getIngredients());
 
-        // 총원가 변경 시만 marketPrice 갱신
         if (!Objects.equals(prevTotalCost, newTotalCost)) {
             recipe.updateTotalIngredientCost(newTotalCost);
 

@@ -4,7 +4,6 @@ import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "recipe_favorites", uniqueConstraints = {

@@ -30,7 +30,6 @@ public class OpenSearchSuggestionService {
      * 인기 키워드 + prefix-match 하이브리드 자동완성
      */
     public List<String> suggestRecipeTitles(String prefix, int size) {
-        // 1) 인기 검색어 우선
         List<String> popular = keywordRepository
                 .findByKeywordStartingWithIgnoreCaseOrderByCountDesc(
                         prefix, PageRequest.of(0, size))
@@ -42,7 +41,6 @@ public class OpenSearchSuggestionService {
             return popular;
         }
 
-        // 2) 부족분은 edge-ngram prefix-match
         int remain = size - popular.size();
         try {
             SearchSourceBuilder src = new SearchSourceBuilder()
@@ -60,13 +58,11 @@ public class OpenSearchSuggestionService {
                     .distinct()
                     .toList();
 
-            // 3) 합쳐서 반환
             return Stream.concat(popular.stream(), docs.stream())
                     .collect(Collectors.toList());
 
         } catch (IOException e) {
             System.out.println("자동완성 제안 중 오류 발생: " + e.getMessage());
-            // 에러 시 인기 키워드만이라도 돌려줌
             return popular;
         }
     }

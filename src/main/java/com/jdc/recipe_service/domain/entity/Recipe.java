@@ -75,19 +75,19 @@ public class Recipe extends BaseTimeEntity {
 
     @Column
     @Builder.Default
-    private Integer servings = 1; // 기본값 1인분
+    private Integer servings = 1;
 
     @Column(nullable = false)
     @Builder.Default
-    private Boolean isPrivate = false; // 기본값 공개
+    private Boolean isPrivate = false;
 
     @Column
     @Builder.Default
-    private Integer totalIngredientCost = 0; // 재료 기준 가격
+    private Integer totalIngredientCost = 0;
 
     @Column
     @Builder.Default
-    private Integer marketPrice = 0; // 시중 평균 가격
+    private Integer marketPrice = 0;
 
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)

@@ -11,6 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class FileInfoRequest {
     private String contentType;
-    private String type; // "main" or "step"
-    private Integer stepIndex; // null if type is main
+    private String type;
+    private Integer stepIndex;
 }

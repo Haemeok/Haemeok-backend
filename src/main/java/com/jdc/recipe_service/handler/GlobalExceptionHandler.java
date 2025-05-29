@@ -21,7 +21,6 @@ public class GlobalExceptionHandler {
     @Value("${spring.profiles.active:default}")
     private String activeProfile;
 
-    // 🔥 CustomException 처리
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<ErrorResponse> handleCustomException(CustomException ex) {
         ErrorCode errorCode = ex.getErrorCode();
@@ -30,7 +29,6 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(errorCode));
     }
 
-    // 🔥 Validation 실패 (DTO 검증 실패)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
         String errorMessage = ex.getBindingResult()
@@ -45,7 +43,6 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(ErrorCode.INVALID_INPUT_VALUE.getCode(), errorMessage));
     }
 
-    // 🔥 IllegalArgumentException -> 잘못된 요청
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity
@@ -53,12 +50,10 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("901", "잘못된 요청입니다: " + ex.getMessage()));
     }
 
-    // 🔥 그 외 예상치 못한 에러
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception ex) {
         log.error("서버 에러 발생", ex);
 
-        // ✅ Swagger 관련 예외는 통과시킨다
         if (ex.getClass().getName().startsWith("org.springdoc")) {
             throw new RuntimeException(ex);
         }

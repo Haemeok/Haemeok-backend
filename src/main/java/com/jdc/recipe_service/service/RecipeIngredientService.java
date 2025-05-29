@@ -29,14 +29,12 @@ public class RecipeIngredientService {
     public int saveAll(Recipe recipe, List<RecipeIngredientRequestDto> dtos) {
         int totalCost = 0;
 
-        // ✅ 1. 전체 재료 캐싱
         Map<String, Ingredient> ingredientMap = ingredientRepository.findAll().stream()
                 .collect(Collectors.toMap(i -> i.getName().toLowerCase().trim(), Function.identity()));
 
         for (RecipeIngredientRequestDto dto : dtos) {
             String nameKey = dto.getName().toLowerCase().trim();
 
-            // 2. 수량 파싱
             double quantity;
             try {
                 quantity = parseQuantity(dto.getQuantity());
@@ -44,7 +42,6 @@ public class RecipeIngredientService {
                 throw new CustomException(ErrorCode.INVALID_INGREDIENT_QUANTITY, dto.getQuantity());
             }
 
-            // 3. 재료 탐색 (Map에서 조회)
             Ingredient ingredient = ingredientMap.get(nameKey);
 
             int unitPrice;
@@ -104,19 +101,6 @@ public class RecipeIngredientService {
             }
         }
         return Double.parseDouble(quantityStr);
-    }
-
-    public static String formatQuantityForDisplay(String originalInput) {
-        try {
-            double value = parseQuantityStatic(originalInput);
-            if (value == (int) value) {
-                return String.valueOf((int) value);
-            } else {
-                return originalInput;
-            }
-        } catch (Exception e) {
-            return originalInput;
-        }
     }
 
     private static double parseQuantityStatic(String quantityStr) {

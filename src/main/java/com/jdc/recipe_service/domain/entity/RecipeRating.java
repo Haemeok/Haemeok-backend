@@ -28,11 +28,7 @@ public class RecipeRating {
     @Column(nullable = false)
     private Double rating;
 
-//    @Column(length = 1000)
-//    private String comment;
-
-    public void updateRating(Double rating /*, String comment */) {
+    public void updateRating(Double rating) {
         this.rating = rating;
-        // this.comment = comment;
     }
 }

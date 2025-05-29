@@ -25,7 +25,7 @@ public class RecipeIngredientMapper {
     }
 
     public static RecipeIngredientDto toDto(RecipeIngredient entity) {
-        Ingredient ingredient = entity.getIngredient(); // ⭐ null 가능성 처리
+        Ingredient ingredient = entity.getIngredient();
         boolean isCustom = (ingredient == null);
 
         int totalPrice = Optional.ofNullable(entity.getPrice())
@@ -45,7 +45,6 @@ public class RecipeIngredientMapper {
         return entities.stream().map(RecipeIngredientMapper::toDto).toList();
     }
 
-    // ✅ 숫자 변환 로직 (fraction or decimal)
     private static double parseQuantity(String quantityStr) {
         quantityStr = quantityStr.trim();
         quantityStr = quantityStr.replaceAll("[^0-9./]", "");
@@ -63,17 +62,16 @@ public class RecipeIngredientMapper {
         return Double.parseDouble(quantityStr);
     }
 
-    // ✅ 포맷팅 로직 (1.0 → 1)
     private static String formatQuantityForDisplay(String quantityStr) {
         try {
             double value = parseQuantity(quantityStr);
             if (value == (int) value) {
                 return Integer.toString((int) value);
             } else {
-                return quantityStr; // 분수나 소수 그대로
+                return quantityStr;
             }
         } catch (Exception e) {
-            return quantityStr; // 파싱 실패 시 원본 그대로
+            return quantityStr;
         }
     }
 }
