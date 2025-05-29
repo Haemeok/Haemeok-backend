@@ -17,9 +17,6 @@ public class RecipeTagService {
 
     private final RecipeTagRepository recipeTagRepository;
 
-    /**
-     * 새 레시피에 태그 저장
-     */
     public void saveAll(Recipe recipe, List<String> tagDisplayNames) {
         List<TagType> tagTypes = tagDisplayNames.stream()
                 .distinct() // 중복 방지
@@ -36,23 +33,18 @@ public class RecipeTagService {
         recipeTagRepository.saveAll(recipeTags);
     }
 
-    /**
-     * 레시피 수정 시 태그 업데이트
-     */
     public void updateTags(Recipe recipe, List<String> tagDisplayNames) {
         List<RecipeTag> existingTags = recipeTagRepository.findByRecipeId(recipe.getId());
         Set<TagType> newTagTypes = tagDisplayNames.stream()
                 .map(TagType::fromDisplayName)
                 .collect(Collectors.toSet());
 
-        // 기존 태그 중 삭제할 것
         List<RecipeTag> tagsToRemove = existingTags.stream()
                 .filter(tag -> !newTagTypes.contains(tag.getTag()))
                 .toList();
 
         recipeTagRepository.deleteAll(tagsToRemove);
 
-        // 새로운 태그 중 추가할 것
         Set<TagType> existingTypes = existingTags.stream()
                 .map(RecipeTag::getTag)
                 .collect(Collectors.toSet());

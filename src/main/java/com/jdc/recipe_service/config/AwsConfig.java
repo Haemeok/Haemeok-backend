@@ -33,7 +33,6 @@ public class AwsConfig {
                 .region(Region.of(region))
                 .credentialsProvider(DefaultCredentialsProvider.create());
 
-        // 👇 아래 조건으로 null, 빈문자열, "null" 문자열 모두 방어
         if (endpoint != null && !endpoint.trim().isEmpty() && !"null".equalsIgnoreCase(endpoint.trim())) {
             try {
                 builder.endpointOverride(URI.create(endpoint));

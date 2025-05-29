@@ -15,7 +15,6 @@ import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/me/fridge")

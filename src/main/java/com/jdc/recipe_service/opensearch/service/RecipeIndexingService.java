@@ -45,7 +45,6 @@ public class RecipeIndexingService {
     public boolean createRecipeIndex() throws IOException {
         var request = new CreateIndexRequest("recipes");
 
-        // 1️⃣ settings: max_ngram_diff + ngram/infix + edge_ngram
         request.settings("""
         {
           "index": {
@@ -85,7 +84,6 @@ public class RecipeIndexingService {
         }
         """, XContentType.JSON);
 
-        // 2️⃣ mapping: title.prefix + title.infix + 나머지 필드
         request.mapping("""
         {
           "properties": {
@@ -169,7 +167,6 @@ public class RecipeIndexingService {
      * 문서에 들어갈 데이터를 Recipe → RecipeDocument 로 변환합니다.
      */
     private RecipeDocument buildDocument(Recipe recipe) {
-        // 재료 이름
         List<String> ingredientNames = Optional.ofNullable(recipe.getIngredients())
                 .orElse(Collections.emptyList())
                 .stream()
@@ -181,10 +178,9 @@ public class RecipeIndexingService {
                 })
                 .filter(name -> name != null && !name.isBlank())
                 .map(String::trim)
-                .distinct()    // ← 중복 제거
+                .distinct()
                 .toList();
 
-        // 태그 이름
         List<String> tagNames = Optional.ofNullable(recipe.getTags())
                 .orElse(Collections.emptySet())
                 .stream()
@@ -192,7 +188,6 @@ public class RecipeIndexingService {
                 .filter(name -> name != null && !name.isBlank())
                 .toList();
 
-        // 좋아요 개수는 DB에서 직접 조회
         int likeCount = likeRepository.countByRecipeId(recipe.getId());
 
         return RecipeDocument.builder()

@@ -18,7 +18,6 @@ public class CommentLikeController {
 
     private final CommentLikeService commentLikeService;
 
-    // 댓글 좋아요 토글
     @PostMapping("/{commentId}/like")
     public ResponseEntity<?> toggleLike(
             @PathVariable Long commentId,

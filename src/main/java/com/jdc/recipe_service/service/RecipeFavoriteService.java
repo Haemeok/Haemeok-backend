@@ -28,7 +28,7 @@ public class RecipeFavoriteService {
 
         if (favorite.isPresent()) {
             favoriteRepository.delete(favorite.get());
-            return false; // 즐겨찾기 해제
+            return false;
         }
 
         User user = userRepository.findById(userId)
@@ -37,7 +37,7 @@ public class RecipeFavoriteService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         favoriteRepository.save(RecipeFavorite.builder().user(user).recipe(recipe).build());
-        return true; // 즐겨찾기 등록
+        return true;
     }
 
     @Transactional

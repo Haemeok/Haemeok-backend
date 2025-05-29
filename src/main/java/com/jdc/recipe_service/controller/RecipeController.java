@@ -25,7 +25,6 @@ public class RecipeController {
 
     private final RecipeService recipeService;
 
-    // 레시피 생성 + 이미지 Presigned URL 발급
     @PostMapping
     public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
             @RequestParam(value = "source", required = false) String source,
@@ -77,7 +76,6 @@ public class RecipeController {
     }
 
 
-    // 레시피 삭제
     @DeleteMapping("/{recipeId}")
     public ResponseEntity<String> deleteRecipe(
             @PathVariable Long recipeId,
@@ -91,7 +89,6 @@ public class RecipeController {
         return ResponseEntity.ok("레시피가 성공적으로 삭제되었습니다.");
     }
 
-    //공개, 비공개
     @PostMapping("/{recipeId}/private")
     public ResponseEntity<?> togglePrivacy(
             @PathVariable Long recipeId,

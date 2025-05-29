@@ -134,7 +134,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
         content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
 
-        // ✅ total도 동일 조건 적용
         Long total = queryFactory
                 .select(recipe.count())
                 .from(recipe)
@@ -145,12 +144,11 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     }
 
 
-
     private OrderSpecifier<?> getOrderSpecifier(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
 
         if (!pageable.getSort().isEmpty()) {
-            Sort.Order order = pageable.getSort().iterator().next(); // 첫 번째만 사용
+            Sort.Order order = pageable.getSort().iterator().next();
             Order direction = order.getDirection().isAscending() ? Order.ASC : Order.DESC;
 
             switch (order.getProperty()) {
@@ -162,7 +160,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
             }
         }
 
-        // 기본은 최신순
         return recipe.createdAt.desc();
     }
 

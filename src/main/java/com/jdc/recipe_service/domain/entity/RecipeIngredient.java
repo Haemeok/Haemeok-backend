@@ -2,7 +2,6 @@ package com.jdc.recipe_service.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 
@@ -40,9 +39,4 @@ public class RecipeIngredient {
     private String customName;
     private BigDecimal customPrice;
     private String customUnit;
-
-    public void updateQuantityAndUnit(String quantity, String unit) {
-        this.quantity = quantity;
-        this.unit = unit;
-    }
 }
