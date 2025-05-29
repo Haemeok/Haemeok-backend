@@ -5,10 +5,12 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeService;
+import com.jdc.recipe_service.util.PromptBuilder;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -36,18 +38,32 @@ public class RecipeController {
         }
 
         RecipeSourceType sourceType = RecipeSourceType.fromNullable(source);
+        RecipeWithImageUploadRequest processingRequest = request;
 
         if (sourceType == RecipeSourceType.AI) {
-            request = recipeService.buildRecipeFromAiRequest(request);
+            if (request.getAiRequest() == null) {
+                throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "AI 레시피 생성을 위한 요청 정보(aiRequest)가 비어있습니다.");
+            }
+            RobotType robot = request.getRobotType() != null
+                    ? request.getRobotType()
+                    : RobotType.CLASSIC;
+            String prompt = PromptBuilder.buildPrompt(request.getAiRequest(), robot);
+            processingRequest = recipeService.buildRecipeFromAiRequest(prompt, request.getAiRequest(), request.getFiles());
         }
+
+        if (processingRequest.getRecipe() == null && sourceType != RecipeSourceType.AI ) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 정보가 비어있습니다.");
+        }
+
         PresignedUrlResponse response = recipeService.createUserRecipeAndGenerateUrls(
-                request,
+                processingRequest,
                 userDetails.getUser().getId(),
                 sourceType
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
 
 //    @PostMapping("/ai/generate")
 //    public ResponseEntity<RecipeCreateRequestDto> previewAiRecipe(
