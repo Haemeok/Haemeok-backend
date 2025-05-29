@@ -5,23 +5,46 @@ import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientReque
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
+import com.jdc.recipe_service.domain.type.RecipeSourceType;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
 public class RecipeIngredientMapper {
 
-    public static RecipeIngredient toEntity(RecipeIngredientRequestDto dto, Recipe recipe, Ingredient ingredient, int calculatedPrice) {
-        return RecipeIngredient.builder()
+    public static RecipeIngredient toEntity(
+            RecipeIngredientRequestDto dto,
+            Recipe recipe,
+            Ingredient masterIngredient,
+            int calculatedPriceForItem,
+            String unitForRecipeItemField, // saveAll에서 결정된, 이 레시피 항목에 사용될 최종 단위
+            RecipeSourceType sourceType) {
+
+        RecipeIngredient.RecipeIngredientBuilder builder = RecipeIngredient.builder()
                 .recipe(recipe)
-                .ingredient(ingredient)
-                .customName(ingredient == null ? dto.getName() : null)
-                .customPrice(ingredient == null ? dto.getCustomPrice() : null)
-                .customUnit(ingredient == null ? dto.getCustomUnit() : null)
                 .quantity(dto.getQuantity())
-                .unit(ingredient != null ? ingredient.getUnit() : null)
-                .price(calculatedPrice)
-                .build();
+                .price(calculatedPriceForItem)
+                .unit(unitForRecipeItemField);
+
+        if (masterIngredient != null) {
+            builder.ingredient(masterIngredient);
+            builder.customName(null);
+            builder.customPrice(null);
+            builder.customUnit(null);
+        } else {
+            builder.ingredient(null);
+            builder.customName(dto.getName());
+            builder.customUnit(unitForRecipeItemField); // 새로운 재료의 "정의 단위"는 saveAll에서 결정된 unitForRecipeItemField 사용
+
+            if (sourceType == RecipeSourceType.AI) {
+                builder.customPrice(BigDecimal.ZERO); // AI가 생성한 새로운 재료의 "단가"는 0
+            } else { // 사용자가 직접 입력한 새로운 재료
+                // dto.getCustomPrice()는 사용자가 입력한 단가
+                builder.customPrice(dto.getCustomPrice() != null ? dto.getCustomPrice() : BigDecimal.ZERO);
+            }
+        }
+        return builder.build();
     }
 
     public static RecipeIngredientDto toDto(RecipeIngredient entity) {

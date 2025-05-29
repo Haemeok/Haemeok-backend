@@ -9,6 +9,7 @@ import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.ImageStatus;
+import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeMapper;
@@ -42,7 +43,7 @@ public class AdminRecipeService {
         recipeRepository.save(recipe);
         recipeRepository.flush();
 
-        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), RecipeSourceType.USER);
         recipe.updateTotalIngredientCost(totalCost);
 
         int marketPrice = calculateMarketPrice(dto.getMarketPrice(), totalCost);
@@ -61,7 +62,7 @@ public class AdminRecipeService {
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipeRepository.save(recipe);
-        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), RecipeSourceType.USER);
         recipe.updateTotalIngredientCost(totalCost);
 
         int marketPrice = calculateMarketPrice(dto.getMarketPrice(), totalCost);
@@ -89,7 +90,7 @@ public class AdminRecipeService {
             recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
             recipeRepository.save(recipe);
 
-            int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+            int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), RecipeSourceType.USER);
             recipe.updateTotalIngredientCost(totalCost);
 
             int marketPrice = calculateMarketPrice(dto.getMarketPrice(), totalCost);
@@ -124,7 +125,7 @@ public class AdminRecipeService {
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
-        int newTotalCost = recipeIngredientService.updateIngredients(recipe, dto.getIngredients());
+        int newTotalCost = recipeIngredientService.updateIngredients(recipe, dto.getIngredients(), RecipeSourceType.USER);
 
         if (!Objects.equals(prevTotalCost, newTotalCost)) {
             recipe.updateTotalIngredientCost(newTotalCost);

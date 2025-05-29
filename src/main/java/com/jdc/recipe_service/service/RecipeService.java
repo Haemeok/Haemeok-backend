@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.url.*;
@@ -12,7 +13,6 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.util.PricingUtil;
-import com.jdc.recipe_service.util.PromptBuilder;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +49,10 @@ public class RecipeService {
         User user = getUserOrThrow(userId);
         RecipeCreateRequestDto dto = req.getRecipe();
 
+        if (dto == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 생성 요청 데이터(dto)가 null입니다.");
+        }
+
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
 
@@ -63,11 +67,16 @@ public class RecipeService {
         if (sourceType == RecipeSourceType.AI) {
             recipe.updateIsPrivate(true);
         } else {
-            recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
+            if (dto.getIsPrivate() == null) { // null 체크 추가
+                recipe.updateIsPrivate(false); // 기본값 (예: false)
+            } else {
+                recipe.updateIsPrivate(dto.getIsPrivate());
+            }
         }
         recipeRepository.save(recipe);
 
-        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients());
+        // RecipeIngredientService.saveAll 호출 시 sourceType 전달
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), sourceType);
         recipe.updateTotalIngredientCost(totalCost);
 
         Integer providedMp = dto.getMarketPrice();
@@ -75,20 +84,21 @@ public class RecipeService {
         if (providedMp != null && providedMp > 0) {
             marketPrice = providedMp;
         } else if (totalCost > 0) {
-            int randomPercent = PricingUtil.randomizeMarginPercent(30);
+            int randomPercent = PricingUtil.randomizeMarginPercent(30); // 예시
             marketPrice = PricingUtil.applyMargin(totalCost, randomPercent);
         } else {
             marketPrice = 0;
         }
         recipe.updateMarketPrice(marketPrice);
 
-        recipeRepository.flush();
+        recipeRepository.flush(); // 필요시
 
         if (sourceType == RecipeSourceType.AI) {
             recipeStepService.saveAll(recipe, dto.getSteps());
         } else {
             recipeStepService.saveAllFromUser(recipe, dto.getSteps());
-        }        recipeTagService.saveAll(recipe, dto.getTagNames());
+        }
+        recipeTagService.saveAll(recipe, dto.getTagNames());
 
         em.flush();
         em.clear();
@@ -100,11 +110,66 @@ public class RecipeService {
 
         recipeIndexingService.indexRecipe(full);
 
-        List<PresignedUrlResponseItem> uploads = recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles());
+        List<PresignedUrlResponseItem> uploads = Collections.emptyList();
+        if (req.getFiles() != null && !req.getFiles().isEmpty()) {
+            uploads = recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles());
+        }
+
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
                 .uploads(uploads)
                 .build();
+    }
+
+    @Transactional
+    public RecipeWithImageUploadRequest buildRecipeFromAiRequest(String prompt, AiRecipeRequestDto aiReq, List<FileInfoRequest> originalFiles) {
+        String jsonFromAI = null;
+        try {
+            jsonFromAI = replicateService.generateRecipeJson(prompt);
+
+            System.out.println(">>>>>> JSON 문자열 수신 (deserialization 직전): [\n" + jsonFromAI + "\n]");
+            if (jsonFromAI == null || jsonFromAI.trim().isEmpty()) {
+                System.err.println(">>>>>> CRITICAL: ReplicateService가 null 또는 빈 JSON 문자열을 반환했습니다.");
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI로부터 유효한 JSON 응답을 받지 못했습니다 (결과가 비어있음).");
+            }
+
+            RecipeCreateRequestDto generatedDto = objectMapper.readValue(jsonFromAI, RecipeCreateRequestDto.class);
+
+            String dtoToString = "!!! DTO IS NULL !!!";
+            if (generatedDto != null) {
+                dtoToString = generatedDto.toString();
+                if (dtoToString.length() > 500) {
+                    dtoToString = dtoToString.substring(0, 500) + "...";
+                }
+            }
+            System.out.println(">>>>>> Deserialized RecipeCreateRequestDto: " + dtoToString);
+
+
+            if (generatedDto == null) {
+                System.err.println(">>>>>> CRITICAL: RecipeCreateRequestDto가 objectMapper.readValue 후 null입니다! 원본 JSON: [\n" + jsonFromAI + "\n]");
+                String snippetOnError = (jsonFromAI.length() > 500 ? jsonFromAI.substring(0, 500) + "..." : jsonFromAI);
+                throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI 레시피 DTO 변환 결과가 null입니다. 원본 JSON: " + snippetOnError);
+            }
+
+            RecipeWithImageUploadRequest result = new RecipeWithImageUploadRequest();
+            result.setAiRequest(aiReq);
+            result.setRecipe(generatedDto);
+            result.setFiles(originalFiles);
+            return result;
+
+        } catch (JsonProcessingException jsonEx) {
+            System.err.println(">>>>>> AI JSON 파싱 실패! (JsonProcessingException). 시도된 JSON 문자열: [\n" + jsonFromAI + "\n]");
+            jsonEx.printStackTrace();
+            String snippet = (jsonFromAI != null && jsonFromAI.length() > 200) ? jsonFromAI.substring(0, 200) + "..." : jsonFromAI;
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI JSON 파싱 실패: " + jsonEx.getMessage() + ". 시도된 JSON (일부): " + snippet, jsonEx);
+        } catch (CustomException ce) {
+            System.err.println(">>>>>> AI 레시피 생성 중 CustomException 발생: " + ce.getMessage());
+            throw ce;
+        } catch (Exception e) {
+            System.err.println(">>>>>> AI 레시피 생성 중 예상치 못한 오류 발생. 마지막으로 시도된 JSON 문자열: [\n" + jsonFromAI + "\n]");
+            e.printStackTrace();
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI 레시피 생성 실패 (일반 오류): " + e.getMessage(), e);
+        }
     }
 
 
@@ -266,26 +331,6 @@ public class RecipeService {
             if (imageKeyMap.containsKey(step.getStepNumber())) {
                 step.updateStepImageKey(imageKeyMap.get(step.getStepNumber()));
             }
-        }
-    }
-
-    @Transactional
-    public RecipeWithImageUploadRequest buildRecipeFromAiRequest(RecipeWithImageUploadRequest req) {
-        AiRecipeRequestDto aiReq = req.getAiRequest();
-        if (aiReq == null) throw new CustomException(ErrorCode.NULL_POINTER, "AI 요청 필드 누락");
-
-        try {
-            String prompt = PromptBuilder.buildPrompt(aiReq);
-            String json = replicateService.generateRecipeJson(prompt);
-            RecipeCreateRequestDto generated = objectMapper.readValue(json, RecipeCreateRequestDto.class);
-
-            req.setRecipe(generated);
-            req.setFiles(Collections.emptyList());
-            return req;
-        } catch (com.fasterxml.jackson.core.JsonProcessingException jsonEx) {
-            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI JSON 파싱 실패: " + jsonEx.getMessage());
-        } catch (Exception e) {
-            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI 레시피 생성 실패: " + e.getMessage());
         }
     }
 

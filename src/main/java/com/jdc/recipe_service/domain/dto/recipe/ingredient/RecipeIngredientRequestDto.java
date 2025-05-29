@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.dto.recipe.ingredient;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,5 +23,6 @@ public class RecipeIngredientRequestDto {
     private String quantity;
 
     private BigDecimal customPrice;
+    @JsonProperty("unit")
     private String customUnit;
 }
