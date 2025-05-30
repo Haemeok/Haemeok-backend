@@ -19,6 +19,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,12 @@ public class OpenSearchService {
     private final RestHighLevelClient client;
     private final RefrigeratorItemRepository fridgeRepo;
     private final KeywordService keywordService;
+
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
 
 
     public Page<RecipeSimpleDto> searchRecipes(
@@ -115,7 +122,7 @@ public class OpenSearchService {
                                 r.getTitle(),
                                 r.getImageKey() == null ? null
                                         : String.format("https://%s.s3.%s.amazonaws.com/%s",
-                                        "버킷명","리전",r.getImageKey()),
+                                        bucketName,region,r.getImageKey()),
                                 r.getUser().getId(),
                                 r.getUser().getNickname(),
                                 r.getUser().getProfileImage(),
