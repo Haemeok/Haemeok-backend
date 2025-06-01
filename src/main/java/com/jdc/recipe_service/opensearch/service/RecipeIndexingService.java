@@ -8,7 +8,6 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.dto.RecipeDocument;
 import lombok.RequiredArgsConstructor;
-import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
@@ -125,11 +124,9 @@ public class RecipeIndexingService {
         }
     }
 
-
     public void indexRecipe(Recipe recipe) {
         indexRecipe(recipe.getId());
     }
-
 
     public void updateRecipe(Recipe recipe) {
         updateRecipe(recipe.getId());
@@ -212,9 +209,6 @@ public class RecipeIndexingService {
                     .id(recipe.getId().toString())
                     .source(objectMapper.writeValueAsString(doc), XContentType.JSON);
             client.index(req, RequestOptions.DEFAULT);
-
-            RefreshRequest refresh = new RefreshRequest("recipes");
-            client.indices().refresh(refresh, RequestOptions.DEFAULT);
         } catch (IOException e) {
             throw new CustomException(
                     ErrorCode.SEARCH_FAILURE,
@@ -228,9 +222,6 @@ public class RecipeIndexingService {
             UpdateRequest req = new UpdateRequest("recipes", recipe.getId().toString())
                     .doc(objectMapper.writeValueAsString(doc), XContentType.JSON);
             client.update(req, RequestOptions.DEFAULT);
-
-            RefreshRequest refresh = new RefreshRequest("recipes");
-            client.indices().refresh(refresh, RequestOptions.DEFAULT);
         } catch (IOException e) {
             throw new CustomException(
                     ErrorCode.SEARCH_FAILURE,
