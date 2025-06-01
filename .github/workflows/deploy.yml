@@ -70,6 +70,7 @@ jobs:
           APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES: ${{ secrets.APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES }}
           OPENSEARCH_HOST: ${{ secrets.OPENSEARCH_HOST }}
           REPLICATE_TOKEN: ${{ secrets.REPLICATE_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
