@@ -55,7 +55,7 @@ public class RecipeIngredientMapper {
                 .orElse(0);
 
         return RecipeIngredientDto.builder()
-                .ingredientId(isCustom ? null : ingredient.getId())
+                .id(isCustom ? null : ingredient.getId())
                 .name(isCustom ? entity.getCustomName() : ingredient.getName())
                 .quantity(formatQuantityForDisplay(entity.getQuantity()))
                 .unit(isCustom ? entity.getCustomUnit() : entity.getUnit())
