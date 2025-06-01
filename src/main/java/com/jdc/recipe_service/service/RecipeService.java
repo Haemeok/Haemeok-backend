@@ -7,6 +7,7 @@ import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -43,6 +44,8 @@ public class RecipeService {
     private final EntityManager em;
     private final ReplicateService replicateService;
     private final ObjectMapper objectMapper;
+    private final AsyncImageService asyncImageService;
+
 
     @Transactional
     public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUploadRequest req, Long userId, RecipeSourceType sourceType) {
@@ -66,16 +69,16 @@ public class RecipeService {
 
         if (sourceType == RecipeSourceType.AI) {
             recipe.updateIsPrivate(true);
+            recipe.updateImageStatus(RecipeImageStatus.PENDING);
         } else {
-            if (dto.getIsPrivate() == null) { // null 체크 추가
-                recipe.updateIsPrivate(false); // 기본값 (예: false)
+            if (dto.getIsPrivate() == null) {
+                recipe.updateIsPrivate(false);
             } else {
                 recipe.updateIsPrivate(dto.getIsPrivate());
             }
         }
         recipeRepository.save(recipe);
 
-        // RecipeIngredientService.saveAll 호출 시 sourceType 전달
         int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), sourceType);
         recipe.updateTotalIngredientCost(totalCost);
 
@@ -84,14 +87,14 @@ public class RecipeService {
         if (providedMp != null && providedMp > 0) {
             marketPrice = providedMp;
         } else if (totalCost > 0) {
-            int randomPercent = PricingUtil.randomizeMarginPercent(30); // 예시
+            int randomPercent = PricingUtil.randomizeMarginPercent(30);
             marketPrice = PricingUtil.applyMargin(totalCost, randomPercent);
         } else {
             marketPrice = 0;
         }
         recipe.updateMarketPrice(marketPrice);
 
-        recipeRepository.flush(); // 필요시
+        recipeRepository.flush();
 
         if (sourceType == RecipeSourceType.AI) {
             recipeStepService.saveAll(recipe, dto.getSteps());
@@ -115,6 +118,10 @@ public class RecipeService {
             uploads = recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles());
         }
 
+        if (sourceType == RecipeSourceType.AI) {
+            asyncImageService.generateAndUploadAiImageAsync(recipe.getId());
+        }
+
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
                 .uploads(uploads)
@@ -125,7 +132,7 @@ public class RecipeService {
     public RecipeWithImageUploadRequest buildRecipeFromAiRequest(String prompt, AiRecipeRequestDto aiReq, List<FileInfoRequest> originalFiles) {
         String jsonFromAI = null;
         try {
-            jsonFromAI = replicateService.generateRecipeJson(prompt);
+            jsonFromAI = replicateService.generateRecipeJsonWithRetry(prompt);
 
             System.out.println(">>>>>> JSON 문자열 수신 (deserialization 직전): [\n" + jsonFromAI + "\n]");
             if (jsonFromAI == null || jsonFromAI.trim().isEmpty()) {
@@ -308,7 +315,6 @@ public class RecipeService {
         em.flush();
         return new FinalizeResponse(recipeId, new ArrayList<>(activeImages), missingFiles);
     }
-
 
 
     @Transactional
