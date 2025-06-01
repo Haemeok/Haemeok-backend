@@ -52,7 +52,8 @@ public class RefrigeratorItemService {
                         item.getIngredient().getId(),
                         item.getIngredient().getName(),
                         item.getIngredient().getCategory(),
-                        item.getIngredient().getImageUrl()
+                        item.getIngredient().getImageUrl(),
+                        item.getIngredient().getUnit()
                 )
         );
     }

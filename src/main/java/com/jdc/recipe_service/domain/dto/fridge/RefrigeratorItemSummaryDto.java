@@ -5,5 +5,6 @@ public record RefrigeratorItemSummaryDto(
         Long id,
         String name,
         String category,
-        String imageUrl
+        String imageUrl,
+        String unit
 ) { }
