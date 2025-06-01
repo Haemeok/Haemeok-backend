@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class RecipeIngredientDto {
-    private Long ingredientId;
+    private Long id;
     private String name;
     private String quantity;
     private String unit;
@@ -30,7 +30,7 @@ public class RecipeIngredientDto {
         boolean isCustom = (ingredient == null);
 
         return RecipeIngredientDto.builder()
-                .ingredientId(isCustom ? null : ingredient.getId())
+                .id(isCustom ? null : ingredient.getId())
                 .name(isCustom ? ri.getCustomName() : ingredient.getName())
                 .quantity(ri.getQuantity())
                 .unit(isCustom ? ri.getCustomUnit() : ri.getUnit())
