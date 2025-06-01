@@ -283,6 +283,9 @@ public class RecipeSearchService {
                 .ratingInfo(ratingInfo)
                 .imageUrl(generateImageUrl(recipe.getImageKey()))
                 .imageKey(recipe.getImageKey())
+                .imageStatus(recipe.getImageStatus() != null
+                        ? recipe.getImageStatus().name()
+                        : null)
                 .youtubeUrl(recipe.getYoutubeUrl())
                 .cookingTools(recipe.getCookingTools())
                 .servings(recipe.getServings())

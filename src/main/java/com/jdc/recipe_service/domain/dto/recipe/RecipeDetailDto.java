@@ -29,6 +29,8 @@ public class RecipeDetailDto {
     private Integer cookingTime;
     private String imageUrl;
     private String imageKey;
+    private String imageStatus;
+
     private String youtubeUrl;
     private List<String> cookingTools;
     private boolean isAiGenerated;
