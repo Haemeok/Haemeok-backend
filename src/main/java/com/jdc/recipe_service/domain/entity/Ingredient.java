@@ -34,4 +34,7 @@ public class Ingredient {
 
     @Column(name = "calorie", nullable = true)
     private Integer calorie;
+
+    @Column(name = "english_name", length = 100)
+    private String englishName;
 }
