@@ -2,6 +2,7 @@ package com.jdc.recipe_service.domain.entity;
 
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
@@ -89,6 +90,9 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Integer marketPrice = 0;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "image_status")
+    private RecipeImageStatus imageStatus;
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
     @BatchSize(size = 10)
@@ -124,6 +128,7 @@ public class Recipe extends BaseTimeEntity {
     }
 
     public void updateImageKey(String imageKey) {
+        this.imageKey = null;
         this.imageKey = imageKey;
     }
 
@@ -148,4 +153,6 @@ public class Recipe extends BaseTimeEntity {
     }
 
     public void updateRatingCount(Long ratingCount) {this.ratingCount = ratingCount;}
+
+    public void updateImageStatus(RecipeImageStatus imageStatus) {this.imageStatus = imageStatus;}
 }
