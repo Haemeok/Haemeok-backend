@@ -44,11 +44,12 @@ public class IngredientSearchService {
         Long id   = Long.valueOf(hit.getId());        // ← 여기서 문서 ID를 꺼내고
         String nm = (String) m.get("name");
         String ct = (String) m.get("category");
+        String un = (String) m.get("unit");
         String url = String.format(
                 "https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com/images/ingredients/%s.webp",
                 nm
         );
-        return new IngredientSearchDto(id, nm, ct, url);
+        return new IngredientSearchDto(id, nm, ct, url,un);
     }
 
     /**
@@ -154,7 +155,7 @@ public class IngredientSearchService {
                             ing.getName()
                     );
                     return new IngredientSearchDto(
-                            ing.getId(), ing.getName(), ing.getCategory(), url
+                            ing.getId(), ing.getName(), ing.getCategory(), url,ing.getUnit()
                     );
                 })
                 .collect(Collectors.toList());
