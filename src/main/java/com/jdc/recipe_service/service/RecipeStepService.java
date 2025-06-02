@@ -43,7 +43,7 @@ public class RecipeStepService {
 
         for (RecipeStepRequestDto dto : dtos) {
             if (actionImageService.isSupportedAction(dto.getAction())) {
-                dto.setImageKey(actionImageService.generateImageKey(dto.getAction(), actionImageIndex));
+                dto.updateImageKey(actionImageService.generateImageKey(dto.getAction(), actionImageIndex));
             }
 
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
@@ -200,7 +200,7 @@ public class RecipeStepService {
 
             RecipeStepIngredient exist = existingMap.get(matchKey);
             if (exist != null) {
-                String rawQty = dto.getQuantity() != null ? dto.getQuantity().trim() : ri.getQuantity(); // ✅ 상위 재료에서 대체
+                String rawQty = dto.getQuantity() != null ? dto.getQuantity().trim() : ri.getQuantity();
                 String newUnit = ri.getIngredient() == null
                         ? dto.getCustomUnit()
                         : ri.getIngredient().getUnit();

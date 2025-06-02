@@ -1,7 +1,6 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
 import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
-import com.jdc.recipe_service.domain.type.RobotType;
 import lombok.*;
 
 import java.util.List;
@@ -15,5 +14,4 @@ public class RecipeWithImageUploadRequest {
     private List<FileInfoRequest> files;
 
     private AiRecipeRequestDto aiRequest;
-    private RobotType robotType;
 }

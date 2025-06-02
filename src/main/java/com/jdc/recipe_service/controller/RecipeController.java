@@ -30,6 +30,7 @@ public class RecipeController {
     @PostMapping
     public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
             @RequestParam(value = "source", required = false) String source,
+            @RequestParam(value = "robotType", required = false) RobotType robotTypeParam,
             @RequestBody @Valid RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
@@ -38,39 +39,16 @@ public class RecipeController {
         }
 
         RecipeSourceType sourceType = RecipeSourceType.fromNullable(source);
-        RecipeWithImageUploadRequest processingRequest = request;
 
-        if (sourceType == RecipeSourceType.AI) {
-            if (request.getAiRequest() == null) {
-                throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "AI 레시피 생성을 위한 요청 정보(aiRequest)가 비어있습니다.");
-            }
-            RobotType robot = request.getRobotType() != null
-                    ? request.getRobotType()
-                    : RobotType.CLASSIC;
-            String prompt = PromptBuilder.buildPrompt(request.getAiRequest(), robot);
-            processingRequest = recipeService.buildRecipeFromAiRequest(prompt, request.getAiRequest(), request.getFiles());
-        }
-
-        if (processingRequest.getRecipe() == null && sourceType != RecipeSourceType.AI ) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 정보가 비어있습니다.");
-        }
-
-        PresignedUrlResponse response = recipeService.createUserRecipeAndGenerateUrls(
-                processingRequest,
-                userDetails.getUser().getId(),
-                sourceType
+        PresignedUrlResponse response = recipeService.createRecipeWithAiLogic(
+                sourceType,
+                robotTypeParam,
+                request,
+                userDetails.getUser().getId()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-
-
-//    @PostMapping("/ai/generate")
-//    public ResponseEntity<RecipeCreateRequestDto> previewAiRecipe(
-//            @RequestBody @Valid AiRecipeRequestDto aiReq) {
-//        RecipeCreateRequestDto generated = recipeService.generateAiRecipe(aiReq);
-//        return ResponseEntity.ok(generated);
-//    }
 
     @PutMapping("/{recipeId}")
     public ResponseEntity<PresignedUrlResponse> updateRecipe(

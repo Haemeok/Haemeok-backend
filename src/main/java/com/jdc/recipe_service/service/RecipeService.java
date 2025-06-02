@@ -9,11 +9,14 @@ import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import com.jdc.recipe_service.util.ActionImageService;
 import com.jdc.recipe_service.util.PricingUtil;
+import com.jdc.recipe_service.util.PromptBuilder;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +48,50 @@ public class RecipeService {
     private final ReplicateService replicateService;
     private final ObjectMapper objectMapper;
     private final AsyncImageService asyncImageService;
+    private final ActionImageService actionImageService;
 
+    @Transactional
+    public PresignedUrlResponse createRecipeWithAiLogic(
+            RecipeSourceType sourceType,
+            RobotType robotTypeParam,
+            RecipeWithImageUploadRequest request,
+            Long userId) {
+
+        if (sourceType != RecipeSourceType.AI) {
+            return createUserRecipeAndGenerateUrls(request, userId, sourceType);
+        }
+
+        if (request.getAiRequest() == null) {
+            throw new CustomException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "AI 레시피 생성을 위한 요청 정보(aiRequest)가 비어있습니다."
+            );
+        }
+
+        if (robotTypeParam == null) {
+            throw new CustomException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "AI 모드일 때는 robotType 파라미터가 필요합니다."
+            );
+        }
+
+        String prompt = PromptBuilder.buildPrompt(
+                request.getAiRequest(),
+                robotTypeParam
+        );
+
+        RecipeWithImageUploadRequest processingRequest =
+                buildRecipeFromAiRequest(prompt, request.getAiRequest(), request.getFiles());
+
+        processingRequest.getRecipe().getSteps().forEach(step -> {
+            String actionName = step.getAction();
+            int imageIndex = robotTypeParam.ordinal() + 1;
+            String imageKey = actionImageService.generateImageKey(actionName, imageIndex);
+            String imageUrl = actionImageService.generateImageUrl(imageKey);
+            step.updateImageKey(imageUrl);
+        });
+        return createUserRecipeAndGenerateUrls(processingRequest, userId, sourceType);
+    }
 
     @Transactional
     public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUploadRequest req, Long userId, RecipeSourceType sourceType) {
