@@ -27,7 +27,6 @@ public class GptImageService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(openAiApiKey);
 
-        // ★ model: "gpt-image-1" 항목을 추가합니다.
         Map<String, Object> body = Map.of(
                 "model", "dall-e-3",
                 "prompt", prompt,

@@ -38,10 +38,8 @@ public class RecipeIngredientService {
             if (dto.getName() == null || dto.getName().isBlank()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료 이름이 비어있습니다.");
             }
-            // AI 생성 시 dto.getCustomUnit()에 AI의 "unit"이 매핑되어 있어야 함
             if (sourceType == RecipeSourceType.AI && (dto.getCustomUnit() == null || dto.getCustomUnit().isBlank())) {
                 System.err.println("경고: AI가 생성한 재료 '" + dto.getName() + "'의 단위 정보(customUnit)가 누락되었습니다.");
-                // 필요시 예외 처리 또는 기본 단위 사용 로직 추가
             }
 
             String nameKey = dto.getName().toLowerCase().trim();

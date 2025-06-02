@@ -18,7 +18,7 @@ public class RecipeIngredientMapper {
             Recipe recipe,
             Ingredient masterIngredient,
             int calculatedPriceForItem,
-            String unitForRecipeItemField, // saveAll에서 결정된, 이 레시피 항목에 사용될 최종 단위
+            String unitForRecipeItemField,
             RecipeSourceType sourceType) {
 
         RecipeIngredient.RecipeIngredientBuilder builder = RecipeIngredient.builder()
@@ -35,12 +35,11 @@ public class RecipeIngredientMapper {
         } else {
             builder.ingredient(null);
             builder.customName(dto.getName());
-            builder.customUnit(unitForRecipeItemField); // 새로운 재료의 "정의 단위"는 saveAll에서 결정된 unitForRecipeItemField 사용
+            builder.customUnit(unitForRecipeItemField);
 
             if (sourceType == RecipeSourceType.AI) {
-                builder.customPrice(BigDecimal.ZERO); // AI가 생성한 새로운 재료의 "단가"는 0
-            } else { // 사용자가 직접 입력한 새로운 재료
-                // dto.getCustomPrice()는 사용자가 입력한 단가
+                builder.customPrice(BigDecimal.ZERO);
+            } else {
                 builder.customPrice(dto.getCustomPrice() != null ? dto.getCustomPrice() : BigDecimal.ZERO);
             }
         }
