@@ -19,7 +19,7 @@ public class RecipeStepRequestDto {
 
     private List<RecipeStepIngredientRequestDto> ingredients;
 
-    public void setImageKey(String imageKey) {
+    public void updateImageKey(String imageKey) {
         this.imageKey = imageKey;
     }
 }
