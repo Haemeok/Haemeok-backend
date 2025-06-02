@@ -23,7 +23,6 @@ public class S3Uploader {
     private String region;
 
     public String uploadFile(MultipartFile file, String fileName) throws IOException {
-        // key 값이 경로처럼 동작 (예: uploads/파일명)
         String key = "uploads/" + fileName;
 
         PutObjectRequest request = PutObjectRequest.builder()

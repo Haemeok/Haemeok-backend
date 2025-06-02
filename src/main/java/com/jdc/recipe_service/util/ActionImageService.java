@@ -14,7 +14,7 @@ public class ActionImageService {
     private final Random random = new Random();
 
     public int generateRandomIndex() {
-        return random.nextInt(IMAGE_COUNT_PER_ACTION) + 1; // 1~5
+        return random.nextInt(IMAGE_COUNT_PER_ACTION) + 1;
     }
 
     public String generateImageKey(String action, int index) {

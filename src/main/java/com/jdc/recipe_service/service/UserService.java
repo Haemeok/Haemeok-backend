@@ -135,11 +135,9 @@ public class UserService {
             Long currentUserId,
             Pageable pageable) {
 
-        // 1) 페이징된 즐겨찾기 엔티티 조회
         Page<RecipeFavorite> favPage =
                 recipeFavoriteRepository.findByUserId(targetUserId, pageable);
 
-        // 2) Recipe 객체 리스트 추출
         List<Recipe> recipes = favPage.getContent().stream()
                 .map(RecipeFavorite::getRecipe)
                 .toList();
@@ -148,7 +146,6 @@ public class UserService {
                 .map(Recipe::getId)
                 .toList();
 
-        // 3) 좋아요 개수 bulk 조회
         Map<Long, Long> likeCountMap = recipeLikeRepository.countLikesRaw(recipeIds)
                 .stream()
                 .collect(Collectors.toMap(
@@ -156,7 +153,6 @@ public class UserService {
                         row -> (Long) row[1]
                 ));
 
-        // 4) 좋아요 여부
         Set<Long> likedIds = (currentUserId != null)
                 ? recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
                 .stream()
@@ -164,13 +160,12 @@ public class UserService {
                 .collect(Collectors.toSet())
                 : Set.of();
 
-        // 5) DTO 매핑 → ✅ 핵심 부분만 교체
         List<RecipeSimpleDto> dtos = recipes.stream()
                 .map(recipe -> {
                     RecipeSimpleDto dto = new RecipeSimpleDto(
                             recipe.getId(),
                             recipe.getTitle(),
-                            recipe.getImageKey(), // 나중에 setImageUrl()로 변환
+                            recipe.getImageKey(),
                             recipe.getUser().getId(),
                             recipe.getUser().getNickname(),
                             recipe.getUser().getProfileImage(),
@@ -186,7 +181,6 @@ public class UserService {
                 })
                 .toList();
 
-        // 6) PageImpl로 감싸서 반환
         return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
     }
 
@@ -197,14 +191,11 @@ public class UserService {
             @Nullable Long viewerId,
             Pageable pageable) {
 
-        // 1) 대상 유저 존재 체크 (404)
         userRepository.findById(targetUserId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 2) 페이징된 Recipe 엔티티 페이지 조회
         Page<Recipe> recipesPage = recipeRepository.findByUserId(targetUserId, pageable);
 
-        // 3) viewerId가 있으면 bulk로 좋아요 누른 recipeId 집합 조회
         Set<Long> likedIds;
         if (viewerId != null && recipesPage.hasContent()) {
             List<Long> ids = recipesPage.stream()
@@ -219,7 +210,6 @@ public class UserService {
             likedIds = Collections.emptySet();
         }
 
-        // 4) DTO로 매핑 (빌더에 likedByCurrentUser 포함)
         Page<MyRecipeSummaryDto> dtoPage = recipesPage.map(recipe ->
                 MyRecipeSummaryDto.builder()
                         .id(recipe.getId())

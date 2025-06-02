@@ -5,7 +5,6 @@ import com.jdc.recipe_service.domain.entity.User;
 
 public class UserMapper {
 
-    // 간단 정보 (레시피/프로필 등에서 사용)
     public static UserDto toSimpleDto(User user) {
         if (user == null) return null;
         return UserDto.builder()
@@ -16,7 +15,6 @@ public class UserMapper {
                 .build();
     }
 
-    // 댓글용 작성자 정보
     public static CommentUserDto toCommentUserDto(User user) {
         if (user == null) return null;
         return CommentUserDto.builder()

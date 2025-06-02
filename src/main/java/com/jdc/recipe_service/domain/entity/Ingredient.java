@@ -27,7 +27,7 @@ public class Ingredient {
     private String imageUrl;
 
     @Column(name = "price")
-    private Integer price; // 단위: 원 (정수)
+    private Integer price;
 
     @Column
     private String unit;

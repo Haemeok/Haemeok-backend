@@ -14,7 +14,6 @@ public class CookingRecord {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 별점과 1:1 매핑
     @Column(name = "rating_id", nullable = false, unique = true)
     private Long ratingId;
 

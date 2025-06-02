@@ -121,7 +121,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.user.profileImage,
                         recipe.createdAt,
                         recipe.likes.size().castToNum(Long.class),
-                        com.querydsl.core.types.dsl.Expressions.constant(false), // likedByCurrentUser: 나중에 세팅
+                        com.querydsl.core.types.dsl.Expressions.constant(false),
                         recipe.cookingTime,
                         recipe.avgRating,
                         recipe.ratingCount.coalesce(0L)

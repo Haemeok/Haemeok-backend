@@ -52,7 +52,6 @@ public class RecipeRatingService {
 
         updateRecipeAverageRating(recipe);
 
-        // 코멘트가 있다면 댓글로 저장
         if (dto.getComment() != null && !dto.getComment().isBlank()) {
             RecipeComment comment = RecipeComment.builder()
                     .user(user)
@@ -63,7 +62,6 @@ public class RecipeRatingService {
             recipeCommentRepository.save(comment);
         }
 
-        // CookingRecord 생성
         cookingRecordService.createRecordFromRating(
                 userId, recipeId, saved.getId()
         );

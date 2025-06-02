@@ -19,7 +19,7 @@ public class RecipeTagService {
 
     public void saveAll(Recipe recipe, List<String> tagDisplayNames) {
         List<TagType> tagTypes = tagDisplayNames.stream()
-                .distinct() // 중복 방지
+                .distinct()
                 .map(TagType::fromDisplayName)
                 .collect(Collectors.toList());
 
