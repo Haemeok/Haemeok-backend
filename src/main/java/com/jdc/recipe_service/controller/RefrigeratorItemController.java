@@ -16,6 +16,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
+import java.util.Collections;
+
 @RestController
 @RequestMapping("/api/me/fridge")
 @RequiredArgsConstructor
@@ -63,12 +65,12 @@ public class RefrigeratorItemController {
 
     /** 3) 냉장고에서 재료 제거 */
     @DeleteMapping("/items/{ingredientId}")
-    public ResponseEntity<Void> removeItem(
+    public ResponseEntity<?> removeItem(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long ingredientId) {
         Long userId = userDetails.getUser().getId();
         service.removeItem(userId, ingredientId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(Collections.emptyMap());
     }
     /** 4) 냉장고에 재료 여러 개 Bulk 추가 */
     @PostMapping("/items/bulk")
@@ -83,13 +85,13 @@ public class RefrigeratorItemController {
 
     /** 5) 냉장고에서 재료 여러 개 Bulk 제거 */
     @DeleteMapping("/items/bulk")
-    public ResponseEntity<Void> removeItemsBulk(
+    public ResponseEntity<?> removeItemsBulk(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestBody @Valid RefrigeratorItemBulkRequestDto dto) {
 
         Long userId = userDetails.getUser().getId();
         service.removeItemsBulk(userId, dto.getIngredientIds());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(Collections.emptyMap());
     }
 
 }
