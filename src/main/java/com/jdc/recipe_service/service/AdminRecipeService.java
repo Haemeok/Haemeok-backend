@@ -118,7 +118,7 @@ public class AdminRecipeService {
                 dto.getCookingTime(),
                 dto.getImageKey(),
                 dto.getYoutubeUrl(),
-                dto.getCookingTools(),
+                new HashSet<>(dto.getCookingTools()),
                 dto.getServings(),
                 null,
                 dto.getMarketPrice()

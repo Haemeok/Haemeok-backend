@@ -67,7 +67,8 @@ public class Recipe extends BaseTimeEntity {
     @CollectionTable(name = "recipe_cooking_tools", joinColumns = @JoinColumn(name = "recipe_id"))
     @Column(name = "tool", length = 50)
     @BatchSize(size = 10)
-    private List<String> cookingTools;
+    @Builder.Default
+    private Set<String> cookingTools = new HashSet<>();
 
     @Column(name = "is_ai_generated")
     @Builder.Default
@@ -105,6 +106,7 @@ public class Recipe extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
     @BatchSize(size = 10)
+    @Fetch(FetchMode.SUBSELECT)
     private List<RecipeStep> steps;
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
@@ -112,7 +114,7 @@ public class Recipe extends BaseTimeEntity {
     private List<RecipeLike> likes;
 
     public void update(String title, String description, DishType dishType, Integer cookingTime,
-                       String imageKey, String youtubeUrl, List<String> cookingTools, Integer servings,
+                       String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice) {
         this.title = title;
         this.description = description;

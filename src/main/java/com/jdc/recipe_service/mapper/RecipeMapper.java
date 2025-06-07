@@ -5,6 +5,8 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.type.DishType;
 
+import java.util.HashSet;
+
 public class RecipeMapper {
 
     public static Recipe toEntity(RecipeCreateRequestDto dto, User user) {
@@ -16,7 +18,7 @@ public class RecipeMapper {
                 .cookingTime(dto.getCookingTime())
                 .imageKey(dto.getImageKey())
                 .youtubeUrl(dto.getYoutubeUrl())
-                .cookingTools(dto.getCookingTools())
+                .cookingTools(new HashSet<>(dto.getCookingTools()))
                 .servings(dto.getServings())
                 .marketPrice(dto.getMarketPrice() != null ? dto.getMarketPrice() : null)
                 .totalIngredientCost(0)
