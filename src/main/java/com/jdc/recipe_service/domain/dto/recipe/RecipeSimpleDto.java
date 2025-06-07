@@ -3,6 +3,7 @@ package com.jdc.recipe_service.domain.dto.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.querydsl.core.annotations.QueryProjection;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -12,29 +13,51 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-
+@Schema(description = "레시피 간략 정보 DTO")
 /**
  * 레시피 단순 조히용
  */
 public class RecipeSimpleDto {
+
+    @Schema(description = "레시피 ID")
     private Long id;
+
+    @Schema(description = "레시피 제목")
     private String title;
+
+    @Schema(description = "레시피 대표 이미지 URL")
     private String imageUrl;
+
+    @Schema(description = "작성자 ID")
     private Long authorId;
+
+    @Schema(description = "작성자 닉네임")
     private String authorName;
+
+    @Schema(description = "작성자 프로필 이미지")
     private String profileImage;
+
     @JsonFormat(
             shape = JsonFormat.Shape.STRING,
             pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
             timezone = "UTC"
     )
+    @Schema(description = "생성일시 (UTC)")
     private LocalDateTime createdAt;
 
+    @Schema(description = "좋아요 수")
     private long likeCount;
+
+    @Schema(description = "현재 로그인한 사용자가 좋아요를 눌렀는지 여부")
     private boolean likedByCurrentUser;
 
+    @Schema(description = "평균 평점")
     private BigDecimal avgRating;
+
+    @Schema(description = "평점 참여 수")
     private Long ratingCount;
+
+    @Schema(description = "예상 조리 시간 (분 단위)")
     private Integer cookingTime;
 
     public void setLikedByCurrentUser(boolean b) {

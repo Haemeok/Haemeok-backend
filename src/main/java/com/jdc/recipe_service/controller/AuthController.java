@@ -15,20 +15,30 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Parameter;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+
 @RestController
 @RequestMapping("/api/token")
 @RequiredArgsConstructor
+@Tag(name = "인증 및 토큰 API", description = "Access/Refresh 토큰 재발급 및 로그아웃 관련 기능을 제공합니다.")
 public class AuthController {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
 
     @PostMapping("/refresh")
+    @Operation(
+            summary = "Access Token 재발급",
+            description = "유효한 Refresh Token 쿠키가 존재할 경우 새로운 Access Token을 발급합니다. Refresh Token도 갱신됩니다."
+    )
     public ResponseEntity<?> refreshAccessToken(
+            @Parameter(hidden = true)
             @CookieValue(name = "refreshToken", required = false) String refreshToken,
             HttpServletResponse response
     ) {
@@ -47,7 +57,6 @@ public class AuthController {
         String newAccessToken = jwtTokenProvider.createAccessToken(user);
         String newRefreshToken = jwtTokenProvider.createRefreshToken();
 
-        // 기존 토큰 갱신
         savedToken.setToken(newRefreshToken);
         savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(savedToken);
@@ -65,12 +74,17 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Operation(
+            summary = "로그아웃",
+            description = "현재 사용자의 Access Token을 검증하고, Refresh Token을 삭제하며 쿠키도 무효화합니다."
+    )
     public ResponseEntity<Void> logout(
+            @Parameter(description = "Access Token 헤더", example = "Bearer {accessToken}")
             @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Parameter(hidden = true)
             @CookieValue(value = "refreshToken", required = false) String refreshToken,
             HttpServletResponse response) {
 
-        // Authorization 헤더 유효성 검사
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
@@ -80,12 +94,10 @@ public class AuthController {
         }
 
         try {
-            // DB에 등록된 refreshToken 삭제 (없어도 무시)
             Optional.ofNullable(refreshToken)
                     .flatMap(refreshTokenRepository::findByToken)
                     .ifPresent(refreshTokenRepository::delete);
 
-            // 클라이언트 쿠키 삭제
             Cookie deleteCookie = new Cookie("refreshToken", null);
             deleteCookie.setHttpOnly(true);
             deleteCookie.setSecure(true);
@@ -102,7 +114,12 @@ public class AuthController {
 
     @PostMapping("/logout/all")
     @Transactional
+    @Operation(
+            summary = "전체 로그아웃",
+            description = "모든 기기에서 사용자의 Refresh Token을 삭제하여 전체 로그아웃을 수행합니다."
+    )
     public ResponseEntity<Void> logoutAll(
+            @Parameter(description = "Access Token 헤더", example = "Bearer {accessToken}")
             @RequestHeader(value = "Authorization", required = false) String authorization,
             HttpServletResponse response) {
 
@@ -115,7 +132,6 @@ public class AuthController {
         }
 
         Long userId = jwtTokenProvider.getUserIdFromToken(accessToken);
-
         refreshTokenRepository.deleteByUserId(userId);
 
         Cookie deleteCookie = new Cookie("refreshToken", null);

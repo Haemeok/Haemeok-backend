@@ -7,6 +7,10 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.AdminRecipeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,13 +26,15 @@ import java.util.Map;
 @RequestMapping("/api/admin/recipes")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
+@Tag(name = "관리자 전용 레시피 API", description = "크롤링된 레시피를 등록, 수정, 삭제하는 관리자 전용 API입니다.")
 public class AdminRecipeController {
 
     private final AdminRecipeService recipeService;
 
     @PostMapping
+    @Operation(summary = "크롤링 레시피 단건 등록", description = "관리자가 단일 크롤링 레시피를 저장합니다.")
     public ResponseEntity<Map<String, Long>> createCrawledRecipe(
-            @RequestBody @Valid RecipeCreateRequestDto dto,
+            @RequestBody(description = "크롤링 레시피 생성 요청 DTO") @Valid RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUser().getId();
         Long recipeId = recipeService.createRecipe(dto, userId);
@@ -36,8 +42,9 @@ public class AdminRecipeController {
     }
 
     @PostMapping("/bulk")
+    @Operation(summary = "크롤링 레시피 일괄 등록", description = "관리자가 여러 개의 크롤링 레시피를 한 번에 저장합니다.")
     public ResponseEntity<Map<String, Object>> createCrawledRecipesInBulk(
-            @RequestBody @Valid List<RecipeCreateRequestDto> recipes,
+            @RequestBody(description = "크롤링 레시피 리스트") @Valid List<RecipeCreateRequestDto> recipes,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = userDetails.getUser().getId();
@@ -51,8 +58,9 @@ public class AdminRecipeController {
     }
 
     @PostMapping("/with-images")
+    @Operation(summary = "크롤링 레시피 + 이미지 업로드 URL 발급", description = "레시피와 함께 이미지 업로드용 Presigned URL을 발급합니다.")
     public ResponseEntity<PresignedUrlResponse> createCrawledRecipeWithPresignedUrls(
-            @RequestBody RecipeWithImageUploadRequest request,
+            @RequestBody(description = "레시피 + 이미지 요청 DTO") RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUser().getId();
         PresignedUrlResponse response = recipeService.createRecipeAndPresignedUrls(request, userId);
@@ -60,9 +68,10 @@ public class AdminRecipeController {
     }
 
     @PutMapping("/{recipeId}")
+    @Operation(summary = "크롤링 레시피 수정", description = "관리자가 기존의 크롤링 레시피를 수정합니다.")
     public ResponseEntity<Map<String, Long>> updateCrawledRecipe(
-            @PathVariable Long recipeId,
-            @RequestBody RecipeCreateRequestDto dto,
+            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @RequestBody(description = "수정할 레시피 정보") RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = userDetails.getUser().getId();
@@ -71,8 +80,9 @@ public class AdminRecipeController {
     }
 
     @DeleteMapping("/{recipeId}")
+    @Operation(summary = "크롤링 레시피 삭제", description = "관리자가 특정 크롤링 레시피를 삭제합니다.")
     public ResponseEntity<String> deleteCrawledRecipe(
-            @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {

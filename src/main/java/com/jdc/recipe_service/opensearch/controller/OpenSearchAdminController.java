@@ -1,10 +1,14 @@
 package com.jdc.recipe_service.opensearch.controller;
+
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.service.OpenSearchIndexService;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -19,16 +23,15 @@ import java.util.Objects;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/opensearch")
+@Tag(name = "OpenSearch 관리 API", description = "OpenSearch 인덱스 생성, 삭제, 재색인을 위한 관리자 전용 API입니다.")
 public class OpenSearchAdminController {
 
     private final OpenSearchIndexService indexService;
     private final RecipeIndexingService recipeIndexingService;
     private final RecipeRepository recipeRepository;
 
-    /**
-     * 'ingredients' 인덱스를 삭제하고 재생성 모든 재료를 다시 인덱싱
-     */
     @PostMapping("/ingredients/index")
+    @Operation(summary = "재료 인덱스 재생성", description = "'ingredients' 인덱스를 삭제하고 재생성하며 전체 재료를 다시 인덱싱합니다.")
     public ResponseEntity<Map<String, ?>> recreateIngredientsIndex() {
         log.info("재료 인덱스 재생성 시작");
         try {
@@ -56,20 +59,17 @@ public class OpenSearchAdminController {
         }
     }
 
-    /**
-     * 'ingredients' 인덱스를 삭제
-     */
     @DeleteMapping("/ingredients/index")
+    @Operation(summary = "재료 인덱스 삭제", description = "'ingredients' 인덱스를 삭제합니다.")
     public ResponseEntity<Map<String, Boolean>> deleteIngredientsIndex() {
         boolean deleted = indexService.deleteIngredientIndex();
         return ResponseEntity.ok(Map.of("deleted", deleted));
     }
 
-    /**
-     * 지정한 이름의 인덱스를 삭제
-     */
     @DeleteMapping("/index/{name}")
+    @Operation(summary = "지정 인덱스 삭제", description = "지정한 이름의 인덱스를 삭제합니다.")
     public ResponseEntity<Map<String, ?>> deleteIndexByName(
+            @Parameter(description = "삭제할 인덱스 이름")
             @PathVariable String name) {
         log.info("관리자 요청: 인덱스 '{}' 삭제", name);
         try {
@@ -94,8 +94,8 @@ public class OpenSearchAdminController {
         }
     }
 
-    /** recipes 인덱스를 생성하는 관리자용 API */
     @PostMapping("/create-recipes-index")
+    @Operation(summary = "레시피 인덱스 생성", description = "OpenSearch에 'recipes' 인덱스를 생성합니다.")
     public ResponseEntity<?> createRecipesIndex() {
         try {
             boolean ok = recipeIndexingService.createRecipeIndex();
@@ -109,6 +109,7 @@ public class OpenSearchAdminController {
     }
 
     @PostMapping("/create-ingredients-index")
+    @Operation(summary = "재료 인덱스 생성", description = "OpenSearch에 'ingredients' 인덱스를 새로 생성합니다.")
     public ResponseEntity<Map<String, ?>> createIngredientsIndex() {
         log.info("재료 인덱스 생성 시작");
         try {
@@ -145,8 +146,8 @@ public class OpenSearchAdminController {
         }
     }
 
-    /** 전체 레시피를 한 번에 색인합니다 */
     @PostMapping("/reindex-recipes")
+    @Operation(summary = "레시피 전체 재색인", description = "모든 레시피 데이터를 OpenSearch에 다시 색인합니다.")
     public ResponseEntity<Map<String, Boolean>> reindexAllRecipes() {
         recipeRepository.findAll().stream()
                 .filter(Objects::nonNull)
