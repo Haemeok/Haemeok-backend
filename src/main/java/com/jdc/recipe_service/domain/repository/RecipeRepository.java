@@ -77,7 +77,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     Optional<Recipe> findById(Long id);
 
     @EntityGraph(attributePaths = {
-            "ingredients.ingredient",
+            "user",
             "tags.tag"
     })
     Optional<Recipe> findWithAllRelationsById(Long id);

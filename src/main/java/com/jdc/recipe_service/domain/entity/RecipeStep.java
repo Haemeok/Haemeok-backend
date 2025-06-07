@@ -3,6 +3,8 @@ package com.jdc.recipe_service.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +41,7 @@ public class RecipeStep {
 
     @OneToMany(mappedBy = "step", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 10)
+    @Fetch(FetchMode.SUBSELECT)
     @Builder.Default
     private List<RecipeStepIngredient> stepIngredients = new ArrayList<>();
 

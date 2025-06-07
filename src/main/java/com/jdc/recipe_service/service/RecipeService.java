@@ -240,7 +240,7 @@ public class RecipeService {
                 dto.getCookingTime(),
                 dto.getImageKey(),
                 null,
-                dto.getCookingTools(),
+                new HashSet<>(dto.getCookingTools()),
                 dto.getServings(),
                 null,
                 dto.getMarketPrice()
