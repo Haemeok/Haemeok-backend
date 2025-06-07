@@ -7,7 +7,10 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeComment;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.projection.CommentLikeCountProjection;
-import com.jdc.recipe_service.domain.repository.*;
+import com.jdc.recipe_service.domain.repository.CommentLikeRepository;
+import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
+import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
@@ -36,7 +39,7 @@ public class CommentService {
 
         List<Long> commentIds = comments.stream()
                 .map(RecipeComment::getId)
-                .toList();
+                .collect(Collectors.toList());
 
         Map<Long, Integer> likeCountMap = commentLikeRepository
                 .countLikesByCommentIds(commentIds).stream()
@@ -53,14 +56,14 @@ public class CommentService {
                 .map(c -> {
                     int likeCount = likeCountMap.getOrDefault(c.getId(), 0);
                     boolean isLiked = likedIds.contains(c.getId());
-                    int replyCount = c.getReplies().size();
+                    int replyCount = Optional.ofNullable(c.getReplies()).orElse(List.of()).size();
 
                     return CommentMapper.toDto(c, isLiked, likeCount)
                             .toBuilder()
                             .replyCount(replyCount)
                             .build();
                 })
-                .toList();
+                .collect(Collectors.toList());
     }
 
     public CommentDto createComment(Long recipeId, CommentRequestDto dto, User user) {
@@ -109,11 +112,14 @@ public class CommentService {
         }
 
         List<Long> allIds = comments.stream()
-                .flatMap(c -> Stream.concat(
-                        Stream.of(c.getId()),
-                        c.getReplies().stream().map(RecipeComment::getId)
-                ))
-                .toList();
+                .flatMap(c -> {
+                    Long parentId = c.getId();
+                    Stream<Long> replyIds = Optional.ofNullable(c.getReplies())
+                            .orElse(List.of())
+                            .stream().map(RecipeComment::getId);
+                    return Stream.concat(Stream.of(parentId), replyIds);
+                })
+                .collect(Collectors.toList());
 
         Map<Long, Integer> likeCountMap = commentLikeRepository
                 .countLikesByCommentIds(allIds).stream()
@@ -128,23 +134,26 @@ public class CommentService {
 
         List<CommentDto> dtos = comments.stream()
                 .map(comment -> {
-                    List<ReplyDto> replies = comment.getReplies().stream()
-                            .map(r -> CommentMapper.toReplyDto(
-                                    r,
-                                    likedByUser.contains(r.getId()),
-                                    likeCountMap.getOrDefault(r.getId(), 0)
-                            ))
-                            .toList();
+                    int parentLikeCount = likeCountMap.getOrDefault(comment.getId(), 0);
+                    boolean parentLiked = likedByUser.contains(comment.getId());
+                    int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of()).size();
 
-                    return CommentMapper.toDto(
-                                    comment,
-                                    likedByUser.contains(comment.getId()),
-                                    likeCountMap.getOrDefault(comment.getId(), 0)
-                            ).toBuilder()
-                            .replyCount(replies.size())
+                    List<ReplyDto> replies = Optional.ofNullable(comment.getReplies())
+                            .orElse(List.of())
+                            .stream()
+                            .map(r -> {
+                                int rc = likeCountMap.getOrDefault(r.getId(), 0);
+                                boolean rl = likedByUser.contains(r.getId());
+                                return CommentMapper.toReplyDto(r, rl, rc);
+                            })
+                            .collect(Collectors.toList());
+
+                    return CommentMapper.toDto(comment, parentLiked, parentLikeCount)
+                            .toBuilder()
+                            .replyCount(replyCount)
                             .build();
                 })
-                .toList();
+                .collect(Collectors.toList());
 
         List<CommentDto> sorted = new ArrayList<>(dtos);
         if (pageable.getSort().isSorted()) {
@@ -160,9 +169,7 @@ public class CommentService {
 
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), sorted.size());
-        List<CommentDto> pageContent = start >= sorted.size()
-                ? List.of()
-                : sorted.subList(start, end);
+        List<CommentDto> pageContent = start >= sorted.size() ? List.of() : sorted.subList(start, end);
 
         return new PageImpl<>(pageContent, pageable, sorted.size());
     }
@@ -176,7 +183,7 @@ public class CommentService {
         boolean isLiked = currentUserId != null
                 && commentLikeRepository.existsByCommentIdAndUserId(commentId, currentUserId);
 
-        int replyCount = comment.getReplies().size();
+        int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of()).size();
 
         return CommentMapper.toDto(comment, isLiked, likeCount)
                 .toBuilder()
@@ -184,7 +191,6 @@ public class CommentService {
                 .build();
     }
 
-    @Transactional
     public void deleteComment(Long commentId, Long userId) {
         RecipeComment comment = recipeCommentRepository.findById(commentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
@@ -194,19 +200,18 @@ public class CommentService {
 
         List<Long> toDeleteIds = Stream.concat(
                 Stream.of(commentId),
-                comment.getReplies().stream().map(RecipeComment::getId)
-        ).toList();
+                Optional.ofNullable(comment.getReplies()).orElse(List.of()).stream().map(RecipeComment::getId)
+        ).collect(Collectors.toList());
         commentLikeRepository.deleteByCommentIdIn(toDeleteIds);
 
         recipeCommentRepository.delete(comment);
     }
 
-    @Transactional
     public void deleteAllByRecipeId(Long recipeId) {
         List<RecipeComment> comments = recipeCommentRepository.findByRecipeId(recipeId);
         List<Long> commentIds = comments.stream()
                 .map(RecipeComment::getId)
-                .toList();
+                .collect(Collectors.toList());
 
         if (!commentIds.isEmpty()) {
             commentLikeRepository.deleteByCommentIdIn(commentIds);
@@ -227,9 +232,13 @@ public class CommentService {
         Page<RecipeComment> replyPage =
                 recipeCommentRepository.findByParentCommentId(parentId, dbPageable);
 
+        if (replyPage.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+
         List<Long> replyIds = replyPage.getContent().stream()
                 .map(RecipeComment::getId)
-                .toList();
+                .collect(Collectors.toList());
 
         Map<Long, Integer> likeCounts = commentLikeRepository
                 .countLikesByCommentIds(replyIds).stream()
@@ -243,12 +252,12 @@ public class CommentService {
                 : Collections.emptySet();
 
         List<ReplyDto> dtos = replyPage.getContent().stream()
-                .map(r -> CommentMapper.toReplyDto(
-                        r,
-                        likedIds.contains(r.getId()),
-                        likeCounts.getOrDefault(r.getId(), 0)
-                ))
-                .toList();
+                .map(r -> {
+                    int lc = likeCounts.getOrDefault(r.getId(), 0);
+                    boolean il = likedIds.contains(r.getId());
+                    return CommentMapper.toReplyDto(r, il, lc);
+                })
+                .collect(Collectors.toCollection(ArrayList::new));
 
         if (likeOrder != null) {
             Comparator<ReplyDto> comp = Comparator.comparing(ReplyDto::getLikeCount);
@@ -261,3 +270,4 @@ public class CommentService {
         return new PageImpl<>(dtos, pageable, replyPage.getTotalElements());
     }
 }
+
