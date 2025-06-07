@@ -39,18 +39,14 @@ public class RecipeStepService {
     @Transactional
     public void saveAll(Recipe recipe, List<RecipeStepRequestDto> dtos) {
         Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
-        int actionImageIndex = actionImageService.generateRandomIndex();
 
         for (RecipeStepRequestDto dto : dtos) {
-            if (actionImageService.isSupportedAction(dto.getAction())) {
-                dto.updateImageKey(actionImageService.generateImageKey(dto.getAction(), actionImageIndex));
-            }
-
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
             recipeStepRepository.save(step);
             saveStepIngredients(dto.getIngredients(), step, riMap);
         }
     }
+
 
     @Transactional
     public void saveAllFromUser(Recipe recipe, List<RecipeStepRequestDto> dtos) {
