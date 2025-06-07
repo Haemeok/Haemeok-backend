@@ -1,7 +1,5 @@
 package com.jdc.recipe_service.controller;
 
-import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
@@ -10,7 +8,9 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeService;
-import com.jdc.recipe_service.util.PromptBuilder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,15 +23,17 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/recipes")
 @RequiredArgsConstructor
+@Tag(name = "레시피 관리 API", description = "레시피 생성, 수정, 삭제 및 비공개 설정을 위한 API입니다.")
 public class RecipeController {
 
     private final RecipeService recipeService;
 
     @PostMapping
+    @Operation(summary = "레시피 생성 + 이미지 Presigned URL 발급", description = "레시피 생성 요청과 함께 이미지 업로드용 Presigned URL을 발급합니다. source 값에 따라 AI 생성 또는 유저 입력을 구분합니다.")
     public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
-            @RequestParam(value = "source", required = false) String source,
-            @RequestParam(value = "robotType", required = false) RobotType robotTypeParam,
-            @RequestBody @Valid RecipeWithImageUploadRequest request,
+            @Parameter(description = "레시피 생성 출처 (예: AI, USER)") @RequestParam(value = "source", required = false) String source,
+            @Parameter(description = "AI 레시피 생성 시 사용할 로봇 타입 (예: CLASSIC, FUNNY 등)") @RequestParam(value = "robotType", required = false) RobotType robotTypeParam,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "레시피 생성 요청 DTO (이미지 키 포함)") @RequestBody @Valid RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -51,9 +53,10 @@ public class RecipeController {
     }
 
     @PutMapping("/{recipeId}")
+    @Operation(summary = "레시피 수정", description = "기존 레시피를 수정하고 이미지가 변경된 경우 Presigned URL을 다시 발급합니다.")
     public ResponseEntity<PresignedUrlResponse> updateRecipe(
-            @PathVariable Long recipeId,
-            @RequestBody @Valid RecipeWithImageUploadRequest request,
+            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "수정할 레시피 정보") @RequestBody @Valid RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -69,10 +72,10 @@ public class RecipeController {
         return ResponseEntity.ok(response);
     }
 
-
     @DeleteMapping("/{recipeId}")
+    @Operation(summary = "레시피 삭제", description = "지정한 레시피를 삭제합니다. 작성자 본인만 삭제할 수 있습니다.")
     public ResponseEntity<String> deleteRecipe(
-            @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -84,8 +87,9 @@ public class RecipeController {
     }
 
     @PostMapping("/{recipeId}/private")
+    @Operation(summary = "레시피 공개/비공개 전환", description = "레시피의 공개 여부를 토글합니다. 공개 → 비공개 또는 비공개 → 공개로 전환됩니다.")
     public ResponseEntity<?> togglePrivacy(
-            @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
@@ -100,6 +104,4 @@ public class RecipeController {
                 "message", newIsPrivate ? "레시피가 비공개로 전환되었습니다." : "레시피가 공개로 전환되었습니다."
         ));
     }
-
-
 }
