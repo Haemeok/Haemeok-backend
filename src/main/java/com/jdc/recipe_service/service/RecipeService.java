@@ -86,9 +86,8 @@ public class RecipeService {
         processingRequest.getRecipe().getSteps().forEach(step -> {
             String actionName = step.getAction();
             int imageIndex = robotTypeParam.ordinal() + 1;
-            String imageKey = actionImageService.generateImageKey(actionName, imageIndex);
-            String imageUrl = actionImageService.generateImageUrl(imageKey);
-            step.updateImageKey(imageUrl);
+            String key = actionImageService.generateImageKey(actionName, imageIndex);
+            step.updateImageKey(key);
         });
         return createUserRecipeAndGenerateUrls(processingRequest, userId, sourceType);
     }
@@ -233,6 +232,10 @@ public class RecipeService {
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
 
+        Set<String> tools = dto.getCookingTools() != null
+                ? new HashSet<>(dto.getCookingTools())
+                : Collections.emptySet();
+
         recipe.update(
                 dto.getTitle(),
                 dto.getDescription(),
@@ -240,7 +243,7 @@ public class RecipeService {
                 dto.getCookingTime(),
                 dto.getImageKey(),
                 null,
-                new HashSet<>(dto.getCookingTools()),
+                tools,
                 dto.getServings(),
                 null,
                 dto.getMarketPrice()

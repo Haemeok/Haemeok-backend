@@ -42,11 +42,13 @@ public class RecipeStepService {
 
         for (RecipeStepRequestDto dto : dtos) {
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
+            if (dto.getImageKey() != null) {
+                step.updateStepImageKey(dto.getImageKey());
+            }
             recipeStepRepository.save(step);
             saveStepIngredients(dto.getIngredients(), step, riMap);
         }
     }
-
 
     @Transactional
     public void saveAllFromUser(Recipe recipe, List<RecipeStepRequestDto> dtos) {
@@ -54,6 +56,7 @@ public class RecipeStepService {
 
         for (RecipeStepRequestDto dto : dtos) {
             RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
+            step.updateStepImageKey(dto.getImageKey());
             recipeStepRepository.save(step);
             saveStepIngredients(dto.getIngredients(), step, riMap);
         }
@@ -73,6 +76,8 @@ public class RecipeStepService {
                 .filter(s -> !newNums.contains(s.getStepNumber()))
                 .forEach(recipeStepRepository::delete);
 
+        boolean ai = recipe.isAiGenerated();
+
         for (RecipeStepRequestDto dto : dtos) {
             RecipeStep step = existingMap.get(dto.getStepNumber());
             if (step == null) {
@@ -80,8 +85,13 @@ public class RecipeStepService {
                 recipeStepRepository.save(step);
             } else {
                 step.updateInstruction(dto.getInstruction());
-                step.updateStepImageKey(dto.getImageKey());
                 step.updateAction(dto.getAction());
+            }
+            if (ai) {
+                String key = actionImageService.generateImageKey(dto.getAction(), dto.getStepNumber());
+                step.updateStepImageKey(key);
+            } else {
+                step.updateStepImageKey(dto.getImageKey());
             }
             updateStepIngredients(step, dto.getIngredients(), riMap);
         }
@@ -105,11 +115,11 @@ public class RecipeStepService {
             RecipeStep step = existingMap.get(dto.getStepNumber());
             if (step == null) {
                 step = RecipeStepMapper.toEntity(dto, recipe);
-                recipeStepRepository.save(step);
             } else {
                 step.updateInstruction(dto.getInstruction());
-                step.updateStepImageKey(dto.getImageKey());
             }
+            step.updateStepImageKey(dto.getImageKey());
+            recipeStepRepository.save(step);
             updateStepIngredients(step, dto.getIngredients(), riMap);
         }
     }
@@ -214,12 +224,15 @@ public class RecipeStepService {
         }
     }
 
+    private void deleteAllStepIngredients(RecipeStep step) {
+        recipeStepIngredientRepository.deleteByStepId(step.getId());
+    }
 
     @Transactional
     public void deleteAllByRecipeId(Long recipeId) {
         List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
         for (RecipeStep step : steps) {
-            recipeStepIngredientRepository.deleteByStepId(step.getId());
+            deleteAllStepIngredients(step);
         }
         recipeStepRepository.deleteByRecipeId(recipeId);
     }
@@ -229,13 +242,9 @@ public class RecipeStepService {
                 .findByRecipeId(recipeId)
                 .stream()
                 .collect(Collectors.toMap(
-                        ri -> {
-                            if (ri.getIngredient() != null) {
-                                return ri.getIngredient().getName().toLowerCase().trim();
-                            } else {
-                                return ri.getCustomName().toLowerCase().trim();
-                            }
-                        },
+                        ri -> ri.getIngredient() != null
+                                ? ri.getIngredient().getName().toLowerCase().trim()
+                                : ri.getCustomName().toLowerCase().trim(),
                         Function.identity()
                 ));
     }

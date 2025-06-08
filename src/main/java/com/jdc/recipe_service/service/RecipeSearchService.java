@@ -50,6 +50,9 @@ public class RecipeSearchService {
     private final RecipeLikeRepository recipeLikeRepository;
     private final RecipeFavoriteRepository recipeFavoriteRepository;
     private final RecipeCommentRepository recipeCommentRepository;
+    private final RecipeIngredientRepository recipeIngredientRepository;
+    private final RecipeStepRepository recipeStepRepository;
+    private final RecipeTagRepository recipeTagRepository;
 
     private final RecipeRatingService recipeRatingService;
     private final CommentService commentService;
@@ -227,11 +230,11 @@ public class RecipeSearchService {
 
     @Transactional(readOnly = true)
     public RecipeDetailDto getRecipeDetail(Long recipeId, Long currentUserId) {
-        Recipe recipe = recipeRepository.findWithAllRelationsById(recipeId)
+        Recipe basic = recipeRepository.findWithUserById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
-        if (recipe.getIsPrivate() &&
-                (currentUserId == null || !recipe.getUser().getId().equals(currentUserId))) {
+        if (basic.getIsPrivate()
+                && (currentUserId == null || !basic.getUser().getId().equals(currentUserId))) {
             throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
         }
 
@@ -242,55 +245,57 @@ public class RecipeSearchService {
                 recipeFavoriteRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
 
         RecipeRatingInfoDto ratingInfo = RecipeRatingInfoDto.builder()
-                .avgRating(recipe.getAvgRating())
+                .avgRating(basic.getAvgRating())
                 .myRating(recipeRatingService.getMyRating(recipeId, currentUserId))
                 .ratingCount(recipeRatingService.getRatingCount(recipeId))
                 .build();
 
-        UserDto authorDto = UserMapper.toSimpleDto(recipe.getUser());
+        UserDto authorDto = UserMapper.toSimpleDto(basic.getUser());
 
-        List<String> tagNames = recipe.getTags().stream()
+        List<String> tagNames = recipeTagRepository.findByRecipeId(recipeId)
+                .stream()
                 .map(rt -> rt.getTag().getDisplayName())
                 .collect(Collectors.toList());
 
         List<RecipeIngredientDto> ingredients = RecipeIngredientMapper.toDtoList(
-                recipe.getIngredients()
+                recipeIngredientRepository.findByRecipeId(recipeId)
         );
 
-        List<RecipeStepDto> steps = recipe.getSteps().stream().map(step -> {
-            List<RecipeStepIngredientDto> usedIngredients =
-                    StepIngredientMapper.toDtoList(step.getStepIngredients());
-            String stepImageUrl = generateImageUrl(step.getImageKey());
-            return RecipeStepMapper.toDto(step, usedIngredients, stepImageUrl, step.getImageKey());
-        }).collect(Collectors.toList());
+        List<RecipeStepDto> steps = recipeStepRepository
+                .findWithIngredientsByRecipeIdOrderByStepNumber(recipeId)
+                .stream()
+                .map(step -> {
+                    var used = StepIngredientMapper.toDtoList(step.getStepIngredients());
+                    var url  = generateImageUrl(step.getImageKey());
+                    return RecipeStepMapper.toDto(step, used, url, step.getImageKey());
+                })
+                .collect(Collectors.toList());
 
-        List<CommentDto> commentDtos = commentService.getTop3CommentsWithLikes(recipeId, currentUserId);
+        List<CommentDto> comments = commentService.getTop3CommentsWithLikes(recipeId, currentUserId);
+        long commentCount = recipeCommentRepository.countByRecipeId(recipeId);
 
-        int totalCost = recipe.getTotalIngredientCost() != null
-                ? recipe.getTotalIngredientCost() : 0;
-        int marketPrice = recipe.getMarketPrice() != null
-                ? recipe.getMarketPrice() : 0;
-        int savings = marketPrice - totalCost;
+        int totalCost   = basic.getTotalIngredientCost() != null ? basic.getTotalIngredientCost() : 0;
+        int marketPrice = basic.getMarketPrice()               != null ? basic.getMarketPrice()               : 0;
+        int savings     = marketPrice - totalCost;
 
-        List<String> cookingTools = new ArrayList<>(recipe.getCookingTools());
+        List<String> tools = new ArrayList<>(basic.getCookingTools());
 
         return RecipeDetailDto.builder()
-                .id(recipe.getId())
-                .title(recipe.getTitle())
-                .dishType(recipe.getDishType().getDisplayName())
-                .description(recipe.getDescription())
-                .cookingTime(recipe.getCookingTime())
+                .id(recipeId)
+                .title(basic.getTitle())
+                .dishType(basic.getDishType().getDisplayName())
+                .description(basic.getDescription())
+                .cookingTime(basic.getCookingTime())
                 .ratingInfo(ratingInfo)
-                .imageUrl(generateImageUrl(recipe.getImageKey()))
-                .imageKey(recipe.getImageKey())
-                .imageStatus(recipe.getImageStatus() != null
-                        ? recipe.getImageStatus().name()
-                        : null)
-                .youtubeUrl(recipe.getYoutubeUrl())
-                .cookingTools(cookingTools)
-                .servings(recipe.getServings())
-                .isPrivate(recipe.getIsPrivate())
-                .isAiGenerated(recipe.isAiGenerated())
+                .imageUrl(generateImageUrl(basic.getImageKey()))
+                .imageKey(basic.getImageKey())
+                .imageStatus(basic.getImageStatus() != null
+                        ? basic.getImageStatus().name() : null)
+                .youtubeUrl(basic.getYoutubeUrl())
+                .cookingTools(tools)
+                .servings(basic.getServings())
+                .isPrivate(basic.getIsPrivate())
+                .isAiGenerated(basic.isAiGenerated())
                 .marketPrice(marketPrice)
                 .totalIngredientCost(totalCost)
                 .savings(savings)
@@ -301,12 +306,14 @@ public class RecipeSearchService {
                 .tags(tagNames)
                 .ingredients(ingredients)
                 .steps(steps)
-                .comments(commentDtos)
-                .commentCount(recipeCommentRepository.countByRecipeId(recipeId))
-                .createdAt(recipe.getCreatedAt())
-                .updatedAt(recipe.getUpdatedAt())
+                .comments(comments)
+                .commentCount(commentCount)
+                .createdAt(basic.getCreatedAt())
+                .updatedAt(basic.getUpdatedAt())
                 .build();
     }
+
+
 
 
     @Scheduled(initialDelay = 5000, fixedRate = 10000)
