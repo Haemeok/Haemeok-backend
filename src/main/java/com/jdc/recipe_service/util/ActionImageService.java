@@ -26,7 +26,7 @@ public class ActionImageService {
         if (!isSupportedAction(action)) {
             return null;
         }
-        return String.format("%s/%s/%d.jpg",
+        return String.format("%s/%s/%d.png",
                 ACTION_BASE_PATH,
                 action,
                 index
