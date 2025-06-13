@@ -43,6 +43,9 @@ public class User extends BaseTimeEntity {
     @Column(length = 255)
     private String introduction;
 
+    @Column(name = "survey_completed", nullable = false)
+    private boolean surveyCompleted = false;
+
 
     public void updateProfile(String nickname, String profileImage, String introduction) {
         if (nickname     != null) this.nickname     = nickname;
@@ -53,5 +56,8 @@ public class User extends BaseTimeEntity {
         if (profileImageKey != null && !profileImageKey.isBlank()) {
             this.profileImageKey = profileImageKey;
         }
+    }
+    public void markSurveyCompleted() {
+        this.surveyCompleted = true;
     }
 }

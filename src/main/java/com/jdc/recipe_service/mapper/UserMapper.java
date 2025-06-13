@@ -46,6 +46,7 @@ public class UserMapper {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .provider(user.getProvider())
+                .surveyCompleted(user.isSurveyCompleted())
                 .build();
     }
 

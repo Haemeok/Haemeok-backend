@@ -72,6 +72,7 @@ public class SecurityConfig {
                                     "/api/me/fridge/items",
                                     "/api/me/calendar/**",
                                     "/api/me/streak",
+                                    "/api/me/survey",
                                     "/api/ratings/recipe/*/me",
                                     "/api/users/*/profile-image/presign"
                             ).authenticated()
@@ -79,6 +80,7 @@ public class SecurityConfig {
                             // 4) 보호된 POST
                             .requestMatchers(HttpMethod.POST,
                                     "/api/me/fridge/items",
+                                    "/api/me/survey",
                                     "/api/recipes/*/comments",
                                     "/api/recipes/*/comments/*/replies",
                                     "/api/comments/*/like",
@@ -166,6 +168,7 @@ public class SecurityConfig {
                                 "/api/me/fridge/items",
                                 "/api/me/calendar/**",
                                 "/api/me/streak",
+                                "/api/me/survey",
                                 "/api/ratings/recipe/*/me",
                                 "/api/users/*/profile-image/presign"
                         ).authenticated()
@@ -199,6 +202,7 @@ public class SecurityConfig {
                                 "/api/recipes/*/favorite",
                                 "/api/me/fridge/items",
                                 "/api/me/fridge/items/bulk",
+                                "/api/me/survey",
                                 "/api/ratings/recipe/*",
                                 "/api/token/logout",
                                 "/api/token/logout/all",
