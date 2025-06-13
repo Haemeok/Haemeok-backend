@@ -30,5 +30,5 @@ public class UserResponseDTO {
 
     private String provider;
 
-
+    private boolean surveyCompleted;
 }

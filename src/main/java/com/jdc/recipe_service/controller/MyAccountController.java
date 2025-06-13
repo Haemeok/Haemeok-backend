@@ -5,10 +5,12 @@ import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.user.UserPatchDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
+import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.CookingRecordService;
+import com.jdc.recipe_service.service.SurveyService;
 import com.jdc.recipe_service.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,6 +35,7 @@ public class MyAccountController {
 
     private final UserService userService;
     private final CookingRecordService cookingService;
+    private final SurveyService surveyService;
 
     @GetMapping
     @Operation(summary = "내 정보 조회", description = "현재 로그인한 사용자의 정보를 조회합니다.")
@@ -114,4 +117,35 @@ public class MyAccountController {
         CookingStreakDto stats = cookingService.getCookingStreakInfo(userId);
         return ResponseEntity.ok(stats);
     }
+
+    @GetMapping("/survey")
+    @Operation(summary = "내 설문조사 정보 조회", description = "개인화 추천을 위한 나의 설문조사 결과를 조회합니다.")
+    public ResponseEntity<UserSurveyDto> getMySurvey(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
+        Long userId = userDetails.getUser().getId();
+        return ResponseEntity.ok(surveyService.getSurvey(userId));
+    }
+
+    @PostMapping("/survey")
+    @Operation(
+            summary = "내 설문조사 저장 또는 수정",
+            description = "나의 설문조사 결과를 저장하거나 수정합니다."
+    )
+    public ResponseEntity<String> saveMySurvey(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody UserSurveyDto dto) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
+
+        Long userId = userDetails.getUser().getId();
+        surveyService.saveOrUpdate(userId, dto);
+        return ResponseEntity.ok("설문조사가 완료되었습니다.");
+    }
+
 }

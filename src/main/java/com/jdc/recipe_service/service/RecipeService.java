@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.url.*;
+import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
@@ -49,6 +50,7 @@ public class RecipeService {
     private final ObjectMapper objectMapper;
     private final AsyncImageService asyncImageService;
     private final ActionImageService actionImageService;
+    private final SurveyService surveyService;
 
     @Transactional
     public PresignedUrlResponse createRecipeWithAiLogic(
@@ -75,13 +77,28 @@ public class RecipeService {
             );
         }
 
+        UserSurveyDto survey = surveyService.getSurvey(userId);
+
+        AiRecipeRequestDto aiReq = request.getAiRequest();
+        if (survey != null) {
+            if (survey.getSpiceLevel() != null) {
+                aiReq.setSpiceLevel(survey.getSpiceLevel());
+            }
+            aiReq.setSaltiness(survey.getSaltiness());
+            aiReq.setAllergy(survey.getAllergy());
+            aiReq.setDietType(survey.getDietType());
+            if (aiReq.getTagNames() == null || aiReq.getTagNames().isEmpty()) {
+                aiReq.setTagNames(new ArrayList<>(survey.getTags()));
+            }
+        }
+
         String prompt = PromptBuilder.buildPrompt(
-                request.getAiRequest(),
+                aiReq,
                 robotTypeParam
         );
 
         RecipeWithImageUploadRequest processingRequest =
-                buildRecipeFromAiRequest(prompt, request.getAiRequest(), request.getFiles());
+                buildRecipeFromAiRequest(prompt, aiReq, request.getFiles());
 
         processingRequest.getRecipe().getSteps().forEach(step -> {
             String actionName = step.getAction();
@@ -89,6 +106,7 @@ public class RecipeService {
             String key = actionImageService.generateImageKey(actionName, imageIndex);
             step.updateImageKey(key);
         });
+
         return createUserRecipeAndGenerateUrls(processingRequest, userId, sourceType);
     }
 
