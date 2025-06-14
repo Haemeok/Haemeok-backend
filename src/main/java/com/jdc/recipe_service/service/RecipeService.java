@@ -23,6 +23,8 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -111,54 +113,49 @@ public class RecipeService {
     }
 
     @Transactional
-    public PresignedUrlResponse createUserRecipeAndGenerateUrls(RecipeWithImageUploadRequest req, Long userId, RecipeSourceType sourceType) {
+    public PresignedUrlResponse createUserRecipeAndGenerateUrls(
+            RecipeWithImageUploadRequest req,
+            Long userId,
+            RecipeSourceType sourceType
+    ) {
         User user = getUserOrThrow(userId);
         RecipeCreateRequestDto dto = req.getRecipe();
-
         if (dto == null) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 생성 요청 데이터(dto)가 null입니다.");
+            throw new CustomException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "레시피 생성 요청 데이터(dto)가 null입니다."
+            );
         }
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
 
-        if (sourceType != RecipeSourceType.AI) {
-            boolean hasMainImage = req.getFiles() != null &&
-                    req.getFiles().stream().anyMatch(f -> "main".equals(f.getType()));
-            if (!hasMainImage) {
-                throw new CustomException(ErrorCode.USER_RECIPE_IMAGE_REQUIRED);
-            }
-        }
-
         if (sourceType == RecipeSourceType.AI) {
             recipe.updateIsPrivate(true);
             recipe.updateImageStatus(RecipeImageStatus.PENDING);
         } else {
-            if (dto.getIsPrivate() == null) {
-                recipe.updateIsPrivate(false);
-            } else {
-                recipe.updateIsPrivate(dto.getIsPrivate());
+            boolean hasMain = req.getFiles() != null &&
+                    req.getFiles().stream().anyMatch(f -> "main".equals(f.getType()));
+            if (!hasMain) {
+                throw new CustomException(ErrorCode.USER_RECIPE_IMAGE_REQUIRED);
             }
+            recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
         }
-        recipeRepository.save(recipe);
 
-        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), sourceType);
+        recipeRepository.save(recipe);
+        int totalCost = recipeIngredientService
+                .saveAll(recipe, dto.getIngredients(), sourceType);
         recipe.updateTotalIngredientCost(totalCost);
 
         Integer providedMp = dto.getMarketPrice();
-        int marketPrice;
-        if (providedMp != null && providedMp > 0) {
-            marketPrice = providedMp;
-        } else if (totalCost > 0) {
-            int randomPercent = PricingUtil.randomizeMarginPercent(30);
-            marketPrice = PricingUtil.applyMargin(totalCost, randomPercent);
-        } else {
-            marketPrice = 0;
-        }
+        int marketPrice = (providedMp != null && providedMp > 0)
+                ? providedMp
+                : (totalCost > 0
+                ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(30))
+                : 0);
         recipe.updateMarketPrice(marketPrice);
 
         recipeRepository.flush();
-
         if (sourceType == RecipeSourceType.AI) {
             recipeStepService.saveAll(recipe, dto.getSteps());
         } else {
@@ -168,23 +165,30 @@ public class RecipeService {
 
         em.flush();
         em.clear();
-
-        Long id = recipe.getId();
-
-        Recipe full = recipeRepository.findWithAllRelationsById(id)
-                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
-
+        Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
+                .orElseThrow(() -> new CustomException(
+                        ErrorCode.RECIPE_NOT_FOUND, "생성된 레시피를 조회할 수 없습니다.")
+                );
         recipeIndexingService.indexRecipe(full);
 
         List<PresignedUrlResponseItem> uploads = Collections.emptyList();
         if (req.getFiles() != null && !req.getFiles().isEmpty()) {
-            uploads = recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles());
+            uploads = recipeImageService
+                    .generateAndSavePresignedUrls(recipe, req.getFiles());
         }
 
         if (sourceType == RecipeSourceType.AI) {
-            asyncImageService.generateAndUploadAiImageAsync(recipe.getId());
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            asyncImageService.generateAndUploadAiImageAsync(recipe.getId());
+                        }
+                    }
+            );
         }
 
+        // 10) 응답 반환
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
                 .uploads(uploads)
@@ -440,3 +444,4 @@ public class RecipeService {
     }
 
 }
+
