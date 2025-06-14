@@ -9,6 +9,7 @@ import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import static java.util.Map.entry;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AsyncImageService {
 
     private final RecipeRepository        recipeRepository;
@@ -47,9 +49,14 @@ public class AsyncImageService {
     @Async
     @Transactional
     public void generateAndUploadAiImageAsync(Long recipeId) {
+        log.info("▶ [AsyncImageService] 시작, recipeId={}", recipeId);
+
         Recipe recipe = recipeRepository
                 .findWithIngredientsAndStepsById(recipeId)
-                .orElseThrow(() -> new RuntimeException("Recipe not found. ID=" + recipeId));
+                .orElseThrow(() -> {
+                    log.error("❌ [AsyncImageService] Recipe 조회 실패, ID={}", recipeId);
+                    return new RuntimeException("Recipe not found. ID=" + recipeId);
+                });
 
         String title     = recipe.getTitle();
         Integer cookTime = recipe.getCookingTime();
@@ -116,6 +123,7 @@ public class AsyncImageService {
         try {
             List<String> urls = gptImageService.generateImageUrls(imagePrompt, 1, "1024x1024");
             if (urls.isEmpty()) {
+                log.warn("⚠️ [AsyncImageService] 이미지 URL을 하나도 못 받아옴, recipeId={}", recipeId);
                 recipe.updateImageStatus(RecipeImageStatus.FAILED);
                 recipeRepository.save(recipe);
                 return;
@@ -124,7 +132,9 @@ public class AsyncImageService {
             Long userId = recipe.getUser().getId();
             String s3Key = String.format("recipes/%d/%d/main.jpg", userId, recipe.getId());
 
+            log.info("⏳ [AsyncImageService] S3 업로드 시작, key={}", s3Key);
             s3Util.uploadFromUrl(externalUrl, s3Key);
+            log.info("✅ [AsyncImageService] S3 업로드 완료, key={}", s3Key);
 
             recipe.updateImageKey(s3Key);
             recipe.updateImageStatus(RecipeImageStatus.READY);
@@ -135,6 +145,7 @@ public class AsyncImageService {
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, null);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
         } catch (Exception e) {
+            log.error("❌ [AsyncImageService] 예외 발생, recipeId={}", recipeId, e);
             recipe.updateImageStatus(RecipeImageStatus.FAILED);
             recipeRepository.save(recipe);
             throw new RuntimeException("Async AI image generation failed: " + e.getMessage(), e);
