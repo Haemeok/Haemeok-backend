@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: prod
+    active: local
 
 server:
   forward-headers-strategy: framework
@@ -20,3 +20,11 @@ opensearch:
 
 search:
   engine: auto  # auto | opensearch | querydsl
+
+logging:
+  level:
+    com.jdc.recipe_service.service.AsyncImageService: DEBUG
+    com.jdc.recipe_service.service.GptImageService: DEBUG
+    org.springframework.web.client.RestTemplate: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
