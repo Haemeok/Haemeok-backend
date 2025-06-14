@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
 import static java.util.Map.entry;
 
 @Service
@@ -51,12 +52,14 @@ public class AsyncImageService {
     public void generateAndUploadAiImageAsync(Long recipeId) {
         log.info("▶ [AsyncImageService] 시작, recipeId={}", recipeId);
 
-        Recipe recipe = recipeRepository
-                .findWithIngredientsAndStepsById(recipeId)
+        Recipe recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(() -> {
                     log.error("❌ [AsyncImageService] Recipe 조회 실패, ID={}", recipeId);
                     return new RuntimeException("Recipe not found. ID=" + recipeId);
                 });
+
+        recipe.getIngredients().size();
+        recipe.getSteps().size();
 
         String title     = recipe.getTitle();
         Integer cookTime = recipe.getCookingTime();
