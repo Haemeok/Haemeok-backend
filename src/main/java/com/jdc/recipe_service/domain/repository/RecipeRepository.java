@@ -81,4 +81,13 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "tags.tag"
     })
     Optional<Recipe> findWithAllRelationsById(Long id);
+
+    @Query("""
+      select r
+      from Recipe r
+      left join fetch r.ingredients
+      left join fetch r.steps
+      where r.id = :id
+    """)
+    Optional<Recipe> findWithIngredientsAndStepsById(@Param("id") Long id);
 }

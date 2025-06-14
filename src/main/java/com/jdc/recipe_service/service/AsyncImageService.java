@@ -47,7 +47,8 @@ public class AsyncImageService {
     @Async
     @Transactional
     public void generateAndUploadAiImageAsync(Long recipeId) {
-        Recipe recipe = recipeRepository.findById(recipeId)
+        Recipe recipe = recipeRepository
+                .findWithIngredientsAndStepsById(recipeId)
                 .orElseThrow(() -> new RuntimeException("Recipe not found. ID=" + recipeId));
 
         String title     = recipe.getTitle();
