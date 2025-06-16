@@ -73,6 +73,10 @@ cloud:
       access-key: ${AWS_ACCESS_KEY_ID}
       secret-key: ${AWS_SECRET_ACCESS_KEY}
 
-      
+
 openai:
   api-key: ${OPENAI_API_KEY}
+
+logging:
+  level:
+    com.jdc.recipe_service.service.AsyncImageService: WARN
