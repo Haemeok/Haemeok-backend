@@ -31,6 +31,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "레시피 검색 API", description = "레시피를 검색하는 API입니다.")
 public class RecipeSearchController {
+
     private final RecipeSearchService recipeSearchService;
     private final RecipeRepository recipeRepository;
     private final DeferredResultHolder deferredResultHolder;
@@ -39,8 +40,12 @@ public class RecipeSearchController {
     @Operation(summary = "레시피 상세 조회", description = "레시피 ID를 기반으로 상세 정보를 조회합니다.")
     public DeferredResult<ResponseEntity<RecipeDetailDto>> getRecipeDetail(
             @PathVariable("id") Long recipeId,
-            @RequestParam(value = "userId", required = false) Long currentUserId
+            @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
+        Long currentUserId = userDetails != null
+                ? userDetails.getUser().getId()
+                : null;
+
         DeferredResult<ResponseEntity<RecipeDetailDto>> deferredResult = new DeferredResult<>();
 
         Recipe recipe = recipeRepository.findById(recipeId)
@@ -55,57 +60,16 @@ public class RecipeSearchController {
             return deferredResult;
         }
 
-        deferredResultHolder.add(recipeId, (DeferredResult<ResponseEntity<?>>)(Object) deferredResult);
+        deferredResultHolder.add(
+                recipeId,
+                (DeferredResult<ResponseEntity<?>>)(Object) deferredResult
+        );
         return deferredResult;
     }
-
-
-//    @GetMapping("/{recipeId}")
-//    @Operation(summary = "레시피 상세 조회", description = "레시피 ID를 기반으로 상세 정보를 조회합니다.")
-//    public ResponseEntity<RecipeDetailDto> getRecipe(
-//            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
-//            @AuthenticationPrincipal CustomUserDetails userDetails) {
-//
-//        Long userId = (userDetails != null)
-//                ? userDetails.getUser().getId()
-//                : null;
-//        return ResponseEntity.ok(
-//                recipeSearchService.getRecipeDetail(recipeId, userId));
-//    }
 
     @GetMapping("/simple")
     @Operation(summary = "전체 레시피 목록 조회", description = "전체 레시피를 간단한 형태로 조회합니다.")
     public ResponseEntity<Page<RecipeSimpleDto>> getAllSimple(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(hidden = true)
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable) {
-
-        Long userId = (userDetails != null)
-                ? userDetails.getUser().getId()
-                : null;
-
-        Page<RecipeSimpleDto> result = recipeSearchService.getAllRecipesSimple(userId, pageable);
-        return ResponseEntity.ok(result);
-    }
-
-    @GetMapping("/by-tag")
-    @Operation(summary = "태그 기반 레시피 조회", description = "입력된 태그 이름을 기반으로 레시피를 조회합니다.")
-    public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
-            @Parameter(description = "조회할 태그 이름 목록") @RequestParam List<String> tagNames, @Parameter(hidden = true)
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-
-        Long userId = (userDetails != null) ? userDetails.getUser().getId() : null;
-        return ResponseEntity.ok(
-                recipeSearchService.getByTagWithLikeInfo(tagNames.get(0), userId, pageable)
-        );
-    }
-
-    @GetMapping("/by-dish-type")
-    @Operation(summary = "디시타입 기반 레시피 조회", description = "입력된 디시타입을 기준으로 레시피 목록을 반환합니다.")
-    public ResponseEntity<Page<RecipeSimpleDto>> byDish(
-            @Parameter(description = "디시타입 이름 (예: 볶음, 찜/조림 등)") @RequestParam String dishType,
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(hidden = true)
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
@@ -114,8 +78,52 @@ public class RecipeSearchController {
         Long userId = userDetails != null
                 ? userDetails.getUser().getId()
                 : null;
+
+        Page<RecipeSimpleDto> result =
+                recipeSearchService.getAllRecipesSimple(userId, pageable);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/by-tag")
+    @Operation(summary = "태그 기반 레시피 조회", description = "입력된 태그 이름을 기반으로 레시피를 조회합니다.")
+    public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
+            @Parameter(description = "조회할 태그 이름 목록") @RequestParam List<String> tagNames,
+            @Parameter(hidden = true)
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails != null
+                ? userDetails.getUser().getId()
+                : null;
+
         return ResponseEntity.ok(
-                recipeSearchService.getByDishTypeWithLikeInfo(dishType, userId, pageable));
+                recipeSearchService.getByTagWithLikeInfo(
+                        tagNames.get(0), userId, pageable
+                )
+        );
+    }
+
+    @GetMapping("/by-dish-type")
+    @Operation(summary = "디시타입 기반 레시피 조회", description = "입력된 디시타입을 기준으로 레시피 목록을 반환합니다.")
+    public ResponseEntity<Page<RecipeSimpleDto>> byDish(
+            @Parameter(description = "디시타입 이름 (예: 볶음, 찜/조림 등)")
+            @RequestParam String dishType,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(hidden = true)
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable
+    ) {
+        Long userId = userDetails != null
+                ? userDetails.getUser().getId()
+                : null;
+
+        return ResponseEntity.ok(
+                recipeSearchService.getByDishTypeWithLikeInfo(
+                        dishType, userId, pageable
+                )
+        );
     }
 
     @GetMapping("/search")
@@ -130,14 +138,16 @@ public class RecipeSearchController {
             @Parameter(hidden = true)
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-
-        Long userId = (userDetails != null)
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails != null
                 ? userDetails.getUser().getId()
                 : null;
 
         RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames);
+
         return ResponseEntity.ok(
-                recipeSearchService.searchRecipes(cond, pageable, userId));
+                recipeSearchService.searchRecipes(cond, pageable, userId)
+        );
     }
 }
