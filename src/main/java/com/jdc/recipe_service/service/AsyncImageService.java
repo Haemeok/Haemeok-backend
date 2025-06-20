@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -53,27 +54,26 @@ public class AsyncImageService {
         log.info("▶ [AsyncImageService] 시작, recipeId={}", recipeId);
 
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> {
-                    log.error("❌ [AsyncImageService] Recipe 조회 실패, ID={}", recipeId);
-                    return new RuntimeException("Recipe not found. ID=" + recipeId);
-                });
+                .orElseThrow(() -> new RuntimeException("Recipe not found. ID=" + recipeId));
 
         String recipeTitle = recipe.getTitle();
         if (recipeTitle == null || recipeTitle.trim().isEmpty()) {
-            log.error("❌ 레시피명이 없어 이미지 생성 불가, recipeId={}", recipeId);
             recipe.updateImageStatus(RecipeImageStatus.FAILED);
             recipeRepository.save(recipe);
             return;
         }
 
         DishType type = recipe.getDishType();
-
         String mainIngredientsDesc = recipe.getIngredients().stream()
                 .limit(3)
                 .map(ri -> {
-                    String name = ri.getIngredient() != null ? ri.getIngredient().getEnglishName() : ri.getCustomName();
+                    String name = ri.getIngredient() != null
+                            ? ri.getIngredient().getEnglishName()
+                            : ri.getCustomName();
                     if (name == null || name.trim().isEmpty()) {
-                        return ri.getIngredient() != null ? ri.getIngredient().getName() : ri.getCustomName();
+                        return ri.getIngredient() != null
+                                ? ri.getIngredient().getName()
+                                : ri.getCustomName();
                     }
                     return name;
                 })
@@ -87,34 +87,26 @@ public class AsyncImageService {
                 mainIngredientsDesc
         );
 
-        String stylePart = STYLE_PROMPTS.getOrDefault(
-                type,
-                "The dish is presented beautifully on a plate. "
-        );
-
+        String stylePart = STYLE_PROMPTS.getOrDefault(type, "The dish is presented beautifully on a plate. ");
         String photographicStyle = "Hyper-detailed, high-resolution food photography, highlighting texture and sheen. The composition is centered, with the dish filling most of the frame. 4:3 aspect ratio. Shot with a subtle warm Instagram-style filter and slight film grain for an inviting look. ";
-
         String negativePrompt = "Negative prompt: no separate or raw ingredients on the side, no props, no utensils, no people, no text or watermarks.";
-
         String imagePrompt = dishDescription + stylePart + photographicStyle + negativePrompt;
 
-        log.info("▶ 생성될 이미지 프롬프트: {}", imagePrompt);
-
         try {
-            List<String> urls = gptImageService.generateImageUrls(imagePrompt, 1, "1024x1024");
-            if (urls.isEmpty()) {
-                log.warn("⚠️ [AsyncImageService] 이미지 URL을 하나도 못 받아옴, recipeId={}", recipeId);
+            List<String> dataUris = gptImageService.generateImageUrls(imagePrompt, 1, "1024x1024");
+            if (dataUris.isEmpty()) {
                 recipe.updateImageStatus(RecipeImageStatus.FAILED);
                 recipeRepository.save(recipe);
                 return;
             }
-            String externalUrl = urls.get(0);
+
+            String dataUri = dataUris.get(0);
+            String base64 = dataUri.substring(dataUri.indexOf(',') + 1);
+            byte[] imageBytes = Base64.getDecoder().decode(base64);
+
             Long userId = recipe.getUser().getId();
             String s3Key = String.format("recipes/%d/%d/main.jpg", userId, recipe.getId());
-
-            log.info("⏳ [AsyncImageService] S3 업로드 시작, key={}", s3Key);
-            s3Util.uploadFromUrl(externalUrl, s3Key);
-            log.info("✅ [AsyncImageService] S3 업로드 완료, key={}", s3Key);
+            s3Util.upload(imageBytes, s3Key);
 
             recipe.updateImageKey(s3Key);
             recipe.updateImageStatus(RecipeImageStatus.READY);
