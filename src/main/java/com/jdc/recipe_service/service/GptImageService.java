@@ -28,10 +28,12 @@ public class GptImageService {
         headers.setBearerAuth(openAiApiKey);
 
         Map<String, Object> body = Map.of(
-                "model", "dall-e-3",
+                "model", "gpt-image-1",
                 "prompt", prompt,
                 "n", n,
-                "size", size
+                "size", size,
+                "response_format", "b64_json",
+                "quality", "low"
         );
 
         ResponseEntity<Map> response;
@@ -45,14 +47,9 @@ public class GptImageService {
             throw new RuntimeException("OpenAI 이미지 생성 API 응답 오류: HTTP " + response.getStatusCode());
         }
 
-        Map<String, Object> respBody = response.getBody();
-        if (!respBody.containsKey("data")) {
-            throw new RuntimeException("OpenAI 이미지 생성 응답 포맷 오류: data 필드가 없습니다.");
-        }
-
-        List<Map<String, Object>> dataList = (List<Map<String, Object>>) respBody.get("data");
+        List<Map<String, String>> dataList = (List<Map<String, String>>) response.getBody().get("data");
         return dataList.stream()
-                .map(item -> (String) item.get("url"))
+                .map(item -> "data:image/png;base64," + item.get("b64_json"))
                 .toList();
     }
 }

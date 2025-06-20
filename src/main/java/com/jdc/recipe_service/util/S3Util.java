@@ -27,48 +27,34 @@ public class S3Util {
     @Value("${app.s3.bucket-name}")
     private String bucketName;
 
-    /**
-     * 버킷이 존재하지 않으면 생성
-     */
     public void ensureBucketExists() {
         try {
-            HeadBucketRequest headBucket = HeadBucketRequest.builder()
+            s3Client.headBucket(HeadBucketRequest.builder()
                     .bucket(bucketName)
-                    .build();
-            s3Client.headBucket(headBucket);
+                    .build());
         } catch (NoSuchBucketException e) {
             log.info("버킷이 존재하지 않아 새로 생성합니다: {}", bucketName);
-            CreateBucketRequest createBucket = CreateBucketRequest.builder()
+            s3Client.createBucket(CreateBucketRequest.builder()
                     .bucket(bucketName)
-                    .build();
-            s3Client.createBucket(createBucket);
+                    .build());
         }
     }
 
-    /**
-     * presigned PUT URL 생성 (유저 업로드용)
-     */
     public String createPresignedUrl(String fileKey) {
         ensureBucketExists();
-
-        log.info("📦 S3Presigner class: {}", s3Presigner.getClass().getName());
-
         PutObjectRequest objectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(fileKey)
                 .build();
-
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofMinutes(10))
                 .putObjectRequest(objectRequest)
                 .build();
-
-        return s3Presigner.presignPutObject(presignRequest).url().toString();
+        return s3Presigner.presignPutObject(presignRequest)
+                .url()
+                .toString();
     }
 
-    /**
-     * S3 객체 존재 여부 확인
-     */
     public boolean doesObjectExist(String fileKey) {
         try {
             s3Client.headObject(HeadObjectRequest.builder()
@@ -81,27 +67,17 @@ public class S3Util {
         }
     }
 
-    /**
-     * S3 객체 삭제 (복수)
-     */
     public void deleteFiles(List<String> fileKeys) {
         if (fileKeys.isEmpty()) return;
-
         List<ObjectIdentifier> objects = fileKeys.stream()
                 .map(key -> ObjectIdentifier.builder().key(key).build())
                 .toList();
-
-        DeleteObjectsRequest deleteRequest = DeleteObjectsRequest.builder()
+        s3Client.deleteObjects(DeleteObjectsRequest.builder()
                 .bucket(bucketName)
                 .delete(Delete.builder().objects(objects).build())
-                .build();
-
-        s3Client.deleteObjects(deleteRequest);
+                .build());
     }
 
-    /**
-     * S3 객체가 0바이트인지 확인 (존재하지 않으면 false)
-     */
     public boolean isZeroByteFile(String fileKey) {
         try {
             HeadObjectResponse response = s3Client.headObject(HeadObjectRequest.builder()
@@ -114,18 +90,8 @@ public class S3Util {
         }
     }
 
-    /**
-     * 외부 URL(externalUrl)에 있는 이미지를 스트리밍 받아,
-     * S3에 "s3Key" 위치로 업로드한 뒤, S3 key를 반환한다.
-     *
-     * @param externalUrl 외부(예: DALL·E)에서 생성된 이미지 URL
-     * @param s3Key       S3에 저장할 key (예: "recipes/42/123/ai-generated-main.jpg")
-     * @return 실제 업로드된 S3 key
-     * @throws Exception 다운로드 혹은 S3 업로드 중 에러 발생 시
-     */
     public String uploadFromUrl(String externalUrl, String s3Key) throws Exception {
         ensureBucketExists();
-
         URL url = new URL(externalUrl);
         URLConnection conn = url.openConnection();
         String contentType = conn.getContentType();
@@ -143,5 +109,21 @@ public class S3Util {
         inputStream.close();
 
         return s3Key;
+    }
+
+    /**
+     * 바이트 배열을 S3에 업로드
+     *
+     * @param data  업로드할 바이트 배열
+     * @param s3Key S3에 저장할 키
+     */
+    public void upload(byte[] data, String s3Key) {
+        ensureBucketExists();
+        PutObjectRequest putReq = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentLength((long) data.length)
+                .build();
+        s3Client.putObject(putReq, RequestBody.fromBytes(data));
     }
 }
