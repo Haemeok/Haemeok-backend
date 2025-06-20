@@ -9,6 +9,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +33,6 @@ public class GptImageService {
                 "prompt", prompt,
                 "n", n,
                 "size", size,
-                "response_format", "b64_json",
                 "quality", "low"
         );
 
@@ -47,9 +47,9 @@ public class GptImageService {
             throw new RuntimeException("OpenAI 이미지 생성 API 응답 오류: HTTP " + response.getStatusCode());
         }
 
-        List<Map<String, String>> dataList = (List<Map<String, String>>) response.getBody().get("data");
+        List<Map<String, Object>> dataList = (List<Map<String, Object>>) response.getBody().get("data");
         return dataList.stream()
                 .map(item -> "data:image/png;base64," + item.get("b64_json"))
-                .toList();
+                .collect(Collectors.toList());
     }
 }
