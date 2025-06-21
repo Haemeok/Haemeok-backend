@@ -57,7 +57,7 @@ public class UserService {
     public PresignedUrlResponseItem generateProfileImagePresign(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        String key = String.format("profiles/%d/%s.jpg", userId, UUID.randomUUID());
+        String key = String.format("images/profiles/%d/%s.jpg", userId, UUID.randomUUID());
         String presignedUrl = s3Util.createPresignedUrl(key);
         return PresignedUrlResponseItem.builder()
                 .fileKey(key)

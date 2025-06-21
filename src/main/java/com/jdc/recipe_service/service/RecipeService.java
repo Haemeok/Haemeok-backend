@@ -104,8 +104,7 @@ public class RecipeService {
 
         processingRequest.getRecipe().getSteps().forEach(step -> {
             String actionName = step.getAction();
-            int imageIndex = robotTypeParam.ordinal() + 1;
-            String key = actionImageService.generateImageKey(actionName, imageIndex);
+            String key = actionImageService.generateImageKey(robotTypeParam, actionName);
             step.updateImageKey(key);
         });
 
