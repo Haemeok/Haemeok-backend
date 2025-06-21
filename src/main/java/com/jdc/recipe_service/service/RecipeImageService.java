@@ -47,7 +47,7 @@ public class RecipeImageService {
                     ? "main"
                     : "step_" + fileInfo.getStepIndex();
 
-            String fileKey = "recipes/" + recipe.getId() + "/" + slot + ".jpg";
+            String fileKey = "images/recipes/" + recipe.getId() + "/" + slot + ".jpg";
             String presignedUrl = s3Util.createPresignedUrl(fileKey);
 
             uploads.add(PresignedUrlResponseItem.builder()
