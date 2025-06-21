@@ -33,7 +33,7 @@ public class ActionImageService {
             return null;
         }
         String typeFolder = robotType.name().toLowerCase();
-        return String.format("%s/%s/%s.png",
+        return String.format("%s/%s/%s.webp",
                 BASE_PATH,
                 typeFolder,
                 action
