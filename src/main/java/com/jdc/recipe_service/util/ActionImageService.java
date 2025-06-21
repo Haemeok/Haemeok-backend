@@ -1,14 +1,16 @@
+
 package com.jdc.recipe_service.util;
 
-import org.springframework.stereotype.Component;
+        import com.jdc.recipe_service.domain.type.RobotType;
+        import org.springframework.stereotype.Component;
 
-import java.util.Set;
+        import java.util.Set;
 
 @Component
 public class ActionImageService {
 
-    private static final String ACTION_BASE_PATH = "action";
-    private static final String BASE_URL =
+    private static final String BASE_PATH = "images/actions";
+    private static final String BASE_URL  =
             "https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com";
 
     private static final Set<String> SUPPORTED_ACTIONS = Set.of(
@@ -22,14 +24,19 @@ public class ActionImageService {
         return action != null && SUPPORTED_ACTIONS.contains(action);
     }
 
-    public String generateImageKey(String action, int index) {
+    /**
+     * @param robotType  CLASSIC, CREATIVE, HEALTHY, INDULGENT
+     * @param action     ex) "썰기"
+     */
+    public String generateImageKey(RobotType robotType, String action) {
         if (!isSupportedAction(action)) {
             return null;
         }
-        return String.format("%s/%s/%d.png",
-                ACTION_BASE_PATH,
-                action,
-                index
+        String typeFolder = robotType.name().toLowerCase();
+        return String.format("%s/%s/%s.png",
+                BASE_PATH,
+                typeFolder,
+                action
         );
     }
 

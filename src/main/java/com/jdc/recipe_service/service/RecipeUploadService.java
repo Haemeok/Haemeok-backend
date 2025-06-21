@@ -71,8 +71,11 @@ public class RecipeUploadService {
     }
 
     private String generateFileKey(Long userId, Long recipeId, FileInfoRequest file) {
-        return "main".equals(file.getType()) ?
-                String.format("recipes/%d/%d/main.jpg", userId, recipeId) :
-                String.format("recipes/%d/%d/steps/%d.jpg", userId, recipeId, file.getStepIndex());
+        String prefix = String.format("images/recipes/%d/%d", userId, recipeId);
+        if ("main".equals(file.getType())) {
+            return String.format("%s/main.jpg", prefix);
+        } else {
+            return String.format("%s/steps/%d.jpg", prefix, file.getStepIndex());
+        }
     }
 }

@@ -9,6 +9,7 @@ import com.jdc.recipe_service.domain.entity.RecipeStepIngredient;
 import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeStepIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeStepRepository;
+import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
@@ -88,9 +89,9 @@ public class RecipeStepService {
                 step.updateAction(dto.getAction());
             }
             if (ai) {
-                String key = actionImageService.generateImageKey(dto.getAction(), dto.getStepNumber());
+                String key = actionImageService.generateImageKey(RobotType.valueOf("CLASSIC"),dto.getAction());
                 step.updateStepImageKey(key);
-            } else {
+            }else {
                 step.updateStepImageKey(dto.getImageKey());
             }
             updateStepIngredients(step, dto.getIngredients(), riMap);

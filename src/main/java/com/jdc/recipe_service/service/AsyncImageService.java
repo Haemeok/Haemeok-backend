@@ -35,17 +35,28 @@ public class AsyncImageService {
     private final DeferredResultHolder  deferredResultHolder;
 
     private static final Map<DishType, String> STYLE_PROMPTS = Map.ofEntries(
-            entry(DishType.SOUP_STEW,       "A top-down flat-lay photo of a bubbling Korean stew in a traditional earthenware pot (ttukbaegi). The lighting is bright natural window light, creating a warm and cozy aesthetic. "),
-            entry(DishType.RICE_NOODLE,     "An overhead shot of a colorful bowl of Korean rice or noodles. The image has soft natural light and a clean, minimal wooden background. "),
-            entry(DishType.STEAMED_BRAISED, "A top-down view of a steaming Korean braised dish in a deep bowl, emphasizing rich, saturated colors and a homey feel. "),
-            entry(DishType.FRYING,          "A 45-degree angle shot of a sizzling stir-fry on a white plate. The photo has a shallow depth of field, rich saturated colors, and a subtle vignette. "),
-            entry(DishType.FRIED_PAN,       "A 45-degree angle shot of a flat round Korean pancake with golden crispy edges on a white plate, featuring a shallow depth of field and warm tones. "),
-            entry(DishType.GRILL,           "A dramatic side-angle shot of grilled meat on a dark grill plate, with lighting that highlights the char marks. "),
-            entry(DishType.SALAD,           "An overhead flat-lay of a fresh Korean salad on a white plate, showcasing vibrant greens under bright natural light. "),
-            entry(DishType.PICKLE,          "A close-up of colorful pickled vegetables in a small ceramic bowl, with soft diffused light and rustic styling. "),
-            entry(DishType.OVEN,            "A 45-degree angle shot of a baked Korean dish in a ceramic baking dish, bathed in warm golden tones from natural window light. "),
-            entry(DishType.RAW,             "An overhead view of a sashimi-style raw dish on a white plate, with crisp focus against a minimalist background. "),
-            entry(DishType.DESSERT,         "A single, elegant Korean dessert presented on a small, minimalist ceramic plate. The photo is a close-up from a 45-degree angle, highlighting the dessert's delicate textures. Soft, natural light with a clean, light-colored background. ")
+            entry(DishType.SOUP_STEW,
+                    "A top-down flat-lay of a bubbling Korean stew in a rustic earthenware pot, styled on a wooden table with a small linen napkin and chopsticks."),
+            entry(DishType.RICE_NOODLE,
+                    "An overhead shot of a vibrant bowl of Korean rice noodles on a textured stone slab, with a small bowl of dipping sauce and garnish leaves beside it."),
+            entry(DishType.STEAMED_BRAISED,
+                    "A top-down view of a steaming Korean braised dish in a deep bowl, artfully placed on slate with a sprig of fresh herbs for contrast."),
+            entry(DishType.FRYING,
+                    "A 45° angle shot of a colorful stir-fry on a ceramic plate, with soft rim light highlighting the glossy sauce and blurred utensils in the background."),
+            entry(DishType.FRIED_PAN,
+                    "A 45° angle shot of a golden Korean pancake on a white plate, set on a dark wood board with a small dipping dish and delicate garnish."),
+            entry(DishType.GRILL,
+                    "A side-angle shot of juicy grilled meat on a black slate platter, lit by warm directional light to emphasize char marks and texture."),
+            entry(DishType.SALAD,
+                    "An overhead flat-lay of a fresh Korean salad on a marble surface, with scattered cherry tomatoes, drifted spinach leaves, and a small jar of dressing."),
+            entry(DishType.PICKLE,
+                    "A close-up of colorful pickled vegetables in a small ceramic bowl, with soft diffused daylight and gentle shadows for a rustic feel."),
+            entry(DishType.OVEN,
+                    "A 45° angle shot of a baked Korean dish in a ceramic baking dish, placed on a linen cloth with scattered herbs and vintage cutlery."),
+            entry(DishType.RAW,
+                    "An overhead sashimi-style raw dish on a white plate, styled with minimal pebbles and a side of soy sauce in a small bowl."),
+            entry(DishType.DESSERT,
+                    "A close-up 45° shot of an elegant Korean dessert on a ceramic plate, accentuated by soft natural window light and a few scattered berries.")
     );
 
     @Async
@@ -57,40 +68,45 @@ public class AsyncImageService {
                 .orElseThrow(() -> new RuntimeException("Recipe not found. ID=" + recipeId));
 
         String recipeTitle = recipe.getTitle();
-        if (recipeTitle == null || recipeTitle.trim().isEmpty()) {
+        if (recipeTitle == null || recipeTitle.isBlank()) {
             recipe.updateImageStatus(RecipeImageStatus.FAILED);
             recipeRepository.save(recipe);
             return;
         }
 
         DishType type = recipe.getDishType();
-        String mainIngredientsDesc = recipe.getIngredients().stream()
+        String mainIng = recipe.getIngredients().stream()
                 .limit(3)
                 .map(ri -> {
-                    String name = ri.getIngredient() != null
-                            ? ri.getIngredient().getEnglishName()
-                            : ri.getCustomName();
-                    if (name == null || name.trim().isEmpty()) {
-                        return ri.getIngredient() != null
-                                ? ri.getIngredient().getName()
-                                : ri.getCustomName();
-                    }
-                    return name;
+                    var ing = ri.getIngredient();
+                    String name = ing != null ? ing.getEnglishName() : ri.getCustomName();
+                    return (name == null || name.isBlank())
+                            ? (ing != null ? ing.getName() : ri.getCustomName())
+                            : name;
                 })
-                .filter(name -> name != null && !name.trim().isEmpty())
+                .filter(n -> n != null && !n.isBlank())
                 .collect(Collectors.joining(", "));
 
-        String dishDescription = String.format(
-                "A photorealistic, magazine-quality image of a finished and plated Korean dish called \"%s\". It is a delicious-looking %s, fully cooked and ready to eat, which prominently features %s. ",
-                recipeTitle,
-                type.getDisplayName(),
-                mainIngredientsDesc
+        String dishDesc = String.format(
+                "A photorealistic, magazine-quality image of a plated Korean dish called \"%s\", which prominently features %s. ",
+                recipeTitle, type.getDisplayName(), mainIng
         );
 
-        String stylePart = STYLE_PROMPTS.getOrDefault(type, "The dish is presented beautifully on a plate. ");
-        String photographicStyle = "Hyper-detailed, high-resolution food photography, highlighting texture and sheen. The composition is centered, with the dish filling most of the frame. 4:3 aspect ratio. Shot with a subtle warm Instagram-style filter and slight film grain for an inviting look. ";
-        String negativePrompt = "Negative prompt: no separate or raw ingredients on the side, no props, no utensils, no people, no text or watermarks.";
-        String imagePrompt = dishDescription + stylePart + photographicStyle + negativePrompt;
+        String stylePart = STYLE_PROMPTS.getOrDefault(
+                type,
+                "The dish is styled beautifully on a simple plate with minimal props."
+        );
+
+        String photographicStyle =
+                "High-resolution food photography with a shallow depth of field, " +
+                        "dramatic side window light casting soft shadows, " +
+                        "a moody vignette around the edges, " +
+                        "and slight film grain for a warm, editorial look. ";
+
+        String negativePrompt =
+                "Negative prompt: no utensils in focus, no text or logos, no separate ingredients lying around.";
+
+        String imagePrompt = dishDesc + stylePart + photographicStyle + negativePrompt;
 
         try {
             List<String> dataUris = gptImageService.generateImageUrls(imagePrompt, 1, "1024x1024");
@@ -100,12 +116,12 @@ public class AsyncImageService {
                 return;
             }
 
-            String dataUri = dataUris.get(0);
-            String base64 = dataUri.substring(dataUri.indexOf(',') + 1);
-            byte[] imageBytes = Base64.getDecoder().decode(base64);
+            String dataUri    = dataUris.get(0);
+            String b64        = dataUri.substring(dataUri.indexOf(',') + 1);
+            byte[] imageBytes = Base64.getDecoder().decode(b64);
 
-            Long userId = recipe.getUser().getId();
-            String s3Key = String.format("recipes/%d/%d/main.jpg", userId, recipe.getId());
+            Long   userId = recipe.getUser().getId();
+            String s3Key  = String.format("recipes/%d/%d/main.jpg", userId, recipeId);
             s3Util.upload(imageBytes, s3Key);
 
             recipe.updateImageKey(s3Key);
@@ -116,11 +132,13 @@ public class AsyncImageService {
             recipeIndexingService.updateRecipe(recipe);
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, null);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
+
         } catch (Exception e) {
             log.error("❌ [AsyncImageService] 예외 발생, recipeId={}", recipeId, e);
             recipe.updateImageStatus(RecipeImageStatus.FAILED);
             recipeRepository.save(recipe);
-            throw new RuntimeException("Async AI image generation failed: " + e.getMessage(), e);
+            throw new RuntimeException("Async AI image generation failed", e);
         }
     }
 }
+
