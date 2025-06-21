@@ -121,7 +121,7 @@ public class AsyncImageService {
             byte[] imageBytes = Base64.getDecoder().decode(b64);
 
             Long   userId = recipe.getUser().getId();
-            String s3Key  = String.format("recipes/%d/%d/main.jpg", userId, recipeId);
+            String s3Key  = String.format("images/recipes/%d/%d/main.jpg", userId, recipeId);
             s3Util.upload(imageBytes, s3Key);
 
             recipe.updateImageKey(s3Key);
