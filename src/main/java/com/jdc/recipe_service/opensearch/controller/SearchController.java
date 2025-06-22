@@ -38,6 +38,7 @@ public class SearchController {
             @Parameter(description = "검색어 (제목, 설명, 재료 포함)") @RequestParam(required = false) String q,
             @Parameter(description = "디시타입 필터") @RequestParam(required = false) String dishType,
             @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tagNames,
+            @Parameter(description = "AI 생성 여부 (true: AI가 만든 레시피만, false: 유저 생성 레시피만)") @RequestParam(required = false) Boolean isAiGenerated,
             @Parameter(
                     name = "sort",
                     description = "정렬 기준 (예: createdAt,DESC 또는 likeCount,DESC)",
@@ -48,7 +49,7 @@ public class SearchController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames, isAiGenerated);
         Page<RecipeSimpleDto> page = searchService.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }

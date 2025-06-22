@@ -75,6 +75,12 @@ public class OpenSearchService {
                 }
             }
 
+            if (cond.getIsAiGenerated() != null) {
+                bool.filter(
+                        QueryBuilders.termQuery("isAiGenerated", cond.getIsAiGenerated())
+                );
+            }
+
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {
                 bool.must(QueryBuilders.matchAllQuery());
             }

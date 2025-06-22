@@ -108,7 +108,8 @@ public class RecipeIndexingService {
             "createdAt":   { "type":"date" },
             "likeCount":   { "type":"integer" },
             "cookingTime": { "type":"integer" },
-            "imageUrl":    { "type":"keyword" }
+            "imageUrl":    { "type":"keyword" },
+            "isAiGenerated":{ "type":"boolean" }
           }
         }
         """, XContentType.JSON);
@@ -199,6 +200,7 @@ public class RecipeIndexingService {
                 .likeCount(likeCount)
                 .cookingTime(Optional.ofNullable(recipe.getCookingTime()).orElse(0))
                 .imageUrl(generateImageUrl(recipe.getImageKey()))
+                .isAiGenerated(recipe.isAiGenerated())
                 .build();
     }
 

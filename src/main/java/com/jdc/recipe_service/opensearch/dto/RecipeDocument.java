@@ -22,4 +22,5 @@ public class RecipeDocument {
     private int likeCount;
     private int cookingTime;
     private String imageUrl;
+    private Boolean  isAiGenerated;
 }
