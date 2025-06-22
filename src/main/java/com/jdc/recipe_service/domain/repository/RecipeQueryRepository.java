@@ -9,6 +9,6 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface RecipeQueryRepository {
-    Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Pageable pageable, Long currentUserId);
+    Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Boolean isAiGenerated, Pageable pageable, Long currentUserId);
     Page<RecipeSimpleDto> findAllSimpleWithRatingAndCookingInfo(Pageable pageable);
 }

@@ -129,22 +129,18 @@ public class RecipeSearchController {
     @GetMapping("/search")
     @Operation(summary = "조건 검색", description = "제목, 디시타입, 태그명을 조합하여 레시피를 검색합니다.")
     public ResponseEntity<Page<RecipeSimpleDto>> search(
-            @Parameter(description = "검색어 (제목, 설명, 재료명 포함)")
-            @RequestParam(required = false) String q,
-            @Parameter(description = "디시타입 (예: 볶음, 찜/조림 등)")
-            @RequestParam(required = false) String dishType,
-            @Parameter(description = "태그 이름 목록")
-            @RequestParam(required = false) List<String> tagNames,
-            @Parameter(hidden = true)
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable,
+            @Parameter(description = "검색어 (제목, 설명, 재료명 포함)") @RequestParam(required = false) String q,
+            @Parameter(description = "디시타입 (예: 볶음, 찜/조림 등)") @RequestParam(required = false) String dishType,
+            @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tagNames,
+            @Parameter(description = "AI 생성 여부 (true: AI가 만든 레시피만, false: 유저 생성 레시피만)") @RequestParam(required = false) Boolean isAiGenerated,
+            @Parameter(hidden = true) @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null
                 ? userDetails.getUser().getId()
                 : null;
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames, isAiGenerated);
 
         return ResponseEntity.ok(
                 recipeSearchService.searchRecipes(cond, pageable, userId)

@@ -17,6 +17,7 @@ public class RecipeSearchCondition {
     private String title;
     private String dishType;
     private List<String> tagNames;
+    private Boolean isAiGenerated;
 
     public DishType getDishTypeEnum() {
         if (dishType == null || dishType.isBlank()) return null;

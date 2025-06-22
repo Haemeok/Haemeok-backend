@@ -117,9 +117,9 @@ public class RecipeSearchService {
         String title = condition.getTitle();
         DishType dishType = condition.getDishTypeEnum();
         List<TagType> tagTypes = condition.getTagEnums();
+        Boolean aiFlag    = condition.getIsAiGenerated();
 
-        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, pageable, userId);
-
+        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, aiFlag, pageable, userId);
 
         if (userId != null) {
             List<Long> recipeIds = page.getContent().stream()
@@ -374,11 +374,4 @@ public class RecipeSearchService {
             return false;
         }
     }
-
-
-    private Recipe getRecipeWithUserOrThrow(Long recipeId) {
-        return recipeRepository.findWithUserById(recipeId)
-                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
-    }
-
 }
