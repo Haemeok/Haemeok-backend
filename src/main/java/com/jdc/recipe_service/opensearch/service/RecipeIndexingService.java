@@ -126,6 +126,7 @@ public class RecipeIndexingService {
                     "ingredientCount":{ "type": "integer" }
                   }
                 }
+                """, XContentType.JSON);
 
         try {
             CreateIndexResponse res = client.indices().create(request, RequestOptions.DEFAULT);
