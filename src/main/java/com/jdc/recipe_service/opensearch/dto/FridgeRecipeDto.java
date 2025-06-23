@@ -3,13 +3,15 @@ package com.jdc.recipe_service.opensearch.dto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
+
 import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@SuperBuilder
 @Schema(description = "냉장고 기반 레시피 DTO (RecipeSimpleDto + 겹치는 재료)")
 public class FridgeRecipeDto extends RecipeSimpleDto {
 
