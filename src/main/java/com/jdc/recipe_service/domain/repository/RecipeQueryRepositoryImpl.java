@@ -3,6 +3,7 @@ package com.jdc.recipe_service.domain.repository;
 import com.jdc.recipe_service.domain.dto.recipe.QRecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.QRecipe;
+import com.jdc.recipe_service.domain.entity.QRecipeLike;
 import com.jdc.recipe_service.domain.entity.QRecipeTag;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
@@ -40,15 +41,18 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 
-
     @Override
-    public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Pageable pageable, Long currentUserId) {
-        QRecipe recipe = QRecipe.recipe;
-        QRecipeTag recipeTag = QRecipeTag.recipeTag;
+    public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Boolean isAiGenerated, Pageable pageable, Long currentUserId) {
+        QRecipe recipe   = QRecipe.recipe;
+        QRecipeTag tag    = QRecipeTag.recipeTag;
+        QRecipeLike rLike = QRecipeLike.recipeLike;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
+        BooleanExpression aiCondition      = (isAiGenerated != null)
+                ? recipe.isAiGenerated.eq(isAiGenerated)
+                : null;
 
-        var query = queryFactory
+        var contentQuery = queryFactory
                 .select(new QRecipeSimpleDto(
                         recipe.id,
                         recipe.title,
@@ -57,53 +61,71 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        recipe.likes.size().castToNum(Long.class),
+                        rLike.id.count().castToNum(Long.class),
                         Expressions.constant(false),
                         recipe.cookingTime,
                         recipe.avgRating,
                         recipe.ratingCount.coalesce(0L)
                 ))
                 .from(recipe)
-                .leftJoin(recipe.tags, recipeTag)
+                .leftJoin(recipe.tags, tag)
+                .leftJoin(recipe.likes, rLike)
                 .where(
                         privacyCondition,
                         titleContains(title),
                         dishTypeEq(dishType),
-                        tagIn(tagTypes)
+                        tagIn(tagTypes),
+                        aiCondition
                 )
-                .distinct()
+                .groupBy(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.cookingTime,
+                        recipe.avgRating,
+                        recipe.ratingCount
+                )
                 .orderBy(getOrderSpecifier(pageable))
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize());
 
-        List<RecipeSimpleDto> content = query.fetch();
+        List<RecipeSimpleDto> content = contentQuery.fetch();
 
         if (!content.isEmpty()) {
             content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
-        }
-
-        if (currentUserId != null && !content.isEmpty()) {
-            List<Long> recipeIds = content.stream().map(RecipeSimpleDto::getId).toList();
-            Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                    .stream()
-                    .map(like -> like.getRecipe().getId())
-                    .collect(Collectors.toSet());
-            content.forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
+            if (currentUserId != null) {
+                List<Long> recipeIds = content.stream()
+                        .map(RecipeSimpleDto::getId)
+                        .toList();
+                Set<Long> likedIds = recipeLikeRepository
+                        .findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                        .stream()
+                        .map(liked -> liked.getRecipe().getId())
+                        .collect(Collectors.toSet());
+                content.forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
+            }
         }
 
         Long total = queryFactory
                 .select(recipe.countDistinct())
                 .from(recipe)
-                .leftJoin(recipe.tags, recipeTag)
+                .leftJoin(recipe.tags, tag)
                 .where(
+                        privacyCondition,
                         titleContains(title),
                         dishTypeEq(dishType),
-                        tagIn(tagTypes)
+                        tagIn(tagTypes),
+                        aiCondition
                 )
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
+
 
     @Override
     public Page<RecipeSimpleDto> findAllSimpleWithRatingAndCookingInfo(Pageable pageable) {
