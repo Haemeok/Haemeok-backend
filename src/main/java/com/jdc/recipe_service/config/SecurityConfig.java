@@ -73,6 +73,7 @@ public class SecurityConfig {
                                     "/api/me/calendar/**",
                                     "/api/me/streak",
                                     "/api/me/survey",
+                                    "/api/me/fridge/recipes",
                                     "/api/ratings/recipe/*/me",
                                     "/api/users/*/profile-image/presign"
                             ).authenticated()
@@ -169,6 +170,7 @@ public class SecurityConfig {
                                 "/api/me/calendar/**",
                                 "/api/me/streak",
                                 "/api/me/survey",
+                                "/api/me/fridge/recipes",
                                 "/api/ratings/recipe/*/me",
                                 "/api/users/*/profile-image/presign"
                         ).authenticated()
