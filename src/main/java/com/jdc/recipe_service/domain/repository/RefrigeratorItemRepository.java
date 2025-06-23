@@ -24,4 +24,7 @@ public interface RefrigeratorItemRepository extends JpaRepository<RefrigeratorIt
 
     /** 삭제용 */
     void deleteByUserIdAndIngredientId(Long userId, Long ingredientId);
+
+    /** 전체 리스트 조회*/
+    List<RefrigeratorItem> findAllByUserId(Long userId);
 }

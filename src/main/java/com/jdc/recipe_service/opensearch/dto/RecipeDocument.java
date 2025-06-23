@@ -14,8 +14,6 @@ import java.util.List;
 public class RecipeDocument {
     private Long id;
     private String title;
-    private String description;
-    private List<String> ingredients;
     private List<String> tags;
     private String dishType;
     private String createdAt;
@@ -23,4 +21,6 @@ public class RecipeDocument {
     private int cookingTime;
     private String imageUrl;
     private Boolean  isAiGenerated;
+    private List<Long> ingredientIds;
+    private Integer ingredientCount;
 }

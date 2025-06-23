@@ -65,7 +65,7 @@ public enum ErrorCode {
     SEARCH_FAILURE(HttpStatus.INTERNAL_SERVER_ERROR, "950", "검색 처리 중 오류가 발생했습니다."),
     INGREDIENT_SEARCH_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "951", "재료 검색 처리 중 오류가 발생했습니다."),
     INGREDIENT_FALLBACK_SEARCH_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "952", "재료 대체 검색 처리 중 오류가 발생했습니다."),
-
+    FRIDGE_RECIPE_SEARCH_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "953", "냉장고 기반 레시피 조회 중 오류가 발생했습니다."),
     ;
 
     private final HttpStatus status;
