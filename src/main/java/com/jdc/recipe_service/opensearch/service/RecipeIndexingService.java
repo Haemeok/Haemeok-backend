@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +33,19 @@ public class RecipeIndexingService {
     private final ObjectMapper objectMapper;
     private final RecipeLikeRepository likeRepository;
     private final RecipeRepository recipeRepository;
+    private static final Set<Long> PANTRY_IDS = Set.of(
+            18L, 25L, 26L, 27L, 28L, 31L, 35L, 42L, 43L, 51L,
+            56L, 57L, 59L, 60L, 63L, 64L, 82L, 95L, 97L, 100L,
+            113L, 116L, 118L, 119L, 123L, 124L, 129L, 131L,
+            134L, 138L, 149L, 151L, 152L, 155L, 163L, 165L,
+            179L, 190L, 202L, 208L, 212L, 213L, 217L, 227L,
+            236L, 237L, 238L, 239L, 247L, 248L, 252L, 260L,
+            268L, 270L, 271L, 275L, 277L, 283L, 293L, 302L,
+            305L, 319L, 322L, 325L, 331L, 332L, 335L, 339L,
+            342L, 344L, 346L, 353L, 354L, 355L, 356L, 360L,
+            370L, 379L, 384L, 388L, 391L, 403L, 405L, 410L,
+            416L, 420L
+    );
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -85,33 +99,34 @@ public class RecipeIndexingService {
         """, XContentType.JSON);
 
         request.mapping("""
-        {
-          "properties": {
-            "title": {
-              "type": "text",
-              "fields": {
-                "prefix": {
-                  "type":     "text",
-                  "analyzer": "autocomplete_analyzer"
-                },
-                "infix": {
-                  "type":            "text",
-                  "analyzer":        "infix_analyzer",
-                  "search_analyzer": "standard"
+                {
+                  "properties": {
+                    "title": {
+                      "type": "text",
+                      "fields": {
+                        "prefix": {
+                          "type":     "text",
+                          "analyzer": "autocomplete_analyzer"
+                        },
+                        "infix": {
+                          "type":            "text",
+                          "analyzer":        "infix_analyzer",
+                          "search_analyzer": "standard"
+                        }
+                      }
+                    },
+                    "dishType":    { "type":"keyword" },
+                    "tags":        { "type":"keyword" },
+                    "createdAt":   { "type":"date" },
+                    "likeCount":   { "type":"integer" },
+                    "cookingTime": { "type":"integer" },
+                    "imageUrl":    { "type":"keyword" },
+                    "isAiGenerated":{ "type":"boolean" },
+                    "ingredientIds":  { "type": "long" },
+                    "ingredientCount":{ "type": "integer" }
+                  }
                 }
-              }
-            },
-            "description": { "type":"text" },
-            "dishType":    { "type":"keyword" },
-            "ingredients": { "type":"text", "analyzer":"autocomplete_analyzer" },
-            "tags":        { "type":"keyword" },
-            "createdAt":   { "type":"date" },
-            "likeCount":   { "type":"integer" },
-            "cookingTime": { "type":"integer" },
-            "imageUrl":    { "type":"keyword" }
-          }
-        }
-        """, XContentType.JSON);
+                """, XContentType.JSON);
 
         try {
             CreateIndexResponse res = client.indices().create(request, RequestOptions.DEFAULT);
@@ -165,18 +180,11 @@ public class RecipeIndexingService {
      * 문서에 들어갈 데이터를 Recipe → RecipeDocument 로 변환합니다.
      */
     private RecipeDocument buildDocument(Recipe recipe) {
-        List<String> ingredientNames = Optional.ofNullable(recipe.getIngredients())
-                .orElse(Collections.emptyList())
+        List<Long> ids = Optional.ofNullable(recipe.getIngredients())
+                .orElse(List.of())
                 .stream()
-                .map(i -> {
-                    if (i.getIngredient() != null && i.getIngredient().getName() != null) {
-                        return i.getIngredient().getName();
-                    }
-                    return i.getCustomName();
-                })
-                .filter(name -> name != null && !name.isBlank())
-                .map(String::trim)
-                .distinct()
+                .map(ri -> ri.getIngredient().getId())
+                .filter(id -> !PANTRY_IDS.contains(id))
                 .toList();
 
         List<String> tagNames = Optional.ofNullable(recipe.getTags())
@@ -191,14 +199,15 @@ public class RecipeIndexingService {
         return RecipeDocument.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
-                .description(recipe.getDescription())
-                .ingredients(ingredientNames)
                 .tags(tagNames)
                 .dishType(recipe.getDishType().name())
                 .createdAt(recipe.getCreatedAt().toString())
                 .likeCount(likeCount)
                 .cookingTime(Optional.ofNullable(recipe.getCookingTime()).orElse(0))
                 .imageUrl(generateImageUrl(recipe.getImageKey()))
+                .isAiGenerated(recipe.isAiGenerated())
+                .ingredientIds(ids)
+                .ingredientCount(ids.size())
                 .build();
     }
 
