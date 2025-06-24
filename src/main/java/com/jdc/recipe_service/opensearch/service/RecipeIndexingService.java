@@ -183,6 +183,7 @@ public class RecipeIndexingService {
         List<Long> ids = Optional.ofNullable(recipe.getIngredients())
                 .orElse(List.of())
                 .stream()
+                .filter(ri -> ri.getIngredient() != null)
                 .map(ri -> ri.getIngredient().getId())
                 .filter(id -> !PANTRY_IDS.contains(id))
                 .toList();

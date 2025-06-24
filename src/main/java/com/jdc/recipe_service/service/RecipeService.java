@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.*;
+import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.entity.*;
@@ -15,10 +16,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
-import com.jdc.recipe_service.util.ActionImageService;
-import com.jdc.recipe_service.util.PricingUtil;
-import com.jdc.recipe_service.util.PromptBuilder;
-import com.jdc.recipe_service.util.S3Util;
+import com.jdc.recipe_service.util.*;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -53,6 +51,9 @@ public class RecipeService {
     private final AsyncImageService asyncImageService;
     private final ActionImageService actionImageService;
     private final SurveyService surveyService;
+    private final OpenAiClientService aiService;
+    private final UnitService unitService;
+    private final PromptBuilder promptBuilder;
 
     @Transactional
     public PresignedUrlResponse createRecipeWithAiLogic(
@@ -94,7 +95,7 @@ public class RecipeService {
             }
         }
 
-        String prompt = PromptBuilder.buildPrompt(
+        String prompt = promptBuilder.buildPrompt(
                 aiReq,
                 robotTypeParam
         );
@@ -187,7 +188,6 @@ public class RecipeService {
             );
         }
 
-        // 10) 응답 반환
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
                 .uploads(uploads)
@@ -195,7 +195,79 @@ public class RecipeService {
     }
 
     @Transactional
-    public RecipeWithImageUploadRequest buildRecipeFromAiRequest(String prompt, AiRecipeRequestDto aiReq, List<FileInfoRequest> originalFiles) {
+    public RecipeWithImageUploadRequest buildRecipeFromAiRequest(
+            String prompt,
+            AiRecipeRequestDto aiReq,
+            List<FileInfoRequest> originalFiles) {
+
+        RecipeCreateRequestDto generatedDto = null;
+
+        int maxTries = 2;
+
+        for (int attempt = 1; attempt <= maxTries; attempt++) {
+            try {
+                generatedDto = aiService.generateRecipeJson(prompt).join();
+                break;
+            } catch (RuntimeException e) {
+                if (attempt == maxTries) {
+                    throw new CustomException(
+                            ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                            "AI 레시피 생성에 실패했습니다: " + e.getMessage(), e
+                    );
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new CustomException(
+                            ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                            "레시피 생성 중 인터럽트 발생", ie
+                    );
+                }
+            }
+        }
+
+        List<RecipeIngredientRequestDto> correctedIngredients =
+                generatedDto.getIngredients().stream()
+                        .map(ing -> {
+                            String finalUnit = unitService
+                                    .getDefaultUnit(ing.getName())
+                                    .orElse(ing.getCustomUnit());
+                            return RecipeIngredientRequestDto.builder()
+                                    .name(ing.getName())
+                                    .quantity(ing.getQuantity())
+                                    .customPrice(ing.getCustomPrice())
+                                    .customUnit(finalUnit)
+                                    .build();
+                        })
+                        .collect(Collectors.toList());
+        generatedDto.setIngredients(correctedIngredients);
+
+        if (generatedDto.getSteps() == null || generatedDto.getSteps().isEmpty()) {
+            throw new CustomException(
+                    ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                    "AI가 요리 단계를 생성하지 못했습니다. 다시 시도해 주세요."
+            );
+        }
+        if (generatedDto.getTagNames() == null || generatedDto.getTagNames().isEmpty()) {
+            throw new CustomException(
+                    ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                    "AI가 태그 정보를 생성하지 못했습니다. 다시 시도해 주세요."
+            );
+        }
+
+        RecipeWithImageUploadRequest result = new RecipeWithImageUploadRequest();
+        result.setAiRequest(aiReq);
+        result.setRecipe(generatedDto);
+        result.setFiles(originalFiles);
+        return result;
+    }
+
+
+
+
+    @Transactional
+    public RecipeWithImageUploadRequest buildRecipeFromAiRequestV2(String prompt, AiRecipeRequestDto aiReq, List<FileInfoRequest> originalFiles) {
         String jsonFromAI = null;
         try {
             jsonFromAI = replicateService.generateRecipeJsonWithRetry(prompt);

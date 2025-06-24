@@ -2,11 +2,18 @@ package com.jdc.recipe_service.util;
 
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.type.RobotType;
+import org.springframework.stereotype.Component;
 
-
+@Component
 public class PromptBuilder {
 
-    public static String buildPrompt(AiRecipeRequestDto request, RobotType type) {
+    private final UnitService unitService;
+
+    public PromptBuilder(UnitService unitService) {
+        this.unitService = unitService;
+    }
+
+    public String buildPrompt(AiRecipeRequestDto request, RobotType type) {
 
         String fewShotExample = """
             {
@@ -70,30 +77,24 @@ public class PromptBuilder {
             tags = "[" + tags + "]";
         }
 
-        String cookingTimePart;
-        if (request.getCookingTime() != null && request.getCookingTime() > 0) {
-            cookingTimePart = String.format("- 희망 조리 시간: %d분 이내", request.getCookingTime());
-        } else {
-            cookingTimePart = "- 희망 조리 시간 정보가 제공되지 않았습니다. AI 모델은 자동으로 예상 조리 시간을 추정하세요.";
-        }
+        String cookingTimePart = (request.getCookingTime() != null && request.getCookingTime() > 0)
+                ? String.format("- 희망 조리 시간: %d분 이내", request.getCookingTime())
+                : "- 희망 조리 시간 정보가 제공되지 않았습니다. AI 모델은 자동으로 예상 조리 시간을 추정하세요.";
 
-        String servingsPart;
-        if (request.getServings() != null && request.getServings() > 0) {
-            servingsPart = String.format("- 인분 수: %.1f인분", request.getServings());
-        } else {
-            servingsPart = "- 인분 수 정보가 제공되지 않았습니다. AI 모델이 적절히 판단하여 작성하세요.";
-        }
+        String servingsPart = (request.getServings() != null && request.getServings() > 0)
+                ? String.format("- 인분 수: %.1f인분", request.getServings())
+                : "- 인분 수 정보가 제공되지 않았습니다. AI 모델이 적절히 판단하여 작성하세요.";
 
         String preferencePart = String.format("""
             - 매운맛 선호도: %s%s
             - 짠맛 선호도: %s
             - 알레르기 정보: %s
             - 식이 제한: %s""",
-                request.getSpiceLevel() != null ? request.getSpiceLevel() : "기본",
-                request.getSpiceLevel() != null ? "/5" : "",
-                request.getSaltiness()    != null ? request.getSaltiness().name() : "기본",
-                (request.getAllergy() != null && !request.getAllergy().isBlank()) ? request.getAllergy() : "없음",
-                (request.getDietType() != null && !request.getDietType().isBlank()) ? request.getDietType() : "없음"
+                request.getSpiceLevel()    != null ? request.getSpiceLevel() : "기본",
+                request.getSpiceLevel()    != null ? "/5"             : "",
+                request.getSaltiness()     != null ? request.getSaltiness().name() : "기본",
+                (request.getAllergy()      != null && !request.getAllergy().isBlank()) ? request.getAllergy() : "없음",
+                (request.getDietType()     != null && !request.getDietType().isBlank()) ? request.getDietType() : "없음"
         );
 
         String persona = switch (type) {
@@ -102,6 +103,9 @@ public class PromptBuilder {
             case INDULGENT -> "너는 사람들의 입맛을 확 사로잡는 자극적이고 화려한 요리를 추구하는 미식가야.";
             default        -> "너는 '백종원'처럼 조리 원리를 잘 이해하고 맛의 깊이를 더하는 전문 한국 요리사야.";
         };
+
+        String allowedUnits   = unitService.unitsAsString();
+        String unitMapping    = unitService.mappingAsString();
 
         return String.format("""
             %s
@@ -131,6 +135,8 @@ public class PromptBuilder {
             4) 모든 필드는 의미 있는 한글 내용이어야 하고, 절대로 빈값("")이 될 수 없습니다.
             5) "steps" 배열 안의 각 객체는 "stepNumber", "instruction", "action" 키를 모두 포함해야 합니다.
             6) JSON 외에 어떤 텍스트(설명·주석·마커 등)도 절대로 포함하지 마세요.
+            7) "unit" 필드는 다음 허용 단위 중 하나만 사용해야 합니다: [%s]
+            8) 재료별 기본 단위 매핑: {%s}
 
             --- 예시 JSON (이 구조와 요리 원리를 참고하여 생성) ---
             %s
@@ -148,6 +154,8 @@ public class PromptBuilder {
             """,
                 persona,
                 request.getDishType(), tags, tags,
+                allowedUnits,
+                unitMapping,
                 fewShotExample,
                 request.getDishType(),
                 cookingTimePart,
