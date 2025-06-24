@@ -95,4 +95,4 @@ resilience4j:
   timelimiter:
     instances:
       aiGenerate:
-        timeout-duration: 10s
+        timeout-duration: 60s
