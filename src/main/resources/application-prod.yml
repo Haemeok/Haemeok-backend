@@ -85,7 +85,7 @@ resilience4j:
   retry:
     instances:
       aiGenerate:
-        max-attempts: 2
+        max-attempts: 1
         wait-duration: 500ms
   circuitbreaker:
     instances:
@@ -95,4 +95,4 @@ resilience4j:
   timelimiter:
     instances:
       aiGenerate:
-        timeout-duration: 1s
+        timeout-duration: 10s
