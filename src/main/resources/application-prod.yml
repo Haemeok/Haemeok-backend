@@ -80,3 +80,19 @@ openai:
 logging:
   level:
     com.jdc.recipe_service.service.AsyncImageService: WARN
+
+resilience4j:
+  retry:
+    instances:
+      aiGenerate:
+        max-attempts: 2
+        wait-duration: 500ms
+  circuitbreaker:
+    instances:
+      aiGenerate:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+  timelimiter:
+    instances:
+      aiGenerate:
+        timeout-duration: 1s
