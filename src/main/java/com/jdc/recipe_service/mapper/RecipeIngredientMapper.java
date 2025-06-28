@@ -28,30 +28,49 @@ public class RecipeIngredientMapper {
                 .unit(unitForRecipeItemField);
 
         if (masterIngredient != null) {
-            builder.ingredient(masterIngredient);
-            builder.customName(null);
-            builder.customPrice(null);
-            builder.customUnit(null);
+            builder.ingredient(masterIngredient)
+                    .customName(null)
+                    .customPrice(null)
+                    .customUnit(null)
+                    .customCalorie(null);
         } else {
-            builder.ingredient(null);
-            builder.customName(dto.getName());
-            builder.customUnit(unitForRecipeItemField);
-
-            if (sourceType == RecipeSourceType.AI) {
-                builder.customPrice(BigDecimal.ZERO);
-            } else {
-                builder.customPrice(dto.getCustomPrice() != null ? dto.getCustomPrice() : BigDecimal.ZERO);
-            }
+            builder.ingredient(null)
+                    .customName(dto.getName())
+                    .customUnit(unitForRecipeItemField)
+                    .customPrice(
+                            sourceType == RecipeSourceType.AI
+                                    ? BigDecimal.ZERO
+                                    : Optional.ofNullable(dto.getCustomPrice()).orElse(BigDecimal.ZERO)
+                    )
+                    .customCalorie(dto.getCustomCalories());
         }
         return builder.build();
     }
+
 
     public static RecipeIngredientDto toDto(RecipeIngredient entity) {
         Ingredient ingredient = entity.getIngredient();
         boolean isCustom = (ingredient == null);
 
-        int totalPrice = Optional.ofNullable(entity.getPrice())
-                .orElse(0);
+        int totalPrice = Optional.ofNullable(entity.getPrice()).orElse(0);
+
+        Double quantityValue = null;
+        try {
+            quantityValue = parseQuantity(entity.getQuantity());
+        } catch (Exception e) {
+        }
+
+        BigDecimal calPerUnitBd = isCustom
+                ? entity.getCustomCalorie()
+                : Optional.ofNullable(ingredient.getCalorie()).map(BigDecimal::valueOf).orElse(null);
+
+        Double caloriePerUnit = calPerUnitBd != null
+                ? calPerUnitBd.doubleValue()
+                : null;
+
+        Double totalCalories = (quantityValue != null && caloriePerUnit != null)
+                ? quantityValue * caloriePerUnit
+                : null;
 
         return RecipeIngredientDto.builder()
                 .id(isCustom ? null : ingredient.getId())
@@ -59,8 +78,10 @@ public class RecipeIngredientMapper {
                 .quantity(formatQuantityForDisplay(entity.getQuantity()))
                 .unit(isCustom ? entity.getCustomUnit() : entity.getUnit())
                 .price(totalPrice)
+                .calories(totalCalories)
                 .build();
     }
+
 
 
     public static List<RecipeIngredientDto> toDtoList(List<RecipeIngredient> entities) {
