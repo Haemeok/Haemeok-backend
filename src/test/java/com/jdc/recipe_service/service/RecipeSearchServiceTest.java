@@ -147,7 +147,7 @@ class RecipeSearchServiceTest {
                 .thenReturn(List.of(ingrEntity));
 
         RecipeIngredientDto ingrDto = new RecipeIngredientDto(
-                1L, "감자", "2", "개", 2000
+                1L, "감자", "2", "개", 2000,1.0
         );
         try (MockedStatic<RecipeIngredientMapper> ingrMapper = Mockito.mockStatic(RecipeIngredientMapper.class)) {
             ingrMapper.when(() ->

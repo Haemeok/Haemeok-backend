@@ -33,7 +33,7 @@ public class Ingredient {
     private String unit;
 
     @Column(name = "calorie", nullable = true)
-    private Integer calorie;
+    private Double calorie;
 
     @Column(name = "english_name", length = 100)
     private String englishName;
