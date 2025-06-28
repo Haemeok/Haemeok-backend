@@ -39,4 +39,6 @@ public class RecipeIngredient {
     private String customName;
     private BigDecimal customPrice;
     private String customUnit;
+    @Column(precision=8, scale=2)
+    private BigDecimal customCalorie;
 }
