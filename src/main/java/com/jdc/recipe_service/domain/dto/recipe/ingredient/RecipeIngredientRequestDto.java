@@ -25,4 +25,7 @@ public class RecipeIngredientRequestDto {
     private BigDecimal customPrice;
     @JsonProperty("unit")
     private String customUnit;
+
+    @JsonProperty("caloriesPerUnit")
+    private BigDecimal customCalories;
 }
