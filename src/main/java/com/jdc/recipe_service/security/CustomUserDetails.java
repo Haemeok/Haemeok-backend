@@ -20,6 +20,10 @@ public class CustomUserDetails implements UserDetails {
         return user;
     }
 
+    public Long getId() {
+        return user.getId();
+    }
+
     @Override
     public String getUsername() {
         return String.valueOf(user.getId()); // 또는 user.getEmail()
