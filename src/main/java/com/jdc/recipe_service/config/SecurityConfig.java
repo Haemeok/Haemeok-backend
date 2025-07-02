@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -20,6 +21,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.core.convert.converter.Converter;
 
 import java.util.Arrays;
 
@@ -34,6 +37,8 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     private final CustomAuthenticationEntryPoint entryPoint;
     private final Environment env;
+    private final Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter;
+
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -45,7 +50,18 @@ public class SecurityConfig {
         // --- 로컬 프로필: H2 콘솔, local-token만 풀고, 나머지는 운영과 동일하게 보안 처리 ---
         if (Arrays.asList(env.getActiveProfiles()).contains("local")) {
             http
+                    .oauth2ResourceServer(oauth2 -> oauth2
+                            .jwt(jwt -> jwt
+                                    .jwtAuthenticationConverter(jwtAuthenticationConverter)
+                            )
+                    )
                     .authorizeHttpRequests(auth -> auth
+                            .requestMatchers("/ws/notifications/**").authenticated()
+                            .requestMatchers("/app/**", "/user/**", "/queue/**", "/topic/**").authenticated()
+
+                            .requestMatchers("/api/notifications/**").authenticated()
+                            .requestMatchers("/api/notification-preferences/**").authenticated()
+
                             // 1) 로컬 전용: H2 콘솔, JWT 발급용 엔드포인트
                             .requestMatchers("/h2-console/**", "/local-token").permitAll()
 
@@ -139,13 +155,25 @@ public class SecurityConfig {
         http
                 // HTTPS 강제
                 .requiresChannel(ch -> ch.anyRequest().requiresSecure())
-
                 .cors(cors -> cors.configurationSource(corsConfig()))
                 .csrf(AbstractHttpConfigurer::disable)
 
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter)
+                        )
+                )
                 .authorizeHttpRequests(auth -> auth
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // WebSocket 핸드쉐이크 & SockJS 엔드포인트
+                        .requestMatchers("/ws/notifications/**").authenticated()
+                        // STOMP 메시지 전송/수신 경로 (/app, /user, /queue, /topic)
+                        .requestMatchers("/app/**", "/user/**", "/queue/**", "/topic/**").authenticated()
+
+                        .requestMatchers("/api/notifications/**").authenticated()
+                        .requestMatchers("/api/notification-preferences/**").authenticated()
 
                         // 1) 공개 엔드포인트
                         .requestMatchers(
