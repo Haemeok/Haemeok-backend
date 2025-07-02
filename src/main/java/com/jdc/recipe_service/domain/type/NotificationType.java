@@ -1,0 +1,8 @@
+package com.jdc.recipe_service.domain.type;
+
+public enum NotificationType {
+    NEW_COMMENT,
+    NEW_REPLY,
+    AI_RECIPE_DONE,
+    NEW_FAVORITE,
+}
