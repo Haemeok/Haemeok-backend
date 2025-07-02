@@ -57,6 +57,7 @@ public class SecurityConfig {
                             )
                     )
                     .authorizeHttpRequests(auth -> auth
+                            .requestMatchers("/", "/index.html", "/*.html").permitAll()
                             .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/ws/notifications/**").authenticated()
@@ -167,6 +168,7 @@ public class SecurityConfig {
                         )
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/", "/index.html", "/*.html").permitAll()
                         .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
