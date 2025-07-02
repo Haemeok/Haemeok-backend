@@ -23,6 +23,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 
 import java.util.Arrays;
 
@@ -56,6 +57,8 @@ public class SecurityConfig {
                             )
                     )
                     .authorizeHttpRequests(auth -> auth
+                            .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/ws/notifications/**").authenticated()
                             .requestMatchers("/app/**", "/user/**", "/queue/**", "/topic/**").authenticated()
 
@@ -164,7 +167,7 @@ public class SecurityConfig {
                         )
                 )
                 .authorizeHttpRequests(auth -> auth
-
+                        .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // WebSocket 핸드쉐이크 & SockJS 엔드포인트
