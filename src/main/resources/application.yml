@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: local
+    active: prod
   mvc:
     async:
       request-timeout: 600000   # 10분 (밀리초)
