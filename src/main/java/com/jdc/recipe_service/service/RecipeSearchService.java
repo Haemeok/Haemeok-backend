@@ -36,6 +36,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -261,10 +263,13 @@ public class RecipeSearchService {
                 recipeIngredientRepository.findByRecipeId(recipeId)
         );
 
-        // 총 칼로리 계산 (각 재료 DTO의 calories 필드를 합산)
-        double totalCalories = ingredients.stream()
-                .mapToDouble(RecipeIngredientDto::getCalories)
+        double rawTotal = ingredients.stream()
+                .mapToDouble(i -> i.getCalories() != null ? i.getCalories() : 0.0)
                 .sum();
+        double totalCalories = BigDecimal
+                .valueOf(rawTotal)
+                .setScale(2, RoundingMode.DOWN)
+                .doubleValue();
 
         List<RecipeStepDto> steps = recipeStepRepository
                 .findWithIngredientsByRecipeIdOrderByStepNumber(recipeId)
@@ -307,7 +312,7 @@ public class RecipeSearchService {
                 .favoriteByCurrentUser(favoritedByUser)
                 .tags(tagNames)
                 .ingredients(ingredients)
-                .totalCalories(totalCalories)    // ← 총 칼로리 필드 세팅
+                .totalCalories(totalCalories)
                 .steps(steps)
                 .comments(comments)
                 .commentCount(commentCount)
