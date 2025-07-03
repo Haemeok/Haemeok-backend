@@ -2,6 +2,7 @@ package com.jdc.recipe_service.domain.entity;
 
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.type.NotificationRelatedType;
 import com.jdc.recipe_service.domain.type.NotificationType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -43,8 +44,9 @@ public class Notification extends BaseTimeEntity {
     @Column(length = 255, nullable = false)
     private String content;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "related_type", length = 32)
-    private String relatedType;
+    private NotificationRelatedType relatedType;
 
     @Column(name = "related_id")
     private Long relatedId;
