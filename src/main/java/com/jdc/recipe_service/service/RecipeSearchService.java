@@ -261,6 +261,11 @@ public class RecipeSearchService {
                 recipeIngredientRepository.findByRecipeId(recipeId)
         );
 
+        // 총 칼로리 계산 (각 재료 DTO의 calories 필드를 합산)
+        double totalCalories = ingredients.stream()
+                .mapToDouble(RecipeIngredientDto::getCalories)
+                .sum();
+
         List<RecipeStepDto> steps = recipeStepRepository
                 .findWithIngredientsByRecipeIdOrderByStepNumber(recipeId)
                 .stream()
@@ -275,7 +280,7 @@ public class RecipeSearchService {
         long commentCount = recipeCommentRepository.countByRecipeId(recipeId);
 
         int totalCost   = basic.getTotalIngredientCost() != null ? basic.getTotalIngredientCost() : 0;
-        int marketPrice = basic.getMarketPrice()               != null ? basic.getMarketPrice()               : 0;
+        int marketPrice = basic.getMarketPrice()               != null ? basic.getMarketPrice()   : 0;
         int savings     = marketPrice - totalCost;
 
         List<String> tools = new ArrayList<>(basic.getCookingTools());
@@ -296,25 +301,23 @@ public class RecipeSearchService {
                 .servings(basic.getServings())
                 .isPrivate(basic.getIsPrivate())
                 .isAiGenerated(basic.isAiGenerated())
-                .marketPrice(marketPrice)
-                .totalIngredientCost(totalCost)
-                .savings(savings)
                 .author(authorDto)
                 .likeCount(likeCount)
                 .likedByCurrentUser(likedByUser)
                 .favoriteByCurrentUser(favoritedByUser)
                 .tags(tagNames)
                 .ingredients(ingredients)
+                .totalCalories(totalCalories)    // ← 총 칼로리 필드 세팅
                 .steps(steps)
                 .comments(comments)
                 .commentCount(commentCount)
+                .totalIngredientCost(totalCost)
+                .marketPrice(marketPrice)
+                .savings(savings)
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();
     }
-
-
-
 
     @Scheduled(initialDelay = 5000, fixedRate = 10000)
     public void checkOpenSearchHealth() {
