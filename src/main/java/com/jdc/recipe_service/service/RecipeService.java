@@ -238,6 +238,7 @@ public class RecipeService {
                                     .quantity(ing.getQuantity())
                                     .customPrice(ing.getCustomPrice())
                                     .customUnit(finalUnit)
+                                    .customCalories(ing.getCustomCalories())
                                     .build();
                         })
                         .collect(Collectors.toList());
