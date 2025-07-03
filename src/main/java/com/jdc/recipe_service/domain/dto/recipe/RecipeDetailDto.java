@@ -96,6 +96,9 @@ public class RecipeDetailDto {
     @Schema(description = "총 재료 비용")
     private Integer totalIngredientCost;
 
+    @Schema(description = "총 칼로리")
+    private Double totalCalories;
+
     @Schema(description = "예상 마켓 가격")
     private Integer marketPrice;
 
