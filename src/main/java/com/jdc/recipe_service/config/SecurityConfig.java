@@ -47,7 +47,7 @@ public class SecurityConfig {
             http
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                            .requestMatchers("/ws/notifications/**").authenticated()
+                            .requestMatchers("/ws/notifications/**").permitAll()
                             .requestMatchers("/app/**", "/user/**", "/queue/**", "/topic/**").authenticated()
 
                             .requestMatchers("/api/notifications/**").authenticated()
@@ -153,8 +153,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // WebSocket 핸드쉐이크 & SockJS 엔드포인트
-                        .requestMatchers("/ws/notifications/**").authenticated()
-                        // STOMP 메시지 전송/수신 경로 (/app, /user, /queue, /topic)
+                        .requestMatchers("/ws/notifications/**").permitAll()
                         .requestMatchers("/app/**", "/user/**", "/queue/**", "/topic/**").authenticated()
 
                         .requestMatchers("/api/notifications/**").authenticated()
