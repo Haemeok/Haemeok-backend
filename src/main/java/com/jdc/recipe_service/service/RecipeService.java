@@ -2,16 +2,14 @@ package com.jdc.recipe_service.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
-import com.jdc.recipe_service.domain.type.DishType;
-import com.jdc.recipe_service.domain.type.RecipeImageStatus;
-import com.jdc.recipe_service.domain.type.RecipeSourceType;
-import com.jdc.recipe_service.domain.type.RobotType;
+import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
@@ -44,6 +42,7 @@ public class RecipeService {
     private final RecipeImageService recipeImageService;
     private final RecipeLikeService recipeLikeService;
     private final RecipeIndexingService recipeIndexingService;
+    private final NotificationService notificationService;
     private final S3Util s3Util;
     private final EntityManager em;
     private final ReplicateService replicateService;
@@ -183,6 +182,18 @@ public class RecipeService {
                         @Override
                         public void afterCommit() {
                             asyncImageService.generateAndUploadAiImageAsync(recipe.getId());
+
+                            notificationService.createNotification(
+                                    NotificationCreateDto.builder()
+                                            .userId(recipe.getUser().getId())
+                                            .actorId(null)
+                                            .type(NotificationType.AI_RECIPE_DONE)
+                                            .content("AI 레시피 생성이 완료되었습니다.")
+                                            .relatedType(NotificationRelatedType.RECIPE)
+                                            .relatedId(recipe.getId())
+                                            .relatedUrl("/recipes/" + recipe.getId())
+                                            .build()
+                            );
                         }
                     }
             );

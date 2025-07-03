@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service;
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.comment.CommentRequestDto;
 import com.jdc.recipe_service.domain.dto.comment.ReplyDto;
+import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeComment;
 import com.jdc.recipe_service.domain.entity.User;
@@ -11,6 +12,8 @@ import com.jdc.recipe_service.domain.repository.CommentLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.type.NotificationRelatedType;
+import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
@@ -32,6 +35,8 @@ public class CommentService {
     private final CommentLikeRepository commentLikeRepository;
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
+
 
     public List<CommentDto> getTop3CommentsWithLikes(Long recipeId, Long currentUserId) {
         List<RecipeComment> comments = recipeCommentRepository
@@ -77,6 +82,21 @@ public class CommentService {
                 .build();
         recipeCommentRepository.save(comment);
 
+        Long targetUserId = recipe.getUser().getId();
+        if (!targetUserId.equals(user.getId())) {
+            notificationService.createNotification(
+                    NotificationCreateDto.builder()
+                            .userId(targetUserId)
+                            .actorId(user.getId())
+                            .type(NotificationType.NEW_COMMENT)
+                            .content(user.getNickname() + "님이 댓글을 남겼습니다.")
+                            .relatedType(NotificationRelatedType.RECIPE)
+                            .relatedId(recipeId)
+                            .relatedUrl("/recipes/" + recipeId + "/comments")
+                            .build()
+            );
+        }
+
         return CommentMapper.toDto(comment, false, 0);
     }
 
@@ -99,6 +119,21 @@ public class CommentService {
                 .build();
 
         recipeCommentRepository.save(reply);
+
+        Long targetUserId = parent.getUser().getId();
+        if (!targetUserId.equals(user.getId())) {
+            notificationService.createNotification(
+                    NotificationCreateDto.builder()
+                            .userId(targetUserId)
+                            .actorId(user.getId())
+                            .type(NotificationType.NEW_REPLY)
+                            .content(user.getNickname() + "님이 대댓글을 남겼습니다.")
+                            .relatedType(NotificationRelatedType.COMMENT)
+                            .relatedId(parentId)
+                            .relatedUrl("/recipes/" + recipeId + "/comments/" +parentId)                            .build()
+            );
+        }
+
         return CommentMapper.toReplyDto(reply, false, 0);
     }
 

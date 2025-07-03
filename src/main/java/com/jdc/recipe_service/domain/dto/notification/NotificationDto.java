@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.notification;
 
 import com.jdc.recipe_service.domain.entity.Notification;
+import com.jdc.recipe_service.domain.type.NotificationRelatedType;
 import com.jdc.recipe_service.domain.type.NotificationType;
 import lombok.*;
 
@@ -17,7 +18,7 @@ public class NotificationDto {
     private Long actorId;
     private NotificationType type;
     private String content;
-    private String relatedType;
+    private NotificationRelatedType relatedType;
     private Long relatedId;
     private String relatedUrl;
     private boolean isRead;
