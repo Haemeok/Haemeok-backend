@@ -6,15 +6,22 @@ spring:
       request-timeout: 600000   # 10분 (밀리초)
 
 server:
-  forward-headers-strategy: framework
+  forward-headers-strategy: native
+
+  # ▶ 내장 톰캣 RemoteIpValve 설정
+  tomcat:
+    # 프록시가 전달하는 실제 클라이언트 IP 헤더
+    remote-ip-header: X-Forwarded-For
+    # 프록시가 전달하는 프로토콜 헤더 (http/https)
+    protocol-header: X-Forwarded-Proto
+    # 신뢰할 프록시 IP 범위 (정규식)
+    internal-proxies: 127\.0\.0\.1|192\.168\.0\.\d+
 
 springdoc:
   api-docs:
     enabled: true
-    # v3/api-docs/ 로 노출
     path: /v3/api-docs
   swagger-ui:
-    # UI가 여기서 스펙을 직접 읽어가도록
     url: /v3/api-docs
     path: /swagger-ui
 
