@@ -28,8 +28,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         "http://localhost:5173",
                         "https://www.haemeok.com"
                 )
-                .setHandshakeHandler(new DefaultHandshakeHandler())
                 .addInterceptors(new JwtHandshakeInterceptor(jwtTokenProvider))
+                .setHandshakeHandler(new PrincipalHandshakeHandler())
                 .withSockJS();
     }
 }
