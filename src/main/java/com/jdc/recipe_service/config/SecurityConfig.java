@@ -146,7 +146,7 @@ public class SecurityConfig {
                 .requiresChannel(ch -> ch
                         .requestMatchers("/api/**").requiresSecure()
                         .requestMatchers("/ws/notifications/**").requiresSecure()
-                        .anyRequest().requiresInsecure()
+                        .requestMatchers("/test-ws.html").requiresSecure()   // test 페이지도 HTTPS 유지
                 )
                 .cors(cors -> cors.configurationSource(corsConfig()))
                 .csrf(AbstractHttpConfigurer::disable)
