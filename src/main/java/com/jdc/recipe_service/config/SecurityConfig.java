@@ -19,7 +19,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
 import java.util.Arrays;
 
@@ -48,7 +47,6 @@ public class SecurityConfig {
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/ws/notifications/**").permitAll()
-                            .requestMatchers("/app/**", "/user/**", "/queue/**", "/topic/**").authenticated()
 
                             .requestMatchers("/api/notifications/**").authenticated()
                             .requestMatchers("/api/notification-preferences/**").authenticated()
@@ -145,16 +143,20 @@ public class SecurityConfig {
         // --- 운영/스테이징 ---
         http
                 // HTTPS 강제
-                .requiresChannel(ch -> ch.anyRequest().requiresSecure())
+                .requiresChannel(ch -> ch
+                        .requestMatchers("/api/**").requiresSecure()
+                        .requestMatchers("/ws/notifications/**").requiresSecure()
+                        .anyRequest().requiresInsecure()
+                )
                 .cors(cors -> cors.configurationSource(corsConfig()))
                 .csrf(AbstractHttpConfigurer::disable)
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/test-ws.html").permitAll()
 
                         // WebSocket 핸드쉐이크 & SockJS 엔드포인트
                         .requestMatchers("/ws/notifications/**").permitAll()
-                        .requestMatchers("/app/**", "/user/**", "/queue/**", "/topic/**").authenticated()
 
                         .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/notification-preferences/**").authenticated()
@@ -282,20 +284,5 @@ public class SecurityConfig {
         return src;
     }
 
-    @Bean
-    public CorsFilter corsFilter() {
-        CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(Arrays.asList(
-                "http://localhost:5173",
-                "https://www.haemeok.com"
-        ));
-        cfg.setAllowedMethods(Arrays.asList("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        cfg.setAllowedHeaders(Arrays.asList("*"));
-        cfg.setAllowCredentials(true);
-
-        UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
-        src.registerCorsConfiguration("/**", cfg);
-        return new CorsFilter(src);
-    }
 }
 

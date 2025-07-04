@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.config;
 
+import com.jdc.recipe_service.jwt.JwtTokenProvider;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
@@ -8,7 +10,9 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+    private final JwtTokenProvider jwtTokenProvider;
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.enableSimpleBroker("/queue", "/topic");
@@ -19,7 +23,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws/notifications")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOriginPatterns(
+                        "http://localhost:5173",
+                        "https://www.haemeok.com"
+                )
+                .addInterceptors(new JwtHandshakeInterceptor(jwtTokenProvider))
                 .withSockJS();
     }
 }

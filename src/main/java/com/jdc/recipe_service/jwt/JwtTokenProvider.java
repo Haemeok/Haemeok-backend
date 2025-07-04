@@ -1,10 +1,14 @@
 package com.jdc.recipe_service.jwt;
 
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.security.CustomUserDetailsService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -14,6 +18,8 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class JwtTokenProvider {
+    private final CustomUserDetailsService userDetailsService;
+
 
     private final Key key;
 
@@ -23,12 +29,14 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-validity-in-ms}") long accessTokenValidityInMilliseconds,
-            @Value("${jwt.refresh-token-validity-in-ms}") long refreshTokenValidityInMilliseconds
+            @Value("${jwt.refresh-token-validity-in-ms}") long refreshTokenValidityInMilliseconds,
+             CustomUserDetailsService userDetailsService
     ) {
         log.info("✅ Loaded JWT_SECRET: {}", secret);
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenValidityInMilliseconds = accessTokenValidityInMilliseconds;
         this.refreshTokenValidityInMilliseconds = refreshTokenValidityInMilliseconds;
+        this.userDetailsService = userDetailsService;
     }
 
     public String createAccessToken(User user) {
@@ -74,5 +82,16 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody();
         return Long.valueOf(claims.getSubject());
+    }
+
+    public Authentication getAuthentication(String token) {
+        Long userId = getUserIdFromToken(token);
+        CustomUserDetails userDetails =
+                (CustomUserDetails) userDetailsService.loadUserByUsername(String.valueOf(userId));
+        return new UsernamePasswordAuthenticationToken(
+                userDetails,
+                null,
+                userDetails.getAuthorities()
+        );
     }
 }

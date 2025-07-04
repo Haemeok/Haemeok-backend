@@ -25,12 +25,4 @@ public class WebConfig implements WebMvcConfigurer {
         configurer.setDefaultTimeout(600_000);
     }
 
-    /**
-     * X-Forwarded-* 헤더를 HttpServletRequest에 반영해 줍니다.
-     * 톰캣 native 모드 RemoteIpValve 설정을 적용하려면 반드시 필요합니다.
-     */
-    @Bean
-    public ForwardedHeaderFilter forwardedHeaderFilter() {
-        return new ForwardedHeaderFilter();
-    }
 }
