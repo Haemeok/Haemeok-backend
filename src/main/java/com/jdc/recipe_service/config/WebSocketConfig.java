@@ -30,6 +30,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 )
                 .addInterceptors(new JwtHandshakeInterceptor(jwtTokenProvider))
                 .setHandshakeHandler(new PrincipalHandshakeHandler())
-                .withSockJS();
+                .withSockJS()
+                .setInterceptors(new JwtHandshakeInterceptor(jwtTokenProvider));
     }
 }
