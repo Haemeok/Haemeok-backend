@@ -48,11 +48,11 @@
             return;
         }
         log('Opening Web Socket...');
-        const socket = new SockJS('/ws/notifications?token=' + encodeURIComponent(token));
+        const socket = new SockJS('/ws/notifications');
         client = Stomp.over(socket);
 
         client.connect(
-            {},
+            {Authorization: 'Bearer ' + token},
             frame => {
                 log('✅ 연결 성공: ' + (frame.headers['user-name'] || 'unknown'));
                 client.subscribe('/user/queue/notifications', msg => {

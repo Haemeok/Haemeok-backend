@@ -15,8 +15,11 @@ public class WebSocketSecurityConfig extends AbstractSecurityWebSocketMessageBro
                 .simpTypeMatchers(
                         SimpMessageType.CONNECT,
                         SimpMessageType.HEARTBEAT,
+                        SimpMessageType.UNSUBSCRIBE,
                         SimpMessageType.DISCONNECT
                 ).permitAll()
+                .simpTypeMatchers(SimpMessageType.SUBSCRIBE, SimpMessageType.MESSAGE)
+                .authenticated()
                 .simpSubscribeDestMatchers("/user/queue/**").authenticated()
                 .simpDestMatchers("/app/**").authenticated()
                 .anyMessage().denyAll();
