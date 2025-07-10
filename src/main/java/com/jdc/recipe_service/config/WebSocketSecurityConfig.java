@@ -18,11 +18,7 @@ public class WebSocketSecurityConfig extends AbstractSecurityWebSocketMessageBro
                         SimpMessageType.UNSUBSCRIBE,
                         SimpMessageType.DISCONNECT
                 ).permitAll()
-                .simpTypeMatchers(SimpMessageType.SUBSCRIBE, SimpMessageType.MESSAGE)
-                .authenticated()
-                .simpSubscribeDestMatchers("/user/queue/**").authenticated()
-                .simpDestMatchers("/app/**").authenticated()
-                .anyMessage().denyAll();
+                .anyMessage().authenticated();
     }
     @Override protected boolean sameOriginDisabled() { return true; }
 }
