@@ -61,14 +61,23 @@ public class AuthController {
         savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(savedToken);
 
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", newRefreshToken)
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", newRefreshToken)
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
                 .maxAge(7 * 24 * 60 * 60)
                 .sameSite("None")
                 .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
+        ResponseCookie accessCookie = ResponseCookie.from("accessToken", newAccessToken)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(15*60)
+                .sameSite("None")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
         return ResponseEntity.ok(new TokenResponseDTO(newAccessToken, null));
     }
@@ -76,34 +85,33 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(
             summary = "로그아웃",
-            description = "현재 사용자의 Access Token을 검증하고, Refresh Token을 삭제하며 쿠키도 무효화합니다."
+            description = "현재 사용자의 Access Token을 검증하고, 쿠키도 무효화합니다."
     )
     public ResponseEntity<Void> logout(
-            @Parameter(description = "Access Token 헤더", example = "Bearer {accessToken}")
-            @RequestHeader(value = "Authorization", required = false) String authorization,
             @Parameter(hidden = true)
+            @CookieValue(value = "accessToken",  required = false) String accessToken,
             @CookieValue(value = "refreshToken", required = false) String refreshToken,
             HttpServletResponse response) {
 
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        if (accessToken == null || !jwtTokenProvider.validateToken(accessToken)) {
             throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
-        String accessToken = authorization.substring(7);
-        if (!jwtTokenProvider.validateToken(accessToken)) {
-            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
-        }
+
 
         try {
             Optional.ofNullable(refreshToken)
                     .flatMap(refreshTokenRepository::findByToken)
                     .ifPresent(refreshTokenRepository::delete);
 
-            Cookie deleteCookie = new Cookie("refreshToken", null);
-            deleteCookie.setHttpOnly(true);
-            deleteCookie.setSecure(true);
-            deleteCookie.setPath("/");
-            deleteCookie.setMaxAge(0);
-            response.addCookie(deleteCookie);
+            ResponseCookie deleteRefresh = ResponseCookie.from("refreshToken", "")
+                    .httpOnly(true).secure(true)
+                    .path("/").maxAge(0).sameSite("None").build();
+            ResponseCookie deleteAccess  = ResponseCookie.from("accessToken", "")
+                    .httpOnly(true).secure(true)
+                    .path("/").maxAge(0).sameSite("None").build();
+
+            response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
+            response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
 
             return ResponseEntity.ok().build();
 
@@ -119,27 +127,26 @@ public class AuthController {
             description = "모든 기기에서 사용자의 Refresh Token을 삭제하여 전체 로그아웃을 수행합니다."
     )
     public ResponseEntity<Void> logoutAll(
-            @Parameter(description = "Access Token 헤더", example = "Bearer {accessToken}")
-            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Parameter(hidden = true)
+            @CookieValue(value = "accessToken", required = false) String accessToken,
             HttpServletResponse response) {
 
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
-            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
-        }
-        String accessToken = authorization.substring(7);
-        if (!jwtTokenProvider.validateToken(accessToken)) {
+        if (accessToken == null || !jwtTokenProvider.validateToken(accessToken)) {
             throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
 
         Long userId = jwtTokenProvider.getUserIdFromToken(accessToken);
         refreshTokenRepository.deleteByUserId(userId);
 
-        Cookie deleteCookie = new Cookie("refreshToken", null);
-        deleteCookie.setHttpOnly(true);
-        deleteCookie.setSecure(true);
-        deleteCookie.setPath("/");
-        deleteCookie.setMaxAge(0);
-        response.addCookie(deleteCookie);
+        ResponseCookie deleteRefresh = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true).secure(true)
+                .path("/").maxAge(0).sameSite("None").build();
+        ResponseCookie deleteAccess  = ResponseCookie.from("accessToken", "")
+                .httpOnly(true).secure(true)
+                .path("/").maxAge(0).sameSite("None").build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
 
         return ResponseEntity.ok().build();
     }
