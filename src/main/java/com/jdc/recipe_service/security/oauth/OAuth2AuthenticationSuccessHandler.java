@@ -37,7 +37,6 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                                         Authentication authentication) throws IOException {
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 
-        // 토큰 생성 & 저장
         String accessToken  = jwtTokenProvider.createAccessToken(oAuth2User.getUser());
         String refreshToken = jwtTokenProvider.createRefreshToken();
         refreshTokenRepository.save(RefreshToken.builder()
@@ -46,10 +45,8 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                 .expiredAt(LocalDateTime.now().plusDays(7))
                 .build());
 
-        // 사용자별 토큰 개수 체크 & 초과분 삭제
         List<RefreshToken> tokens = refreshTokenRepository
                 .findByUserOrderByCreatedAtAsc(oAuth2User.getUser());
-
         if (tokens.size() > MAX_REFRESH_TOKENS) {
             int overflow = tokens.size() - MAX_REFRESH_TOKENS;
             for (int i = 0; i < overflow; i++) {
@@ -65,7 +62,16 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                 .sameSite("None")
                 .build();
 
+        ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(15 * 60)
+                .sameSite("None")
+                .build();
+
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
         String referer = request.getHeader("Referer");
 
@@ -80,10 +86,6 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             redirectBase = "https://www.haemeok.com";
         }
 
-        // accessToken만 전달
-        String redirectUri = redirectBase + "/oauth2/redirect" +
-                "?accessToken=" + accessToken;
-
-        response.sendRedirect(redirectUri);
+        response.sendRedirect(redirectBase + "/oauth2/redirect");
     }
 }
