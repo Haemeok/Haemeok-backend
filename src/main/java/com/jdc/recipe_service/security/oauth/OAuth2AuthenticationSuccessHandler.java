@@ -86,6 +86,6 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             redirectBase = "https://www.haemeok.com";
         }
 
-        response.sendRedirect(redirectBase + "/oauth2/redirect");
+        response.sendRedirect(redirectBase);
     }
 }
