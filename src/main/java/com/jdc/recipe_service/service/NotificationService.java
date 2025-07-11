@@ -119,4 +119,8 @@ public class NotificationService {
         }
         notificationRepo.delete(n);
     }
+    @Transactional(readOnly = true)
+    public long getUnreadCount(Long userId) {
+        return notificationRepo.countByUserIdAndIsReadFalse(userId);
+    }
 }
