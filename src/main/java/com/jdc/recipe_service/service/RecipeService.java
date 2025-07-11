@@ -177,25 +177,18 @@ public class RecipeService {
         }
 
         if (sourceType == RecipeSourceType.AI) {
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            asyncImageService.generateAndUploadAiImageAsync(recipe.getId());
+            asyncImageService.generateAndUploadAiImageAsync(recipe.getId());
 
-                            notificationService.createNotification(
-                                    NotificationCreateDto.builder()
-                                            .userId(recipe.getUser().getId())
-                                            .actorId(null)
-                                            .type(NotificationType.AI_RECIPE_DONE)
-                                            .content("AI 레시피 생성이 완료되었습니다.")
-                                            .relatedType(NotificationRelatedType.RECIPE)
-                                            .relatedId(recipe.getId())
-                                            .relatedUrl("/recipes/" + recipe.getId())
-                                            .build()
-                            );
-                        }
-                    }
+            notificationService.createNotification(
+                    NotificationCreateDto.builder()
+                            .userId(recipe.getUser().getId())
+                            .actorId(null)
+                            .type(NotificationType.AI_RECIPE_DONE)
+                            .content("AI 레시피 생성이 완료되었습니다.")
+                            .relatedType(NotificationRelatedType.RECIPE)
+                            .relatedId(recipe.getId())
+                            .relatedUrl("/recipes/" + recipe.getId())
+                            .build()
             );
         }
 
