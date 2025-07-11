@@ -51,6 +51,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         BooleanExpression aiCondition      = (isAiGenerated != null)
                 ? recipe.isAiGenerated.eq(isAiGenerated)
                 : null;
+//        BooleanExpression adminExclude     = recipe.user.id.ne(7L);
 
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleDto(
@@ -76,6 +77,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         dishTypeEq(dishType),
                         tagIn(tagTypes),
                         aiCondition
+//                        ,adminExclude
                 )
                 .groupBy(
                         recipe.id,
@@ -120,6 +122,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         dishTypeEq(dishType),
                         tagIn(tagTypes),
                         aiCondition
+//                        ,adminExclude
                 )
                 .fetchOne();
 

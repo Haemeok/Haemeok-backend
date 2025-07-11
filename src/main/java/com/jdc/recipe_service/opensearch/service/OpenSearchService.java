@@ -54,6 +54,8 @@ public class OpenSearchService {
         try {
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
+//            bool.mustNot(QueryBuilders.termQuery("user.id", 7));
+
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
                 String title = cond.getTitle().trim();
                 keywordService.record(title);
