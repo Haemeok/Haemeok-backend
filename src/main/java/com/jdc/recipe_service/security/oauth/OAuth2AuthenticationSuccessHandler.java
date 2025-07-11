@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -69,8 +70,12 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         String referer = request.getHeader("Referer");
 
         String redirectBase;
-        if (referer != null && referer.contains("localhost")) {
-            redirectBase = "http://localhost:5173";
+        if (referer != null && referer.startsWith("http://localhost")) {
+            URI uri = URI.create(referer);
+            redirectBase = uri.getScheme() + "://" + uri.getHost();
+            if (uri.getPort() != -1) {
+                redirectBase += ":" + uri.getPort();
+            }
         } else {
             redirectBase = "https://www.haemeok.com";
         }
