@@ -69,6 +69,23 @@ public class NotificationService {
                 .map(NotificationDto::fromEntity)
                 .collect(Collectors.toList());
     }
+    @Transactional(readOnly = true)
+    public List<NotificationDto> getUnreadNotifications(Long userId) {
+        return notificationRepo
+                .findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(NotificationDto::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<NotificationDto> getReadNotifications(Long userId) {
+        return notificationRepo
+                .findByUserIdAndIsReadTrueOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(NotificationDto::fromEntity)
+                .toList();
+    }
 
     @Transactional
     public void markAllAsRead(Long userId) {
