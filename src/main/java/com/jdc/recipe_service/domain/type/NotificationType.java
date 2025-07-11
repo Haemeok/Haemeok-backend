@@ -6,5 +6,6 @@ public enum NotificationType {
     AI_RECIPE_DONE,
     NEW_FAVORITE,
     NEW_RECIPE_LIKE,
-    NEW_COMMENT_LIKE
+    NEW_COMMENT_LIKE,
+    NEW_RECIPE_RATING
 }

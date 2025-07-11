@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingResponseDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -10,6 +11,8 @@ import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRatingRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.type.NotificationRelatedType;
+import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import jakarta.transaction.Transactional;
@@ -28,6 +31,7 @@ public class RecipeRatingService {
     private final UserRepository userRepository;
     private final RecipeCommentRepository recipeCommentRepository;
     private final CookingRecordService cookingRecordService;
+    private final NotificationService notificationService;
 
     @Transactional
     public RecipeRatingResponseDto rateRecipe(Long recipeId, Long userId, RecipeRatingRequestDto dto) {
@@ -60,6 +64,20 @@ public class RecipeRatingService {
                     .build();
 
             recipeCommentRepository.save(comment);
+            Long targetUserId = recipe.getUser().getId();
+            if (!targetUserId.equals(userId)) {
+                notificationService.createNotification(
+                        NotificationCreateDto.builder()
+                                .userId(targetUserId)
+                                .actorId(userId)
+                                .type(NotificationType.NEW_RECIPE_RATING)
+                                .content(user.getNickname() + "님이 레시피에 평점과 함께 댓글을 남겼습니다.")
+                                .relatedType(NotificationRelatedType.RECIPE)
+                                .relatedId(recipeId)
+                                .relatedUrl("/recipes/" + recipeId + "/comments")
+                                .build()
+                );
+            }
         }
 
         cookingRecordService.createRecordFromRating(
