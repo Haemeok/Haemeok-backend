@@ -272,6 +272,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfig() {
         CorsConfiguration cfg = new CorsConfiguration();
         cfg.setAllowedOrigins(Arrays.asList(
+                "http://localhost:3000",
                 "http://localhost:5173",
                 "https://www.haemeok.com"
         ));
