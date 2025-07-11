@@ -2,7 +2,6 @@ package com.jdc.recipe_service.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.*;
@@ -10,6 +9,7 @@ import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
+import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
@@ -18,6 +18,7 @@ import com.jdc.recipe_service.util.*;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -44,17 +45,17 @@ public class RecipeService {
     private final RecipeImageService recipeImageService;
     private final RecipeLikeService recipeLikeService;
     private final RecipeIndexingService recipeIndexingService;
-    private final NotificationService notificationService;
     private final S3Util s3Util;
     private final EntityManager em;
     private final ReplicateService replicateService;
     private final ObjectMapper objectMapper;
-    private final AsyncImageService asyncImageService;
     private final ActionImageService actionImageService;
     private final SurveyService surveyService;
     private final OpenAiClientService aiService;
     private final UnitService unitService;
     private final PromptBuilder promptBuilder;
+    private final ApplicationEventPublisher publisher;
+
 
     @Transactional
     public PresignedUrlResponse createRecipeWithAiLogic(
@@ -179,21 +180,14 @@ public class RecipeService {
         }
 
         if (sourceType == RecipeSourceType.AI) {
-            asyncImageService.generateAndUploadAiImageAsync(recipe.getId())
-                    .thenRun(() -> notificationService.createNotification(
-                            NotificationCreateDto.builder()
-                                    .userId(recipe.getUser().getId())
-                                    .actorId(null)
-                                    .type(NotificationType.AI_RECIPE_DONE)
-                                    .content("AI 레시피 생성이 완료되었습니다.")
-                                    .relatedType(NotificationRelatedType.RECIPE)
-                                    .relatedId(recipe.getId())
-                                    .relatedUrl("/recipes/" + recipe.getId())
-                                    .build()
-                    ))
-                    .exceptionally(ex -> {
-                        log.error("AI 이미지 생성 완료 후 알림 전송 실패", ex);
-                        return null;
+            final Long recipeId = recipe.getId();
+            final Long targetUser = recipe.getUser().getId();
+
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUser));}
                     });
         }
 
