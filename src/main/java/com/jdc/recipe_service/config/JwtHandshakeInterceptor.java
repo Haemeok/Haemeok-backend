@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.config;
 
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.util.Arrays;
 import java.util.Map;
 
 @Slf4j
@@ -28,8 +30,15 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
         if (request instanceof ServletServerHttpRequest servletRequest) {
             HttpServletRequest httpRequest = servletRequest.getServletRequest();
-            String token = httpRequest.getParameter("token");
-            log.debug("Attempting handshake with token from query param: {}", token);
+            String token = null;
+            if (httpRequest.getCookies() != null) {
+                token = Arrays.stream(httpRequest.getCookies())
+                        .filter(c -> "accessToken".equals(c.getName()))
+                        .map(Cookie::getValue)
+                        .findFirst()
+                        .orElse(null);
+            }
+            log.debug("Attempting handshake with token from cookie: {}", token);
 
             if (token != null && tokenProvider.validateToken(token)) {
                 Authentication auth = tokenProvider.getAuthentication(token);
