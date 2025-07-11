@@ -17,8 +17,18 @@ public class NotificationController {
     private final NotificationService service;
 
     @GetMapping
-    public List<NotificationDto> getAll(@AuthenticationPrincipal CustomUserDetails user) {
-        return service.getNotifications(user.getId());
+    public List<NotificationDto> getAll(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestParam(required = false) Boolean read
+    ) {
+        Long uid = user.getId();
+        if (read == null) {
+            return service.getNotifications(uid);
+        } else if (read) {
+            return service.getReadNotifications(uid);
+        } else {
+            return service.getUnreadNotifications(uid);
+        }
     }
 
     @PostMapping("/read-all")
