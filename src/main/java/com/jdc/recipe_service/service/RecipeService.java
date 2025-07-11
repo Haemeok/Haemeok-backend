@@ -17,6 +17,7 @@ import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.util.*;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -29,6 +30,7 @@ import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RecipeService {
 
     private final RecipeRepository recipeRepository;
@@ -177,19 +179,22 @@ public class RecipeService {
         }
 
         if (sourceType == RecipeSourceType.AI) {
-            asyncImageService.generateAndUploadAiImageAsync(recipe.getId());
-
-            notificationService.createNotification(
-                    NotificationCreateDto.builder()
-                            .userId(recipe.getUser().getId())
-                            .actorId(null)
-                            .type(NotificationType.AI_RECIPE_DONE)
-                            .content("AI 레시피 생성이 완료되었습니다.")
-                            .relatedType(NotificationRelatedType.RECIPE)
-                            .relatedId(recipe.getId())
-                            .relatedUrl("/recipes/" + recipe.getId())
-                            .build()
-            );
+            asyncImageService.generateAndUploadAiImageAsync(recipe.getId())
+                    .thenRun(() -> notificationService.createNotification(
+                            NotificationCreateDto.builder()
+                                    .userId(recipe.getUser().getId())
+                                    .actorId(null)
+                                    .type(NotificationType.AI_RECIPE_DONE)
+                                    .content("AI 레시피 생성이 완료되었습니다.")
+                                    .relatedType(NotificationRelatedType.RECIPE)
+                                    .relatedId(recipe.getId())
+                                    .relatedUrl("/recipes/" + recipe.getId())
+                                    .build()
+                    ))
+                    .exceptionally(ex -> {
+                        log.error("AI 이미지 생성 완료 후 알림 전송 실패", ex);
+                        return null;
+                    });
         }
 
         return PresignedUrlResponse.builder()

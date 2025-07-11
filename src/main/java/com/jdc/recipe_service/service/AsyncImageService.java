@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -61,7 +62,7 @@ public class AsyncImageService {
 
     @Async
     @Transactional
-    public void generateAndUploadAiImageAsync(Long recipeId) {
+    public CompletableFuture<Void> generateAndUploadAiImageAsync(Long recipeId) {
         log.info("▶ [AsyncImageService] 시작, recipeId={}", recipeId);
 
         Recipe recipe = recipeRepository.findById(recipeId)
@@ -71,7 +72,7 @@ public class AsyncImageService {
         if (recipeTitle == null || recipeTitle.isBlank()) {
             recipe.updateImageStatus(RecipeImageStatus.FAILED);
             recipeRepository.save(recipe);
-            return;
+            return CompletableFuture.completedFuture(null);
         }
 
         DishType type = recipe.getDishType();
@@ -113,7 +114,7 @@ public class AsyncImageService {
             if (dataUris.isEmpty()) {
                 recipe.updateImageStatus(RecipeImageStatus.FAILED);
                 recipeRepository.save(recipe);
-                return;
+                return CompletableFuture.completedFuture(null);
             }
 
             String dataUri    = dataUris.get(0);
@@ -133,11 +134,13 @@ public class AsyncImageService {
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, null);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
 
+            return CompletableFuture.completedFuture(null);
+
         } catch (Exception e) {
             log.error("❌ [AsyncImageService] 예외 발생, recipeId={}", recipeId, e);
             recipe.updateImageStatus(RecipeImageStatus.FAILED);
             recipeRepository.save(recipe);
-            throw new RuntimeException("Async AI image generation failed", e);
+            return CompletableFuture.failedFuture(e);
         }
     }
 }
