@@ -8,7 +8,9 @@ import com.jdc.recipe_service.domain.repository.NotificationRepository;
 import com.jdc.recipe_service.domain.repository.UserNotificationPreferenceRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.type.NotificationType;
+import com.jdc.recipe_service.event.NotificationSavedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +24,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepo;
     private final UserNotificationPreferenceRepository prefRepo;
     private final UserRepository userRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void createNotification(NotificationCreateDto dto) {
@@ -55,11 +57,7 @@ public class NotificationService {
                 .build();
         notificationRepo.save(n);
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userProxy.getId()),
-                "/queue/notifications",
-                NotificationDto.fromEntity(n)
-        );
+        eventPublisher.publishEvent(new NotificationSavedEvent(n.getId()));
     }
 
     @Transactional(readOnly = true)
