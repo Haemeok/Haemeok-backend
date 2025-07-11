@@ -11,10 +11,10 @@ import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.event.NotificationSavedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -88,10 +88,28 @@ public class NotificationService {
     @Transactional
     public void markAllAsRead(Long userId) {
         var unread = notificationRepo.findByUserIdAndIsReadFalse(userId);
-        unread.forEach(n -> n.setIsRead(true));
+        LocalDateTime now = LocalDateTime.now();
+        unread.forEach(n -> {
+            n.setIsRead(true);
+            n.setReadAt(now);
+        });
         notificationRepo.saveAll(unread);
     }
-
+    @Transactional
+    public void markAsRead(Long notificationId, Long userId) {
+        Notification n = notificationRepo.findById(notificationId)
+                .orElseThrow(() -> new RuntimeException("알림이 존재하지 않습니다."));
+        if (!n.getUser().getId().equals(userId)) {
+            throw new RuntimeException("권한이 없습니다.");
+        }
+        n.setIsRead(true);
+        n.setReadAt(LocalDateTime.now());
+        notificationRepo.save(n);
+    }
+    @Transactional
+    public void deleteAllNotifications(Long userId) {
+        notificationRepo.deleteByUserId(userId);
+    }
     @Transactional
     public void deleteNotification(Long id, Long userId) {
         Notification n = notificationRepo.findById(id)

@@ -31,6 +31,12 @@ public class NotificationController {
         }
     }
 
+    @DeleteMapping
+    public ResponseEntity<Void> deleteAll(@AuthenticationPrincipal CustomUserDetails user) {
+        service.deleteAllNotifications(user.getId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/read-all")
     public ResponseEntity<Void> markAllRead(@AuthenticationPrincipal CustomUserDetails user) {
         service.markAllAsRead(user.getId());
@@ -44,5 +50,13 @@ public class NotificationController {
     ) {
         service.deleteNotification(id, user.getId());
         return ResponseEntity.noContent().build();
+    }
+    @PatchMapping("/{id}/read")
+    public ResponseEntity<Void> markRead(
+            @PathVariable("id") Long id,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        service.markAsRead(id, user.getId());
+        return ResponseEntity.ok().build();
     }
 }
