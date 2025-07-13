@@ -11,6 +11,8 @@ import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.event.NotificationSavedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,28 +63,23 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public List<NotificationDto> getNotifications(Long userId) {
-        return notificationRepo.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream()
-                .map(NotificationDto::fromEntity)
-                .collect(Collectors.toList());
+    public Page<NotificationDto> getNotifications(Long userId, Pageable pg) {
+        return notificationRepo
+                .findByUserIdOrderByCreatedAtDesc(userId, pg)
+                .map(NotificationDto::fromEntity);
     }
     @Transactional(readOnly = true)
-    public List<NotificationDto> getUnreadNotifications(Long userId) {
+    public Page<NotificationDto> getUnreadNotifications(Long userId, Pageable pg) {
         return notificationRepo
-                .findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId)
-                .stream()
-                .map(NotificationDto::fromEntity)
-                .toList();
+                .findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId, pg)
+                .map(NotificationDto::fromEntity);
     }
 
     @Transactional(readOnly = true)
-    public List<NotificationDto> getReadNotifications(Long userId) {
+    public Page<NotificationDto> getReadNotifications(Long userId, Pageable pg) {
         return notificationRepo
-                .findByUserIdAndIsReadTrueOrderByCreatedAtDesc(userId)
-                .stream()
-                .map(NotificationDto::fromEntity)
-                .toList();
+                .findByUserIdAndIsReadTrueOrderByCreatedAtDesc(userId, pg)
+                .map(NotificationDto::fromEntity);
     }
 
     @Transactional

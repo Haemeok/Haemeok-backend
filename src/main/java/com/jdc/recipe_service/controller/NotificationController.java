@@ -4,6 +4,10 @@ import com.jdc.recipe_service.domain.dto.notification.NotificationDto;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -17,17 +21,18 @@ public class NotificationController {
     private final NotificationService service;
 
     @GetMapping
-    public List<NotificationDto> getAll(
+    public Page<NotificationDto> getAll(
             @AuthenticationPrincipal CustomUserDetails user,
-            @RequestParam(required = false) Boolean read
+            @RequestParam(required = false) Boolean read,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pg
     ) {
         Long uid = user.getId();
         if (read == null) {
-            return service.getNotifications(uid);
+            return service.getNotifications(uid, pg);
         } else if (read) {
-            return service.getReadNotifications(uid);
+            return service.getReadNotifications(uid, pg);
         } else {
-            return service.getUnreadNotifications(uid);
+            return service.getUnreadNotifications(uid, pg);
         }
     }
 
