@@ -62,20 +62,22 @@ public class AuthController {
         refreshTokenRepository.save(savedToken);
 
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", newRefreshToken)
+                .domain(".haemeok.com")
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
                 .maxAge(7 * 24 * 60 * 60)
-                .sameSite("None")
+                .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
 
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", newAccessToken)
+                .domain(".haemeok.com")
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
                 .maxAge(15*60)
-                .sameSite("None")
+                .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
@@ -104,11 +106,21 @@ public class AuthController {
                     .ifPresent(refreshTokenRepository::delete);
 
             ResponseCookie deleteRefresh = ResponseCookie.from("refreshToken", "")
-                    .httpOnly(true).secure(true)
-                    .path("/").maxAge(0).sameSite("None").build();
-            ResponseCookie deleteAccess  = ResponseCookie.from("accessToken", "")
-                    .httpOnly(true).secure(true)
-                    .path("/").maxAge(0).sameSite("None").build();
+                    .domain(".haemeok.com")
+                    .path("/")
+                    .httpOnly(true)
+                    .secure(true)
+                    .maxAge(0)
+                    .sameSite("Lax")
+                    .build();
+            ResponseCookie deleteAccess = ResponseCookie.from("accessToken", "")
+                    .domain(".haemeok.com")
+                    .path("/")
+                    .httpOnly(true)
+                    .secure(true)
+                    .maxAge(0)
+                    .sameSite("Lax")
+                    .build();
 
             response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
             response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
@@ -139,11 +151,21 @@ public class AuthController {
         refreshTokenRepository.deleteByUserId(userId);
 
         ResponseCookie deleteRefresh = ResponseCookie.from("refreshToken", "")
-                .httpOnly(true).secure(true)
-                .path("/").maxAge(0).sameSite("None").build();
-        ResponseCookie deleteAccess  = ResponseCookie.from("accessToken", "")
-                .httpOnly(true).secure(true)
-                .path("/").maxAge(0).sameSite("None").build();
+                .domain(".haemeok.com")
+                .path("/")
+                .httpOnly(true)
+                .secure(true)
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+        ResponseCookie deleteAccess = ResponseCookie.from("accessToken", "")
+                .domain(".haemeok.com")
+                .path("/")
+                .httpOnly(true)
+                .secure(true)
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
         response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
