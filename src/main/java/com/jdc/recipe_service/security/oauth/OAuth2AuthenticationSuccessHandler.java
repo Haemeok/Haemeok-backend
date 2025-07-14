@@ -55,19 +55,21 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         }
 
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
+                .domain(".haemeok.com")
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
                 .maxAge(7 * 24 * 60 * 60)
-                .sameSite("None")
+                .sameSite("Lax")
                 .build();
 
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
+                .domain(".haemeok.com")
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
                 .maxAge(15 * 60)
-                .sameSite("None")
+                .sameSite("Lax")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
