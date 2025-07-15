@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -29,6 +31,11 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final Environment env;
+
+    private boolean isLocal() {
+        return Arrays.asList(env.getActiveProfiles()).contains("local");
+    }
 
     @Override
     @Transactional
@@ -54,26 +61,27 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             }
         }
 
-        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
-                .domain(".haemeok.com")
+        var refreshBuilder = ResponseCookie.from("refreshToken", refreshToken)
+                .path("/")
                 .httpOnly(true)
                 .secure(true)
-                .path("/")
                 .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Lax")
-                .build();
+                .sameSite("Lax");
 
-        ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
-                .domain(".haemeok.com")
+        var accessBuilder = ResponseCookie.from("accessToken", accessToken)
+                .path("/")
                 .httpOnly(true)
                 .secure(true)
-                .path("/")
                 .maxAge(15 * 60)
-                .sameSite("Lax")
-                .build();
+                .sameSite("Lax");
 
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+        if (!isLocal()) {
+            refreshBuilder.domain(".haemeok.com");
+            accessBuilder.domain(".haemeok.com");
+        }
+
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder.build().toString());
 
         String referer = request.getHeader("Referer");
 
