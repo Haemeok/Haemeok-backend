@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
@@ -19,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.net.URI;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -31,11 +29,6 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final Environment env;
-
-    private boolean isLocal() {
-        return Arrays.asList(env.getActiveProfiles()).contains("local");
-    }
 
     @Override
     @Transactional
@@ -61,23 +54,24 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             }
         }
 
+        String origin = request.getHeader("Origin");
+        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
+
         var refreshBuilder = ResponseCookie.from("refreshToken", refreshToken)
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(7 * 24 * 60 * 60)
                 .sameSite("Lax");
 
         var accessBuilder = ResponseCookie.from("accessToken", accessToken)
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(15 * 60)
                 .sameSite("Lax");
 
-        if (!isLocal()) {
-            refreshBuilder.domain(".haemeok.com");
-            accessBuilder.domain(".haemeok.com");
+        if (!isLocalRequest) {
+            refreshBuilder.secure(true).domain(".haemeok.com");
+            accessBuilder.secure(true).domain(".haemeok.com");
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());

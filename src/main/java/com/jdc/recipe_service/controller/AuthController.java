@@ -7,10 +7,10 @@ import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +20,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Parameter;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.Optional;
 
 
@@ -32,11 +31,6 @@ public class AuthController {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final Environment env;
-
-    private boolean isLocal() {
-        return Arrays.asList(env.getActiveProfiles()).contains("local");
-    }
 
     @PostMapping("/refresh")
     @Operation(
@@ -46,6 +40,7 @@ public class AuthController {
     public ResponseEntity<?> refreshAccessToken(
             @Parameter(hidden = true)
             @CookieValue(name = "refreshToken", required = false) String refreshToken,
+            HttpServletRequest request,
             HttpServletResponse response
     ) {
         if (refreshToken == null || !jwtTokenProvider.validateToken(refreshToken)) {
@@ -67,22 +62,24 @@ public class AuthController {
         savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(savedToken);
 
+        String origin = request.getHeader("Origin");
+        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
+
+
         var refreshBuilder = ResponseCookie.from("refreshToken", newRefreshToken)
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(7 * 24 * 60 * 60)
                 .sameSite("Lax");
         var accessBuilder  = ResponseCookie.from("accessToken", newAccessToken)
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(15 * 60)
                 .sameSite("Lax");
 
-        if (!isLocal()) {
-            refreshBuilder.domain(".haemeok.com");
-            accessBuilder .domain(".haemeok.com");
+        if (!isLocalRequest) {
+            refreshBuilder.secure(true).domain(".haemeok.com");
+            accessBuilder.secure(true).domain(".haemeok.com");
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
@@ -100,6 +97,7 @@ public class AuthController {
             @Parameter(hidden = true)
             @CookieValue(value = "accessToken",  required = false) String accessToken,
             @CookieValue(value = "refreshToken", required = false) String refreshToken,
+            HttpServletRequest request,
             HttpServletResponse response) {
 
         if (accessToken == null || !jwtTokenProvider.validateToken(accessToken)) {
@@ -110,22 +108,23 @@ public class AuthController {
                 .flatMap(refreshTokenRepository::findByToken)
                 .ifPresent(refreshTokenRepository::delete);
 
+        String origin = request.getHeader("Origin");
+        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
+
         var deleteRefresh = ResponseCookie.from("refreshToken", "")
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(0)
                 .sameSite("Lax");
         var deleteAccess  = ResponseCookie.from("accessToken", "")
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(0)
                 .sameSite("Lax");
 
-        if (!isLocal()) {
-            deleteRefresh.domain(".haemeok.com");
-            deleteAccess .domain(".haemeok.com");
+        if (!isLocalRequest) {
+            deleteRefresh.secure(true).domain(".haemeok.com");
+            deleteAccess.secure(true).domain(".haemeok.com");
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());
@@ -143,6 +142,7 @@ public class AuthController {
     public ResponseEntity<Void> logoutAll(
             @Parameter(hidden = true)
             @CookieValue(value = "accessToken", required = false) String accessToken,
+            HttpServletRequest request,
             HttpServletResponse response) {
 
         if (accessToken == null || !jwtTokenProvider.validateToken(accessToken)) {
@@ -152,22 +152,23 @@ public class AuthController {
         Long userId = jwtTokenProvider.getUserIdFromToken(accessToken);
         refreshTokenRepository.deleteByUserId(userId);
 
+        String origin = request.getHeader("Origin");
+        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
+
         var deleteRefresh = ResponseCookie.from("refreshToken", "")
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(0)
                 .sameSite("Lax");
         var deleteAccess  = ResponseCookie.from("accessToken", "")
                 .path("/")
                 .httpOnly(true)
-                .secure(true)
                 .maxAge(0)
                 .sameSite("Lax");
 
-        if (!isLocal()) {
-            deleteRefresh.domain(".haemeok.com");
-            deleteAccess .domain(".haemeok.com");
+        if (!isLocalRequest) {
+            deleteRefresh.secure(true).domain(".haemeok.com");
+            deleteAccess.secure(true).domain(".haemeok.com");
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());
