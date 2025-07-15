@@ -45,7 +45,7 @@ public class PromptBuilder {
         switch (type) {
             case CREATIVE -> persona = "너는 매우 창의적이고 새로운 조합을 즐기는 한국 요리 전문가야.";
             case HEALTHY -> persona = "너는 영양 균형과 건강한 조리법을 최우선으로 생각하는 요리 전문가야.";
-            case INDULGENT -> persona = "너는 사람들의 입맛을 확 사로잡는 자극적이고 화려한 요리를 추구하는 미식가야.";
+            case GOURMET  -> persona = "너는 풍부하고 깊은 맛을 탐닉하며, 프리미엄 재료로 고급스럽고 섬세한 요리를 선보이는 미식가야.";
             default -> persona = "너는 '백종원'처럼 조리 원리를 잘 이해하고 맛의 깊이를 더하는 전문 한국 요리사야.";
         }
 

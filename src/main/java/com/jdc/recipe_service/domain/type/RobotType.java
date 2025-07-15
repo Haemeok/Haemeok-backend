@@ -5,5 +5,5 @@ public enum RobotType {
     CLASSIC,
     CREATIVE,
     HEALTHY,
-    INDULGENT
+    GOURMET
 }
