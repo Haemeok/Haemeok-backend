@@ -1,7 +1,6 @@
 package com.jdc.recipe_service.domain.entity;
 
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
-import com.jdc.recipe_service.domain.type.SaltinessPreference;
 import com.jdc.recipe_service.domain.type.TagType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -28,12 +27,7 @@ public class UserSurvey {
 
     private Integer spiceLevel;
 
-    @Enumerated(EnumType.STRING)
-    private SaltinessPreference saltiness;
-
     private String allergy;
-
-    private String dietType;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
@@ -46,9 +40,7 @@ public class UserSurvey {
 
     public void updateFromDto(UserSurveyDto dto) {
         this.spiceLevel = dto.getSpiceLevel();
-        this.saltiness   = dto.getSaltiness();
         this.allergy     = dto.getAllergy();
-        this.dietType    = dto.getDietType();
 
         Set<TagType> newTags = dto.getTags().stream()
                 .map(TagType::fromDisplayName)

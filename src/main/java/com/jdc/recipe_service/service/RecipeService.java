@@ -85,13 +85,12 @@ public class RecipeService {
         UserSurveyDto survey = surveyService.getSurvey(userId);
 
         AiRecipeRequestDto aiReq = request.getAiRequest();
+        aiReq.setUserId(userId);
         if (survey != null) {
             if (survey.getSpiceLevel() != null) {
                 aiReq.setSpiceLevel(survey.getSpiceLevel());
             }
-            aiReq.setSaltiness(survey.getSaltiness());
             aiReq.setAllergy(survey.getAllergy());
-            aiReq.setDietType(survey.getDietType());
             if (aiReq.getTagNames() == null || aiReq.getTagNames().isEmpty()) {
                 aiReq.setTagNames(new ArrayList<>(survey.getTags()));
             }

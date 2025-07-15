@@ -1,12 +1,17 @@
 package com.jdc.recipe_service.util;
 
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
+import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.entity.Ingredient;
+import com.jdc.recipe_service.service.SurveyService;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -14,13 +19,31 @@ public class PromptBuilder {
 
     private final UnitService unitService;
     private final IngredientRepository ingredientRepo;
+    private final SurveyService surveyService;
 
-    public PromptBuilder(UnitService unitService, IngredientRepository ingredientRepo) {
+    public PromptBuilder(UnitService unitService, IngredientRepository ingredientRepo, SurveyService surveyService) {
         this.unitService = unitService;
         this.ingredientRepo = ingredientRepo;
+        this.surveyService = surveyService;
     }
 
     public String buildPrompt(AiRecipeRequestDto request, RobotType type) {
+        UserSurveyDto survey = surveyService.getSurvey(request.getUserId());
+        Integer spicePref = (survey != null && survey.getSpiceLevel() != null)
+                ? survey.getSpiceLevel()
+                : request.getSpiceLevel();
+        String allergyPref = (survey != null && survey.getAllergy() != null && !survey.getAllergy().isBlank())
+                ? survey.getAllergy()
+                : request.getAllergy();
+        Set<String> themePrefs;
+        if (survey != null && survey.getTags() != null && !survey.getTags().isEmpty()) {
+            themePrefs = survey.getTags();
+        } else if (request.getTagNames() != null && !request.getTagNames().isEmpty()) {
+            themePrefs = new HashSet<>(request.getTagNames());
+        } else {
+            themePrefs = Collections.emptySet();
+        }
+
         List<String> names = request.getIngredients();
         List<String> known = ingredientRepo.findAllByNameIn(names)
                 .stream()
@@ -45,13 +68,9 @@ public class PromptBuilder {
         switch (type) {
             case CREATIVE -> persona = "너는 매우 창의적이고 새로운 조합을 즐기는 한국 요리 전문가야.";
             case HEALTHY -> persona = "너는 영양 균형과 건강한 조리법을 최우선으로 생각하는 요리 전문가야.";
-            case GOURMET  -> persona = "너는 풍부하고 깊은 맛을 탐닉하며, 프리미엄 재료로 고급스럽고 섬세한 요리를 선보이는 미식가야.";
+            case GOURMET -> persona = "너는 풍부하고 깊은 맛을 탐닉하며, 프리미엄 재료로 고급스럽고 섬세한 요리를 선보이는 미식가야.";
             default -> persona = "너는 '백종원'처럼 조리 원리를 잘 이해하고 맛의 깊이를 더하는 전문 한국 요리사야.";
         }
-
-        String tags = request.getTagNames() == null || request.getTagNames().isEmpty()
-                ? "[]"
-                : "[\"" + String.join("\", \"", request.getTagNames()) + "\"]";
 
         String cookingTimePart = (request.getCookingTime() != null && request.getCookingTime() > 0)
                 ? String.format("- 희망 조리 시간: %d분 이내", request.getCookingTime())
@@ -61,16 +80,18 @@ public class PromptBuilder {
                 ? String.format("- 인분 수: %.1f인분", request.getServings())
                 : "- 인분 수 정보가 제공되지 않았습니다. AI 모델이 적절히 판단하여 작성하세요.";
 
+        String tagsJson = (themePrefs == null || themePrefs.isEmpty())
+                ? "[]"
+                : "[\"" + String.join("\", \"", themePrefs) + "\"]";
+
         String preferencePart = String.format("""
-                        - 매운맛 선호도: %s%s
-                        - 짠맛 선호도: %s
+                        - 매운맛 선호도: %s/5
                         - 알레르기 정보: %s
-                        - 식이 제한: %s""",
-                request.getSpiceLevel() != null ? request.getSpiceLevel() : "기본",
-                request.getSpiceLevel() != null ? "/5" : "",
-                request.getSaltiness() != null ? request.getSaltiness().name() : "기본",
-                (request.getAllergy() != null && !request.getAllergy().isBlank()) ? request.getAllergy() : "없음",
-                (request.getDietType() != null && !request.getDietType().isBlank()) ? request.getDietType() : "없음"
+                        - 요리 테마 선호 태그: %s
+                        """,
+                spicePref != null ? spicePref : "기본",
+                allergyPref != null && !allergyPref.isBlank() ? allergyPref : "없음",
+                tagsJson
         );
 
         String ingredientsWithUnits = names.stream()
@@ -172,8 +193,8 @@ public class PromptBuilder {
                 knownList,
                 unknownList,
                 request.getDishType(),
-                tags,
-                tags,
+                tagsJson,
+                tagsJson,
                 allowedUnits,
                 unitMapping,
                 fieldExtension,
@@ -183,7 +204,7 @@ public class PromptBuilder {
                 servingsPart,
                 preferencePart,
                 ingredientsWithUnits,
-                tags
+                tagsJson
         );
     }
 }
