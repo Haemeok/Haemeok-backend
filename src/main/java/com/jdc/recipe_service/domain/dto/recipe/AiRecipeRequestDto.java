@@ -1,6 +1,5 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
-import com.jdc.recipe_service.domain.type.SaltinessPreference;
 import lombok.*;
 
 import java.util.List;
@@ -10,6 +9,8 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class AiRecipeRequestDto {
+    private Long userId;
+
     private List<String> ingredients;
     private List<String> tagNames;
     private String dishType;
@@ -17,7 +18,6 @@ public class AiRecipeRequestDto {
     private Double servings;
 
     private Integer spiceLevel;
-    private SaltinessPreference saltiness;
     private String allergy;
     private String dietType;
 }
