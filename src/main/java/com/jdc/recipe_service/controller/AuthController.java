@@ -7,10 +7,10 @@ import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Parameter;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 
 
@@ -31,6 +32,11 @@ public class AuthController {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final Environment env;
+
+    private boolean isLocal() {
+        return Arrays.asList(env.getActiveProfiles()).contains("local");
+    }
 
     @PostMapping("/refresh")
     @Operation(
@@ -61,25 +67,26 @@ public class AuthController {
         savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(savedToken);
 
-        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", newRefreshToken)
-                .domain(".haemeok.com")
+        var refreshBuilder = ResponseCookie.from("refreshToken", newRefreshToken)
+                .path("/")
                 .httpOnly(true)
                 .secure(true)
-                .path("/")
                 .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Lax")
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-
-        ResponseCookie accessCookie = ResponseCookie.from("accessToken", newAccessToken)
-                .domain(".haemeok.com")
+                .sameSite("Lax");
+        var accessBuilder  = ResponseCookie.from("accessToken", newAccessToken)
+                .path("/")
                 .httpOnly(true)
                 .secure(true)
-                .path("/")
-                .maxAge(15*60)
-                .sameSite("Lax")
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+                .maxAge(15 * 60)
+                .sameSite("Lax");
+
+        if (!isLocal()) {
+            refreshBuilder.domain(".haemeok.com");
+            accessBuilder .domain(".haemeok.com");
+        }
+
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder .build().toString());
 
         return ResponseEntity.ok(new TokenResponseDTO(newAccessToken, null));
     }
@@ -99,37 +106,32 @@ public class AuthController {
             throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
 
+        Optional.ofNullable(refreshToken)
+                .flatMap(refreshTokenRepository::findByToken)
+                .ifPresent(refreshTokenRepository::delete);
 
-        try {
-            Optional.ofNullable(refreshToken)
-                    .flatMap(refreshTokenRepository::findByToken)
-                    .ifPresent(refreshTokenRepository::delete);
+        var deleteRefresh = ResponseCookie.from("refreshToken", "")
+                .path("/")
+                .httpOnly(true)
+                .secure(true)
+                .maxAge(0)
+                .sameSite("Lax");
+        var deleteAccess  = ResponseCookie.from("accessToken", "")
+                .path("/")
+                .httpOnly(true)
+                .secure(true)
+                .maxAge(0)
+                .sameSite("Lax");
 
-            ResponseCookie deleteRefresh = ResponseCookie.from("refreshToken", "")
-                    .domain(".haemeok.com")
-                    .path("/")
-                    .httpOnly(true)
-                    .secure(true)
-                    .maxAge(0)
-                    .sameSite("Lax")
-                    .build();
-            ResponseCookie deleteAccess = ResponseCookie.from("accessToken", "")
-                    .domain(".haemeok.com")
-                    .path("/")
-                    .httpOnly(true)
-                    .secure(true)
-                    .maxAge(0)
-                    .sameSite("Lax")
-                    .build();
-
-            response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
-            response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
-
-            return ResponseEntity.ok().build();
-
-        } catch (Exception e) {
-            throw new CustomException(ErrorCode.LOGOUT_FAILED);
+        if (!isLocal()) {
+            deleteRefresh.domain(".haemeok.com");
+            deleteAccess .domain(".haemeok.com");
         }
+
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess .build().toString());
+
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/logout/all")
@@ -150,25 +152,26 @@ public class AuthController {
         Long userId = jwtTokenProvider.getUserIdFromToken(accessToken);
         refreshTokenRepository.deleteByUserId(userId);
 
-        ResponseCookie deleteRefresh = ResponseCookie.from("refreshToken", "")
-                .domain(".haemeok.com")
+        var deleteRefresh = ResponseCookie.from("refreshToken", "")
                 .path("/")
                 .httpOnly(true)
                 .secure(true)
                 .maxAge(0)
-                .sameSite("Lax")
-                .build();
-        ResponseCookie deleteAccess = ResponseCookie.from("accessToken", "")
-                .domain(".haemeok.com")
+                .sameSite("Lax");
+        var deleteAccess  = ResponseCookie.from("accessToken", "")
                 .path("/")
                 .httpOnly(true)
                 .secure(true)
                 .maxAge(0)
-                .sameSite("Lax")
-                .build();
+                .sameSite("Lax");
 
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
+        if (!isLocal()) {
+            deleteRefresh.domain(".haemeok.com");
+            deleteAccess .domain(".haemeok.com");
+        }
+
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess .build().toString());
 
         return ResponseEntity.ok().build();
     }
