@@ -4,6 +4,8 @@ import com.jdc.recipe_service.domain.dto.TokenResponseDTO;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.*;
@@ -23,12 +25,20 @@ public class LocalAuthController {
     @Operation(summary = "로컬 테스트용 액세스 토큰 발급", description = "지정한 userId로 JWT 액세스 토큰을 발급합니다.")
     @GetMapping("/local-token")
     public TokenResponseDTO devToken(
-            @Parameter(description = "사용자 ID", example = "4") @RequestParam Long userId) {
+            @Parameter(description = "사용자 ID", example = "4") @RequestParam Long userId,
+            HttpServletResponse response
+    ) {
 
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-
         String accessToken = jwtTokenProvider.createAccessToken(user);
+
+        Cookie cookie = new Cookie("accessToken", accessToken);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(60 * 60 * 24);
+        response.addCookie(cookie);
+
         return new TokenResponseDTO(accessToken, null);
     }
 }
