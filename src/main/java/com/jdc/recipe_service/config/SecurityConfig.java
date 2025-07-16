@@ -132,6 +132,11 @@ public class SecurityConfig {
 
                             // 8) 나머지 요청은 모두 공개
                             .anyRequest().permitAll()
+
+                    )
+                    .oauth2Login(oauth -> oauth
+                            .userInfoEndpoint(u -> u.userService(oauth2UserService))
+                            .successHandler(successHandler)
                     )
                     .headers(h -> h.frameOptions(frame -> frame.disable()));
             http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
