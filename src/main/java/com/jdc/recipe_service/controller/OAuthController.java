@@ -4,12 +4,13 @@ import com.jdc.recipe_service.domain.dto.auth.AuthTokens;
 import com.jdc.recipe_service.domain.dto.auth.CodeDto;
 import com.jdc.recipe_service.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class OAuthController {
@@ -22,7 +23,13 @@ public class OAuthController {
             @RequestBody CodeDto codeDto,
             @RequestHeader(value = "X-Env", defaultValue = "prod") String env) {
 
+        log.info("[Controller] callback for provider={}, codeDto={}, env={}",
+                provider, codeDto, env);
+
         AuthTokens tokens = authService.handleLogin(provider,codeDto.getCode(),env);
+
+        log.info("[Controller] generated tokens for provider={}: accessToken(length)={}, refreshToken(length)={}",
+                provider, tokens.getAccessToken().length(), tokens.getRefreshToken().length());
 
         boolean isLocal = "local".equalsIgnoreCase(env);
 
