@@ -2,11 +2,13 @@
 package com.jdc.recipe_service.util;
 
         import com.jdc.recipe_service.domain.type.RobotType;
+        import lombok.extern.slf4j.Slf4j;
         import org.springframework.stereotype.Component;
 
         import java.util.Set;
 
 @Component
+@Slf4j
 public class ActionImageService {
 
     private static final String BASE_PATH = "images/actions";
@@ -30,6 +32,7 @@ public class ActionImageService {
      */
     public String generateImageKey(RobotType robotType, String action) {
         if (!isSupportedAction(action)) {
+            log.warn("지원하지 않는 조리 액션입니다: {}", action);
             return null;
         }
         String typeFolder = robotType.name().toLowerCase();
