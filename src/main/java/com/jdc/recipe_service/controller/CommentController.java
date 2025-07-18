@@ -57,7 +57,7 @@ public class CommentController {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         ReplyDto created = commentService.createReply(
-                recipeId, parentId, requestDto, userDetails.getUser().getId());
+                recipeId, parentId, requestDto, userDetails.getUser());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
