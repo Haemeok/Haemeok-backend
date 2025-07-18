@@ -20,33 +20,8 @@ public class RecipeUploadService {
     @Value("${app.s3.bucket-name}")
     private String bucketName;
 
-    @Value("${app.s3.upload-base-path}")
-    private String basePath;
-
     @Value("${app.s3.presigned-url-expiration-minutes}")
     private long expirationMinutes;
-
-    public PresignedUrlResponse generatePresignedUrlsForCreate(Long recipeId, Long userId, List<FileInfoRequest> files) {
-        List<PresignedUrlResponseItem> uploads = files.stream().map(file -> {
-            String fileKey = generateFileKey(userId, recipeId, file);
-
-            PutObjectRequest objectRequest = PutObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(fileKey)
-                    .contentType(file.getContentType())
-                    .build();
-
-            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                    .signatureDuration(Duration.ofMinutes(expirationMinutes))
-                    .putObjectRequest(objectRequest)
-                    .build();
-
-            String presignedUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
-            return new PresignedUrlResponseItem(fileKey, presignedUrl);
-        }).toList();
-
-        return new PresignedUrlResponse(recipeId, uploads);
-    }
 
     public UpdatePresignedUrlResponse generatePresignedUrlsForUpdate(Long recipeId, Long userId, List<FileInfoRequest> files) {
         List<PresignedUrlResponseItem> uploads = files.stream().map(file -> {
