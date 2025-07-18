@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface CommentLikeRepository extends JpaRepository<CommentLike, Long> {
@@ -19,7 +20,7 @@ public interface CommentLikeRepository extends JpaRepository<CommentLike, Long> 
     @Query("SELECT cl.comment.id FROM CommentLike cl WHERE cl.user.id = :userId AND cl.comment.id IN :commentIds")
     List<Long> findLikedCommentIdsByUser(@Param("userId") Long userId, @Param("commentIds") List<Long> commentIds);
 
-    CommentLike findByCommentIdAndUserId(Long commentId, Long userId);
+    Optional<CommentLike> findByCommentIdAndUserId(Long commentId, Long userId);
 
     @Query("SELECT cl.comment.id AS commentId, COUNT(cl) AS likeCount " +
             "FROM CommentLike cl " +

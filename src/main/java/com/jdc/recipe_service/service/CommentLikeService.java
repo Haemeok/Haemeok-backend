@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class CommentLikeService {
@@ -22,10 +24,10 @@ public class CommentLikeService {
 
     @Transactional
     public boolean toggleLike(Long commentId, Long userId) {
-        CommentLike existing = commentLikeRepository.findByCommentIdAndUserId(commentId, userId);
+        Optional<CommentLike> existing = commentLikeRepository.findByCommentIdAndUserId(commentId, userId);
 
-        if (existing != null) {
-            commentLikeRepository.delete(existing);
+        if (existing.isPresent()) {
+            commentLikeRepository.delete(existing.get());
             return false;
         }
 
