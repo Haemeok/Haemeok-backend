@@ -40,7 +40,7 @@ public class UnitService {
                     .toList();
 
         } catch (Exception e) {
-            throw new RuntimeException("units.csv 로드 실패", e);
+            throw new IllegalStateException("units.csv 로드 실패", e);
         }
     }
 
@@ -55,6 +55,6 @@ public class UnitService {
     }
 
     public Optional<String> getDefaultUnit(String ingredientName) {
-        return Optional.ofNullable(defaultUnitByIngredient.get(ingredientName));
+        return Optional.ofNullable(defaultUnitByIngredient.get(ingredientName.trim()));
     }
 }
