@@ -10,9 +10,6 @@ import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
-import java.io.InputStream;
-import java.net.URL;
-import java.net.URLConnection;
 import java.time.Duration;
 import java.util.List;
 
@@ -88,27 +85,6 @@ public class S3Util {
         } catch (S3Exception e) {
             return false;
         }
-    }
-
-    public String uploadFromUrl(String externalUrl, String s3Key) throws Exception {
-        ensureBucketExists();
-        URL url = new URL(externalUrl);
-        URLConnection conn = url.openConnection();
-        String contentType = conn.getContentType();
-        long contentLength = conn.getContentLengthLong();
-        InputStream inputStream = conn.getInputStream();
-
-        PutObjectRequest putReq = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key)
-                .contentType(contentType)
-                .contentLength(contentLength)
-                .build();
-
-        s3Client.putObject(putReq, RequestBody.fromInputStream(inputStream, contentLength));
-        inputStream.close();
-
-        return s3Key;
     }
 
     /**
