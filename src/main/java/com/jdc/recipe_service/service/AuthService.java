@@ -56,12 +56,19 @@ public class AuthService {
         Authentication principal =
                 new UsernamePasswordAuthenticationToken(registrationId, null, List.of());
 
+        String redirectUri = registration.getRedirectUri();
+
         OAuth2AuthorizeRequest authRequest = OAuth2AuthorizeRequest.withClientRegistrationId(registrationId)
                 .principal(principal)
                 .attribute(OAuth2ParameterNames.CODE, code)
+                .attribute(OAuth2ParameterNames.REDIRECT_URI, redirectUri)
                 .build();
 
         OAuth2AuthorizedClient client = authorizedClientManager.authorize(authRequest);
+
+        if (client == null) {
+            throw new IllegalStateException("Failed to authorize client for registration ID: " + registrationId);
+        }
 
         OAuth2UserRequest userRequest =
                 new OAuth2UserRequest(registration, client.getAccessToken());
