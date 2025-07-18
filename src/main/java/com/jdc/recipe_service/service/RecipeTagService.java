@@ -18,10 +18,14 @@ public class RecipeTagService {
     private final RecipeTagRepository recipeTagRepository;
 
     public void saveAll(Recipe recipe, List<String> tagDisplayNames) {
+        if (tagDisplayNames == null || tagDisplayNames.isEmpty()) {
+            return;
+        }
+
         List<TagType> tagTypes = tagDisplayNames.stream()
-                .distinct()
                 .map(TagType::fromDisplayName)
-                .collect(Collectors.toList());
+                .distinct()
+                .toList();
 
         List<RecipeTag> recipeTags = tagTypes.stream()
                 .map(tagType -> RecipeTag.builder()
@@ -34,30 +38,34 @@ public class RecipeTagService {
     }
 
     public void updateTags(Recipe recipe, List<String> tagDisplayNames) {
-        List<RecipeTag> existingTags = recipeTagRepository.findByRecipeId(recipe.getId());
+        if (tagDisplayNames == null) {
+            tagDisplayNames = Collections.emptyList();
+        }
+
         Set<TagType> newTagTypes = tagDisplayNames.stream()
                 .map(TagType::fromDisplayName)
                 .collect(Collectors.toSet());
 
-        List<RecipeTag> tagsToRemove = existingTags.stream()
-                .filter(tag -> !newTagTypes.contains(tag.getTag()))
-                .toList();
-
-        recipeTagRepository.deleteAll(tagsToRemove);
-
+        List<RecipeTag> existingTags = recipeTagRepository.findByRecipeId(recipe.getId());
         Set<TagType> existingTypes = existingTags.stream()
                 .map(RecipeTag::getTag)
                 .collect(Collectors.toSet());
 
-        for (TagType newType : newTagTypes) {
-            if (!existingTypes.contains(newType)) {
-                RecipeTag newTag = RecipeTag.builder()
+        recipeTagRepository.deleteAll(
+                existingTags.stream()
+                        .filter(tag -> !newTagTypes.contains(tag.getTag()))
+                        .toList()
+        );
+
+        List<RecipeTag> tagsToAdd = newTagTypes.stream()
+                .filter(tag -> !existingTypes.contains(tag))
+                .map(tag -> RecipeTag.builder()
                         .recipe(recipe)
-                        .tag(newType)
-                        .build();
-                recipeTagRepository.save(newTag);
-            }
-        }
+                        .tag(tag)
+                        .build())
+                .toList();
+
+        recipeTagRepository.saveAll(tagsToAdd);
     }
 
     @Transactional
