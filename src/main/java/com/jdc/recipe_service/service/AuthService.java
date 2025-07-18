@@ -8,8 +8,10 @@ import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2User;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
@@ -53,8 +55,9 @@ public class AuthService {
     private OAuth2User exchangeCodeAndLoadUser(String registrationId, String code, String env) {
         ClientRegistration registration = clients.findByRegistrationId(registrationId);
 
-        Authentication principal =
-                new UsernamePasswordAuthenticationToken(registrationId, null, List.of());
+        Authentication principal = new AnonymousAuthenticationToken(
+                "key", "anonymous", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))
+        );
 
         String redirectUri;
         if ("local".equalsIgnoreCase(env)) {
