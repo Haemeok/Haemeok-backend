@@ -51,7 +51,7 @@ class CommentLikeServiceTest {
         ReflectionTestUtils.setField(existing, "id", 200L);
 
         when(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
-                .thenReturn(existing);
+                .thenReturn(Optional.of(existing));
 
         boolean result = commentLikeService.toggleLike(100L, 10L);
         assertFalse(result);
