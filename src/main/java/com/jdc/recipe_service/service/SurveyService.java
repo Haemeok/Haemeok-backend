@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,9 +32,11 @@ public class SurveyService {
     public UserSurveyDto saveOrUpdate(Long userId, UserSurveyDto dto) {
         User user = userRepository.getReferenceById(userId);
 
-        boolean isNew = surveyRepository.findByUserId(userId).isEmpty();
+        Optional<UserSurvey> optionalSurvey = surveyRepository.findByUserId(userId);
 
-        UserSurvey survey = surveyRepository.findByUserId(userId)
+        boolean isNew = optionalSurvey.isEmpty();
+
+        UserSurvey survey = optionalSurvey
                 .orElseGet(() -> SurveyMapper.toEntity(user, dto));
 
         survey.updateFromDto(dto);
