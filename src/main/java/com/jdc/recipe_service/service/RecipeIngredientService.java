@@ -12,6 +12,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RecipeIngredientService {
     private final IngredientRepository ingredientRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
@@ -39,7 +41,7 @@ public class RecipeIngredientService {
                 throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료 이름이 비어있습니다.");
             }
             if (sourceType == RecipeSourceType.AI && (dto.getCustomUnit() == null || dto.getCustomUnit().isBlank())) {
-                System.err.println("경고: AI가 생성한 재료 '" + dto.getName() + "'의 단위 정보(customUnit)가 누락되었습니다.");
+                log.warn("경고: AI가 생성한 재료 '" + dto.getName() + "'의 단위 정보(customUnit)가 누락되었습니다.");
             }
 
             String nameKey = dto.getName().toLowerCase().trim();
@@ -58,11 +60,11 @@ public class RecipeIngredientService {
                 unitPrice = (masterIngredient.getPrice() != null) ? BigDecimal.valueOf(masterIngredient.getPrice()) : BigDecimal.ZERO;
                 unitForRecipeItem = (dto.getCustomUnit() != null && !dto.getCustomUnit().isBlank()) ? dto.getCustomUnit() : masterIngredient.getUnit();
             } else {
-                unitForRecipeItem = dto.getCustomUnit(); // 새로운 재료의 단위는 DTO의 customUnit 사용 (AI의 unit 또는 사용자의 customUnit)
+                unitForRecipeItem = dto.getCustomUnit();
                 if (sourceType == RecipeSourceType.AI) {
                     unitPrice = BigDecimal.ZERO;
                     if (unitForRecipeItem == null || unitForRecipeItem.isBlank()) {
-                        System.err.println("재확인 경고: AI 신규 재료 '" + dto.getName() + "'의 단위(customUnit)가 없습니다.");
+                        log.warn("재확인 경고: AI 신규 재료 '" + dto.getName() + "'의 단위(customUnit)가 없습니다.");
                     }
                 } else {
                     if (dto.getCustomPrice() == null || unitForRecipeItem == null || unitForRecipeItem.isBlank()) {
