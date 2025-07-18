@@ -287,21 +287,22 @@ public class SecurityConfig {
         return src;
     }
     @Bean
-    public OAuth2AuthorizedClientRepository authorizedClientRepository() {
-        return new HttpSessionOAuth2AuthorizedClientRepository();
+    public OAuth2AuthorizedClientService authorizedClientService(
+            ClientRegistrationRepository clientRegistrations) {
+        return new InMemoryOAuth2AuthorizedClientService(clientRegistrations);
     }
     @Bean
     public OAuth2AuthorizedClientManager authorizedClientManager(
-            ClientRegistrationRepository clientRegistrationRepository,
-            OAuth2AuthorizedClientRepository authorizedClientRepository) {
+            ClientRegistrationRepository clientRegistrations,
+            OAuth2AuthorizedClientService clientService) {
 
         var provider = OAuth2AuthorizedClientProviderBuilder.builder()
                 .authorizationCode()
                 .refreshToken()
                 .build();
 
-        var manager = new DefaultOAuth2AuthorizedClientManager(
-                clientRegistrationRepository, authorizedClientRepository
+        var manager = new AuthorizedClientServiceOAuth2AuthorizedClientManager(
+                clientRegistrations, clientService
         );
         manager.setAuthorizedClientProvider(provider);
         return manager;
