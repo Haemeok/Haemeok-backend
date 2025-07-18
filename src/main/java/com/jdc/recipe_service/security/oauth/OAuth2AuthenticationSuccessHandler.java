@@ -14,10 +14,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 
 @Slf4j
@@ -37,7 +39,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                                         Authentication authentication) throws IOException {
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 
-        String accessToken  = jwtTokenProvider.createAccessToken(oAuth2User.getUser());
+        String accessToken = jwtTokenProvider.createAccessToken(oAuth2User.getUser());
         String refreshToken = jwtTokenProvider.createRefreshToken();
         refreshTokenRepository.save(RefreshToken.builder()
                 .user(oAuth2User.getUser())
@@ -54,42 +56,48 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             }
         }
 
-        String origin = request.getHeader("Origin");
-        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
-
-        var refreshBuilder = ResponseCookie.from("refreshToken", refreshToken)
-                .path("/")
-                .httpOnly(true)
-                .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Lax");
-
-        var accessBuilder = ResponseCookie.from("accessToken", accessToken)
-                .path("/")
-                .httpOnly(true)
-                .maxAge(15 * 60)
-                .sameSite("Lax");
-
-        if (!isLocalRequest) {
-            refreshBuilder.secure(true).domain(".haemeok.com");
-            accessBuilder.secure(true).domain(".haemeok.com");
+        String compositeState = request.getParameter("state");
+        if (compositeState == null) {
+            response.sendRedirect("https://www.haemeok.com");
+            return;
         }
+        String[] parts = compositeState.split("\\|");
+        String redirectUri = new String(Base64.getUrlDecoder().decode(parts[1]));
 
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder.build().toString());
+        boolean isLocal = redirectUri.startsWith("http://localhost");
 
-        String referer = request.getHeader("Referer");
-
-        String redirectBase;
-        if (referer != null && referer.startsWith("http://localhost")) {
-            URI uri = URI.create(referer);
-            redirectBase = uri.getScheme() + "://" + uri.getHost();
-            if (uri.getPort() != -1) {
-                redirectBase += ":" + uri.getPort();
-            }
+        if (isLocal) {
+            URI uri = URI.create(redirectUri);
+            String base = uri.getScheme() + "://" + uri.getHost()
+                    + (uri.getPort() != -1 ? ":" + uri.getPort() : "");
+            String target = UriComponentsBuilder
+                    .fromUriString(base + "/auth/callback")
+                    .queryParam("accessToken", accessToken)
+                    .queryParam("refreshToken", refreshToken)
+                    .build()
+                    .toUriString();
+            response.sendRedirect(target);
         } else {
-            redirectBase = "https://www.haemeok.com";
-        }
+            ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
+                    .path("/")
+                    .httpOnly(true)
+                    .secure(true)
+                    .maxAge(7 * 24 * 60 * 60)
+                    .sameSite("Lax")
+                    .domain(".haemeok.com")
+                    .build();
+            ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
+                    .path("/")
+                    .httpOnly(true)
+                    .secure(true)
+                    .maxAge(15 * 60)
+                    .sameSite("Lax")
+                    .domain(".haemeok.com")
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+            response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
-        response.sendRedirect(redirectBase);
+            response.sendRedirect("https://www.haemeok.com");
+        }
     }
 }
