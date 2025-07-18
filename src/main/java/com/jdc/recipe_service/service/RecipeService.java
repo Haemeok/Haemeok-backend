@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.entity.*;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -56,6 +58,11 @@ public class RecipeService {
     private final PromptBuilder promptBuilder;
     private final ApplicationEventPublisher publisher;
 
+    private static final String MAIN_IMAGE_SLOT = "main";
+    private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
+    private static final int MAX_TRIES = 2;
+    private static final long RETRY_DELAY_MS = 500;
+    private static final int DEFAULT_MARGIN_PERCENT = 30;
 
     @Transactional
     public PresignedUrlResponse createRecipeWithAiLogic(
@@ -82,33 +89,24 @@ public class RecipeService {
             );
         }
 
-        UserSurveyDto survey = surveyService.getSurvey(userId);
-
         AiRecipeRequestDto aiReq = request.getAiRequest();
         aiReq.setUserId(userId);
-        if (survey != null) {
-            if (survey.getSpiceLevel() != null) {
-                aiReq.setSpiceLevel(survey.getSpiceLevel());
-            }
-            aiReq.setAllergy(survey.getAllergy());
-            if (aiReq.getTagNames() == null || aiReq.getTagNames().isEmpty()) {
-                aiReq.setTagNames(new ArrayList<>(survey.getTags()));
-            }
-        }
 
-        String prompt = promptBuilder.buildPrompt(
-                aiReq,
-                robotTypeParam
-        );
+        UserSurveyDto survey = surveyService.getSurvey(userId);
+        applySurveyInfoToAiRequest(aiReq, survey);
+
+        String prompt = promptBuilder.buildPrompt(aiReq, robotTypeParam);
 
         RecipeWithImageUploadRequest processingRequest =
                 buildRecipeFromAiRequest(prompt, aiReq, request.getFiles());
 
-        processingRequest.getRecipe().getSteps().forEach(step -> {
-            String actionName = step.getAction();
-            String key = actionImageService.generateImageKey(robotTypeParam, actionName);
-            step.updateImageKey(key);
-        });
+        for (RecipeStepRequestDto step : processingRequest.getRecipe().getSteps()) {
+            String action = step.getAction();
+            if (action != null) {
+                String key = actionImageService.generateImageKey(robotTypeParam, action);
+                step.updateImageKey(key);
+            }
+        }
 
         return createUserRecipeAndGenerateUrls(processingRequest, userId, sourceType);
     }
@@ -120,13 +118,11 @@ public class RecipeService {
             RecipeSourceType sourceType
     ) {
         User user = getUserOrThrow(userId);
-        RecipeCreateRequestDto dto = req.getRecipe();
-        if (dto == null) {
-            throw new CustomException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "레시피 생성 요청 데이터(dto)가 null입니다."
-            );
-        }
+        RecipeCreateRequestDto dto = Optional.ofNullable(req.getRecipe())
+                .orElseThrow(() -> new CustomException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "레시피 생성 요청 데이터(dto)가 null입니다."
+                ));
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
@@ -136,47 +132,36 @@ public class RecipeService {
             recipe.updateImageStatus(RecipeImageStatus.PENDING);
         } else {
             boolean hasMain = req.getFiles() != null &&
-                    req.getFiles().stream().anyMatch(f -> "main".equals(f.getType()));
+                    req.getFiles().stream().anyMatch(f -> MAIN_IMAGE_SLOT.equals(f.getType()));
             if (!hasMain) {
                 throw new CustomException(ErrorCode.USER_RECIPE_IMAGE_REQUIRED);
             }
             recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
         }
-
         recipeRepository.save(recipe);
-        int totalCost = recipeIngredientService
-                .saveAll(recipe, dto.getIngredients(), sourceType);
+
+        int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), sourceType);
         recipe.updateTotalIngredientCost(totalCost);
 
-        Integer providedMp = dto.getMarketPrice();
-        int marketPrice = (providedMp != null && providedMp > 0)
-                ? providedMp
-                : (totalCost > 0
-                ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(30))
-                : 0);
+        int marketPrice = calculateMarketPrice(dto, totalCost);
         recipe.updateMarketPrice(marketPrice);
 
-        recipeRepository.flush();
-        if (sourceType == RecipeSourceType.AI) {
-            recipeStepService.saveAll(recipe, dto.getSteps());
-        } else {
-            recipeStepService.saveAllFromUser(recipe, dto.getSteps());
-        }
+        recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTagNames());
 
         em.flush();
         em.clear();
+
         Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
                 .orElseThrow(() -> new CustomException(
                         ErrorCode.RECIPE_NOT_FOUND, "생성된 레시피를 조회할 수 없습니다.")
                 );
         recipeIndexingService.indexRecipe(full);
 
-        List<PresignedUrlResponseItem> uploads = Collections.emptyList();
-        if (req.getFiles() != null && !req.getFiles().isEmpty()) {
-            uploads = recipeImageService
-                    .generateAndSavePresignedUrls(recipe, req.getFiles());
-        }
+        final List<PresignedUrlResponseItem> uploads =
+                (req.getFiles() != null && !req.getFiles().isEmpty())
+                        ? recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles())
+                        : Collections.emptyList();
 
         if (sourceType == RecipeSourceType.AI) {
             final Long recipeId = recipe.getId();
@@ -204,21 +189,19 @@ public class RecipeService {
 
         RecipeCreateRequestDto generatedDto = null;
 
-        int maxTries = 2;
-
-        for (int attempt = 1; attempt <= maxTries; attempt++) {
+        for (int attempt = 1; attempt <= MAX_TRIES; attempt++) {
             try {
                 generatedDto = aiService.generateRecipeJson(prompt).join();
                 break;
             } catch (RuntimeException e) {
-                if (attempt == maxTries) {
+                if (attempt == MAX_TRIES) {
                     throw new CustomException(
                             ErrorCode.AI_RECIPE_GENERATION_FAILED,
                             "AI 레시피 생성에 실패했습니다: " + e.getMessage(), e
                     );
                 }
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(RETRY_DELAY_MS);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw new CustomException(
@@ -229,22 +212,11 @@ public class RecipeService {
             }
         }
 
-        List<RecipeIngredientRequestDto> correctedIngredients =
-                generatedDto.getIngredients().stream()
-                        .map(ing -> {
-                            String finalUnit = unitService
-                                    .getDefaultUnit(ing.getName())
-                                    .orElse(ing.getCustomUnit());
-                            return RecipeIngredientRequestDto.builder()
-                                    .name(ing.getName())
-                                    .quantity(ing.getQuantity())
-                                    .customPrice(ing.getCustomPrice())
-                                    .customUnit(finalUnit)
-                                    .customCalories(ing.getCustomCalories())
-                                    .build();
-                        })
-                        .collect(Collectors.toList());
-        generatedDto.setIngredients(correctedIngredients);
+        if (generatedDto == null) {
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI 응답이 null입니다.");
+        }
+
+        generatedDto.setIngredients(correctIngredientUnits(generatedDto.getIngredients()));
 
         if (generatedDto.getSteps() == null || generatedDto.getSteps().isEmpty()) {
             throw new CustomException(
@@ -259,14 +231,12 @@ public class RecipeService {
             );
         }
 
-        RecipeWithImageUploadRequest result = new RecipeWithImageUploadRequest();
-        result.setAiRequest(aiReq);
-        result.setRecipe(generatedDto);
-        result.setFiles(originalFiles);
-        return result;
+        return RecipeWithImageUploadRequest.builder()
+                .aiRequest(aiReq)
+                .recipe(generatedDto)
+                .files(originalFiles)
+                .build();
     }
-
-
 
 
     @Transactional
@@ -328,9 +298,7 @@ public class RecipeService {
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
 
-        Set<String> tools = dto.getCookingTools() != null
-                ? new HashSet<>(dto.getCookingTools())
-                : Collections.emptySet();
+        Set<String> tools = new HashSet<>(Optional.ofNullable(dto.getCookingTools()).orElse(Collections.emptyList()));
 
         recipe.update(
                 dto.getTitle(),
@@ -350,14 +318,8 @@ public class RecipeService {
 
         if (!Objects.equals(newTotalCost, prevTotalCost)) {
             recipe.updateTotalIngredientCost(newTotalCost);
-
-            if (dto.getMarketPrice() != null && dto.getMarketPrice() > 0) {
-                recipe.updateMarketPrice(dto.getMarketPrice());
-            } else {
-                int margin = PricingUtil.randomizeMarginPercent(30);
-                int mp = PricingUtil.applyMargin(newTotalCost, margin);
-                recipe.updateMarketPrice(mp);
-            }
+            int marketPrice = calculateMarketPrice(dto, newTotalCost);
+            recipe.updateMarketPrice(marketPrice);
         }
 
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
@@ -392,6 +354,7 @@ public class RecipeService {
         recipeImageService.deleteImagesByRecipeId(recipeId);
 
         recipeLikeService.deleteByRecipeId(recipeId);
+
         recipeFavoriteService.deleteByRecipeId(recipeId);
 
         commentService.deleteAllByRecipeId(recipeId);
@@ -433,10 +396,10 @@ public class RecipeService {
             }
 
             String slot = image.getSlot();
-            if ("main".equals(slot)) {
+            if (MAIN_IMAGE_SLOT.equals(slot)) {
                 recipe.updateImageKey(image.getFileKey());
                 hasMainImageUploaded = true;
-            } else if (slot != null && slot.startsWith("step_")) {
+            } else if (slot != null && slot.startsWith(STEP_IMAGE_SLOT_PREFIX)) {
                 int stepIndex;
                 try {
                     stepIndex = Integer.parseInt(slot.split("_")[1]);
@@ -485,7 +448,6 @@ public class RecipeService {
         }
     }
 
-
     @Transactional
     public boolean togglePrivacy(Long recipeId, Long userId) {
         Recipe recipe = getRecipeOrThrow(recipeId);
@@ -500,6 +462,46 @@ public class RecipeService {
         recipe.updateIsPrivate(newValue);
         return newValue;
     }
+
+    private void applySurveyInfoToAiRequest(AiRecipeRequestDto aiReq, UserSurveyDto survey) {
+        if (survey == null) return;
+
+        Optional.ofNullable(survey.getSpiceLevel())
+                .ifPresent(aiReq::setSpiceLevel);
+
+        aiReq.setAllergy(survey.getAllergy());
+
+        if (CollectionUtils.isEmpty(aiReq.getTagNames())) {
+            aiReq.setTagNames(new ArrayList<>(survey.getTags()));
+        }
+    }
+
+    private static int calculateMarketPrice(RecipeCreateRequestDto dto, int totalCost) {
+            Integer providedMp = dto.getMarketPrice();
+            int marketPrice = (providedMp != null && providedMp > 0)
+                    ? providedMp
+                    : (totalCost > 0
+                    ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(DEFAULT_MARGIN_PERCENT))
+                    : 0);
+            return marketPrice;
+    }
+
+    private List<RecipeIngredientRequestDto> correctIngredientUnits(List<RecipeIngredientRequestDto> ingredients) {
+        return ingredients.stream()
+                .map(ing -> {
+                    String finalUnit = unitService.getDefaultUnit(ing.getName())
+                            .orElse(ing.getCustomUnit());
+                    return RecipeIngredientRequestDto.builder()
+                            .name(ing.getName())
+                            .quantity(ing.getQuantity())
+                            .customPrice(ing.getCustomPrice())
+                            .customUnit(finalUnit)
+                            .customCalories(ing.getCustomCalories())
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
 
     private Recipe getRecipeOrThrow(Long recipeId) {
         return recipeRepository.findWithUserById(recipeId)
