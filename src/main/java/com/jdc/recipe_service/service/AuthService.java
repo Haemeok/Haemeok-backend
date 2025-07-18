@@ -35,8 +35,8 @@ public class AuthService {
      * provider: "google", "kakao" 또는 "naver"
      * code: OAuth2 인증 서버가 보낸 인가 코드
      */
-    public AuthTokens handleLogin(String provider,String code) {
-        OAuth2User oAuth2User = exchangeCodeAndLoadUser(provider, code);
+    public AuthTokens handleLogin(String provider,String code, String env) {
+        OAuth2User oAuth2User = exchangeCodeAndLoadUser(provider, code, env);
         User user = ((CustomOAuth2User) oAuth2User).getUser();
 
         String accessToken  = jwtTokenProvider.createAccessToken(user);
@@ -50,13 +50,18 @@ public class AuthService {
         return new AuthTokens(accessToken, refreshToken);
     }
 
-    private OAuth2User exchangeCodeAndLoadUser(String registrationId, String code) {
+    private OAuth2User exchangeCodeAndLoadUser(String registrationId, String code, String env) {
         ClientRegistration registration = clients.findByRegistrationId(registrationId);
 
         Authentication principal =
                 new UsernamePasswordAuthenticationToken(registrationId, null, List.of());
 
-        String redirectUri = registration.getRedirectUri();
+        String redirectUri;
+        if ("local".equalsIgnoreCase(env)) {
+            redirectUri = "http://localhost:3000/api/auth/callback/" + registrationId;
+        } else {
+            redirectUri = "https://www.haemeok.com/api/auth/callback/" + registrationId;
+        }
 
         OAuth2AuthorizeRequest authRequest = OAuth2AuthorizeRequest.withClientRegistrationId(registrationId)
                 .principal(principal)

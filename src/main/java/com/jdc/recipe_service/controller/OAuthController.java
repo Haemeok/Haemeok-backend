@@ -22,7 +22,7 @@ public class OAuthController {
             @RequestBody CodeDto codeDto,
             @RequestHeader(value = "X-Env", defaultValue = "prod") String env) {
 
-        AuthTokens tokens = authService.handleLogin(provider,codeDto.getCode());
+        AuthTokens tokens = authService.handleLogin(provider,codeDto.getCode(),env);
 
         boolean isLocal = "local".equalsIgnoreCase(env);
 
