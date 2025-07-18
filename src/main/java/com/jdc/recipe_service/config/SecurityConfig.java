@@ -13,6 +13,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.*;
+import org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
@@ -287,6 +290,11 @@ public class SecurityConfig {
         return src;
     }
     @Bean
+    public OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient() {
+        return new DefaultAuthorizationCodeTokenResponseClient();
+    }
+    /*
+    @Bean
     public OAuth2AuthorizedClientService authorizedClientService(
             ClientRegistrationRepository clientRegistrations) {
         return new InMemoryOAuth2AuthorizedClientService(clientRegistrations);
@@ -307,5 +315,7 @@ public class SecurityConfig {
         manager.setAuthorizedClientProvider(provider);
         return manager;
     }
+
+     */
 }
 
