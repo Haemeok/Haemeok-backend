@@ -44,7 +44,7 @@ public class CommentService {
 
         List<Long> commentIds = comments.stream()
                 .map(RecipeComment::getId)
-                .collect(Collectors.toList());
+                .toList();
 
         Map<Long, Integer> likeCountMap = commentLikeRepository
                 .countLikesByCommentIds(commentIds).stream()
@@ -68,7 +68,7 @@ public class CommentService {
                             .replyCount(replyCount)
                             .build();
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public CommentDto createComment(Long recipeId, CommentRequestDto dto, User user) {
@@ -82,30 +82,22 @@ public class CommentService {
                 .build();
         recipeCommentRepository.save(comment);
 
-        Long targetUserId = recipe.getUser().getId();
-        if (!targetUserId.equals(user.getId())) {
-            notificationService.createNotification(
-                    NotificationCreateDto.builder()
-                            .userId(targetUserId)
-                            .actorId(user.getId())
-                            .type(NotificationType.NEW_COMMENT)
-                            .content(user.getNickname() + "님이 댓글을 남겼습니다.")
-                            .relatedType(NotificationRelatedType.RECIPE)
-                            .relatedId(recipeId)
-                            .relatedUrl("/recipes/" + recipeId + "/comments")
-                            .build()
-            );
-        }
+        notifyIfNeeded(
+                user,
+                recipe.getUser().getId(),
+                NotificationType.NEW_COMMENT,
+                NotificationRelatedType.RECIPE,
+                recipeId,
+                "/recipes/" + recipeId + "/comments",
+                user.getNickname() + "님이 댓글을 남겼습니다."
+        );
 
         return CommentMapper.toDto(comment, false, 0);
     }
 
-    public ReplyDto createReply(Long recipeId, Long parentId, CommentRequestDto dto, Long userId) {
+    public ReplyDto createReply(Long recipeId, Long parentId, CommentRequestDto dto, User user) {
         Recipe recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         RecipeComment parent = recipeCommentRepository
                 .findByIdAndRecipeId(parentId, recipeId)
@@ -120,19 +112,15 @@ public class CommentService {
 
         recipeCommentRepository.save(reply);
 
-        Long targetUserId = parent.getUser().getId();
-        if (!targetUserId.equals(user.getId())) {
-            notificationService.createNotification(
-                    NotificationCreateDto.builder()
-                            .userId(targetUserId)
-                            .actorId(user.getId())
-                            .type(NotificationType.NEW_REPLY)
-                            .content(user.getNickname() + "님이 대댓글을 남겼습니다.")
-                            .relatedType(NotificationRelatedType.COMMENT)
-                            .relatedId(parentId)
-                            .relatedUrl("/recipes/" + recipeId + "/comments/" +parentId)                            .build()
-            );
-        }
+        notifyIfNeeded(
+                user,
+                parent.getUser().getId(),
+                NotificationType.NEW_REPLY,
+                NotificationRelatedType.COMMENT,
+                parentId,
+                "/recipes/" + recipeId + "/comments/" + parentId,
+                user.getNickname() + "님이 대댓글을 남겼습니다."
+        );
 
         return CommentMapper.toReplyDto(reply, false, 0);
     }
@@ -154,7 +142,7 @@ public class CommentService {
                             .stream().map(RecipeComment::getId);
                     return Stream.concat(Stream.of(parentId), replyIds);
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         Map<Long, Integer> likeCountMap = commentLikeRepository
                 .countLikesByCommentIds(allIds).stream()
@@ -171,7 +159,8 @@ public class CommentService {
                 .map(comment -> {
                     int parentLikeCount = likeCountMap.getOrDefault(comment.getId(), 0);
                     boolean parentLiked = likedByUser.contains(comment.getId());
-                    int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of()).size();
+                    int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of())
+                            .size();
 
                     List<ReplyDto> replies = Optional.ofNullable(comment.getReplies())
                             .orElse(List.of())
@@ -181,14 +170,14 @@ public class CommentService {
                                 boolean rl = likedByUser.contains(r.getId());
                                 return CommentMapper.toReplyDto(r, rl, rc);
                             })
-                            .collect(Collectors.toList());
+                            .toList();
 
                     return CommentMapper.toDto(comment, parentLiked, parentLikeCount)
                             .toBuilder()
                             .replyCount(replyCount)
                             .build();
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         List<CommentDto> sorted = new ArrayList<>(dtos);
         if (pageable.getSort().isSorted()) {
@@ -209,60 +198,11 @@ public class CommentService {
         return new PageImpl<>(pageContent, pageable, sorted.size());
     }
 
-    public CommentDto findByIdAndRecipeId(Long commentId, Long recipeId, Long currentUserId) {
-        RecipeComment comment = recipeCommentRepository
-                .findByIdAndRecipeId(commentId, recipeId)
-                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
-
-        int likeCount = commentLikeRepository.countByCommentId(commentId);
-        boolean isLiked = currentUserId != null
-                && commentLikeRepository.existsByCommentIdAndUserId(commentId, currentUserId);
-
-        int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of()).size();
-
-        return CommentMapper.toDto(comment, isLiked, likeCount)
-                .toBuilder()
-                .replyCount(replyCount)
-                .build();
-    }
-
-    public void deleteComment(Long commentId, Long userId) {
-        RecipeComment comment = recipeCommentRepository.findById(commentId)
-                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
-        if (!comment.getUser().getId().equals(userId)) {
-            throw new CustomException(ErrorCode.COMMENT_ACCESS_DENIED);
-        }
-
-        List<Long> toDeleteIds = Stream.concat(
-                Stream.of(commentId),
-                Optional.ofNullable(comment.getReplies()).orElse(List.of()).stream().map(RecipeComment::getId)
-        ).collect(Collectors.toList());
-        commentLikeRepository.deleteByCommentIdIn(toDeleteIds);
-
-        recipeCommentRepository.delete(comment);
-    }
-
-    public void deleteAllByRecipeId(Long recipeId) {
-        List<RecipeComment> comments = recipeCommentRepository.findByRecipeId(recipeId);
-        List<Long> commentIds = comments.stream()
-                .map(RecipeComment::getId)
-                .collect(Collectors.toList());
-
-        if (!commentIds.isEmpty()) {
-            commentLikeRepository.deleteByCommentIdIn(commentIds);
-        }
-        recipeCommentRepository.deleteByRecipeId(recipeId);
-    }
-
     public Page<ReplyDto> getRepliesWithLikes(Long parentId, Long currentUserId, Pageable pageable) {
         Sort originalSort = pageable.getSort();
         Sort.Order likeOrder = originalSort.getOrderFor("likeCount");
 
-        List<Sort.Order> dbOrders = originalSort.stream()
-                .filter(o -> !"likeCount".equals(o.getProperty()))
-                .toList();
-        Pageable dbPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
-                dbOrders.isEmpty() ? Sort.unsorted() : Sort.by(dbOrders));
+        Pageable dbPageable = sanitizePageable(pageable, "likeCount");
 
         Page<RecipeComment> replyPage =
                 recipeCommentRepository.findByParentCommentId(parentId, dbPageable);
@@ -273,7 +213,7 @@ public class CommentService {
 
         List<Long> replyIds = replyPage.getContent().stream()
                 .map(RecipeComment::getId)
-                .collect(Collectors.toList());
+                .toList();
 
         Map<Long, Integer> likeCounts = commentLikeRepository
                 .countLikesByCommentIds(replyIds).stream()
@@ -303,6 +243,77 @@ public class CommentService {
         }
 
         return new PageImpl<>(dtos, pageable, replyPage.getTotalElements());
+    }
+
+    public CommentDto findByIdAndRecipeId(Long commentId, Long recipeId, Long currentUserId) {
+        RecipeComment comment = recipeCommentRepository
+                .findByIdAndRecipeId(commentId, recipeId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+
+        int likeCount = commentLikeRepository.countByCommentId(commentId);
+        boolean isLiked = currentUserId != null
+                && commentLikeRepository.existsByCommentIdAndUserId(commentId, currentUserId);
+
+        int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of())
+                .size();
+
+        return CommentMapper.toDto(comment, isLiked, likeCount)
+                .toBuilder()
+                .replyCount(replyCount)
+                .build();
+    }
+
+    public void deleteComment(Long commentId, Long userId) {
+        RecipeComment comment = recipeCommentRepository.findById(commentId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+        if (!comment.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.COMMENT_ACCESS_DENIED);
+        }
+
+        List<Long> toDeleteIds = Stream.concat(
+                Stream.of(commentId),
+                Optional.ofNullable(comment.getReplies()).orElse(List.of())
+                        .stream().map(RecipeComment::getId)
+        ).toList();
+        commentLikeRepository.deleteByCommentIdIn(toDeleteIds);
+
+        recipeCommentRepository.delete(comment);
+    }
+
+    public void deleteAllByRecipeId(Long recipeId) {
+        List<RecipeComment> comments = recipeCommentRepository.findByRecipeId(recipeId);
+        List<Long> commentIds = comments.stream()
+                .map(RecipeComment::getId)
+                .toList();
+
+        if (!commentIds.isEmpty()) {
+            commentLikeRepository.deleteByCommentIdIn(commentIds);
+        }
+        recipeCommentRepository.deleteByRecipeId(recipeId);
+    }
+
+    private void notifyIfNeeded(User actor, Long targetUserId, NotificationType type, NotificationRelatedType relatedType, Long relatedId, String url, String content) {
+        if (!targetUserId.equals(actor.getId())) {
+            notificationService.createNotification(
+                    NotificationCreateDto.builder()
+                            .userId(targetUserId)
+                            .actorId(actor.getId())
+                            .type(type)
+                            .content(content)
+                            .relatedType(relatedType)
+                            .relatedId(relatedId)
+                            .relatedUrl(url)
+                            .build()
+            );
+        }
+    }
+
+    private Pageable sanitizePageable(Pageable pageable, String excludedProperty) {
+        List<Sort.Order> validOrders = pageable.getSort().stream()
+                .filter(o -> !excludedProperty.equals(o.getProperty()))
+                .toList();
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                validOrders.isEmpty() ? Sort.unsorted() : Sort.by(validOrders));
     }
 }
 
