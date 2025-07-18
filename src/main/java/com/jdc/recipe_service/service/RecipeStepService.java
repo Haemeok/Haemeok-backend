@@ -52,18 +52,6 @@ public class RecipeStepService {
     }
 
     @Transactional
-    public void saveAllFromUser(Recipe recipe, List<RecipeStepRequestDto> dtos) {
-        Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
-
-        for (RecipeStepRequestDto dto : dtos) {
-            RecipeStep step = RecipeStepMapper.toEntity(dto, recipe);
-            step.updateStepImageKey(dto.getImageKey());
-            recipeStepRepository.save(step);
-            saveStepIngredients(dto.getIngredients(), step, riMap);
-        }
-    }
-
-    @Transactional
     public void updateSteps(Recipe recipe, List<RecipeStepRequestDto> dtos) {
         Map<String, RecipeIngredient> riMap = loadRecipeIngredientMap(recipe.getId());
         List<RecipeStep> existing = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipe.getId());
@@ -89,7 +77,7 @@ public class RecipeStepService {
                 step.updateAction(dto.getAction());
             }
             if (ai) {
-                String key = actionImageService.generateImageKey(RobotType.valueOf("CLASSIC"),dto.getAction());
+                String key = actionImageService.generateImageKey(RobotType.CLASSIC, dto.getAction());
                 step.updateStepImageKey(key);
             }else {
                 step.updateStepImageKey(dto.getImageKey());
@@ -130,7 +118,7 @@ public class RecipeStepService {
             RecipeStep step,
             Map<String, RecipeIngredient> riMap
     ) {
-        if (dtos == null) return;
+        if (dtos == null || dtos.isEmpty()) return;
 
         for (RecipeStepIngredientRequestDto dto : dtos) {
             String key = dto.getName().trim().toLowerCase();
@@ -154,9 +142,7 @@ public class RecipeStepService {
         Map<String, RecipeStepIngredient> existingMap = existing.stream()
                 .filter(i -> i.getIngredient() != null || i.getCustomName() != null)
                 .collect(Collectors.toMap(
-                        i -> i.getIngredient() != null
-                                ? "id:" + i.getIngredient().getId()
-                                : "custom:" + i.getCustomName().toLowerCase().trim(),
+                        RecipeStepService::generateKey,
                         Function.identity(),
                         (a, b) -> a
                 ));
@@ -164,26 +150,18 @@ public class RecipeStepService {
         Set<String> newKeys = dtos.stream()
                 .map(d -> {
                     String name = d.getName() != null ? d.getName() : d.getCustomName();
-                    if (name == null || name.isBlank()) {
-                        throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료명(name/customName)은 필수입니다.");
-                    }
+                    validateNamePresent(name);
+
                     RecipeIngredient ri = riMap.get(name.toLowerCase().trim());
                     if (ri == null) {
                         throw new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, name);
                     }
-                    return ri.getIngredient() != null
-                            ? "id:" + ri.getIngredient().getId()
-                            : "custom:" + ri.getCustomName().toLowerCase().trim();
+                    return generateKey(ri);
                 })
                 .collect(Collectors.toSet());
 
         existing.stream()
-                .filter(i -> {
-                    String key = i.getIngredient() != null
-                            ? "id:" + i.getIngredient().getId()
-                            : "custom:" + i.getCustomName().toLowerCase().trim();
-                    return !newKeys.contains(key);
-                })
+                .filter(i -> !newKeys.contains(generateKey(i)))
                 .forEach(i -> {
                     step.getStepIngredients().remove(i);
                     recipeStepIngredientRepository.delete(i);
@@ -191,9 +169,7 @@ public class RecipeStepService {
 
         for (RecipeStepIngredientRequestDto dto : dtos) {
             String rawName = dto.getName() != null ? dto.getName() : dto.getCustomName();
-            if (rawName == null || rawName.isBlank()) {
-                throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료명(name/customName)은 필수입니다.");
-            }
+            validateNamePresent(rawName);
 
             String key = rawName.toLowerCase().trim();
             RecipeIngredient ri = riMap.get(key);
@@ -201,9 +177,7 @@ public class RecipeStepService {
                 throw new CustomException(ErrorCode.INGREDIENT_NOT_FOUND, rawName);
             }
 
-            String matchKey = ri.getIngredient() != null
-                    ? "id:" + ri.getIngredient().getId()
-                    : "custom:" + ri.getCustomName().toLowerCase().trim();
+            String matchKey = generateKey(ri);
 
             RecipeStepIngredient exist = existingMap.get(matchKey);
             if (exist != null) {
@@ -248,5 +222,24 @@ public class RecipeStepService {
                                 : ri.getCustomName().toLowerCase().trim(),
                         Function.identity()
                 ));
+    }
+
+    private void validateNamePresent(String name) {
+        if (name == null || name.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료명(name/customName)은 필수입니다.");
+        }
+    }
+
+
+    private static String generateKey(RecipeIngredient ri) {
+        return ri.getIngredient() != null
+                ? "id:" + ri.getIngredient().getId()
+                : "custom:" + ri.getCustomName().toLowerCase().trim();
+    }
+
+    private static String generateKey(RecipeStepIngredient i) {
+        return i.getIngredient() != null
+                ? "id:" + i.getIngredient().getId()
+                : "custom:" + i.getCustomName().toLowerCase().trim();
     }
 }
