@@ -27,6 +27,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 
 @Configuration
@@ -316,24 +317,24 @@ public class SecurityConfig {
         return new OAuth2AuthorizationRequestResolver() {
             @Override
             public OAuth2AuthorizationRequest resolve(HttpServletRequest request) {
-                OAuth2AuthorizationRequest req = defaultResolver.resolve(request);
-                return customize(request, req);
+                OAuth2AuthorizationRequest authReq = defaultResolver.resolve(request);
+                return customize(request, authReq);
             }
-
             @Override
             public OAuth2AuthorizationRequest resolve(HttpServletRequest request, String clientRegistrationId) {
-                OAuth2AuthorizationRequest req = defaultResolver.resolve(request, clientRegistrationId);
-                return customize(request, req);
+                OAuth2AuthorizationRequest authReq = defaultResolver.resolve(request, clientRegistrationId);
+                return customize(request, authReq);
             }
-
             private OAuth2AuthorizationRequest customize(HttpServletRequest request, OAuth2AuthorizationRequest authReq) {
-                if (authReq == null) {
-                    return null;
-                }
-                String redirectUriParam = request.getParameter("redirect_uri");
-                if (redirectUriParam != null && isAuthorizedRedirectUri(redirectUriParam)) {
+                if (authReq == null) return null;
+                String redirectUri = request.getParameter("redirect_uri");
+                if (redirectUri != null && isAuthorizedRedirectUri(redirectUri)) {
+                    String originalState = authReq.getState();
+                    String encodedRedirect = Base64.getUrlEncoder().encodeToString(redirectUri.getBytes());
+                    String compositeState = originalState + "|" + encodedRedirect;
                     return OAuth2AuthorizationRequest.from(authReq)
-                            .redirectUri(redirectUriParam)
+                            .redirectUri(redirectUri)
+                            .state(compositeState)
                             .build();
                 }
                 return authReq;
