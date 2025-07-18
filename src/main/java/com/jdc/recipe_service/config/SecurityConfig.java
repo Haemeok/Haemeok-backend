@@ -2,9 +2,6 @@ package com.jdc.recipe_service.config;
 
 import com.jdc.recipe_service.jwt.JwtAuthenticationFilter;
 import com.jdc.recipe_service.security.CustomAuthenticationEntryPoint;
-import com.jdc.recipe_service.security.oauth.CustomOAuth2UserService;
-import com.jdc.recipe_service.security.oauth.OAuth2AuthenticationSuccessHandler;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,11 +12,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.*;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
-import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -27,7 +21,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 
 @Configuration
@@ -36,12 +29,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final CustomOAuth2UserService oauth2UserService;
-    private final OAuth2AuthenticationSuccessHandler successHandler;
     private final JwtAuthenticationFilter jwtFilter;
     private final CustomAuthenticationEntryPoint entryPoint;
     private final Environment env;
-    private final ClientRegistrationRepository clientRegistrationRepository;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -62,6 +52,7 @@ public class SecurityConfig {
 
                             // 1) 로컬 전용: H2 콘솔, JWT 발급용 엔드포인트
                             .requestMatchers("/h2-console/**", "/local-token").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
 
                             // 2) 공개 GET (인증 없이 모두 허용)
                             .requestMatchers(HttpMethod.GET,
@@ -143,13 +134,6 @@ public class SecurityConfig {
                             .anyRequest().permitAll()
 
                     )
-                    .oauth2Login(oauth -> oauth
-                            .authorizationEndpoint(endp -> endp
-                                    .authorizationRequestResolver(customAuthorizationRequestResolver())
-                            )
-                            .userInfoEndpoint(u -> u.userService(oauth2UserService))
-                            .successHandler(successHandler)
-                    )
                     .headers(h -> h.frameOptions(frame -> frame.disable()));
             http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
             http.exceptionHandling(e -> e.authenticationEntryPoint(entryPoint));
@@ -163,7 +147,7 @@ public class SecurityConfig {
                 .requiresChannel(ch -> ch
                         .requestMatchers("/api/**").requiresSecure()
                         .requestMatchers("/ws/notifications/**").requiresSecure()
-                        .requestMatchers("/test-ws.html").requiresSecure()   // test 페이지도 HTTPS 유지
+                        .requestMatchers("/test-ws.html").requiresSecure()
                 )
                 .cors(cors -> cors.configurationSource(corsConfig()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -171,6 +155,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/test-ws.html").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
 
                         // WebSocket 핸드쉐이크 & SockJS 엔드포인트
                         .requestMatchers("/ws/notifications/**").permitAll()
@@ -276,13 +261,6 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
                 .formLogin(AbstractHttpConfigurer::disable)
-                .oauth2Login(oauth -> oauth
-                        .authorizationEndpoint(endp -> endp
-                                .authorizationRequestResolver(customAuthorizationRequestResolver())
-                        )
-                        .userInfoEndpoint(u -> u.userService(oauth2UserService))
-                        .successHandler(successHandler)
-                )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
         return http.build();
@@ -307,56 +285,26 @@ public class SecurityConfig {
     }
 
     @Bean
-    public OAuth2AuthorizationRequestResolver customAuthorizationRequestResolver() {
-        DefaultOAuth2AuthorizationRequestResolver defaultResolver =
-                new DefaultOAuth2AuthorizationRequestResolver(
-                        clientRegistrationRepository,
-                        OAuth2AuthorizationRequestRedirectFilter.DEFAULT_AUTHORIZATION_REQUEST_BASE_URI
-                );
-
-        return new OAuth2AuthorizationRequestResolver() {
-            @Override
-            public OAuth2AuthorizationRequest resolve(HttpServletRequest request) {
-                OAuth2AuthorizationRequest authReq = defaultResolver.resolve(request);
-                return customize(request, authReq);
-            }
-            @Override
-            public OAuth2AuthorizationRequest resolve(HttpServletRequest request, String clientRegistrationId) {
-                OAuth2AuthorizationRequest authReq = defaultResolver.resolve(request, clientRegistrationId);
-                return customize(request, authReq);
-            }
-            private OAuth2AuthorizationRequest customize(HttpServletRequest request, OAuth2AuthorizationRequest authReq) {
-                if (authReq == null) return null;
-                String redirectUri = request.getParameter("redirect_uri");
-                if (redirectUri != null && isAuthorizedRedirectUri(redirectUri)) {
-                    String originalState = authReq.getState();
-                    String encodedRedirect = Base64.getUrlEncoder().encodeToString(redirectUri.getBytes());
-                    String compositeState = originalState + "|" + encodedRedirect;
-                    return OAuth2AuthorizationRequest.from(authReq)
-                            .redirectUri(redirectUri)
-                            .state(compositeState)
-                            .build();
-                }
-                return authReq;
-            }
-        };
+    public OAuth2AuthorizedClientService authorizedClientService(
+            ClientRegistrationRepository clients) {
+        return new InMemoryOAuth2AuthorizedClientService(clients);
     }
 
-    private boolean isAuthorizedRedirectUri(String uri) {
-        return List.of(
-                "http://localhost:3000/login/oauth2/code/google",
-                "http://localhost:5173/login/oauth2/code/google",
-                "https://www.haemeok.com/login/oauth2/code/google",
-                "https://haemeok.com/login/oauth2/code/google",
-                "http://localhost:3000/login/oauth2/code/kakao",
-                "http://localhost:5173/login/oauth2/code/kakao",
-                "https://www.haemeok.com/login/oauth2/code/kakao",
-                "https://haemeok.com/login/oauth2/code/kakao",
-                "http://localhost:3000/login/oauth2/code/naver",
-                "http://localhost:5173/login/oauth2/code/naver",
-                "https://www.haemeok.com/login/oauth2/code/naver",
-                "https://haemeok.com/login/oauth2/code/naver"
-        ).contains(uri);
+    @Bean
+    public OAuth2AuthorizedClientManager authorizedClientManager(
+            ClientRegistrationRepository clients,
+            OAuth2AuthorizedClientService clientService) {
+
+        OAuth2AuthorizedClientProvider provider = OAuth2AuthorizedClientProviderBuilder.builder()
+                .authorizationCode()
+                .refreshToken()
+                .build();
+
+        var manager = new AuthorizedClientServiceOAuth2AuthorizedClientManager(
+                clients, clientService
+        );
+        manager.setAuthorizedClientProvider(provider);
+        return manager;
     }
 }
 
