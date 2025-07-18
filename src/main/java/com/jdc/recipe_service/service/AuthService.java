@@ -22,6 +22,8 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationResp
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -46,9 +48,12 @@ public class AuthService {
 
         String accessToken = jwtTokenProvider.createAccessToken(user);
         String refreshToken = jwtTokenProvider.createRefreshToken();
+
+        LocalDateTime refreshTokenExpiry = jwtTokenProvider.getRefreshTokenExpiryAsLocalDateTime();
         refreshTokenRepository.save(RefreshToken.builder()
                 .user(user)
                 .token(refreshToken)
+                .expiredAt(refreshTokenExpiry)
                 .build()
         );
         log.info("[AuthService] JWT tokens created");
@@ -74,7 +79,7 @@ public class AuthService {
                 .authorizationUri(clientRegistration.getProviderDetails().getAuthorizationUri())
                 .redirectUri(redirectUri)
                 .scopes(clientRegistration.getScopes())
-                .state("state-dummy") // state 값은 필수지만 여기서는 중요하지 않음
+                .state("state-dummy")
                 .build();
 
         OAuth2AuthorizationResponse authResponse = OAuth2AuthorizationResponse

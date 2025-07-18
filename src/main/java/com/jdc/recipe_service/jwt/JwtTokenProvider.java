@@ -12,6 +12,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.UUID;
 
@@ -62,6 +65,14 @@ public class JwtTokenProvider {
                 .setExpiration(expiry)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public LocalDateTime getRefreshTokenExpiryAsLocalDateTime() {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + refreshTokenValidityInMilliseconds);
+        return Instant.ofEpochMilli(expiryDate.getTime())
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
     }
 
     public boolean validateToken(String token) {
