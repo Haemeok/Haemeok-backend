@@ -169,16 +169,7 @@ public class RecipeSearchService {
             });
         }
 
-        if (!pageable.getSort().isEmpty()) {
-            Sort.Order order = pageable.getSort().iterator().next();
-            if ("likeCount".equals(order.getProperty())) {
-                recipes.sort(Comparator.comparing(RecipeSimpleDto::getLikeCount,
-                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
-            } else {
-                recipes.sort(Comparator.comparing(RecipeSimpleDto::getCreatedAt,
-                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
-            }
-        }
+        sortRecipes(recipes, pageable);
 
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), recipes.size());
@@ -211,16 +202,7 @@ public class RecipeSearchService {
             });
         }
 
-        if (!pageable.getSort().isEmpty()) {
-            Sort.Order order = pageable.getSort().iterator().next();
-            if ("likeCount".equals(order.getProperty())) {
-                recipes.sort(Comparator.comparing(RecipeSimpleDto::getLikeCount,
-                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
-            } else {
-                recipes.sort(Comparator.comparing(RecipeSimpleDto::getCreatedAt,
-                        order.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder()));
-            }
-        }
+        sortRecipes(recipes, pageable);
 
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), recipes.size());
@@ -257,7 +239,7 @@ public class RecipeSearchService {
         List<String> tagNames = recipeTagRepository.findByRecipeId(recipeId)
                 .stream()
                 .map(rt -> rt.getTag().getDisplayName())
-                .collect(Collectors.toList());
+                .toList();
 
         List<RecipeIngredientDto> ingredients = RecipeIngredientMapper.toDtoList(
                 recipeIngredientRepository.findByRecipeId(recipeId)
@@ -279,7 +261,7 @@ public class RecipeSearchService {
                     var url  = generateImageUrl(step.getImageKey());
                     return RecipeStepMapper.toDto(step, used, url, step.getImageKey());
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         List<CommentDto> comments = commentService.getTop3CommentsWithLikes(recipeId, currentUserId);
         long commentCount = recipeCommentRepository.countByRecipeId(recipeId);
@@ -382,4 +364,16 @@ public class RecipeSearchService {
             return false;
         }
     }
+
+    private void sortRecipes(List<RecipeSimpleDto> recipes, Pageable pageable) {
+        if (pageable.getSort().isEmpty()) return;
+
+        Sort.Order order = pageable.getSort().iterator().next();
+        Comparator<RecipeSimpleDto> comparator = switch (order.getProperty()) {
+            case "likeCount" -> Comparator.comparing(RecipeSimpleDto::getLikeCount);
+            default -> Comparator.comparing(RecipeSimpleDto::getCreatedAt);
+        };
+        recipes.sort(order.isAscending() ? comparator : comparator.reversed());
+    }
+
 }
