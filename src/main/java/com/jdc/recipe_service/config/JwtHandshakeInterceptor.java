@@ -10,6 +10,7 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
@@ -17,6 +18,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 @Slf4j
+@Component
 @RequiredArgsConstructor
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
@@ -27,28 +29,38 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
                                    @NonNull ServerHttpResponse response,
                                    @NonNull WebSocketHandler wsHandler,
                                    @NonNull Map<String, Object> attributes) {
+        if (!(request instanceof ServletServerHttpRequest servletRequest)) {
+            log.warn("Handshake failed: Not a servlet request.");
+            return false;
+        }
 
-        if (request instanceof ServletServerHttpRequest servletRequest) {
-            HttpServletRequest httpRequest = servletRequest.getServletRequest();
-            String token = null;
-            if (httpRequest.getCookies() != null) {
-                token = Arrays.stream(httpRequest.getCookies())
-                        .filter(c -> "accessToken".equals(c.getName()))
-                        .map(Cookie::getValue)
-                        .findFirst()
-                        .orElse(null);
-            }
-            log.debug("Attempting handshake with token from cookie: {}", token);
+        HttpServletRequest httpRequest = servletRequest.getServletRequest();
+        String token = null;
 
-            if (token != null && tokenProvider.validateToken(token)) {
-                Authentication auth = tokenProvider.getAuthentication(token);
-                attributes.put("user", auth);
-                log.info("Handshake successful for user: {}", auth.getName());
-                return true;
+        token = httpRequest.getParameter("token");
+        if (token != null) {
+            log.debug("Handshake: 쿼리 파라미터에서 토큰 발견.");
+        }
+
+        if (token == null && httpRequest.getCookies() != null) {
+            token = Arrays.stream(httpRequest.getCookies())
+                    .filter(c -> "accessToken".equals(c.getName()))
+                    .map(Cookie::getValue)
+                    .findFirst()
+                    .orElse(null);
+            if (token != null) {
+                log.debug("Handshake: 쿠키에서 토큰 발견.");
             }
         }
 
-        log.warn("Handshake failed: Invalid or missing token.");
+        if (token != null && tokenProvider.validateToken(token)) {
+            Authentication auth = tokenProvider.getAuthentication(token);
+            attributes.put("user", auth);
+            log.info("Handshake 성공. 사용자: {}", auth.getName());
+            return true;
+        }
+
+        log.warn("Handshake 실패: 유효한 토큰을 찾을 수 없습니다.");
         return false;
     }
 
