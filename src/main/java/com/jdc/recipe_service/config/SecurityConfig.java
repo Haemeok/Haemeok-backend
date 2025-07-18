@@ -4,6 +4,7 @@ import com.jdc.recipe_service.jwt.JwtAuthenticationFilter;
 import com.jdc.recipe_service.security.CustomAuthenticationEntryPoint;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2UserService;
 import com.jdc.recipe_service.security.oauth.OAuth2AuthenticationSuccessHandler;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -21,6 +27,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -33,6 +40,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     private final CustomAuthenticationEntryPoint entryPoint;
     private final Environment env;
+    private final ClientRegistrationRepository clientRegistrationRepository;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -135,6 +143,9 @@ public class SecurityConfig {
 
                     )
                     .oauth2Login(oauth -> oauth
+                            .authorizationEndpoint(endp -> endp
+                                    .authorizationRequestResolver(customAuthorizationRequestResolver())
+                            )
                             .userInfoEndpoint(u -> u.userService(oauth2UserService))
                             .successHandler(successHandler)
                     )
@@ -265,6 +276,9 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .oauth2Login(oauth -> oauth
+                        .authorizationEndpoint(endp -> endp
+                                .authorizationRequestResolver(customAuthorizationRequestResolver())
+                        )
                         .userInfoEndpoint(u -> u.userService(oauth2UserService))
                         .successHandler(successHandler)
                 )
@@ -279,7 +293,8 @@ public class SecurityConfig {
         cfg.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "https://www.haemeok.com"
+                "https://www.haemeok.com",
+                "https://haemeok.com"
         ));
         cfg.setAllowedMethods(Arrays.asList("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(Arrays.asList("*"));
@@ -290,5 +305,57 @@ public class SecurityConfig {
         return src;
     }
 
+    @Bean
+    public OAuth2AuthorizationRequestResolver customAuthorizationRequestResolver() {
+        DefaultOAuth2AuthorizationRequestResolver defaultResolver =
+                new DefaultOAuth2AuthorizationRequestResolver(
+                        clientRegistrationRepository,
+                        OAuth2AuthorizationRequestRedirectFilter.DEFAULT_AUTHORIZATION_REQUEST_BASE_URI
+                );
+
+        return new OAuth2AuthorizationRequestResolver() {
+            @Override
+            public OAuth2AuthorizationRequest resolve(HttpServletRequest request) {
+                OAuth2AuthorizationRequest req = defaultResolver.resolve(request);
+                return customize(request, req);
+            }
+
+            @Override
+            public OAuth2AuthorizationRequest resolve(HttpServletRequest request, String clientRegistrationId) {
+                OAuth2AuthorizationRequest req = defaultResolver.resolve(request, clientRegistrationId);
+                return customize(request, req);
+            }
+
+            private OAuth2AuthorizationRequest customize(HttpServletRequest request, OAuth2AuthorizationRequest authReq) {
+                if (authReq == null) {
+                    return null;
+                }
+                String redirectUriParam = request.getParameter("redirect_uri");
+                if (redirectUriParam != null && isAuthorizedRedirectUri(redirectUriParam)) {
+                    return OAuth2AuthorizationRequest.from(authReq)
+                            .redirectUri(redirectUriParam)
+                            .build();
+                }
+                return authReq;
+            }
+        };
+    }
+
+    private boolean isAuthorizedRedirectUri(String uri) {
+        return List.of(
+                "http://localhost:3000/login/oauth2/code/google",
+                "http://localhost:5173/login/oauth2/code/google",
+                "https://www.haemeok.com/login/oauth2/code/google",
+                "https://haemeok.com/login/oauth2/code/google",
+                "http://localhost:3000/login/oauth2/code/kakao",
+                "http://localhost:5173/login/oauth2/code/kakao",
+                "https://www.haemeok.com/login/oauth2/code/kakao",
+                "https://haemeok.com/login/oauth2/code/kakao",
+                "http://localhost:3000/login/oauth2/code/naver",
+                "http://localhost:5173/login/oauth2/code/naver",
+                "https://www.haemeok.com/login/oauth2/code/naver",
+                "https://haemeok.com/login/oauth2/code/naver"
+        ).contains(uri);
+    }
 }
 
