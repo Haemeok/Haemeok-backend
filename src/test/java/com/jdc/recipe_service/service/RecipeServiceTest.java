@@ -110,7 +110,7 @@ class RecipeServiceTest {
 
         when(recipeIngredientService.saveAll(any(Recipe.class), anyList(), eq(RecipeSourceType.USER)))
                 .thenReturn(0);
-        doNothing().when(recipeStepService).saveAllFromUser(any(Recipe.class), anyList());
+        doNothing().when(recipeStepService).saveAll(any(Recipe.class), anyList());
         doNothing().when(recipeTagService).saveAll(any(Recipe.class), anyList());
         doNothing().when(recipeIndexingService).indexRecipe(any(Recipe.class));
 
@@ -143,7 +143,7 @@ class RecipeServiceTest {
         verify(recipeIngredientService, times(1))
                 .saveAll(any(Recipe.class), anyList(), eq(RecipeSourceType.USER));
         verify(recipeStepService, times(1))
-                .saveAllFromUser(any(Recipe.class), anyList());
+                .saveAll(any(Recipe.class), anyList());
         verify(recipeTagService, times(1))
                 .saveAll(any(Recipe.class), anyList());
         verify(recipeIndexingService, times(1)).indexRecipe(any(Recipe.class));
@@ -369,4 +369,44 @@ class RecipeServiceTest {
         verifyNoMoreInteractions(recipeImageService, recipeLikeService, recipeFavoriteService,
                 commentService, recipeStepService, recipeIngredientService, recipeTagService, recipeIndexingService);
     }
+
+    @Test
+    @DisplayName("togglePrivacy: 일반 사용자 레시피 공개/비공개 전환 성공")
+    void togglePrivacy_success() {
+        Recipe recipe = Recipe.builder()
+                .id(123L)
+                .user(author)
+                .isPrivate(true)
+                .isAiGenerated(false)
+                .imageKey("image.jpg")
+                .build();
+
+        when(recipeRepository.findWithUserById(123L)).thenReturn(Optional.of(recipe));
+
+        boolean result = recipeService.togglePrivacy(123L, author.getId());
+        assertFalse(result); // 원래 true → false
+
+        verify(recipeRepository).findWithUserById(123L);
+    }
+
+    @Test
+    @DisplayName("togglePrivacy: AI 레시피가 이미지 없이 공개되려 할 때 예외")
+    void togglePrivacy_aiRecipeWithoutImage_throws() {
+        Recipe recipe = Recipe.builder()
+                .id(124L)
+                .user(author)
+                .isPrivate(true)
+                .isAiGenerated(true)
+                .imageKey(null)
+                .build();
+
+        when(recipeRepository.findWithUserById(124L)).thenReturn(Optional.of(recipe));
+
+        CustomException ex = assertThrows(CustomException.class, () -> {
+            recipeService.togglePrivacy(124L, author.getId());
+        });
+
+        assertEquals(ErrorCode.CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE, ex.getErrorCode());
+    }
+
 }
