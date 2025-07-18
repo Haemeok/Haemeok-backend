@@ -52,7 +52,7 @@ public class RecipeRatingService {
                         .build()
                 );
 
-        RecipeRating saved = ratingRepository.save(rating);
+        ratingRepository.save(rating);
 
         updateRecipeAverageRating(recipe);
 
@@ -81,12 +81,12 @@ public class RecipeRatingService {
         }
 
         cookingRecordService.createRecordFromRating(
-                userId, recipeId, saved.getId()
+                userId, recipeId, rating.getId()
         );
 
         return new RecipeRatingResponseDto(
-                saved.getId(),
-                saved.getRating()
+                rating.getId(),
+                rating.getRating()
         );
     }
 
