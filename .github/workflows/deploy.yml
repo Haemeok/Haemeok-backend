@@ -71,6 +71,7 @@ jobs:
           OPENSEARCH_HOST: ${{ secrets.OPENSEARCH_HOST }}
           REPLICATE_TOKEN: ${{ secrets.REPLICATE_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
