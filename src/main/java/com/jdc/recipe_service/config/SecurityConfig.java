@@ -105,7 +105,8 @@ public class SecurityConfig {
                                     "/api/token/logout/all",
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/private",
-                                    "/api/recipes/*/finalize"
+                                    "/api/recipes/*/finalize",
+                                    "/api/ws-ticket"
                             ).authenticated()
 
                             // 5) 보호된 PUT
@@ -231,7 +232,8 @@ public class SecurityConfig {
                                 "/api/token/logout",
                                 "/api/token/logout/all",
                                 "/api/recipes/*/private",
-                                "/api/recipes/*/finalize"
+                                "/api/recipes/*/finalize",
+                                "/api/ws-ticket"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
