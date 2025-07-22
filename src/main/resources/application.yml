@@ -1,4 +1,9 @@
 spring:
+  data:
+    redis:
+      host: haemeok-redis-cluster.nimena.apn2.cache.amazonaws.com
+      port: 6379
+      password: ${REDIS_PASSWORD}
   profiles:
     active: prod
   mvc:
