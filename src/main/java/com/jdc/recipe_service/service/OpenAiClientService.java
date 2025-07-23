@@ -14,12 +14,14 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OpenAiClientService {
 
     private final OpenAIClient client;
@@ -114,6 +116,7 @@ public class OpenAiClientService {
             }
             String json = completion.choices().get(0).message().content()
                     .orElseThrow(() -> new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI 응답 내용이 없습니다."));
+            log.info("🔍 AI 생성 JSON ▶▶\n{}", json);
             try {
                 return objectMapper.readValue(json, RecipeCreateRequestDto.class);
             } catch (Exception e) {
