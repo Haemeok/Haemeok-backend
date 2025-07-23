@@ -54,26 +54,34 @@ public class PromptBuilder {
                 ? String.format("Few-Shot 예시는 2인분 기준이다. 너는 반드시 %.1f인분에 맞게 각 재료의 quantity를 비례하여 조정해야 한다. (계산식: 예시 양 × (%.1f ÷ 2))", request.getServings(), request.getServings())
                 : "인분 수가 제공되지 않았으므로, 2인분 기준으로 레시피를 생성해줘.";
 
+        String quantityRules = """
+                - quantity 필드는 오직 숫자(소수점 구분 ‘.’)만 포함하세요. 분수(1/2) 대신 0.5 형태로 변환할 것.
+                 - 단위(unit) 정보는 절대로 quantity에 포함하지 말고 unit 필드에만 표기하세요.
+                """;
+
+        String specialInstructions = servingsInstruction + "\n" + quantityRules;
+
+
         return String.format("""
-            아래 요청 조건에 맞춰 레시피 JSON을 생성해줘.
-
-            [페르소나]
-            %s
-
-            [요청 조건]
-            - DB에 이미 있는 재료: [%s]
-            - DB에 없는 재료: [%s]
-            - 요리 유형: %s
-            - 희망 조리 시간: %s
-            - 인분 수: %s
-            - 매운맛 선호도: %s/5
-            - 알레르기 정보: %s
-            - 주요 재료: %s
-            - 요청 태그: %s
-            
-            [특별 지시]
-            %s
-            """,
+                        아래 요청 조건에 맞춰 레시피 JSON을 생성해줘.
+                        
+                        [페르소나]
+                        %s
+                        
+                        [요청 조건]
+                        - DB에 이미 있는 재료: [%s]
+                        - DB에 없는 재료: [%s]
+                        - 요리 유형: %s
+                        - 희망 조리 시간: %s
+                        - 인분 수: %s
+                        - 매운맛 선호도: %s/5
+                        - 알레르기 정보: %s
+                        - 주요 재료: %s
+                        - 요청 태그: %s
+                        
+                        [특별 지시]
+                        %s
+                        """,
                 persona,
                 knownList,
                 unknownList,
@@ -86,7 +94,7 @@ public class PromptBuilder {
                 allergyPref != null && !allergyPref.isBlank() ? allergyPref : "없음",
                 String.join(", ", request.getIngredients()),
                 tagsJson,
-                servingsInstruction
+                specialInstructions
         );
     }
 }
