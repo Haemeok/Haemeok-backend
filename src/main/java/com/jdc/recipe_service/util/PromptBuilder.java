@@ -27,9 +27,6 @@ public class PromptBuilder {
     }
 
     public String buildPrompt(AiRecipeRequestDto request, RobotType type) {
-        String mappingString = unitService.mappingAsString();
-        log.info("🔧 강제 단위 매핑: {}", mappingString);
-
         UserSurveyDto survey = surveyService.getSurvey(request.getUserId());
         Integer spicePref = (survey != null && survey.getSpiceLevel() != null) ? survey.getSpiceLevel() : request.getSpiceLevel();
         String allergyPref = (survey != null && survey.getAllergy() != null && !survey.getAllergy().isBlank()) ? survey.getAllergy() : request.getAllergy();
@@ -66,10 +63,17 @@ public class PromptBuilder {
                  - 단위(unit) 정보는 절대로 quantity에 포함하지 말고 unit 필드에만 표기하세요.
                 """;
 
-        String unitMappingRules = String.format("""
-                - DB에 저장된 재료는 반드시 아래 ‘재료별 기본 단위 매핑’에 명시된 단위만 사용하세요:
+        var mappingForRequest = unitService.mappingByIngredient().entrySet().stream()
+                .filter(e -> request.getIngredients().contains(e.getKey()))
+                .map(e -> e.getKey() + ":" + e.getValue())
+                .collect(Collectors.joining(", "));
+
+        String unitMappingRules = mappingForRequest.isEmpty()
+                ? ""
+                : String.format("""
+                - 다음 재료에 대해서만 단위를 강제 사용하세요:
                   %s
-                """, unitService.mappingAsString());
+                """, mappingForRequest);
 
         String specialInstructions = servingsInstruction
                 + "\n" + quantityRules
