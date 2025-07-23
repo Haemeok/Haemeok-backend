@@ -6,23 +6,30 @@ import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.service.SurveyService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class PromptBuilder {
 
     private final IngredientRepository ingredientRepo;
     private final SurveyService surveyService;
+    private final UnitService unitService;
 
-    public PromptBuilder(IngredientRepository ingredientRepo, SurveyService surveyService) {
+    public PromptBuilder(IngredientRepository ingredientRepo, SurveyService surveyService, UnitService unitService) {
         this.ingredientRepo = ingredientRepo;
         this.surveyService = surveyService;
+        this.unitService = unitService;
     }
 
     public String buildPrompt(AiRecipeRequestDto request, RobotType type) {
+        String mappingString = unitService.mappingAsString();
+        log.info("🔧 강제 단위 매핑: {}", mappingString);
+
         UserSurveyDto survey = surveyService.getSurvey(request.getUserId());
         Integer spicePref = (survey != null && survey.getSpiceLevel() != null) ? survey.getSpiceLevel() : request.getSpiceLevel();
         String allergyPref = (survey != null && survey.getAllergy() != null && !survey.getAllergy().isBlank()) ? survey.getAllergy() : request.getAllergy();
@@ -59,7 +66,14 @@ public class PromptBuilder {
                  - 단위(unit) 정보는 절대로 quantity에 포함하지 말고 unit 필드에만 표기하세요.
                 """;
 
-        String specialInstructions = servingsInstruction + "\n" + quantityRules;
+        String unitMappingRules = String.format("""
+                - DB에 저장된 재료는 반드시 아래 ‘재료별 기본 단위 매핑’에 명시된 단위만 사용하세요:
+                  %s
+                """, unitService.mappingAsString());
+
+        String specialInstructions = servingsInstruction
+                + "\n" + quantityRules
+                + "\n" + unitMappingRules;
 
 
         return String.format("""
