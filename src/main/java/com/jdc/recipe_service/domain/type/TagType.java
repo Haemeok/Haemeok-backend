@@ -21,7 +21,7 @@ public enum TagType {
     QUICK("⚡ 초스피드 / 간단 요리"),
     HOLIDAY("🎉 기념일 / 명절"),
     LUNCHBOX("🍱 도시락"),
-    AIR_FRYER("🔌에어프라이어"),
+    AIR_FRYER("🔌 에어프라이어"),
     HANGOVER("🍲 해장");
 
     private final String displayName;
