@@ -11,6 +11,7 @@ import com.jdc.recipe_service.domain.repository.CommentLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeCommentRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.service.NotificationService;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
@@ -37,6 +38,7 @@ class CommentServiceTest {
     @Mock private CommentLikeRepository commentLikeRepository;
     @Mock private RecipeRepository recipeRepository;
     @Mock private UserRepository userRepository;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private CommentService commentService;
@@ -199,7 +201,7 @@ class CommentServiceTest {
         when(recipeRepository.findById(20L)).thenReturn(Optional.empty());
 
         CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.createReply(20L, 100L, new CommentRequestDto("답글"), 10L)
+                commentService.createReply(20L, 100L, new CommentRequestDto("답글"), user)
         );
         assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
 
@@ -214,7 +216,7 @@ class CommentServiceTest {
         when(userRepository.findById(10L)).thenReturn(Optional.empty());
 
         CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.createReply(20L, 100L, new CommentRequestDto("답글"), 10L)
+                commentService.createReply(20L, 100L, new CommentRequestDto("답글"), user)
         );
         assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
 
@@ -231,7 +233,7 @@ class CommentServiceTest {
         when(recipeCommentRepository.findByIdAndRecipeId(999L, 20L)).thenReturn(Optional.empty());
 
         CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.createReply(20L, 999L, new CommentRequestDto("답글"), 10L)
+                commentService.createReply(20L, 999L, new CommentRequestDto("답글"), user)
         );
         assertEquals(ErrorCode.COMMENT_NOT_FOUND, ex.getErrorCode());
 
@@ -245,7 +247,6 @@ class CommentServiceTest {
     @DisplayName("createReply: 정상 호출 시 매핑된 ReplyDto 반환")
     void createReply_success() {
         when(recipeRepository.findById(20L)).thenReturn(Optional.of(recipe));
-        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
         when(recipeCommentRepository.findByIdAndRecipeId(100L, 20L))
                 .thenReturn(Optional.of(comment1));
 
@@ -268,7 +269,7 @@ class CommentServiceTest {
             mm.when(() -> CommentMapper.toReplyDto(any(RecipeComment.class), eq(false), eq(0)))
                     .thenReturn(mappedReply);
 
-            ReplyDto result = commentService.createReply(20L, 100L, new CommentRequestDto("답글"), 10L);
+            ReplyDto result = commentService.createReply(20L, 100L, new CommentRequestDto("답글"), user);
             assertEquals(300L, result.getId());
             assertEquals("답글", result.getContent());
         }

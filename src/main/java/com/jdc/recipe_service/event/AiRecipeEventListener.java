@@ -23,13 +23,14 @@ public class AiRecipeEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAiRecipeCreated(AiRecipeCreatedEvent event) {
         asyncImageService.generateAndUploadAiImageAsync(event.getRecipeId())
-                .thenRun(() -> {
+                .thenAccept(imageUrl -> {
                     notificationService.createNotification(
                             NotificationCreateDto.builder()
                                     .userId(event.getUserId())
                                     .actorId(null)
+                                    .actorNickname(null)
+                                    .imageUrl(imageUrl)
                                     .type(NotificationType.AI_RECIPE_DONE)
-                                    .content("AI 레시피 생성이 완료되었습니다.")
                                     .relatedType(NotificationRelatedType.RECIPE)
                                     .relatedId(event.getRecipeId())
                                     .relatedUrl("/recipes/" + event.getRecipeId())

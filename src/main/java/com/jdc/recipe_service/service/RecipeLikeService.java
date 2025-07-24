@@ -12,6 +12,7 @@ import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,17 @@ public class RecipeLikeService {
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
 
     @Transactional
     public boolean toggleLike(Long userId, Long recipeId) {
@@ -49,8 +61,9 @@ public class RecipeLikeService {
                     NotificationCreateDto.builder()
                             .userId(targetUserId)
                             .actorId(userId)
+                            .actorNickname(user.getNickname())
+                            .imageUrl(generateImageUrl(recipe.getImageKey()))
                             .type(NotificationType.NEW_RECIPE_LIKE)
-                            .content(user.getNickname() + "님이 레시피를 좋아합니다.")
                             .relatedType(NotificationRelatedType.RECIPE)
                             .relatedId(recipeId)
                             .relatedUrl("/recipes/" + recipeId)

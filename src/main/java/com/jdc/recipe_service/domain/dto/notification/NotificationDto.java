@@ -16,8 +16,9 @@ public class NotificationDto {
     private Long id;
     private Long userId;
     private Long actorId;
+    private String actorNickname;
+    private String imageUrl;
     private NotificationType type;
-    private String content;
     private NotificationRelatedType relatedType;
     private Long relatedId;
     private String relatedUrl;
@@ -29,8 +30,9 @@ public class NotificationDto {
                 .id(n.getId())
                 .userId(n.getUser().getId())
                 .actorId(n.getActor() != null ? n.getActor().getId() : null)
+                .actorNickname(n.getActorNickname())
+                .imageUrl(n.getImageUrl())
                 .type(n.getType())
-                .content(n.getContent())
                 .relatedType(n.getRelatedType())
                 .relatedId(n.getRelatedId())
                 .relatedUrl(n.getRelatedUrl())
