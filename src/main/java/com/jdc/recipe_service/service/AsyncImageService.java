@@ -10,6 +10,7 @@ import com.jdc.recipe_service.util.DeferredResultHolder;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
@@ -135,9 +136,20 @@ public class AsyncImageService {
             "cinematic, photorealistic food shot"
     );
 
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
+
     @Async
     @Transactional
-    public CompletableFuture<Void> generateAndUploadAiImageAsync(Long recipeId) {
+    public CompletableFuture<String> generateAndUploadAiImageAsync(Long recipeId) {
         log.info("▶ [AsyncImageService] 시작, recipeId={}", recipeId);
 
         try {
@@ -223,6 +235,7 @@ public class AsyncImageService {
             Long userId = recipe.getUser().getId();
             String s3Key = String.format("images/recipes/%d/%d/main.jpg", userId, recipeId);
             s3Util.upload(imageBytes, s3Key);
+            String imageUrl = generateImageUrl(s3Key);
 
             recipe.updateImageKey(s3Key);
             recipe.updateImageStatus(RecipeImageStatus.READY);
@@ -233,7 +246,7 @@ public class AsyncImageService {
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, null);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
 
-            return CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(imageUrl);
 
         } catch (Exception e) {
             log.error("❌ [AsyncImageService] 예외 발생, recipeId={}", recipeId, e);
