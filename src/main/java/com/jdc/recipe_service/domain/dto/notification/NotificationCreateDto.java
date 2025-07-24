@@ -12,8 +12,9 @@ import lombok.*;
 public class NotificationCreateDto {
     private Long userId;
     private Long actorId;
+    private String actorNickname;
+    private String imageUrl;
     private NotificationType type;
-    private String content;
     private NotificationRelatedType relatedType;
     private Long relatedId;
     private String relatedUrl;

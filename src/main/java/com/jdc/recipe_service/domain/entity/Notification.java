@@ -41,8 +41,11 @@ public class Notification extends BaseTimeEntity {
     @Column(name = "type", length = 32, nullable = false)
     private NotificationType type;
 
-    @Column(length = 255, nullable = false)
-    private String content;
+    @Column(name = "actor_nickname", nullable = true)
+    private String actorNickname;
+
+    @Column(name = "image_url", nullable = true)
+    private String imageUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "related_type", length = 32)
