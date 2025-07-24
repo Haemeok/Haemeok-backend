@@ -17,6 +17,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -33,6 +34,16 @@ public class RecipeRatingService {
     private final CookingRecordService cookingRecordService;
     private final NotificationService notificationService;
 
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
     @Transactional
     public RecipeRatingResponseDto rateRecipe(Long recipeId, Long userId, RecipeRatingRequestDto dto) {
         Recipe recipe = recipeRepository.findById(recipeId)
@@ -70,8 +81,9 @@ public class RecipeRatingService {
                         NotificationCreateDto.builder()
                                 .userId(targetUserId)
                                 .actorId(userId)
+                                .actorNickname(user.getNickname())
+                                .imageUrl(generateImageUrl(recipe.getImageKey()))
                                 .type(NotificationType.NEW_RECIPE_RATING)
-                                .content(user.getNickname() + "님이 레시피에 평점과 함께 댓글을 남겼습니다.")
                                 .relatedType(NotificationRelatedType.RECIPE)
                                 .relatedId(recipeId)
                                 .relatedUrl("/recipes/" + recipeId + "/comments")

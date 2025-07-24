@@ -18,6 +18,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,16 @@ public class CommentService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    public String generateImageUrl(String key) {
+        return key == null ? null :
+                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+    }
 
     public List<CommentDto> getTop3CommentsWithLikes(Long recipeId, Long currentUserId) {
         List<RecipeComment> comments = recipeCommentRepository
@@ -89,7 +100,7 @@ public class CommentService {
                 NotificationRelatedType.RECIPE,
                 recipeId,
                 "/recipes/" + recipeId + "/comments",
-                user.getNickname() + "님이 댓글을 남겼습니다."
+                recipe.getImageKey()
         );
 
         return CommentMapper.toDto(comment, false, 0);
@@ -119,7 +130,7 @@ public class CommentService {
                 NotificationRelatedType.COMMENT,
                 parentId,
                 "/recipes/" + recipeId + "/comments/" + parentId,
-                user.getNickname() + "님이 대댓글을 남겼습니다."
+                recipe.getImageKey()
         );
 
         return CommentMapper.toReplyDto(reply, false, 0);
@@ -292,14 +303,15 @@ public class CommentService {
         recipeCommentRepository.deleteByRecipeId(recipeId);
     }
 
-    private void notifyIfNeeded(User actor, Long targetUserId, NotificationType type, NotificationRelatedType relatedType, Long relatedId, String url, String content) {
+    private void notifyIfNeeded(User actor, Long targetUserId, NotificationType type, NotificationRelatedType relatedType, Long relatedId, String url, String imageKey) {
         if (!targetUserId.equals(actor.getId())) {
             notificationService.createNotification(
                     NotificationCreateDto.builder()
                             .userId(targetUserId)
                             .actorId(actor.getId())
+                            .actorNickname(actor.getNickname())
+                            .imageUrl(generateImageUrl(imageKey))
                             .type(type)
-                            .content(content)
                             .relatedType(relatedType)
                             .relatedId(relatedId)
                             .relatedUrl(url)
