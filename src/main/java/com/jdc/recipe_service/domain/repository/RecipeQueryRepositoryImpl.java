@@ -62,7 +62,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        rLike.id.count().castToNum(Long.class),
+                        rLike.id.countDistinct().castToNum(Long.class),
                         Expressions.constant(false),
                         recipe.cookingTime,
                         recipe.avgRating,
@@ -91,7 +91,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.avgRating,
                         recipe.ratingCount
                 )
-                .orderBy(getOrderSpecifier(pageable))
+                .orderBy(getOrderSpecifiers(pageable))
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize());
 
@@ -169,27 +169,25 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     }
 
 
-    private OrderSpecifier<?> getOrderSpecifier(Pageable pageable) {
+    private OrderSpecifier<?>[] getOrderSpecifiers(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
 
-        if (!pageable.getSort().isEmpty()) {
-            Sort.Order order = pageable.getSort().iterator().next();
-            Order direction = order.getDirection().isAscending() ? Order.ASC : Order.DESC;
-
-            switch (order.getProperty()) {
-                case "likeCount":
-                    return new OrderSpecifier<>(direction, recipe.likes.size());
-                case "cookingTime":
-                    return new OrderSpecifier<>(direction, recipe.cookingTime);
-                case "avgRating":
-                    return new OrderSpecifier<>(direction, recipe.avgRating);
-                case "createdAt":
-                default:
-                    return new OrderSpecifier<>(direction, recipe.createdAt);
-            }
-        }
-
-        return recipe.createdAt.desc();
+        return pageable.getSort().stream()
+                .map(o -> {
+                    Order dir = o.getDirection().isAscending() ? Order.ASC : Order.DESC;
+                    switch (o.getProperty()) {
+                        case "likeCount":
+                            return new OrderSpecifier<>(dir, recipe.likes.size());
+                        case "cookingTime":
+                            return new OrderSpecifier<>(dir, recipe.cookingTime);
+                        case "avgRating":
+                            return new OrderSpecifier<>(dir, recipe.avgRating);
+                        case "createdAt":
+                        default:
+                            return new OrderSpecifier<>(dir, recipe.createdAt);
+                    }
+                })
+                .toArray(OrderSpecifier[]::new);
     }
 
     private BooleanExpression dishTypeEq(DishType dishType) {
