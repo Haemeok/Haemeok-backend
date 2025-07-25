@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -123,7 +124,8 @@ public class RecipeIndexingService {
                     "imageUrl":    { "type":"keyword" },
                     "isAiGenerated":{ "type":"boolean" },
                     "ingredientIds":  { "type": "long" },
-                    "ingredientCount":{ "type": "integer" }
+                    "ingredientCount":{ "type": "integer" },
+                    "avgRating":      { "type": "double" }
                   }
                 }
                 """, XContentType.JSON);
@@ -197,6 +199,9 @@ public class RecipeIndexingService {
 
         int likeCount = likeRepository.countByRecipeId(recipe.getId());
 
+        BigDecimal rating = Optional.ofNullable(recipe.getAvgRating())
+                .orElse(BigDecimal.ZERO);
+
         return RecipeDocument.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
@@ -209,6 +214,7 @@ public class RecipeIndexingService {
                 .isAiGenerated(recipe.isAiGenerated())
                 .ingredientIds(ids)
                 .ingredientCount(ids.size())
+                .avgRating(rating)
                 .build();
     }
 

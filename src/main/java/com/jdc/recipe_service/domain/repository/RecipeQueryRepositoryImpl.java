@@ -179,6 +179,10 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
             switch (order.getProperty()) {
                 case "likeCount":
                     return new OrderSpecifier<>(direction, recipe.likes.size());
+                case "cookingTime":
+                    return new OrderSpecifier<>(direction, recipe.cookingTime);
+                case "avgRating":
+                    return new OrderSpecifier<>(direction, recipe.avgRating);
                 case "createdAt":
                 default:
                     return new OrderSpecifier<>(direction, recipe.createdAt);
