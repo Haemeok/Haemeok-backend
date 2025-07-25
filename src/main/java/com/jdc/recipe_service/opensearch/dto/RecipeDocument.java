@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -23,4 +24,5 @@ public class RecipeDocument {
     private Boolean  isAiGenerated;
     private List<Long> ingredientIds;
     private Integer ingredientCount;
+    private BigDecimal avgRating;
 }
