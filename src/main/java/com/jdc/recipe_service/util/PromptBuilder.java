@@ -72,6 +72,15 @@ public class PromptBuilder {
             default -> persona = "너는 '백종원'처럼 조리 원리를 잘 이해하고 맛의 깊이를 더하는 전문 한국 요리사야.";
         }
 
+        String stepRules = """
+                **[요리 단계 설명 규칙]**
+                1. 조리 시간은 ‘MM분 SS초’ 형식으로 작성하되,
+                    - 분 또는 초가 0이면 해당 단위를 생략하세요.
+                       (예: 0분 30초 → 30초, 3분 0초 → 3분)
+                2. 조리 중 식재료의 색상·향·식감 변화를 묘사하세요.
+                3. 불 세기(강불·중불·약불), 재료 투입 타이밍, 뚜껑 사용 등 구체적 주의사항을 안내하세요.
+                """;
+
         String cookingTimePart = (request.getCookingTime() != null && request.getCookingTime() > 0)
                 ? String.format("- 희망 조리 시간: %d분 이내", request.getCookingTime())
                 : "- 희망 조리 시간 정보가 제공되지 않았습니다. AI 모델은 자동으로 예상 조리 시간을 추정하세요.";
@@ -141,6 +150,7 @@ public class PromptBuilder {
         return String.format("""
                         %s
                         %s
+                        %s
                         **DB에 이미 있는 재료**: [%s]
                         **DB에 없는 재료**: [%s]
                         
@@ -190,6 +200,7 @@ public class PromptBuilder {
                         """,
                 unitTable,
                 persona,
+                stepRules,
                 knownList,
                 unknownList,
                 request.getDishType(),
