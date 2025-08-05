@@ -44,6 +44,7 @@ public class User extends BaseTimeEntity {
     private String introduction;
 
     @Column(name = "survey_completed", nullable = false)
+    @Builder.Default
     private boolean surveyCompleted = false;
 
 

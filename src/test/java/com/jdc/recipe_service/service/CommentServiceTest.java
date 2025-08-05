@@ -52,6 +52,7 @@ class CommentServiceTest {
     void setUp() {
         user = User.builder().id(10L).nickname("tester").build();
         recipe = Recipe.builder().id(20L).build();
+        ReflectionTestUtils.setField(recipe, "user", user);
 
         // 최상위 댓글 세팅
         comment1 = RecipeComment.builder()
@@ -209,27 +210,12 @@ class CommentServiceTest {
         verifyNoInteractions(userRepository, recipeCommentRepository);
     }
 
-    @Test
-    @DisplayName("createReply: 사용자 없으면 USER_NOT_FOUND 예외")
-    void createReply_userNotFound() {
-        when(recipeRepository.findById(20L)).thenReturn(Optional.of(recipe));
-        when(userRepository.findById(10L)).thenReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.createReply(20L, 100L, new CommentRequestDto("답글"), user)
-        );
-        assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
-
-        verify(recipeRepository, times(1)).findById(20L);
-        verify(userRepository, times(1)).findById(10L);
-        verifyNoMoreInteractions(recipeCommentRepository);
-    }
 
     @Test
     @DisplayName("createReply: 부모 댓글 없으면 COMMENT_NOT_FOUND 예외")
     void createReply_parentNotFound() {
         when(recipeRepository.findById(20L)).thenReturn(Optional.of(recipe));
-        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
         when(recipeCommentRepository.findByIdAndRecipeId(999L, 20L)).thenReturn(Optional.empty());
 
         CustomException ex = assertThrows(CustomException.class, () ->
@@ -238,7 +224,6 @@ class CommentServiceTest {
         assertEquals(ErrorCode.COMMENT_NOT_FOUND, ex.getErrorCode());
 
         verify(recipeRepository, times(1)).findById(20L);
-        verify(userRepository, times(1)).findById(10L);
         verify(recipeCommentRepository, times(1))
                 .findByIdAndRecipeId(999L, 20L);
     }

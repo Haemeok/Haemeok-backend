@@ -64,7 +64,7 @@ class CommentLikeServiceTest {
     @DisplayName("toggleLike: 댓글이 없으면 COMMENT_NOT_FOUND 예외")
     void toggleLike_commentNotFound() {
         when(commentLikeRepository.findByCommentIdAndUserId(999L, 10L))
-                .thenReturn(null);
+                .thenReturn(Optional.empty());
         when(recipeCommentRepository.findById(999L))
                 .thenReturn(Optional.empty());
 
@@ -83,7 +83,7 @@ class CommentLikeServiceTest {
     @DisplayName("toggleLike: 사용자 없으면 USER_NOT_FOUND 예외")
     void toggleLike_userNotFound() {
         when(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
-                .thenReturn(null);
+                .thenReturn(Optional.empty());
         when(recipeCommentRepository.findById(100L))
                 .thenReturn(Optional.of(comment));
         when(userRepository.findById(10L))
@@ -102,7 +102,7 @@ class CommentLikeServiceTest {
     @DisplayName("toggleLike: 정상 호출 시 새로운 좋아요 저장 후 true 반환")
     void toggleLike_success() {
         when(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
-                .thenReturn(null);
+                .thenReturn(Optional.empty());
         when(recipeCommentRepository.findById(100L))
                 .thenReturn(Optional.of(comment));
         when(userRepository.findById(10L))

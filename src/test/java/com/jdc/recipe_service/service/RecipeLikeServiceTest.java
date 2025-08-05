@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
@@ -40,6 +41,7 @@ class RecipeLikeServiceTest {
     void setUp() {
         user = User.builder().id(1L).build();
         recipe = Recipe.builder().id(10L).build();
+        ReflectionTestUtils.setField(recipe, "user", user);
     }
 
     @Test
