@@ -39,23 +39,20 @@ class RecipeTagServiceTest {
     @Test
     @DisplayName("saveAll: 중복 태그가 있어도 한 번만 저장된다")
     void saveAll_distinctTags() {
-        // 1) 동일한 displayName 두 번 전달 (‘🍽️ 혼밥’)
-        List<String> inputTags = List.of("🍽️ 혼밥", "🍽️ 혼밥", "⚡ 초스피드 / 간단 요리");
+        var inputTags = List.of("🍽️ 혼밥", "🍽️ 혼밥", "⚡ 초스피드 / 간단 요리");
 
-        // 2) saveAll은 List<RecipeTag> 반환이므로, 빈 리스트를 반환하도록 모킹
         when(recipeTagRepository.saveAll(anyList()))
                 .thenReturn(Collections.emptyList());
 
-        // 3) 실제 호출
         recipeTagService.saveAll(dummyRecipe, inputTags);
 
-        // 4) 저장해야 할 실제 TagType은 두 가지: SOLO, QUICK
+        @SuppressWarnings("unchecked")
         ArgumentCaptor<List<RecipeTag>> captor = ArgumentCaptor.forClass(List.class);
         verify(recipeTagRepository, times(1)).saveAll(captor.capture());
 
         List<RecipeTag> savedList = captor.getValue();
         Set<TagType> savedTypes = new HashSet<>();
-        for (RecipeTag rt : savedList) {
+        for (var rt : savedList) {
             assertEquals(dummyRecipe.getId(), rt.getRecipe().getId());
             savedTypes.add(rt.getTag());
         }
@@ -65,76 +62,63 @@ class RecipeTagServiceTest {
     }
 
     @Test
-    @DisplayName("saveAll: 빈 리스트 입력 시에도 saveAll 한 번 호출")
-    void saveAll_emptyInput_callsSaveAllOnce() {
-        List<String> inputTags = Collections.emptyList();
-
-        when(recipeTagRepository.saveAll(anyList()))
-                .thenReturn(Collections.emptyList());
+    @DisplayName("saveAll: 빈 리스트 입력 시 저장을 하지 않는다")
+    void saveAll_emptyInput_noSave() {
+        var inputTags = Collections.<String>emptyList();
 
         recipeTagService.saveAll(dummyRecipe, inputTags);
 
-        // 빈 리스트라도 한 번 호출되도록 기대
-        ArgumentCaptor<List<RecipeTag>> captor = ArgumentCaptor.forClass(List.class);
-        verify(recipeTagRepository, times(1)).saveAll(captor.capture());
-
-        List<RecipeTag> savedList = captor.getValue();
-        assertTrue(savedList.isEmpty());
+        // 빈 리스트인 경우 saveAll 호출이 없어야 한다
+        verify(recipeTagRepository, never()).saveAll(anyList());
     }
 
     @Test
     @DisplayName("updateTags: 기존 태그가 있고, 새로운 태그 목록으로 업데이트된다")
     void updateTags_addAndRemoveTags() {
-        // 1) 기존에 DB에 저장된 RecipeTag 목록 (예: SOLO, PICNIC)
-        RecipeTag existingSolo = RecipeTag.builder()
+        // 기존 태그: SOLO, PICNIC
+        var existingSolo = RecipeTag.builder()
                 .id(100L)
                 .recipe(dummyRecipe)
                 .tag(TagType.SOLO)
                 .build();
-        RecipeTag existingPicnic = RecipeTag.builder()
+        var existingPicnic = RecipeTag.builder()
                 .id(101L)
                 .recipe(dummyRecipe)
                 .tag(TagType.PICNIC)
                 .build();
-        List<RecipeTag> existingList = List.of(existingSolo, existingPicnic);
+        var existingList = List.of(existingSolo, existingPicnic);
 
-        // 2) 새롭게 들어온 태그 목록 (displayName): SOLO(유지), HEALTHY(추가)
-        List<String> newTagDisplay = List.of("🍽️ 혼밥", "🥗 다이어트 / 건강식");
+        // 새 입력: SOLO(유지), HEALTHY(추가)
+        var newTagDisplay = List.of("🍽️ 혼밥", "🥗 다이어트 / 건강식");
 
-        // 기존 목록 반환
         when(recipeTagRepository.findByRecipeId(dummyRecipe.getId()))
                 .thenReturn(existingList);
-
-        // deleteAll은 void → 제거하려는 리스트만 캡처
         doNothing().when(recipeTagRepository).deleteAll(anyList());
-        // save는 RecipeTag 반환
-        when(recipeTagRepository.save(any(RecipeTag.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(recipeTagRepository.saveAll(anyList()))
+                .thenReturn(Collections.emptyList());
 
-        // 3) 실제 호출
         recipeTagService.updateTags(dummyRecipe, newTagDisplay);
 
-        // 4-a) 기존 PICNIC 태그는 제거되어야 하므로 deleteAll(...)에 포함
+        // 1) PICNIC 은 삭제 대상
+        @SuppressWarnings("unchecked")
         ArgumentCaptor<List<RecipeTag>> removeCaptor = ArgumentCaptor.forClass(List.class);
         verify(recipeTagRepository, times(1)).deleteAll(removeCaptor.capture());
-        List<RecipeTag> toRemove = removeCaptor.getValue();
+        var toRemove = removeCaptor.getValue();
         assertEquals(1, toRemove.size());
         assertEquals(TagType.PICNIC, toRemove.get(0).getTag());
 
-        // 4-b) 새로운 HEALTHY 태그는 save(...)로 한 번 저장되어야 함
-        ArgumentCaptor<RecipeTag> addCaptor = ArgumentCaptor.forClass(RecipeTag.class);
-        verify(recipeTagRepository, times(1)).save(addCaptor.capture());
-        RecipeTag addedTag = addCaptor.getValue();
-        assertEquals(dummyRecipe.getId(), addedTag.getRecipe().getId());
-        assertEquals(TagType.HEALTHY, addedTag.getTag());
-
-        // - 기존 SOLO 태그는 유지되어 delete나 save 대상이 아님
+        // 2) HEALTHY 는 saveAll 로 한 번만 추가
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RecipeTag>> addAllCaptor = ArgumentCaptor.forClass(List.class);
+        verify(recipeTagRepository, times(1)).saveAll(addAllCaptor.capture());
+        var toAdd = addAllCaptor.getValue();
+        assertEquals(1, toAdd.size());
+        assertEquals(TagType.HEALTHY, toAdd.get(0).getTag());
     }
 
     @Test
     @DisplayName("deleteAllByRecipeId: repository.deleteByRecipeId 메서드가 호출된다")
     void deleteAllByRecipeId_callsRepository() {
-        // deleteByRecipeId는 void → doNothing() 정상 동작
         doNothing().when(recipeTagRepository).deleteByRecipeId(dummyRecipe.getId());
 
         recipeTagService.deleteAllByRecipeId(dummyRecipe.getId());

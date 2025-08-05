@@ -52,6 +52,7 @@ class RecipeRatingServiceTest {
                 .recipe(recipe)
                 .rating(3.0)
                 .build();
+        ReflectionTestUtils.setField(recipe, "user", user);
     }
 
     @Test
