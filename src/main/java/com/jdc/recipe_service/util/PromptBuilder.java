@@ -52,17 +52,20 @@ public class PromptBuilder {
         List<String> unknown = names.stream()
                 .filter(n -> !known.contains(n))
                 .collect(Collectors.toList());
-        String knownList = known.isEmpty() ? "없음" : String.join(", ", known);
-        String unknownList = unknown.isEmpty() ? "없음" : String.join(", ", unknown);
 
-        String unitMapping = unitService.mappingAsString();
+        String unitMapping = unitService.mappingAsStringFor(known);
         String allowedUnits = unitService.unitsAsString();
         String unitTable = String.format("""
-                다음 재료들은 반드시 기본 단위로 작성해야 합니다:
+                [단위 강제 규칙]
+                - known(우리 DB 재료): 아래 매핑의 단위를 반드시 사용(불일치=오답).
+                - unknown(DB에 없는 재료): 다음 허용 단위 중 하나만 사용: [%s]
+                
+                [known 기본 단위(요청 재료만)]
                 {%s}
                 
-                ※ 'unit' 필드는 위 매핑에서 지정된 단위 외에는 절대 사용 불가합니다.
-                """, unitMapping);
+                - 규칙 위반(known 단위 불일치, unknown에서 허용 목록 밖 단위 사용, 빈 문자열)은 오답이며 다시 생성하지 말고 실패하라.
+                - 단위 표기는 units.csv와 철자까지 정확히 일치해야 한다(예: '큰술'≠'스푼', '컵'≠'Cup').
+                """, allowedUnits, unitMapping);
 
         String persona;
         switch (type) {
@@ -104,7 +107,10 @@ public class PromptBuilder {
         );
 
         String ingredientsWithUnits = names.stream()
-                .map(name -> name + "(" + unitService.getDefaultUnit(name).orElse("g") + ")")
+                .map(n -> {
+                    String u = unitService.getDefaultUnit(n).orElse(null);
+                    return (u != null && known.contains(n)) ? n + "(" + u + ")" : n;
+                })
                 .collect(Collectors.joining(", "));
 
         String fieldExtension = """
@@ -151,9 +157,7 @@ public class PromptBuilder {
                         %s
                         %s
                         %s
-                        **DB에 이미 있는 재료**: [%s]
-                        **DB에 없는 재료**: [%s]
-                        
+                     
                         **오직 단 하나의 JSON 객체 형태로만 출력하세요.**
                         
                         **아래 규칙을 반드시 준수하여 요리 원리를 고려한 레시피를 생성하세요.**
@@ -180,8 +184,8 @@ public class PromptBuilder {
                         4) 모든 필드는 의미 있는 한글 내용이어야 하고, 절대로 빈값(\"\")이 될 수 없습니다.
                         5) \"steps\" 배열 안의 각 객체는 \"stepNumber\", \"instruction\", \"action\" 키를 모두 포함해야 합니다.
                         6) JSON 외에 어떤 텍스트(설명·주석·마커 등)도 절대로 포함하지 마세요.
-                        7) \"unit\" 필드는 다음 허용 단위 중 하나만 사용해야 합니다: [%s]
-                        8) 재료별 기본 단위 매핑: {%s}
+                        7) known 재료의 "unit"은 아래 매핑과 **정확히 일치**해야 합니다(철자 변형 금지): {%s}
+                        8) unknown 재료의 "unit"은 다음 중 하나만 허용합니다: [%s]
                         
                         %s
                         
@@ -201,13 +205,11 @@ public class PromptBuilder {
                 unitTable,
                 persona,
                 stepRules,
-                knownList,
-                unknownList,
                 request.getDishType(),
                 tagsJson,
                 tagsJson,
-                allowedUnits,
                 unitMapping,
+                allowedUnits,
                 fieldExtension,
                 fewShotExample,
                 request.getDishType(),
