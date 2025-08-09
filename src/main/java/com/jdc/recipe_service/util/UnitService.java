@@ -22,31 +22,18 @@ public class UnitService {
                         new ClassPathResource("units.csv").getInputStream(),
                         StandardCharsets.UTF_8))) {
 
-            String header = reader.readLine();
-            if (header == null) throw new IllegalStateException("units.csv가 비어있습니다.");
+            List<String> lines = reader.lines().skip(1).toList();
 
-            Map<String,String> map = new LinkedHashMap<>();
-            String raw;
-            while ((raw = reader.readLine()) != null) {
-                if (raw.isBlank()) continue;
-                String line = raw.strip();
-                if (line.startsWith("#")) continue;
-
-                List<String> cols = parseCsvLine(line);
-                if (cols.size() < 2) continue;
-
-                String name = cols.get(0) != null ? cols.get(0).trim() : "";
-                String unit = cols.get(1) != null ? cols.get(1).trim() : "";
-                if (!name.isEmpty() && !unit.isEmpty()) {
-                    map.putIfAbsent(name, unit);
-                }
-            }
-
-            defaultUnitByIngredient = Map.copyOf(map);
+            defaultUnitByIngredient = lines.stream()
+                    .map(line -> line.split(","))
+                    .filter(parts -> parts.length > 1)
+                    .collect(Collectors.toMap(
+                            parts -> parts[0].trim(),
+                            parts -> parts[1].trim(),
+                            (u1, u2) -> u1
+                    ));
 
             allowedUnits = defaultUnitByIngredient.values().stream()
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
                     .distinct()
                     .toList();
 
@@ -59,43 +46,17 @@ public class UnitService {
         return String.join(", ", allowedUnits);
     }
 
-    public String mappingAsStringFor(Collection<String> names) {
-        if (names == null || names.isEmpty()) return "";
-        return names.stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .distinct()
-                .map(n -> getDefaultUnit(n).map(u -> n + ":" + u))
-                .flatMap(Optional::stream)
+    public String mappingAsString() {
+        return defaultUnitByIngredient.entrySet().stream()
+                .map(e -> e.getKey() + ":" + e.getValue())
                 .collect(Collectors.joining(", "));
     }
 
     public Optional<String> getDefaultUnit(String ingredientName) {
-        return Optional.ofNullable(
-                ingredientName == null ? null : defaultUnitByIngredient.get(ingredientName.trim())
-        );
+        return Optional.ofNullable(defaultUnitByIngredient.get(ingredientName.trim()));
     }
 
-    private static List<String> parseCsvLine(String line) {
-        List<String> out = new ArrayList<>();
-        StringBuilder cur = new StringBuilder();
-        boolean inQ = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == '"') {
-                if (inQ && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    cur.append('"'); i++;
-                } else {
-                    inQ = !inQ;
-                }
-            } else if (c == ',' && !inQ) {
-                out.add(cur.toString());
-                cur.setLength(0);
-            } else {
-                cur.append(c);
-            }
-        }
-        out.add(cur.toString());
-        return out;
+    public Map<String,String> mappingByIngredient() {
+        return Collections.unmodifiableMap(defaultUnitByIngredient);
     }
 }
