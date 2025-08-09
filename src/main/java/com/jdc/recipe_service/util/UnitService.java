@@ -7,16 +7,20 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class UnitService {
+
+    private Map<String, String> defaultUnitByIngredient;
     private List<String> allowedUnits;
-    private Map<String,String> defaultUnitByIngredient;
+    private String allowedUnitsCsv;
+
+    private static String normalize(String s) {
+        if (s == null) return null;
+        return s.trim().toLowerCase(Locale.ROOT);
+    }
 
     @PostConstruct
     public void loadUnits() {
@@ -26,40 +30,52 @@ public class UnitService {
                         StandardCharsets.UTF_8))) {
 
             List<String> lines = reader.lines().skip(1).toList();
+            Map<String, String> map = new LinkedHashMap<>();
 
-            defaultUnitByIngredient = lines.stream()
-                    .map(line -> line.split(","))
-                    .filter(parts -> parts.length > 1)
-                    .collect(Collectors.toMap(
-                            parts -> parts[0].trim(),
-                            parts -> parts[1].trim(),
-                            (u1, u2) -> u1
-                    ));
+            for (String raw : lines) {
+                if (raw == null || raw.isBlank()) continue;
+                String line = raw.strip();
+                if (line.startsWith("#")) continue;
 
-            allowedUnits = defaultUnitByIngredient.values().stream()
-                    .distinct()
-                    .toList();
+                String[] parts = line.split(",", 2);
+                if (parts.length < 2) continue;
+
+                String name = normalize(parts[0]);
+                String unit = parts[1].trim();
+                if (!name.isEmpty() && !unit.isEmpty()) {
+                    map.putIfAbsent(name, unit);
+                }
+            }
+
+            if (map.isEmpty()) throw new IllegalStateException("units.csv가 비어있습니다.");
+
+            defaultUnitByIngredient = Map.copyOf(map);
+            allowedUnits = defaultUnitByIngredient.values().stream().distinct().sorted().toList();
+            allowedUnitsCsv = String.join(",", allowedUnits);
 
         } catch (Exception e) {
             throw new IllegalStateException("units.csv 로드 실패", e);
         }
     }
 
-    public String unitsAsString() {
-        return String.join(", ", allowedUnits);
+    public String mappingAsStringFor(Collection<String> names) {
+        if (names == null || names.isEmpty()) return "";
+        Set<String> seen = new HashSet<>();
+        return names.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(n -> seen.add(n.toLowerCase()))
+                .map(n -> getDefaultUnit(n).map(u -> n + ":" + u))
+                .flatMap(Optional::stream)
+                .collect(Collectors.joining(","));
     }
 
-    public String mappingAsString() {
-        return defaultUnitByIngredient.entrySet().stream()
-                .map(e -> e.getKey() + ":" + e.getValue())
-                .collect(Collectors.joining(", "));
+    public String unitsAsString() {
+        return allowedUnitsCsv;
     }
 
     public Optional<String> getDefaultUnit(String ingredientName) {
-        return Optional.ofNullable(defaultUnitByIngredient.get(ingredientName.trim()));
-    }
-
-    public Map<String,String> mappingByIngredient() {
-        return Collections.unmodifiableMap(defaultUnitByIngredient);
+        if (ingredientName == null) return Optional.empty();
+        return Optional.ofNullable(defaultUnitByIngredient.get(normalize(ingredientName)));
     }
 }
