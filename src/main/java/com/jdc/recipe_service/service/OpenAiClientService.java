@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.exception.CustomException;
@@ -86,6 +88,40 @@ public class OpenAiClientService {
 
             if (LOG_AI) {
                 log.info("AI Raw JSON ({} chars):\n{}", json.length(), abbreviate(json, 4000));
+            }
+
+            try {
+                JsonNode root = objectMapper.readTree(json);
+                if (root.isObject()) {
+                    var obj = (com.fasterxml.jackson.databind.node.ObjectNode) root;
+                    JsonNode ct = obj.get("cookingTime");
+                    Integer minutes = null;
+
+                    if (ct != null) {
+                        if (ct.isNumber()) {
+                            minutes = ct.asInt();
+                        } else if (ct.isTextual()) {
+                            String s = ct.asText().trim();
+                            java.util.regex.Matcher m =
+                                    java.util.regex.Pattern.compile("(\\d+)").matcher(s);
+                            if (m.find()) {
+                                minutes = Integer.parseInt(m.group(1)); // 첫 숫자만
+                            }
+                        }
+                    }
+
+                    if (minutes != null) {
+                        if (minutes < 0) minutes = 0;
+                        if (minutes > 600) minutes = 600;
+                        obj.put("cookingTime", minutes);
+                        json = objectMapper.writeValueAsString(obj);
+                    }
+                }
+            } catch (Exception e) {
+                throw new CustomException(
+                        ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                        "AI JSON 형식 아님(사전 정규화 실패): " + e.getMessage(), e
+                );
             }
 
             try {

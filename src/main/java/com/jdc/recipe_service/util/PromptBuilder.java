@@ -186,6 +186,8 @@ public class PromptBuilder {
                         6) JSON 외에 어떤 텍스트(설명·주석·마커 등)도 절대로 포함하지 마세요.
                         7) known 재료의 "unit"은 아래 매핑과 **정확히 일치**해야 합니다(철자 변형 금지): {%s}
                         8) unknown 재료의 "unit"은 다음 중 하나만 허용합니다: [%s]
+                        9) "cookingTime" 값은 정수(분)로만 작성한다. 단위 문자열(예: "분", "초")을 절대 붙이지 말 것. 예: 10
+                        10) 위의 ‘MM분 SS초’ 형식은 steps[].instruction 서술에만 적용하며, "cookingTime"에는 적용하지 않는다.
                         
                         %s
                         
