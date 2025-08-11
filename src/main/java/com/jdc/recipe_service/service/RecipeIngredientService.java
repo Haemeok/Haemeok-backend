@@ -61,16 +61,14 @@ public class RecipeIngredientService {
                 unitForRecipeItem = (dto.getCustomUnit() != null && !dto.getCustomUnit().isBlank()) ? dto.getCustomUnit() : masterIngredient.getUnit();
             } else {
                 unitForRecipeItem = dto.getCustomUnit();
-                if (sourceType == RecipeSourceType.AI) {
-                    unitPrice = BigDecimal.ZERO;
-                    if (unitForRecipeItem == null || unitForRecipeItem.isBlank()) {
-                        log.warn("재확인 경고: AI 신규 재료 '" + dto.getName() + "'의 단위(customUnit)가 없습니다.");
-                    }
-                } else {
-                    if (dto.getCustomPrice() == null || unitForRecipeItem == null || unitForRecipeItem.isBlank()) {
-                        throw new CustomException(ErrorCode.CUSTOM_INGREDIENT_INFO_MISSING, dto.getName());
-                    }
-                    unitPrice = dto.getCustomPrice();
+
+                if (unitForRecipeItem == null || unitForRecipeItem.isBlank()) {
+                    throw new CustomException(ErrorCode.CUSTOM_INGREDIENT_INFO_MISSING, dto.getName());
+                }
+
+                unitPrice = (dto.getCustomPrice() != null) ? dto.getCustomPrice() : BigDecimal.ZERO;
+                if (dto.getCustomPrice() == null) {
+                    log.warn("신규 재료 '{}' customPrice 누락 → 0으로 처리", dto.getName());
                 }
             }
 

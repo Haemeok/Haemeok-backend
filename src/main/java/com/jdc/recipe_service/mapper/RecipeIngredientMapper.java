@@ -38,9 +38,7 @@ public class RecipeIngredientMapper {
                     .customName(dto.getName())
                     .customUnit(unitForRecipeItemField)
                     .customPrice(
-                            sourceType == RecipeSourceType.AI
-                                    ? BigDecimal.ZERO
-                                    : Optional.ofNullable(dto.getCustomPrice()).orElse(BigDecimal.ZERO)
+                            Optional.ofNullable(dto.getCustomPrice()).orElse(BigDecimal.ZERO)
                     )
                     .customCalorie(dto.getCustomCalories());
         }
