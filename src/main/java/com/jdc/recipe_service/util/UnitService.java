@@ -7,7 +7,10 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,27 +44,6 @@ public class UnitService {
             throw new IllegalStateException("units.csv 로드 실패", e);
         }
     }
-    public Map<String, String> getUnitsFor(Collection<String> ingredientNames) {
-        Map<String, String> result = new LinkedHashMap<>();
-        if (ingredientNames == null) return result;
-        for (String raw : ingredientNames) {
-            if (raw == null || raw.isBlank()) continue;
-            String name = raw.trim();
-            String unit = defaultUnitByIngredient.get(name);
-            if (unit != null) {
-                result.put(name, unit);
-            }
-        }
-        return result;
-    }
-
-
-    public String toUnitLockJson(Map<String, String> map) {
-        return map.entrySet().stream()
-                .map(e -> String.format("{\"name\":\"%s\",\"unit\":\"%s\"}", e.getKey(), e.getValue()))
-                .collect(Collectors.joining(", ", "[", "]"));
-    }
-
 
     public String unitsAsString() {
         return String.join(", ", allowedUnits);
@@ -74,7 +56,6 @@ public class UnitService {
     }
 
     public Optional<String> getDefaultUnit(String ingredientName) {
-        if (ingredientName == null) return Optional.empty();
         return Optional.ofNullable(defaultUnitByIngredient.get(ingredientName.trim()));
     }
 

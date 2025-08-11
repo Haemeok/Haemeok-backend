@@ -8,7 +8,10 @@ import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.service.SurveyService;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -17,16 +20,6 @@ public class PromptBuilder {
     private final UnitService unitService;
     private final IngredientRepository ingredientRepo;
     private final SurveyService surveyService;
-
-    private static final List<String> BASE_SEASONINGS = List.of(
-            "소금","후추","설탕","양조간장","진간장","국간장",
-            "식용유","올리브유","참기름","들기름",
-            "고춧가루","고추장","된장","식초",
-            "다진마늘","다진생강",
-            "멸치액젓","까나리액젓","김치국물",
-            "물엿","올리고당","조청","꿀",
-            "치킨스톡","다시다"
-    );
 
     public PromptBuilder(UnitService unitService, IngredientRepository ingredientRepo, SurveyService surveyService) {
         this.unitService = unitService;
@@ -42,7 +35,6 @@ public class PromptBuilder {
         String allergyPref = (survey != null && survey.getAllergy() != null && !survey.getAllergy().isBlank())
                 ? survey.getAllergy()
                 : request.getAllergy();
-
         Set<String> themePrefs;
         if (survey != null && survey.getTags() != null && !survey.getTags().isEmpty()) {
             themePrefs = survey.getTags();
@@ -53,7 +45,6 @@ public class PromptBuilder {
         }
 
         List<String> names = request.getIngredients();
-
         List<String> known = ingredientRepo.findAllByNameIn(names)
                 .stream()
                 .map(Ingredient::getName)
@@ -64,58 +55,37 @@ public class PromptBuilder {
         String knownList = known.isEmpty() ? "없음" : String.join(", ", known);
         String unknownList = unknown.isEmpty() ? "없음" : String.join(", ", unknown);
 
-        Map<String, String> unitLockMap = unitService.getUnitsFor(names);
-        unitService.getUnitsFor(BASE_SEASONINGS).forEach(unitLockMap::putIfAbsent);
-        String unitLockJson = unitService.toUnitLockJson(unitLockMap);
-
-
-        String unitLockBlock = String.format("""
-                [UNIT_LOCK – 재료별 단위 고정]
-                아래 매핑에 포함된 재료만 단위를 고정한다. (매핑에 없는 재료 = 신규 재료)
-                unit_lock = %s
+        String unitMapping = unitService.mappingAsString();
+        String allowedUnits = unitService.unitsAsString();
+        String unitTable = String.format("""
+                다음 재료들은 반드시 기본 단위로 작성해야 합니다:
+                {%s}
                 
-                출력 규칙:
-                1) recipe.ingredients 는 "요청 재료"에 더해, 꼭 필요한 보조 재료(기본 양념/오일/육수 등)를 최소한으로 추가할 수 있다.
-                   추가한 보조 재료가 DB에 있는 재료라면 해당 재료의 기본 단위를 사용해야 한다(정확히 일치).
-                2) unit_lock에 존재하는 재료:
-                   - ingredients[*].unit 은 해당 name의 unit과 **완전히 동일**해야 한다.
-                     (띄어쓰기/표기변형/한영치환/접두·접미 금지)
-                   - quantity 값은 자유지만, 단위는 반드시 unit_lock 고정값 사용.
-                   - quantity는 실제 요리 맥락에 자연스러운 값이어야 한다. 0/음수 금지, 과도한 소수 금지(소수점 2자리 이내).
-                   - (스케일 규칙) 예시 JSON은 2인분 기준이며, 모든 quantity는 (요청 인분 ÷ 2)로 비례 조정 후 반올림한다.
-                     g/ml는 5 단위로 반올림, 큰술/작은술/컵은 0.25 단위, 개/대/모는 0.25 단위로 반올림한다.
-                3) unit_lock에 **없는** 재료(신규 재료):
-                   - 단, unit_lock에는 없지만 DB에 존재하는 재료는 customPrice/caloriesPerUnit를 포함하지 않는다.
-                   - 자연스러운 unit을 하나 선택해 사용(g/개/마리/모/컵/ml/큰술/작은술 등).
-                   - [재료 필드 확장] 규칙에 따라 `customPrice`(선택 unit 1개당 가격, 정수),
-                     `caloriesPerUnit`(선택 unit 1개당 칼로리, double) **반드시 포함**.
-                4) steps[*].ingredients 에서는 unit 필드를 쓰지 말고 name(필요 시 quantity)만 표기.
-                5) unit_lock 위반 시 아래 오류 JSON만 반환:
-                   {"error":"UNIT_MISMATCH","details":["<name>: expected=<unit>, actual=<unit>"]}
-                """, unitLockJson);
+                ※ 'unit' 필드는 위 매핑에서 지정된 단위 외에는 절대 사용 불가합니다.
+                """, unitMapping);
 
-
-        String persona = switch (type) {
-            case CREATIVE -> "너는 매우 창의적이고 새로운 조합을 즐기는 한국 요리 전문가야.";
-            case HEALTHY -> "너는 영양 균형과 건강한 조리법을 최우선으로 생각하는 요리 전문가야.";
-            case GOURMET -> "너는 풍부하고 깊은 맛을 탐닉하며, 프리미엄 재료로 고급스럽고 섬세한 요리를 선보이는 미식가야.";
-            default -> "너는 '백종원'처럼 조리 원리를 잘 이해하고 맛의 깊이를 더하는 전문 한국 요리사야.";
-        };
+        String persona;
+        switch (type) {
+            case CREATIVE -> persona = "너는 매우 창의적이고 새로운 조합을 즐기는 한국 요리 전문가야.";
+            case HEALTHY -> persona = "너는 영양 균형과 건강한 조리법을 최우선으로 생각하는 요리 전문가야.";
+            case GOURMET -> persona = "너는 풍부하고 깊은 맛을 탐닉하며, 프리미엄 재료로 고급스럽고 섬세한 요리를 선보이는 미식가야.";
+            default -> persona = "너는 '백종원'처럼 조리 원리를 잘 이해하고 맛의 깊이를 더하는 전문 한국 요리사야.";
+        }
 
         String stepRules = """
                 **[요리 단계 설명 규칙]**
-                1. 조리 시간은 ‘MM분 SS초’ 형식. 0인 단위는 생략(예: 30초, 3분).
-                2. 색/향/식감 변화 묘사.
-                3. 불 세기(강/중/약), 투입 타이밍, 뚜껑 사용 등 주의사항 명시.
+                1. **간결함**: 각 단계는 핵심적인 행동 위주로 한두 문장으로 명확하게 설명하세요.
+                2. **구체적인 지시**: 불 세기(강불/중불/약불), 재료 투입 순서, 예상 조리 시간 등 필수 정보를 포함하세요.
+                3. **결과 예측**: '양파가 투명해질 때까지'처럼, 각 단계의 목표나 완료 상태를 간단히 언급하면 좋습니다.
                 """;
 
         String cookingTimePart = (request.getCookingTime() != null && request.getCookingTime() > 0)
                 ? String.format("- 희망 조리 시간: %d분 이내", request.getCookingTime())
-                : "- 희망 조리 시간 정보가 없음. AI가 적절히 추정.";
+                : "- 희망 조리 시간 정보가 제공되지 않았습니다. AI 모델은 자동으로 예상 조리 시간을 추정하세요.";
 
         String servingsPart = (request.getServings() != null && request.getServings() > 0)
                 ? String.format("- 인분 수: %.1f인분", request.getServings())
-                : "- 인분 수 정보가 없음. AI가 적절히 판단.";
+                : "- 인분 수 정보가 제공되지 않았습니다. AI 모델이 적절히 판단하여 작성하세요.";
 
         String tagsJson = (themePrefs == null || themePrefs.isEmpty())
                 ? "[]"
@@ -132,17 +102,15 @@ public class PromptBuilder {
         );
 
         String ingredientsWithUnits = names.stream()
-                .map(n -> {
-                    String u = unitLockMap.get(n);
-                    return (u != null) ? n + "(" + u + ")" : n;
-                })
+                .map(name -> name + "(" + unitService.getDefaultUnit(name).orElse("g") + ")")
                 .collect(Collectors.joining(", "));
 
         String fieldExtension = """
                 **[재료 필드 확장]**
-                - DB에 없는 재료만 아래 필드를 포함하세요(기존 재료는 절대 포함 금지):
-                  - `customPrice`: 선택한 unit 1개당 가격(원, 정수)
-                  - `caloriesPerUnit`: 선택한 unit 1개당 칼로리(double, 숫자)
+                11) DB에 없는 재료에 대해서만 아래 두 필드를 포함하세요:
+                   - `customPrice`: 100g당 가격(원 단위, 정수)
+                   - `caloriesPerUnit`: 100g당 칼로리(kcal 단위, 정수)
+                12) DB에 있는 재료는 `customPrice`, `caloriesPerUnit` 필드를 절대 포함하지 마세요.
                 """;
 
         String fewShotExample = """
@@ -177,52 +145,75 @@ public class PromptBuilder {
                 }
                 """;
 
-        return String.join("\n\n",
-                unitLockBlock,
-                persona,
-                stepRules,
-                "**DB에 이미 있는 재료**: [" + knownList + "]\n**DB에 없는 재료**: [" + unknownList + "]",
-                "**오직 단 하나의 JSON 객체 형태로만 출력하세요.**\n\n" +
-                        "**[요리 원리 규칙]**\n" +
-                        "1. (핵심) 찌개·볶음·조림 요리에서는 기름에 주재료나 향신채를 먼저 볶아 풍미 기초를 만든다.\n" +
-                        "2. 손질→조리 순으로 효율적 단계 구성.\n" +
-                        "3. 요청에 없더라도 필수 보조 재료는 자유롭게 추가 가능(ingredients에 포함).\n" +
-                        "4. 예시 JSON은 2인분 기준. quantity는 “예시 × (요청 인분 ÷ 2)” 비례 조정.\n" +
-                        "5. 알레르기/식이 제한 준수(부적합 재료 제외/대체).",
-                String.format("""
+        return String.format("""
+                        %s
+                        %s
+                        %s
+                        **DB에 이미 있는 재료**: [%s]
+                        **DB에 없는 재료**: [%s]
+                        
+                        **오직 단 하나의 JSON 객체 형태로만 출력하세요.**
+                        
+                        **아래 규칙을 반드시 준수하여 요리 원리를 고려한 레시피를 생성하세요.**
+                        
+                        **[요리 원리 규칙]**
+                        1. **(핵심)** 찌개·볶음·조림 요리에서는 기름에 주재료나 향신채(마늘·파 등)를 먼저 볶아 풍미의 기초를 다지는 과정을 최우선으로 고려하세요.
+                        2. 효율적이고 논리적인 순서로 단계를 구성하세요. (예: 모든 재료 손질 후 조리 시작)
+                        3. 요청에 없더라도 필수 보조 재료(기름·맛술·설탕 등)를 자유롭게 추가하고 'ingredients'에 포함시키세요.
+                        4. **예시 JSON은 2인분 기준이며, 각 재료의 quantity는 “예시 양 × (요청 인분 수 ÷ 2)” 공식을 적용해 비례 조정할 것.**
+                        5. **알레르기 및 식이 제한(예: 견과류 알레르기 시 견과류 완전 배제, 락토-오보 식단 시 버터 대신 들기름 사용) 에 맞춰 부적합 재료는 반드시 제외하거나 대체 재료로 변경하세요.**
+                        
                         **[출력 형식 규칙]**
-                        1) 요청한 "dishType"(%s) 절대 수정/누락 금지.
-                        2) 요청한 "tagNames" 배열 %s 의 순서 유지. 
-                           - 만약 %s 가 []라면, 아래 허용 목록 중 상황에 맞는 태그 최대 3개 선택:
+                        1) 요청한 \"dishType\"(%s)을 절대로 수정·누락하지 말 것.
+                        2) 요청한 \"tagNames\" 배열 %s의 순서를 절대로 수정·누락하지 말 것.
+                           - 만약 %s가 []라면, AI는 아래 허용 목록 중 음식 분위기에 맞는 태그를 최대 3개 골라서 반환해야 합니다.
+                           - 허용 목록 (최대 3개 선택):
                              🏠 홈파티, 🌼 피크닉, 🏕️ 캠핑, 🥗 다이어트 / 건강식, 👶 아이와 함께, 🍽️ 혼밥,
                              🍶 술안주, 🥐 브런치, 🌙 야식, ⚡ 초스피드 / 간단 요리, 🎉 기념일 / 명절,
                              🍱 도시락, 🔌 에어프라이어, 🍲 해장
-                        3) "steps" 의 "action" 값은 다음 중 하나만 사용:
-                           썰기, 다지기, 채썰기, 손질하기, 볶기, 튀기기, 끓이기, 찌기(스팀), 데치기, 구이, 조림,
-                           무치기, 절이기, 담그기(마리네이드), 섞기, 젓기, 버무리기, 로스팅, 캐러멜라이즈, 부치기
-                        4) 모든 필드는 의미 있는 한글 내용. 빈 문자열 금지.
-                        5) 각 step은 "stepNumber", "instruction", "action" 모두 포함.
-                        6) JSON 외 불필요 텍스트/주석 금지.
-                        7) **ingredients[*].unit 은 UNIT_LOCK에 있는 재료에 한해 지정값과 동일해야 하며, UNIT_LOCK에 없는 재료는 자연스러운 단위를 사용해도 된다.**
-                        8) **steps[*].ingredients 에서는 unit 필드 사용 금지.**
-                        """, request.getDishType(), tagsJson, tagsJson),
+                        3) \"steps\" 배열의 \"action\" 필드는 반드시 아래 19개 중 하나만 사용해야 합니다:
+                           썰기, 다지기, 채썰기, 손질하기, 볶기, 튀기기, 끓이기, 찌기(스팀), 데치기,
+                           구이, 조림, 무치기, 절이기, 담그기(마리네이드), 섞기, 젓기, 버무리기,
+                           로스팅, 캐러멜라이즈, 부치기
+                        4) 모든 필드는 의미 있는 한글 내용이어야 하고, 절대로 빈값(\"\")이 될 수 없습니다.
+                        5) \"steps\" 배열 안의 각 객체는 \"stepNumber\", \"instruction\", \"action\" 키를 모두 포함해야 합니다.
+                        6) JSON 외에 어떤 텍스트(설명·주석·마커 등)도 절대로 포함하지 마세요.
+                        7) \"unit\" 필드는 다음 허용 단위 중 하나만 사용해야 합니다: [%s]
+                        8) 재료별 기본 단위 매핑: {%s}
+                        
+                        %s
+                        
+                        --- 예시 JSON ---
+                        %s
+                        --- 예시 끝 ---
+                        
+                        요청 조건:
+                        - 요리 유형: %s
+                        %s
+                        %s
+                        %s
+                        - 주요 재료: %s
+                        - 태그: %s
+                        
+                        """,
+                unitTable,
+                persona,
+                stepRules,
+                knownList,
+                unknownList,
+                request.getDishType(),
+                tagsJson,
+                tagsJson,
+                allowedUnits,
+                unitMapping,
                 fieldExtension,
-                "--- 예시 JSON ---\n" + fewShotExample + "\n--- 예시 끝 ---",
-                String.format("""
-                                요청 조건:
-                                - 요리 유형: %s
-                                %s
-                                %s
-                                %s
-                                - 주요 재료: %s
-                                - 태그: %s
-                                """,
-                        request.getDishType(),
-                        cookingTimePart,
-                        servingsPart,
-                        preferencePart,
-                        ingredientsWithUnits,
-                        tagsJson)
+                fewShotExample,
+                request.getDishType(),
+                cookingTimePart,
+                servingsPart,
+                preferencePart,
+                ingredientsWithUnits,
+                tagsJson
         );
     }
 }
