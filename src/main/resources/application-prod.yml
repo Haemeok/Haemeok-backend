@@ -76,6 +76,9 @@ cloud:
 openai:
   api-key: ${OPENAI_API_KEY}
 
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY}
+
 logging:
   level:
     com.jdc.recipe_service.service.AsyncImageService: WARN
@@ -94,4 +97,4 @@ resilience4j:
   timelimiter:
     instances:
       aiGenerate:
-        timeout-duration: 60s
+        timeout-duration: 120s
