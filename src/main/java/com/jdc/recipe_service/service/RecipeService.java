@@ -53,7 +53,8 @@ public class RecipeService {
     private final ObjectMapper objectMapper;
     private final ActionImageService actionImageService;
     private final SurveyService surveyService;
-    private final OpenAiClientService aiService;
+//    private final OpenAiClientService aiService;
+    private final ClaudeClientService claudeClientService;
     private final UnitService unitService;
     private final PromptBuilder promptBuilder;
     private final ApplicationEventPublisher publisher;
@@ -191,7 +192,7 @@ public class RecipeService {
 
         for (int attempt = 1; attempt <= MAX_TRIES; attempt++) {
             try {
-                generatedDto = aiService.generateRecipeJson(prompt).join();
+                generatedDto = claudeClientService.generateRecipeJson(prompt).join();
                 break;
             } catch (RuntimeException e) {
                 if (attempt == MAX_TRIES) {

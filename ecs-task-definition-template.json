@@ -38,7 +38,8 @@
         { "name": "OPENSEARCH_HOST", "value": "${OPENSEARCH_HOST}" },
         { "name": "REPLICATE_TOKEN", "value": "${REPLICATE_TOKEN}" },
         { "name": "OPENAI_API_KEY", "value": "${OPENAI_API_KEY}" },
-        { "name": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}" }
+        { "name": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}" },
+        { "name": "ANTHROPIC_API_KEY", "value": "${ANTHROPIC_API_KEY}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
