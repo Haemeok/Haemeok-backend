@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Service
+//@Service
 @RequiredArgsConstructor
 public class ClaudeClientService {
 
