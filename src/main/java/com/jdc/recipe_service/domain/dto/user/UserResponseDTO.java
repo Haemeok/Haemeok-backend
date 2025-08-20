@@ -31,4 +31,10 @@ public class UserResponseDTO {
     private String provider;
 
     private boolean surveyCompleted;
+
+    private int remainingAiQuota;
+
+    public void updateAiQuota(int quota) {
+        this.remainingAiQuota = quota;
+    }
 }
