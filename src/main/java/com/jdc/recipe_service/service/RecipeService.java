@@ -58,6 +58,7 @@ public class RecipeService {
     private final UnitService unitService;
     private final PromptBuilder promptBuilder;
     private final ApplicationEventPublisher publisher;
+    private final DailyQuotaService dailyQuotaService;
 
     private static final String MAIN_IMAGE_SLOT = "main";
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
@@ -90,26 +91,33 @@ public class RecipeService {
             );
         }
 
-        AiRecipeRequestDto aiReq = request.getAiRequest();
-        aiReq.setUserId(userId);
+        dailyQuotaService.consumeForUserOrThrow(userId);
 
-        UserSurveyDto survey = surveyService.getSurvey(userId);
-        applySurveyInfoToAiRequest(aiReq, survey);
+        try {
+            AiRecipeRequestDto aiReq = request.getAiRequest();
+            aiReq.setUserId(userId);
 
-        String prompt = promptBuilder.buildPrompt(aiReq, robotTypeParam);
+            UserSurveyDto survey = surveyService.getSurvey(userId);
+            applySurveyInfoToAiRequest(aiReq, survey);
 
-        RecipeWithImageUploadRequest processingRequest =
-                buildRecipeFromAiRequest(prompt, aiReq, request.getFiles());
+            String prompt = promptBuilder.buildPrompt(aiReq, robotTypeParam);
 
-        for (RecipeStepRequestDto step : processingRequest.getRecipe().getSteps()) {
-            String action = step.getAction();
-            if (action != null) {
-                String key = actionImageService.generateImageKey(robotTypeParam, action);
-                step.updateImageKey(key);
+            RecipeWithImageUploadRequest processingRequest =
+                    buildRecipeFromAiRequest(prompt, aiReq, request.getFiles());
+
+            for (RecipeStepRequestDto step : processingRequest.getRecipe().getSteps()) {
+                String action = step.getAction();
+                if (action != null) {
+                    String key = actionImageService.generateImageKey(robotTypeParam, action);
+                    step.updateImageKey(key);
+                }
             }
-        }
 
-        return createUserRecipeAndGenerateUrls(processingRequest, userId, sourceType);
+            return createUserRecipeAndGenerateUrls(processingRequest, userId, sourceType);
+        } catch (Exception e) {
+            dailyQuotaService.refundIfPolicyAllows(userId);
+            throw e;
+        }
     }
 
     @Transactional
@@ -478,13 +486,13 @@ public class RecipeService {
     }
 
     private static int calculateMarketPrice(RecipeCreateRequestDto dto, int totalCost) {
-            Integer providedMp = dto.getMarketPrice();
-            int marketPrice = (providedMp != null && providedMp > 0)
-                    ? providedMp
-                    : (totalCost > 0
-                    ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(DEFAULT_MARGIN_PERCENT))
-                    : 0);
-            return marketPrice;
+        Integer providedMp = dto.getMarketPrice();
+        int marketPrice = (providedMp != null && providedMp > 0)
+                ? providedMp
+                : (totalCost > 0
+                ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(DEFAULT_MARGIN_PERCENT))
+                : 0);
+        return marketPrice;
     }
 
     private List<RecipeIngredientRequestDto> correctIngredientUnits(List<RecipeIngredientRequestDto> ingredients) {
