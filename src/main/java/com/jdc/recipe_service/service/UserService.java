@@ -40,6 +40,7 @@ public class UserService {
     private final RecipeLikeRepository recipeLikeRepository;
     private final RecipeRepository recipeRepository;
     private final S3Util s3Util;
+    private final DailyQuotaService dailyQuotaService;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -117,7 +118,11 @@ public class UserService {
     public UserResponseDTO getUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        return UserMapper.toDto(user);
+        UserResponseDTO dto = UserMapper.toDto(user);
+
+        int remainingQuota = dailyQuotaService.getRemainingQuota(id);
+        dto.updateAiQuota(remainingQuota);
+        return dto;
     }
 
 
