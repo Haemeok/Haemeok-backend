@@ -29,3 +29,8 @@ opensearch:
 
 search:
   engine: auto  # auto | opensearch | querydsl
+
+ai:
+  quota:
+    per-day: 1
+    timezone: "Asia/Seoul"
