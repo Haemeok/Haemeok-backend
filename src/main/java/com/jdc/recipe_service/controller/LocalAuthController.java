@@ -8,6 +8,9 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,21 +27,35 @@ public class LocalAuthController {
 
     @Operation(summary = "로컬 테스트용 액세스 토큰 발급", description = "지정한 userId로 JWT 액세스 토큰을 발급합니다.")
     @GetMapping("/local-token")
-    public TokenResponseDTO devToken(
-            @Parameter(description = "사용자 ID", example = "4") @RequestParam Long userId,
-            HttpServletResponse response
-    ) {
+    public ResponseEntity<TokenResponseDTO> devToken(
+            @Parameter(description = "사용자 ID", example = "1") @RequestParam(defaultValue = "1") Long userId) {
 
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
         String accessToken = jwtTokenProvider.createAccessToken(user);
+        String refreshToken = jwtTokenProvider.createRefreshToken();
 
-        Cookie cookie = new Cookie("accessToken", accessToken);
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(60 * 60 * 24);
-        response.addCookie(cookie);
+        ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", accessToken)
+                .path("/")
+                .httpOnly(true)
+                .sameSite("Lax")
+                .maxAge(60 * 60)
+                .build();
 
-        return new TokenResponseDTO(accessToken, null);
+        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", refreshToken)
+                .path("/")
+                .httpOnly(true)
+                .sameSite("Lax")
+                .maxAge(60 * 60 * 24 * 7)
+                .build();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
+        headers.add(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(new TokenResponseDTO(accessToken, refreshToken));
     }
 }
