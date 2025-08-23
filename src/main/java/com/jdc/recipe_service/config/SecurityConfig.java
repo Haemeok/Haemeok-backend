@@ -58,6 +58,7 @@ public class SecurityConfig {
 
                             // 1) 로컬 전용: H2 콘솔, JWT 발급용 엔드포인트
                             .requestMatchers("/h2-console/**", "/local-token").permitAll()
+                            .requestMatchers("/actuator/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
 
                             // 2) 공개 GET (인증 없이 모두 허용)
@@ -73,7 +74,8 @@ public class SecurityConfig {
                                     "/api/dish-types",
                                     "/api/tags",
                                     "/api/users/*",
-                                    "/api/users/*/recipes"
+                                    "/api/users/*/recipes",
+                                    "/api/v2/recipes/**"
                             ).permitAll()
 
                             // 3) 보호된 GET (JWT 필요)
@@ -106,7 +108,8 @@ public class SecurityConfig {
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/private",
                                     "/api/recipes/*/finalize",
-                                    "/api/ws-ticket"
+                                    "/api/ws-ticket",
+                                    "/api/v2/recipes/status"
                             ).authenticated()
 
                             // 5) 보호된 PUT
@@ -212,7 +215,8 @@ public class SecurityConfig {
                                 "/api/tags",
                                 "/api/users/*",
                                 "/api/users/*/recipes",
-                                "/api/search/**"
+                                "/api/search/**",
+                                "/api/v2/recipes/**"
                         ).permitAll()
 
                         // 4) 인증 필요 POST
@@ -233,7 +237,8 @@ public class SecurityConfig {
                                 "/api/token/logout/all",
                                 "/api/recipes/*/private",
                                 "/api/recipes/*/finalize",
-                                "/api/ws-ticket"
+                                "/api/ws-ticket",
+                                "/api/v2/recipes/status"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
