@@ -20,10 +20,8 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-//@Service
+@Service
 @RequiredArgsConstructor
 public class ClaudeClientService {
 
@@ -41,22 +39,20 @@ public class ClaudeClientService {
     public CompletableFuture<RecipeCreateRequestDto> generateRecipeJson(String prompt) {
         return CompletableFuture.supplyAsync(() -> {
             RequestBody body = new RequestBody(
-                    "claude-3-sonnet-20240229",
+                    "claude-3-haiku-20240307",
                     List.of(new Message("user", prompt)),
                     1800,
                     0.0,
                     "너는 한국요리 전문가야. 오직 JSON 객체로만 응답해. 다른 부가적인 설명은 절대 추가하지 마."
             );
 
-            // 2) 헤더
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("x-api-key", apiKey);
-            headers.set("anthropic-version", "2023-06-01"); // 필수
+            headers.set("anthropic-version", "2023-06-01");
 
             HttpEntity<RequestBody> entity = new HttpEntity<>(body, headers);
 
-            // 3) 호출
             ResponseEntity<ResponseBody> res;
             try {
                 res = restTemplate.exchange(API_URL, HttpMethod.POST, entity, ResponseBody.class);
@@ -109,11 +105,16 @@ public class ClaudeClientService {
         });
     }
 
-    /** 응답 문자열에서 최상위 JSON 객체만 추출 */
     private String extractJson(String response) {
-        Pattern pattern = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
-        Matcher matcher = pattern.matcher(response);
-        if (matcher.find()) return matcher.group();
+        String cleanedResponse = response.replaceAll("(?s)```json\\s*|\\s*```", "").trim();
+
+        int firstBrace = cleanedResponse.indexOf('{');
+        int lastBrace = cleanedResponse.lastIndexOf('}');
+
+        if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            return cleanedResponse.substring(firstBrace, lastBrace + 1);
+        }
+
         return "";
     }
 
