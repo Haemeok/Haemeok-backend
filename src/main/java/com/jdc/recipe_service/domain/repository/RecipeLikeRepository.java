@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface RecipeLikeRepository extends JpaRepository<RecipeLike, Long> {
@@ -24,6 +25,6 @@ public interface RecipeLikeRepository extends JpaRepository<RecipeLike, Long> {
     @Query("SELECT rl.recipe.id, COUNT(rl) FROM RecipeLike rl WHERE rl.recipe.id IN :recipeIds GROUP BY rl.recipe.id")
     List<Object[]> countLikesRaw(@Param("recipeIds") List<Long> recipeIds);
 
-
-
+    @Query("SELECT rl.recipe.id FROM RecipeLike rl WHERE rl.user.id = :userId AND rl.recipe.id IN :recipeIds")
+    Set<Long> findRecipeIdsByUserIdAndRecipeIdIn(@Param("userId") Long userId, @Param("recipeIds") List<Long> recipeIds);
 }

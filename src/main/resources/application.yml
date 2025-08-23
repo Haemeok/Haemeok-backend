@@ -8,7 +8,7 @@ spring:
           enabled: true
 
   profiles:
-    active: prod
+    active: local
   mvc:
     async:
       request-timeout: 600000   # 10분 (밀리초)
@@ -29,6 +29,28 @@ opensearch:
 
 search:
   engine: auto  # auto | opensearch | querydsl
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  security:
+    enabled: false
+
+  metrics:
+    enable:
+      all: true
+
+    distribution:
+      # 1) 특정 percentiles 를 계산해서 노출
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
+
+      # 2) histogram bucket (le 라벨이 붙은) 을 수집
+      percentiles-histogram:
+        http.server.requests: true
+
 
 ai:
   quota:

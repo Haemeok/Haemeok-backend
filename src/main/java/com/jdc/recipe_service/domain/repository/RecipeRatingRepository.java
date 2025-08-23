@@ -8,7 +8,11 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public interface RecipeRatingRepository extends JpaRepository<RecipeRating, Long> {
     Optional<RecipeRating> findByUserAndRecipe(User user, Recipe recipe);
@@ -24,4 +28,15 @@ public interface RecipeRatingRepository extends JpaRepository<RecipeRating, Long
     @Transactional
     @Query("DELETE FROM RecipeRating r WHERE r.recipe.id = :recipeId")
     void deleteByRecipeId(@Param("recipeId") Long recipeId);
+
+    @Query("SELECT rr.recipe.id, rr.rating FROM RecipeRating rr WHERE rr.user.id = :userId AND rr.recipe.id IN :recipeIds")
+    List<Object[]> findRatingsByUserIdAndRecipeIdIn(@Param("userId") Long userId, @Param("recipeIds") List<Long> recipeIds);
+
+    default Map<Long, Integer> findRatingsMapByUserIdAndRecipeIdIn(Long userId, List<Long> recipeIds) {
+        return findRatingsByUserIdAndRecipeIdIn(userId, recipeIds).stream()
+                .collect(Collectors.toMap(
+                        arr -> (Long) arr[0],
+                        arr -> (Integer) arr[1]
+                ));
+    }
 }
