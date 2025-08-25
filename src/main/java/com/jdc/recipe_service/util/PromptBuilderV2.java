@@ -28,7 +28,6 @@ public class PromptBuilderV2 {
     }
 
     public String buildPrompt(AiRecipeRequestDto request, RobotType type) {
-        // --- 1. 사용자 요청 정보 준비 ---
         UserSurveyDto survey = surveyService.getSurvey(request.getUserId());
         Integer spicePref = (survey != null && survey.getSpiceLevel() != null)
                 ? survey.getSpiceLevel()
@@ -51,8 +50,6 @@ public class PromptBuilderV2 {
                 .map(Ingredient::getName)
                 .collect(Collectors.toList());
         String knownList = known.isEmpty() ? "없음" : String.join(", ", known);
-
-        // --- 2. Claude 친화적인 프롬프트 구조화 ---
 
         String persona;
         switch (type) {

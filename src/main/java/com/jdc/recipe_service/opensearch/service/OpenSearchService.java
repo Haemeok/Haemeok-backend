@@ -155,6 +155,102 @@ public class OpenSearchService {
         }
     }
 
+    public Page<RecipeSimpleStaticDto> searchRecipesV2(RecipeSearchCondition cond, Pageable pg, Long uid) {
+        try {
+            BoolQueryBuilder bool = QueryBuilders.boolQuery();
+
+            if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
+                String title = cond.getTitle().trim();
+                keywordService.record(title);
+                var titleQuery = QueryBuilders.boolQuery()
+                        .should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title))
+                        .should(QueryBuilders.matchQuery("title.infix", title));
+                bool.must(titleQuery);
+            }
+
+            if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
+                bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
+            }
+
+            if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
+                for (String tag : cond.getTagNames()) {
+                    bool.filter(QueryBuilders.termQuery("tags", tag));
+                }
+            }
+
+            if (cond.getIsAiGenerated() != null) {
+                bool.filter(QueryBuilders.termQuery("isAiGenerated", cond.getIsAiGenerated()));
+            }
+
+            if (bool.must().isEmpty() && bool.filter().isEmpty()) {
+                bool.must(QueryBuilders.matchAllQuery());
+            }
+
+            SearchSourceBuilder src = new SearchSourceBuilder().query(bool).from((int) pg.getOffset()).size(pg.getPageSize());
+            pg.getSort().forEach(o -> src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC));
+
+            SearchResponse resp = client.search(new SearchRequest("recipes").source(src), RequestOptions.DEFAULT);
+            SearchHits hits = resp.getHits();
+
+            List<Long> ids = Arrays.stream(hits.getHits()).map(h -> Long.valueOf(h.getId())).collect(Collectors.toList());
+            if (ids.isEmpty()) {
+                return Page.empty(pg);
+            }
+
+            List<Recipe> recipes = recipeRepository.findAllById(ids);
+            Map<Long, Recipe> recipeMap = recipes.stream().collect(Collectors.toMap(Recipe::getId, Function.identity()));
+
+            List<RecipeSimpleStaticDto> list = ids.stream()
+                    .filter(recipeMap::containsKey)
+                    .map(id -> {
+                        Recipe r = recipeMap.get(id);
+                        return new RecipeSimpleStaticDto(
+                                r.getId(),
+                                r.getTitle(),
+                                r.getImageKey() == null ? null : String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, r.getImageKey()),
+                                r.getUser().getId(),
+                                r.getUser().getNickname(),
+                                r.getUser().getProfileImage(),
+                                r.getCreatedAt(),
+                                r.getCookingTime() == null ? 0 : r.getCookingTime()
+                        );
+                    })
+                    .collect(Collectors.toList());
+
+            return new PageImpl<>(list, pg, hits.getTotalHits().value);
+
+        } catch (IOException e) {
+            throw new CustomException(ErrorCode.SEARCH_FAILURE, "OpenSearch 조회 실패: " + e.getMessage());
+        }
+    }
+
+    private BoolQueryBuilder buildOpenSearchQuery(RecipeSearchCondition cond) {
+        BoolQueryBuilder bool = QueryBuilders.boolQuery();
+
+        if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
+            String title = cond.getTitle().trim();
+            keywordService.record(title);
+            var titleQuery = QueryBuilders.boolQuery()
+                    .should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title))
+                    .should(QueryBuilders.matchQuery("title.infix", title));
+            bool.must(titleQuery);
+        }
+        if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
+            bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
+        }
+        if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
+            for (String tag : cond.getTagNames()) {
+                bool.filter(QueryBuilders.termQuery("tags", tag));
+            }
+        }
+        if (cond.getIsAiGenerated() != null) {
+            bool.filter(QueryBuilders.termQuery("isAiGenerated", cond.getIsAiGenerated()));
+        }
+        if (bool.must().isEmpty() && bool.filter().isEmpty()) {
+            bool.must(QueryBuilders.matchAllQuery());
+        }
+        return bool;
+    }
 
     public Page<RecipeSimpleStaticDto> searchRecipesV2(RecipeSearchCondition cond, Pageable pg, Long uid) {
         try {
