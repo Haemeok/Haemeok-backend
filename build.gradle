@@ -101,23 +101,18 @@ dependencies {
 	implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
 
-def querydslDir = "$buildDir/generated/querydsl"
+def querydslDir = layout.buildDirectory.dir("generated/querydsl").get().asFile
 
 sourceSets {
-	main.java.srcDir querydslDir
+	main {
+		java {
+			srcDirs += querydslDir
+		}
+	}
 }
 
-compileJava.dependsOn('compileQuerydsl')
-
-tasks.register('compileQuerydsl', JavaCompile) {
-	source = sourceSets.main.java
-	classpath = configurations.compileClasspath
-	options.annotationProcessorPath = configurations.annotationProcessor
-	destinationDirectory.set(file(querydslDir))
-}
-
-clean.doLast {
-	file(querydslDir).deleteDir()
+tasks.named("compileJava") {
+	options.annotationProcessorGeneratedSourcesDirectory = querydslDir
 }
 
 tasks.named('test') {
