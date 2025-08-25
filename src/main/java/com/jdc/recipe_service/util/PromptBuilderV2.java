@@ -51,7 +51,6 @@ public class PromptBuilderV2 {
                 .collect(Collectors.toList());
         String knownList = known.isEmpty() ? "없음" : String.join(", ", known);
 
-
         String persona;
         switch (type) {
             case CREATIVE -> persona = "너는 매우 창의적이고 새로운 조합을 즐기는 한국 요리 전문가야.";
