@@ -22,7 +22,7 @@ spring:
             client-secret: ${GOOGLE_CLIENT_SECRET}
             authorization-grant-type: authorization_code
             redirect-uri: "https://www.haemeok.com/login/oauth2/code/{registrationId}"
-            scope: profile, email
+            scope: openid, profile, email
 
           kakao:
             client-id: ${KAKAO_CLIENT_ID}
