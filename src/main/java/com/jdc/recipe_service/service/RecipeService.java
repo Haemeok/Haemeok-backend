@@ -157,7 +157,7 @@ public class RecipeService {
         recipe.updateMarketPrice(marketPrice);
 
         recipeStepService.saveAll(recipe, dto.getSteps());
-        recipeTagService.saveAll(recipe, dto.getTagNames());
+        recipeTagService.saveAll(recipe, dto.getTags());
 
         em.flush();
         em.clear();
@@ -269,7 +269,7 @@ public class RecipeService {
                     "AI가 요리 단계를 생성하지 못했습니다. 다시 시도해 주세요."
             );
         }
-        if (generatedDto.getTagNames() == null || generatedDto.getTagNames().isEmpty()) {
+        if (generatedDto.getTags() == null || generatedDto.getTags().isEmpty()) {
             throw new CustomException(
                     ErrorCode.AI_RECIPE_GENERATION_FAILED,
                     "AI가 태그 정보를 생성하지 못했습니다. 다시 시도해 주세요."
@@ -326,7 +326,7 @@ public class RecipeService {
                     "AI가 요리 단계를 생성하지 못했습니다. 다시 시도해 주세요."
             );
         }
-        if (generatedDto.getTagNames() == null || generatedDto.getTagNames().isEmpty()) {
+        if (generatedDto.getTags() == null || generatedDto.getTags().isEmpty()) {
             throw new CustomException(
                     ErrorCode.AI_RECIPE_GENERATION_FAILED,
                     "AI가 태그 정보를 생성하지 못했습니다. 다시 시도해 주세요."
@@ -425,7 +425,7 @@ public class RecipeService {
         }
 
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
-        recipeTagService.updateTags(recipe, dto.getTagNames());
+        recipeTagService.updateTags(recipe, dto.getTags());
 
         em.flush();
         em.clear();
@@ -573,8 +573,8 @@ public class RecipeService {
 
         aiReq.setAllergy(survey.getAllergy());
 
-        if (CollectionUtils.isEmpty(aiReq.getTagNames())) {
-            aiReq.setTagNames(new ArrayList<>(survey.getTags()));
+        if (CollectionUtils.isEmpty(aiReq.getTags())) {
+            aiReq.setTags(new ArrayList<>(survey.getTags()));
         }
     }
 

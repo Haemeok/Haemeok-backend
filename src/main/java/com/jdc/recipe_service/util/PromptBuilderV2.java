@@ -38,8 +38,8 @@ public class PromptBuilderV2 {
         Set<String> themePrefs;
         if (survey != null && survey.getTags() != null && !survey.getTags().isEmpty()) {
             themePrefs = survey.getTags();
-        } else if (request.getTagNames() != null && !request.getTagNames().isEmpty()) {
-            themePrefs = new HashSet<>(request.getTagNames());
+        } else if (request.getTags() != null && !request.getTags().isEmpty()) {
+            themePrefs = new HashSet<>(request.getTags());
         } else {
             themePrefs = Collections.emptySet();
         }
@@ -56,7 +56,7 @@ public class PromptBuilderV2 {
             case CREATIVE -> persona = "너는 매우 창의적이고 새로운 조합을 즐기는 한국 요리 전문가야.";
             case HEALTHY -> persona = "너는 영양 균형과 건강한 조리법을 최우선으로 생각하는 요리 전문가야.";
             case GOURMET -> persona = "너는 풍부하고 깊은 맛을 탐닉하며, 프리미엄 재료로 고급스럽고 섬세한 요리를 선보이는 미식가야.";
-            default -> persona = "너는 '백종원'처럼 조리 원리를 잘 이해하고 맛의 깊이를 더하는 전문 한국 요리사야.";
+            default -> persona = "너는 사용자의 요청에 맞춰 한식, 중식, 양식 등 모든 종류의 요리를 만들 수 있는 매우 유능한 전문 요리사야.";
         }
 
         String userRequestXml = String.format("""
@@ -109,7 +109,7 @@ public class PromptBuilderV2 {
                       { "stepNumber": 3, "instruction": "멸치육수 500ml와 김치국물 0.5컵을 붓고, 고춧가루·다진마늘·설탕을 넣어 10분간 끓입니다.", "action": "끓이기" },
                       { "stepNumber": 4, "instruction": "양파와 두부를 넣고 5분 더 끓인 뒤, 마지막에 대파를 넣어 한소끔 더 끓여 마무리합니다.", "action": "끓이기" }
                     ],
-                    "tagNames": ["🍲 해장", "🍽️ 혼밥"]
+                    "tags": ["🍲 해장", "🍽️ 혼밥"]
                   }
                 </example>
                 """;
@@ -129,9 +129,10 @@ public class PromptBuilderV2 {
 
                   **[JSON 필드 규칙]**
                   1.  `dishType`: <user_request>의 `dishType` 값('%s')을 그대로 사용해야 합니다.
-                  2.  `tagNames`: <user_request>의 `themes`가 비어있지 않다면, 그 값을 순서대로 사용하세요. 비어있다면, 음식과 어울리는 태그를 아래 목록에서 최대 3개 선택하세요.
+                  2.  `tags`: <user_request>의 `themes`가 비어있지 않다면, 그 값을 순서대로 사용하세요. 비어있다면, 음식과 어울리는 태그를 아래 목록에서 최대 3개 선택하세요.
                       - 허용 태그 목록: 🏠 홈파티, 🌼 피크닉, 🏕️ 캠핑, 🥗 다이어트 / 건강식, 👶 아이와 함께, 🍽️ 혼밥, 🍶 술안주, 🥐 브런치, 🌙 야식, ⚡ 초스피드 / 간단 요리, 🎉 기념일 / 명절, 🍱 도시락, 🔌 에어프라이어, 🍲 해장
-                  3.  `unit`: 재료의 단위는 반드시 아래 목록 중 하나여야 합니다. [%s]
+                  3. `unit`: 재료의 단위는 반드시 아래 목록 중 하나여야 합니다. [%s]
+                     **- [매우 중요] 단위-수량 일관성: 특정 재료의 기본 단위가 정해져 있다면(예: 두부='모'), 반드시 해당 단위를 사용하고 수량도 그 단위에 맞게 조정해야 합니다. 예를 들어, 2인분 예시에서 '두부 0.5모'를 사용했다면, 4인분 요청에는 '두부 1모'라고 응답해야 합니다. AI의 일반 지식에 기반한 '400g' 같은 값을 생성한 뒤 단위만 바꾸는 식은 절대 안 됩니다.**
                   4.  `action`: `steps`의 `action`은 반드시 아래 목록 중 하나여야 합니다.
                       - 허용 동사 목록: 썰기, 다지기, 채썰기, 손질하기, 볶기, 튀기기, 끓이기, 찌기(스팀), 데치기, 구이, 조림, 무치기, 절이기, 담그기(마리네이드), 섞기, 젓기, 버무리기, 로스팅, 캐러멜라이즈, 부치기
                   5.  `customPrice`, `caloriesPerUnit`: <user_request>의 `knownIngredients` 목록에 없는 재료에 대해서만 이 두 필드를 추정하여 포함하세요. DB에 이미 있는 재료에는 절대 포함하면 안 됩니다.

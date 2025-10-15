@@ -16,7 +16,7 @@ import java.util.List;
 public class RecipeSearchCondition {
     private String title;
     private String dishType;
-    private List<String> tagNames;
+    private List<String> tags;
     private Boolean isAiGenerated;
 
     public DishType getDishTypeEnum() {
@@ -25,8 +25,8 @@ public class RecipeSearchCondition {
     }
 
     public List<TagType> getTagEnums() {
-        if (tagNames == null || tagNames.isEmpty()) return List.of();
-        return tagNames.stream()
+        if (tags == null || tags.isEmpty()) return List.of();
+        return tags.stream()
                 .map(TagType::fromCode)
                 .toList();
     }

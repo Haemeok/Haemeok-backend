@@ -14,7 +14,6 @@ import com.jdc.recipe_service.service.RecipeSearchServiceV2;
 import com.jdc.recipe_service.service.RecipeStatusService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -81,13 +80,13 @@ public class RecipeSearchControllerV2 {
     public ResponseEntity<Page<RecipeSimpleStaticDto>> search(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String dishType,
-            @RequestParam(required = false) List<String> tagNames,
+            @RequestParam(required = false) List<String> tags,
             @RequestParam(required = false) Boolean isAiGenerated,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames, isAiGenerated);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated);
         Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }
