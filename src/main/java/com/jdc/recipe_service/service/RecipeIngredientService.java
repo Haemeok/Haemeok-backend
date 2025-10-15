@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,6 +30,8 @@ public class RecipeIngredientService {
     private final IngredientRepository ingredientRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepIngredientRepository recipeStepIngredientRepository;
+    private static final Set<String> SPECIAL_QUANTITY_WORDS = Set.of("약간");
+
 
     public int saveAll(Recipe recipe, List<RecipeIngredientRequestDto> dtos, RecipeSourceType sourceType) {
         int totalCost = 0;
@@ -111,6 +114,11 @@ public class RecipeIngredientService {
             throw new NumberFormatException("수량 문자열이 비어있습니다.");
         }
         quantityStr = quantityStr.trim();
+
+        if (SPECIAL_QUANTITY_WORDS.contains(quantityStr)) {
+            return 0.0;
+        }
+
         if (quantityStr.contains("/")) {
             String[] parts = quantityStr.split("/");
             if (parts.length == 2) {
