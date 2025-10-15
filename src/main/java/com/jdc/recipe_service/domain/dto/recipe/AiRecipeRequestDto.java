@@ -16,7 +16,7 @@ public class AiRecipeRequestDto {
     private Integer cookingTime;
     private Double servings;
 
-    private List<String> tagNames;
+    private List<String> tags;
     private Integer spiceLevel;
     private String allergy;
 }

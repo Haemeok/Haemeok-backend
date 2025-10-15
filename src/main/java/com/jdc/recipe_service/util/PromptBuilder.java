@@ -38,8 +38,8 @@ public class PromptBuilder {
         Set<String> themePrefs;
         if (survey != null && survey.getTags() != null && !survey.getTags().isEmpty()) {
             themePrefs = survey.getTags();
-        } else if (request.getTagNames() != null && !request.getTagNames().isEmpty()) {
-            themePrefs = new HashSet<>(request.getTagNames());
+        } else if (request.getTags() != null && !request.getTags().isEmpty()) {
+            themePrefs = new HashSet<>(request.getTags());
         } else {
             themePrefs = Collections.emptySet();
         }
@@ -141,7 +141,7 @@ public class PromptBuilder {
                     { "stepNumber": 3, "instruction": "멸치육수 500ml와 김치국물 0.5컵을 붓고, 고춧가루·다진마늘·설탕을 넣어 10분간 끓입니다.", "action": "끓이기" },
                     { "stepNumber": 4, "instruction": "양파와 두부를 넣고 5분 더 끓인 뒤, 마지막에 대파를 넣어 한소끔 더 끓여 마무리합니다.", "action": "끓이기" }
                   ],
-                  "tagNames": ["🍲 해장", "🍽️ 혼밥"]
+                  "tags": ["🍲 해장", "🍽️ 혼밥"]
                 }
                 """;
 
@@ -165,7 +165,7 @@ public class PromptBuilder {
                         
                         **[출력 형식 규칙]**
                         1) 요청한 \"dishType\"(%s)을 절대로 수정·누락하지 말 것.
-                        2) 요청한 \"tagNames\" 배열 %s의 순서를 절대로 수정·누락하지 말 것.
+                        2) 요청한 \"tags\" 배열 %s의 순서를 절대로 수정·누락하지 말 것.
                            - 만약 %s가 []라면, AI는 아래 허용 목록 중 음식 분위기에 맞는 태그를 최대 3개 골라서 반환해야 합니다.
                            - 허용 목록 (최대 3개 선택):
                              🏠 홈파티, 🌼 피크닉, 🏕️ 캠핑, 🥗 다이어트 / 건강식, 👶 아이와 함께, 🍽️ 혼밥,

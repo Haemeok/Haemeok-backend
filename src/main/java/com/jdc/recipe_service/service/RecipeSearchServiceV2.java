@@ -81,7 +81,7 @@ public class RecipeSearchServiceV2 {
         }
 
         UserDto authorDto = UserMapper.toSimpleDto(basic.getUser());
-        List<String> tagNames = recipeTagRepository.findByRecipeId(recipeId)
+        List<String> tags = recipeTagRepository.findByRecipeId(recipeId)
                 .stream()
                 .map(rt -> rt.getTag().getDisplayName())
                 .toList();
@@ -127,7 +127,7 @@ public class RecipeSearchServiceV2 {
                 .isPrivate(basic.getIsPrivate())
                 .isAiGenerated(basic.isAiGenerated())
                 .author(authorDto)
-                .tags(tagNames)
+                .tags(tags)
                 .ingredients(ingredients)
                 .steps(steps)
                 .totalIngredientCost(totalCost)

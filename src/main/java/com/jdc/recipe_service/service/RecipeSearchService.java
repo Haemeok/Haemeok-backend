@@ -236,7 +236,7 @@ public class RecipeSearchService {
 
         UserDto authorDto = UserMapper.toSimpleDto(basic.getUser());
 
-        List<String> tagNames = recipeTagRepository.findByRecipeId(recipeId)
+        List<String> tags = recipeTagRepository.findByRecipeId(recipeId)
                 .stream()
                 .map(rt -> rt.getTag().getDisplayName())
                 .toList();
@@ -292,7 +292,7 @@ public class RecipeSearchService {
                 .likeCount(likeCount)
                 .likedByCurrentUser(likedByUser)
                 .favoriteByCurrentUser(favoritedByUser)
-                .tags(tagNames)
+                .tags(tags)
                 .ingredients(ingredients)
                 .totalCalories(totalCalories)
                 .steps(steps)
@@ -350,7 +350,7 @@ public class RecipeSearchService {
         if (this.isOpenSearchHealthy) {
             boolean hasKeyword = cond.getTitle() != null && !cond.getTitle().isBlank();
             boolean hasDishType = cond.getDishType() != null && !cond.getDishType().isBlank();
-            boolean hasTags = cond.getTagNames() != null && !cond.getTagNames().isEmpty();
+            boolean hasTags = cond.getTags() != null && !cond.getTags().isEmpty();
 
             if (hasKeyword || hasDishType || hasTags) {
                 log.info("🔍 OpenSearch 사용 (서버 상태 양호, 검색 조건 존재 - 자동 모드)");

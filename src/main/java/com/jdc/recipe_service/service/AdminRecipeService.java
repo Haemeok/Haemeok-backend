@@ -50,7 +50,7 @@ public class AdminRecipeService {
         recipe.updateMarketPrice(marketPrice);
 
         recipeStepService.saveAll(recipe, dto.getSteps());
-        recipeTagService.saveAll(recipe, dto.getTagNames());
+        recipeTagService.saveAll(recipe, dto.getTags());
 
         return recipe.getId();
     }
@@ -71,7 +71,7 @@ public class AdminRecipeService {
         recipeRepository.flush();
 
         recipeStepService.saveAll(recipe, dto.getSteps());
-        recipeTagService.saveAll(recipe, dto.getTagNames());
+        recipeTagService.saveAll(recipe, dto.getTags());
 
         List<PresignedUrlResponseItem> uploads = generatePresignedUrlsAndSaveImages(recipe, req.getFiles());
         return PresignedUrlResponse.builder()
@@ -97,7 +97,7 @@ public class AdminRecipeService {
             recipe.updateMarketPrice(marketPrice);
 
             recipeStepService.saveAll(recipe, dto.getSteps());
-            recipeTagService.saveAll(recipe, dto.getTagNames());
+            recipeTagService.saveAll(recipe, dto.getTags());
 
             result.add(recipe.getId());
         }
@@ -140,7 +140,7 @@ public class AdminRecipeService {
         }
 
         recipeStepService.updateSteps(recipe, dto.getSteps());
-        recipeTagService.updateTags(recipe, dto.getTagNames());
+        recipeTagService.updateTags(recipe, dto.getTags());
 
         recipeRepository.flush();
         return recipe.getId();

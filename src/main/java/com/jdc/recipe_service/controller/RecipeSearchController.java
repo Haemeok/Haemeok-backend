@@ -88,7 +88,7 @@ public class RecipeSearchController {
     @GetMapping("/by-tag")
     @Operation(summary = "태그 기반 레시피 조회", description = "입력된 태그 이름을 기반으로 레시피를 조회합니다.")
     public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
-            @Parameter(description = "조회할 태그 이름 목록") @RequestParam List<String> tagNames,
+            @Parameter(description = "조회할 태그 이름 목록") @RequestParam List<String> tags,
             @Parameter(hidden = true)
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable,
@@ -100,7 +100,7 @@ public class RecipeSearchController {
 
         return ResponseEntity.ok(
                 recipeSearchService.getByTagWithLikeInfo(
-                        tagNames.get(0), userId, pageable
+                        tags.get(0), userId, pageable
                 )
         );
     }
@@ -131,7 +131,7 @@ public class RecipeSearchController {
     public ResponseEntity<Page<RecipeSimpleDto>> search(
             @Parameter(description = "검색어 (제목, 설명, 재료명 포함)") @RequestParam(required = false) String q,
             @Parameter(description = "디시타입 (예: 볶음, 찜/조림 등)") @RequestParam(required = false) String dishType,
-            @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tagNames,
+            @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tags,
             @Parameter(description = "AI 생성 여부 (true: AI가 만든 레시피만, false: 유저 생성 레시피만)") @RequestParam(required = false) Boolean isAiGenerated,
             @Parameter(hidden = true) @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
@@ -140,7 +140,7 @@ public class RecipeSearchController {
                 ? userDetails.getUser().getId()
                 : null;
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tagNames, isAiGenerated);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated);
 
         return ResponseEntity.ok(
                 recipeSearchService.searchRecipes(cond, pageable, userId)

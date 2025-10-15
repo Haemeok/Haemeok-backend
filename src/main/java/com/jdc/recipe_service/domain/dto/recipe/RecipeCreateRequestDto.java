@@ -37,6 +37,6 @@ public class RecipeCreateRequestDto {
 
     private List<RecipeIngredientRequestDto> ingredients;
     private List<RecipeStepRequestDto> steps;
-    private List<String> tagNames;
+    private List<String> tags;
 
 }

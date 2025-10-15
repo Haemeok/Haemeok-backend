@@ -72,8 +72,8 @@ public class OpenSearchService {
                 bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
             }
 
-            if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
-                for (String tag : cond.getTagNames()) {
+            if (cond.getTags() != null && !cond.getTags().isEmpty()) {
+                for (String tag : cond.getTags()) {
                     bool.filter(QueryBuilders.termQuery("tags", tag));
                 }
             }
@@ -172,8 +172,8 @@ public class OpenSearchService {
                 bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
             }
 
-            if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
-                for (String tag : cond.getTagNames()) {
+            if (cond.getTags() != null && !cond.getTags().isEmpty()) {
+                for (String tag : cond.getTags()) {
                     bool.filter(QueryBuilders.termQuery("tags", tag));
                 }
             }
@@ -238,8 +238,8 @@ public class OpenSearchService {
         if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
             bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
         }
-        if (cond.getTagNames() != null && !cond.getTagNames().isEmpty()) {
-            for (String tag : cond.getTagNames()) {
+        if (cond.getTags() != null && !cond.getTags().isEmpty()) {
+            for (String tag : cond.getTags()) {
                 bool.filter(QueryBuilders.termQuery("tags", tag));
             }
         }

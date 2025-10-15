@@ -190,7 +190,7 @@ public class RecipeIndexingService {
                 .filter(id -> !PANTRY_IDS.contains(id))
                 .toList();
 
-        List<String> tagNames = Optional.ofNullable(recipe.getTags())
+        List<String> tags = Optional.ofNullable(recipe.getTags())
                 .orElse(Collections.emptySet())
                 .stream()
                 .map(t -> t.getTag().name())
@@ -205,7 +205,7 @@ public class RecipeIndexingService {
         return RecipeDocument.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
-                .tags(tagNames)
+                .tags(tags)
                 .dishType(recipe.getDishType().name())
                 .createdAt(recipe.getCreatedAt().toString())
                 .likeCount(likeCount)

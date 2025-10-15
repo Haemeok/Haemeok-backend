@@ -90,7 +90,7 @@ class RecipeServiceTest {
                 .isPrivate(false)
                 .ingredients(Collections.emptyList())
                 .steps(Collections.emptyList())
-                .tagNames(Collections.emptyList())
+                .tags(Collections.emptyList())
                 .build();
     }
 
@@ -214,12 +214,12 @@ class RecipeServiceTest {
                 .isPrivate(false)
                 .ingredients(Collections.emptyList())
                 .steps(Collections.emptyList())
-                .tagNames(Collections.emptyList())
+                .tags(Collections.emptyList())
                 .build();
 
         RecipeWithImageUploadRequest updateRequest = RecipeWithImageUploadRequest.builder()
                 .recipe(updateDto)
-                .files(nonEmptyFiles)  // ✅ 빈 리스트 대신 nonEmptyFiles로 변경
+                .files(nonEmptyFiles)
                 .build();
 
         // 3) 식재료/단계/태그 업데이트 stub
