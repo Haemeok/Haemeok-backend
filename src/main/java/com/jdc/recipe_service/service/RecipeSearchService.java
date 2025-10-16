@@ -338,7 +338,7 @@ public class RecipeSearchService {
         return addLikeInfoToPage(page, currentUserId);
     }
 
-    private Page<RecipeSimpleDto> addLikeInfoToPage(Page<RecipeSimpleDto> page, Long currentUserId) {
+    protected Page<RecipeSimpleDto> addLikeInfoToPage(Page<RecipeSimpleDto> page, Long currentUserId) {
         if (currentUserId == null || page.isEmpty()) {
             return page;
         }
