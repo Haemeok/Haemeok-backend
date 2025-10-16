@@ -1,8 +1,10 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingInfoDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientDto;
@@ -20,12 +22,14 @@ import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import com.jdc.recipe_service.mapper.UserMapper;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
 import com.jdc.recipe_service.util.S3Util;
+import com.jdc.recipe_service.util.SearchProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -52,6 +56,7 @@ class RecipeSearchServiceTest {
     @Mock private OpenSearchService openSearchService;
     @Mock private S3Util s3Util;
     @Mock private UserRepository userRepository;
+    @Mock private SearchProperties searchProperties;
 
     @InjectMocks
     private RecipeSearchService recipeSearchService;
@@ -356,6 +361,82 @@ class RecipeSearchServiceTest {
                 recipeIngredientRepository,
                 recipeStepRepository,
                 commentService
+        );
+    }
+
+    @Test
+    @DisplayName("getPopularRecipes: 주간 인기 레시피 조회 시, 기간별 좋아요 내림차순 정렬")
+    void getPopularRecipes_Weekly_CallsCorrectRepositoryMethodWithSorting() {
+        String period = "weekly";
+        Pageable pageable = Pageable.unpaged();
+        Long currentUserId = 1L;
+
+        Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
+        when(recipeRepository.findPopularRecipesSince(any(), any())).thenReturn(mockPage);
+
+        spyService.getPopularRecipes(period, pageable, currentUserId);
+
+        verify(recipeRepository, times(1)).findPopularRecipesSince(any(LocalDateTime.class), eq(pageable));
+
+        verify(spyService, times(1)).addLikeInfoToPage(any(), eq(currentUserId));
+    }
+
+    @Test
+    @DisplayName("getBudgetRecipes: 예산 레시피 조회 시, 원가 기준 오름차순 정렬")
+    void getBudgetRecipes_CallsCorrectRepositoryMethodWithSorting() {
+        // Given
+        Integer maxCost = 15000;
+        Pageable pageable = Pageable.unpaged(); // 정렬은 쿼리에 하드코딩되어 있음
+        Long currentUserId = 1L;
+
+        // Mocking: findBudgetRecipes 메서드가 Page를 반환하도록 설정
+        Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
+        when(recipeRepository.findBudgetRecipes(any(), any())).thenReturn(mockPage);
+
+        // Mocking: addLikeInfoToPage 메서드가 Page를 반환하도록 설정
+        when(spyService.addLikeInfoToPage(any(), any())).thenReturn(mockPage);
+
+        // When
+        spyService.getBudgetRecipes(maxCost, pageable, currentUserId);
+
+        // Then
+        // findBudgetRecipes가 올바른 maxCost와 pageable로 호출되었는지 검증
+        verify(recipeRepository, times(1)).findBudgetRecipes(eq(maxCost), eq(pageable));
+        // addLikeInfoToPage가 호출되었는지 검증
+        verify(spyService, times(1)).addLikeInfoToPage(any(), eq(currentUserId));
+    }
+
+    @Test
+    @DisplayName("searchRecipes: Querydsl 사용 시, maxCost 및 정렬 조건 전달")
+    void searchRecipes_Querydsl_WithMaxCostAndSorting() {
+        // Given
+        // Querydsl 사용하도록 설정
+        when(searchProperties.getEngine()).thenReturn("querydsl");
+
+        String q = "파스타";
+        Integer maxCost = 20000;
+        Pageable pageable = PageRequest.of(0, 10, Sort.by("totalIngredientCost").ascending());
+        Long userId = 1L;
+
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, null, null, null, maxCost);
+
+        // Mocking: recipeRepository.search 메서드가 Page를 반환하도록 설정
+        Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
+        when(recipeRepository.search(any(), any(), any(), any(), any(), any(), any())).thenReturn(mockPage);
+
+        // When
+        recipeSearchService.searchRecipes(cond, pageable, userId);
+
+        // Then
+        // recipeRepository.search 메서드가 올바른 인자들로 호출되었는지 검증
+        verify(recipeRepository, times(1)).search(
+                eq(q),
+                any(), // dishType
+                any(), // tagTypes
+                any(), // isAiGenerated
+                eq(maxCost),
+                eq(pageable),
+                eq(userId)
         );
     }
 }
