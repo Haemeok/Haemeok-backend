@@ -82,11 +82,12 @@ public class RecipeSearchControllerV2 {
             @RequestParam(required = false) String dishType,
             @RequestParam(required = false) List<String> tags,
             @RequestParam(required = false) Boolean isAiGenerated,
+            @RequestParam(required = false) Integer maxCost,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated, maxCost);
         Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }

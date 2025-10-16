@@ -122,8 +122,9 @@ public class RecipeSearchService {
         DishType dishType = condition.getDishTypeEnum();
         List<TagType> tagTypes = condition.getTagEnums();
         Boolean aiFlag    = condition.getIsAiGenerated();
+        Integer maxCost = condition.getMaxCost();
 
-        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, aiFlag, pageable, userId);
+        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, aiFlag, maxCost, pageable, userId);
 
         if (userId != null) {
             List<Long> recipeIds = page.getContent().stream()

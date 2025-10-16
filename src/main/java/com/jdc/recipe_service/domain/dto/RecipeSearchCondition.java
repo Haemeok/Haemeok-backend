@@ -18,6 +18,7 @@ public class RecipeSearchCondition {
     private String dishType;
     private List<String> tags;
     private Boolean isAiGenerated;
+    private Integer maxCost;
 
     public DishType getDishTypeEnum() {
         if (dishType == null || dishType.isBlank()) return null;
