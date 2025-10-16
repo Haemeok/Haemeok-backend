@@ -7,11 +7,12 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingInfoDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
-import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepIngredientDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeLike;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.PopularityPeriod;
 import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -38,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -304,6 +306,58 @@ public class RecipeSearchService {
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> getPopularRecipes(
+            String periodCode,
+            Pageable pageable,
+            Long currentUserId) {
+
+        PopularityPeriod period = PopularityPeriod.fromCode(periodCode);
+        LocalDateTime startDate = period.getStartDate().atStartOfDay();
+
+        Page<RecipeSimpleDto> page = recipeRepository.findPopularRecipesSince(startDate, pageable);
+
+        return addLikeInfoToPage(page, currentUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> getBudgetRecipes(
+            Integer maxCost,
+            Pageable pageable,
+            Long currentUserId) {
+
+        if (maxCost == null || maxCost < 0) {
+            maxCost = Integer.MAX_VALUE;
+        }
+
+        Page<RecipeSimpleDto> page = recipeRepository.findBudgetRecipes(maxCost, pageable);
+
+        return addLikeInfoToPage(page, currentUserId);
+    }
+
+    private Page<RecipeSimpleDto> addLikeInfoToPage(Page<RecipeSimpleDto> page, Long currentUserId) {
+        if (currentUserId == null || page.isEmpty()) {
+            return page;
+        }
+
+        List<Long> recipeIds = page.getContent().stream()
+                .map(RecipeSimpleDto::getId)
+                .toList();
+
+        Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
+                .stream()
+                .map(RecipeLike::getRecipe)
+                .map(Recipe::getId)
+                .collect(Collectors.toSet());
+
+        page.getContent().forEach(dto -> {
+            dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
+            dto.setLikedByCurrentUser(likedIds.contains(dto.getId()));
+        });
+
+        return page;
     }
 
     @Scheduled(initialDelay = 5000, fixedRate = 10000)

@@ -146,4 +146,36 @@ public class RecipeSearchController {
                 recipeSearchService.searchRecipes(cond, pageable, userId)
         );
     }
+
+    @GetMapping("/popular")
+    @Operation(summary = "기간별 인기 레시피 목록 조회", description = "최근 좋아요 수 기준 인기 레시피 목록을 조회합니다. 좋아요 수 내림차순 정렬됩니다.")
+    public ResponseEntity<Page<RecipeSimpleDto>> getPopularRecipes(
+            @Parameter(description = "기간 기준 (weekly, monthly)") @RequestParam(defaultValue = "weekly") String period,
+            @Parameter(hidden = true) @PageableDefault(size = 10) Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails != null
+                ? userDetails.getUser().getId()
+                : null;
+
+        return ResponseEntity.ok(
+                recipeSearchService.getPopularRecipes(period, pageable, userId)
+        );
+    }
+
+    @GetMapping("/budget")
+    @Operation(summary = "원가 기준 예산 레시피 목록 조회", description = "총 재료 원가(totalIngredientCost)가 특정 금액 이하인 레시피 목록을 조회합니다. 원가 오름차순 정렬됩니다.")
+    public ResponseEntity<Page<RecipeSimpleDto>> getBudgetRecipes(
+            @Parameter(description = "최대 허용 원가 (원)") @RequestParam(defaultValue = "10000") Integer maxCost,
+            @Parameter(hidden = true) @PageableDefault(size = 10) Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails != null
+                ? userDetails.getUser().getId()
+                : null;
+
+        return ResponseEntity.ok(
+                recipeSearchService.getBudgetRecipes(maxCost, pageable, userId)
+        );
+    }
 }

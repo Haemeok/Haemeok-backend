@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.entity;
 
+import com.jdc.recipe_service.domain.entity.common.BaseCreateTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -11,7 +12,7 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class RecipeLike {
+public class RecipeLike extends BaseCreateTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

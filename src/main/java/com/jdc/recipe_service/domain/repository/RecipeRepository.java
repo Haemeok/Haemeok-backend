@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -142,4 +143,46 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     default Map<Long, Long> findRatingCountsMapByIds(List<Long> ids) {
         return findRatingCountsByIdsRaw(ids).stream().collect(Collectors.toMap(a -> (Long) a[0], a -> (Long) a[1]));
     }
+
+    @Query("""
+    SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
+        r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
+        COUNT(DISTINCT rl.id), false,
+        r.cookingTime,
+        COALESCE(AVG(rr.rating), 0.0d),
+        COUNT(rr.id)
+    )
+    FROM Recipe r
+    JOIN r.user u
+    LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
+    LEFT JOIN RecipeRating rr ON rr.recipe = r
+    WHERE r.isPrivate = false
+    GROUP BY r
+    ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
+""")
+    Page<RecipeSimpleDto> findPopularRecipesSince(
+            @Param("startDate") LocalDateTime startDate,
+            Pageable pageable);
+
+
+    @Query("""
+        SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
+            r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
+            COUNT(DISTINCT rl.id), false,
+            r.cookingTime,
+            COALESCE(AVG(rr.rating), 0.0d),
+            COUNT(rr.id)
+        )
+        FROM Recipe r
+        JOIN r.user u
+        LEFT JOIN RecipeLike rl ON rl.recipe = r
+        LEFT JOIN RecipeRating rr ON rr.recipe = r
+        WHERE r.isPrivate = false
+        AND r.totalIngredientCost <= :maxCost
+        GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
+        ORDER BY r.totalIngredientCost ASC, COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
+        """)
+    Page<RecipeSimpleDto> findBudgetRecipes(
+            @Param("maxCost") Integer maxCost,
+            Pageable pageable);
 }

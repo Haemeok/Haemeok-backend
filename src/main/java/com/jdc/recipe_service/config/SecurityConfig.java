@@ -75,7 +75,9 @@ public class SecurityConfig {
                                     "/api/tags",
                                     "/api/users/*",
                                     "/api/users/*/recipes",
-                                    "/api/v2/recipes/**"
+                                    "/api/v2/recipes/**",
+                                    "/api/recipes/popular",
+                                    "/api/recipes/budget"
                             ).permitAll()
 
                             // 3) 보호된 GET (JWT 필요)
@@ -216,7 +218,9 @@ public class SecurityConfig {
                                 "/api/users/*",
                                 "/api/users/*/recipes",
                                 "/api/search/**",
-                                "/api/v2/recipes/**"
+                                "/api/v2/recipes/**",
+                                "/api/recipes/popular",
+                                "/api/recipes/budget"
                         ).permitAll()
 
                         // 4) 인증 필요 POST

@@ -136,11 +136,11 @@ public class OpenSearchService {
                                 r.getUser().getNickname(),
                                 r.getUser().getProfileImage(),
                                 r.getCreatedAt(),
-                                r.getLikes().size(),
+                                (long) r.getLikes().size(),
                                 likedIds.contains(r.getId()),
+                                r.getCookingTime() == null ? 0 : r.getCookingTime(),
                                 r.getAvgRating(),
-                                r.getRatingCount(),
-                                r.getCookingTime() == null ? 0 : r.getCookingTime()
+                                r.getRatingCount()
                         );
                     })
                     .collect(Collectors.toList());
