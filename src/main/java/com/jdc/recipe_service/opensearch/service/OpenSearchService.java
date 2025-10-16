@@ -68,6 +68,10 @@ public class OpenSearchService {
                 bool.must(titleQuery);
             }
 
+            if (cond.getMaxCost() != null) {
+                bool.filter(QueryBuilders.rangeQuery("totalIngredientCost").lte(cond.getMaxCost()));
+            }
+
             if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
                 bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
             }

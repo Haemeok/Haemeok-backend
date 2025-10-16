@@ -42,7 +42,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     }
 
     @Override
-    public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Boolean isAiGenerated, Pageable pageable, Long currentUserId) {
+    public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Boolean isAiGenerated, Integer maxCost, Pageable pageable, Long currentUserId) {
         QRecipe recipe   = QRecipe.recipe;
         QRecipeTag tag    = QRecipeTag.recipeTag;
         QRecipeLike rLike = QRecipeLike.recipeLike;
@@ -76,7 +76,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         titleContains(title),
                         dishTypeEq(dishType),
                         tagIn(tagTypes),
-                        aiCondition
+                        aiCondition,
+                        maxCostLoe(maxCost)
 //                        ,adminExclude
                 )
                 .groupBy(
@@ -121,7 +122,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         titleContains(title),
                         dishTypeEq(dishType),
                         tagIn(tagTypes),
-                        aiCondition
+                        aiCondition,
+                        maxCostLoe(maxCost)
 //                        ,adminExclude
                 )
                 .fetchOne();
@@ -182,6 +184,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                             return new OrderSpecifier<>(dir, recipe.cookingTime);
                         case "avgRating":
                             return new OrderSpecifier<>(dir, recipe.avgRating);
+                        case "totalIngredientCost":
+                            return new OrderSpecifier<>(dir, recipe.totalIngredientCost);
                         case "createdAt":
                         default:
                             return new OrderSpecifier<>(dir, recipe.createdAt);
@@ -204,4 +208,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         return StringUtils.hasText(title) ? QRecipe.recipe.title.containsIgnoreCase(title) : null;
     }
 
+    private BooleanExpression maxCostLoe(Integer maxCost) {
+        return (maxCost != null) ? QRecipe.recipe.totalIngredientCost.loe(maxCost) : null;
+    }
 }
