@@ -1,23 +1,22 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
-
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.querydsl.core.annotations.QueryProjection;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
+@Setter
 @SuperBuilder
-@AllArgsConstructor
 @NoArgsConstructor
 @Schema(description = "레시피 간략 정보 DTO")
-/**
- * 레시피 단순 조히용
- */
 public class RecipeSimpleDto {
 
     @Schema(description = "레시피 ID")
@@ -47,12 +46,13 @@ public class RecipeSimpleDto {
     private LocalDateTime createdAt;
 
     @Schema(description = "좋아요 수")
-    private long likeCount;
+    private Long likeCount;
 
     @Schema(description = "현재 로그인한 사용자가 좋아요를 눌렀는지 여부")
     private boolean likedByCurrentUser;
 
     @Schema(description = "평균 평점")
+    @Getter(AccessLevel.NONE)
     private BigDecimal avgRating;
 
     @Schema(description = "평점 참여 수")
@@ -70,10 +70,9 @@ public class RecipeSimpleDto {
     }
 
     @QueryProjection
-    public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId,  String authorName, String profileImage,
-                           LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
-                           Integer cookingTime,
-                           BigDecimal avgRating, Long ratingCount) {
+    public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
+                           LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser,
+                           Integer cookingTime, BigDecimal avgRating, Long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -89,7 +88,7 @@ public class RecipeSimpleDto {
     }
 
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
-                           LocalDateTime createdAt, long likeCount, boolean likedByCurrentUser,
+                           LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser,
                            Integer cookingTime, double avgRating, Long ratingCount) {
         this.id = id;
         this.title = title;
@@ -105,7 +104,7 @@ public class RecipeSimpleDto {
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
     }
 
-
-
-
+    public Double getAvgRating() {
+        return avgRating != null ? avgRating.doubleValue() : 0.0;
+    }
 }
