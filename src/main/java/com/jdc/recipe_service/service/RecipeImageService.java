@@ -47,7 +47,9 @@ public class RecipeImageService {
                     ? "main"
                     : "step_" + fileInfo.getStepIndex();
 
-            String fileKey = "images/recipes/" + recipe.getId() + "/" + slot + ".jpg";
+            String extension = getFileExtension(fileInfo.getContentType());
+
+            String fileKey = "images/recipes/" + recipe.getId() + "/" + slot + extension;
             String presignedUrl = s3Util.createPresignedUrl(fileKey);
 
             uploads.add(PresignedUrlResponseItem.builder()
@@ -65,6 +67,17 @@ public class RecipeImageService {
 
         saveAll(images);
         return uploads;
+    }
+
+    private String getFileExtension(String contentType) {
+        if (contentType == null) return ".jpg";
+
+        return switch (contentType.toLowerCase()) {
+            case "image/webp" -> ".webp";
+            case "image/png" -> ".png";
+            case "image/jpeg" -> ".jpg";
+            default -> ".jpg";
+        };
     }
 
 
