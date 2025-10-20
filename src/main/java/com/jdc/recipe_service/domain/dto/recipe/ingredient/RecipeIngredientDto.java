@@ -18,5 +18,4 @@ public class RecipeIngredientDto {
     private Integer price;
     private Double calories;
     private String coupangLink;
-    private LocalDateTime coupangLinkUpdatedAt;
 }
