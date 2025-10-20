@@ -77,6 +77,8 @@ public class RecipeIngredientMapper {
                 .unit(isCustom ? entity.getCustomUnit() : entity.getUnit())
                 .price(totalPrice)
                 .calories(totalCalories)
+                .coupangLink(isCustom ? null : ingredient.getCoupangLink())
+                .coupangLinkUpdatedAt(isCustom ? null : ingredient.getCoupangLinkUpdatedAt())
                 .build();
     }
 
