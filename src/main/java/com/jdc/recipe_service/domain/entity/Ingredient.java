@@ -3,6 +3,8 @@ package com.jdc.recipe_service.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "ingredients", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"name"})
@@ -37,4 +39,10 @@ public class Ingredient {
 
     @Column(name = "english_name", length = 100)
     private String englishName;
+
+    @Column(name = "coupang_link", length = 1024, nullable = true)
+    private String coupangLink;
+
+    @Column(name = "coupang_link_updated_at", nullable = true)
+    private LocalDateTime coupangLinkUpdatedAt;
 }
