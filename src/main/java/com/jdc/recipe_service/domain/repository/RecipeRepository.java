@@ -185,4 +185,35 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     Page<RecipeSimpleDto> findBudgetRecipes(
             @Param("maxCost") Integer maxCost,
             Pageable pageable);
+
+    @Query("""
+        SELECT new com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto(
+            r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
+        )
+        FROM Recipe r
+        JOIN r.user
+        LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
+        WHERE r.isPrivate = false
+        GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
+        ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
+    """)
+    Page<RecipeSimpleStaticDto> findPopularRecipesStatic(
+            @Param("startDate") LocalDateTime startDate,
+            Pageable pageable);
+
+
+    @Query("""
+        SELECT new com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto(
+            r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
+        )
+        FROM Recipe r
+        JOIN r.user
+        WHERE r.isPrivate = false
+        AND r.totalIngredientCost <= :maxCost
+        GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
+        ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
+        """)
+    Page<RecipeSimpleStaticDto> findBudgetRecipesStatic(
+            @Param("maxCost") Integer maxCost,
+            Pageable pageable);
 }
