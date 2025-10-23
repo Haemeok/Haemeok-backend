@@ -11,6 +11,7 @@ import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
+import com.jdc.recipe_service.event.UserRecipeCreatedEvent;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
@@ -166,7 +167,18 @@ public class RecipeService {
                 .orElseThrow(() -> new CustomException(
                         ErrorCode.RECIPE_NOT_FOUND, "생성된 레시피를 조회할 수 없습니다.")
                 );
-        recipeIndexingService.indexRecipe(full);
+
+        if (sourceType != RecipeSourceType.AI) {
+            final Long recipeId = full.getId();
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
+                        }
+                    });
+        }
+        //recipeIndexingService.indexRecipe(full);
 
         final List<PresignedUrlResponseItem> uploads =
                 (req.getFiles() != null && !req.getFiles().isEmpty())
@@ -433,7 +445,8 @@ public class RecipeService {
         Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
-        recipeIndexingService.updateRecipe(full);
+        //recipeIndexingService.updateRecipe(full);
+        recipeIndexingService.indexRecipeSafelyWithRetry(full.getId());
 
         List<FileInfoRequest> files = req.getFiles();
         List<PresignedUrlResponseItem> uploads = Collections.emptyList();

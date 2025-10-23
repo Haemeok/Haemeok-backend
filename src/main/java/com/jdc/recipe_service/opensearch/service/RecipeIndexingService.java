@@ -7,7 +7,9 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.dto.RecipeDocument;
+import com.jdc.recipe_service.opensearch.indexingfailure.IndexingFailureLogService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
@@ -17,7 +19,10 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.xcontent.XContentType;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -28,12 +33,18 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RecipeIndexingService {
 
     private final RestHighLevelClient client;
     private final ObjectMapper objectMapper;
     private final RecipeLikeRepository likeRepository;
     private final RecipeRepository recipeRepository;
+    private final IndexingFailureLogService failureLogService;
+
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MS = 2000;
+
     private static final Set<Long> PANTRY_IDS = Set.of(
             18L, 25L, 26L, 27L, 28L, 31L, 35L, 42L, 43L, 51L,
             56L, 57L, 59L, 60L, 63L, 64L, 82L, 95L, 97L, 100L,
@@ -216,6 +227,45 @@ public class RecipeIndexingService {
                 .ingredientCount(ids.size())
                 .avgRating(rating)
                 .build();
+    }
+
+    @Async
+    @Transactional(propagation = Propagation.NEVER)
+    public void indexRecipeSafelyWithRetry(Long recipeId) {
+        Recipe recipe = recipeRepository
+                .findWithAllRelationsById(recipeId)
+                .orElse(null);
+
+        if (recipe == null) {
+            log.warn("인덱싱 대상 레시피(ID: {})를 찾을 수 없습니다. (DB 미존재)", recipeId);
+            return;
+        }
+
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                doIndex(recipe);
+                log.info("레시피 인덱싱 성공: ID {} (시도 횟수: {})", recipeId, attempt);
+
+                failureLogService.deleteByRecipeId(recipeId);
+                return;
+            } catch (CustomException e) {
+                log.error("OpenSearch 인덱싱 실패 (시도 {}/{}), 레시피 ID: {}",
+                        attempt, MAX_RETRY_ATTEMPTS, recipeId, e.getMessage());
+
+                if (attempt == MAX_RETRY_ATTEMPTS) {
+                    log.error("최종 인덱싱 실패. ID {}를 실패 로그에 기록합니다.", recipeId);
+                    failureLogService.createLog(recipeId);
+                    return;
+                }
+
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
     }
 
     private void doIndex(Recipe recipe) {
