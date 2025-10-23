@@ -39,7 +39,8 @@
         { "name": "REPLICATE_TOKEN", "value": "${REPLICATE_TOKEN}" },
         { "name": "OPENAI_API_KEY", "value": "${OPENAI_API_KEY}" },
         { "name": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}" },
-        { "name": "ANTHROPIC_API_KEY", "value": "${ANTHROPIC_API_KEY}" }
+        { "name": "ANTHROPIC_API_KEY", "value": "${ANTHROPIC_API_KEY}" },
+        { "name": "GEMINI_API_KEY", "value": "${GEMINI_API_KEY}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
