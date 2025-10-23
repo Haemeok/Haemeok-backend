@@ -14,6 +14,7 @@ import com.jdc.recipe_service.service.RecipeSearchServiceV2;
 import com.jdc.recipe_service.service.RecipeStatusService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -89,6 +90,27 @@ public class RecipeSearchControllerV2 {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
         RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated, maxCost);
         Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.searchRecipes(cond, pageable, userId);
+        return ResponseEntity.ok(page);
+    }
+
+    @GetMapping("/popular")
+    @Operation(summary = "기간별 인기 레시피 목록 조회 (정적)", description = "최근 좋아요 수 기준 인기 레시피 목록을 조회합니다. **동적 정보는 /status 엔드포인트를 이용해야 합니다.**")
+    public ResponseEntity<Page<RecipeSimpleStaticDto>> getPopularRecipesStatic(
+            @Parameter(description = "기간 기준 (weekly, monthly)") @RequestParam(defaultValue = "weekly") String period,
+            @PageableDefault(size = 10) Pageable pageable
+    ) {
+        Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.getPopularRecipesStatic(period, pageable);
+        return ResponseEntity.ok(page);
+    }
+
+
+    @GetMapping("/budget")
+    @Operation(summary = "원가 기준 예산 레시피 목록 조회 (정적)", description = "총 재료 원가(totalIngredientCost)가 특정 금액 이하인 레시피 목록을 조회합니다. **동적 정보는 /status 엔드포인트를 이용해야 합니다.**")
+    public ResponseEntity<Page<RecipeSimpleStaticDto>> getBudgetRecipesStatic(
+            @Parameter(description = "최대 허용 원가 (원)") @RequestParam(defaultValue = "10000") Integer maxCost,
+            @PageableDefault(size = 10) Pageable pageable
+    ) {
+        Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.getBudgetRecipesStatic(maxCost, pageable);
         return ResponseEntity.ok(page);
     }
 }

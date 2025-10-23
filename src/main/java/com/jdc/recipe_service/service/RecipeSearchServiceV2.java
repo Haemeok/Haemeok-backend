@@ -208,6 +208,42 @@ public class RecipeSearchServiceV2 {
         return privacy.and(ai).and(title).and(dishType).and(tags);
     }
 
+    /**
+     * 기간별 인기 레시피 목록 조회 (정적 정보)
+     * V2 원칙: 동적 정보(좋아요 수, 좋아요 여부)를 DTO에 포함하지 않고,
+     * 오직 정적 정보인 RecipeSimpleStaticDto만 반환합니다.
+     */
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleStaticDto> getPopularRecipesStatic(
+            String periodCode,
+            Pageable pageable) {
+
+        java.time.LocalDateTime startDate = java.time.LocalDateTime.now().minusDays(7);
+
+        Page<RecipeSimpleStaticDto> page = recipeRepository.findPopularRecipesStatic(startDate, pageable);
+
+        return page;
+    }
+
+    /**
+     * 원가 기준 예산 레시피 목록 조회 (정적 정보)
+     * V2 원칙: 동적 정보(좋아요 수, 좋아요 여부)를 DTO에 포함하지 않고,
+     * 오직 정적 정보인 RecipeSimpleStaticDto만 반환합니다.
+     */
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleStaticDto> getBudgetRecipesStatic(
+            Integer maxCost,
+            Pageable pageable) {
+
+        if (maxCost == null || maxCost < 0) {
+            maxCost = Integer.MAX_VALUE;
+        }
+
+        Page<RecipeSimpleStaticDto> page = recipeRepository.findBudgetRecipesStatic(maxCost, pageable);
+
+        return page;
+    }
+
     @Scheduled(initialDelay = 5000, fixedRate = 10000)
     public void checkOpenSearchHealth() {
         boolean currentHealth;
