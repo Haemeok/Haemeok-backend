@@ -79,6 +79,9 @@ openai:
 anthropic:
   api-key: ${ANTHROPIC_API_KEY}
 
+gemini:
+  api-key: ${GEMINI_API_KEY}
+
 logging:
   level:
     com.jdc.recipe_service.service.AsyncImageService: WARN
