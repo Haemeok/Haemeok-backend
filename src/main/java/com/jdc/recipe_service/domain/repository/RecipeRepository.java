@@ -1,7 +1,7 @@
 package com.jdc.recipe_service.domain.repository;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
@@ -87,16 +87,6 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     })
     Optional<Recipe> findWithAllRelationsById(Long id);
 
-    @Query("""
-            SELECT new com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto(
-                r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
-            )
-            FROM Recipe r
-            JOIN r.user
-            WHERE r.id IN :ids
-            """)
-    List<RecipeSimpleStaticDto> findAllSimpleStaticByIds(@Param("ids") List<Long> ids);
-
 
     @Query("SELECT r.id, COUNT(rl.id) FROM Recipe r LEFT JOIN r.likes rl WHERE r.id IN :ids GROUP BY r.id")
     List<Object[]> findLikeCountsByIdsRaw(@Param("ids") List<Long> ids);
@@ -145,75 +135,101 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     }
 
     @Query("""
-    SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
-        r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
-        COUNT(DISTINCT rl.id), false,
-        r.cookingTime,
-        COALESCE(AVG(rr.rating), 0.0d),
-        COUNT(rr.id)
-    )
-    FROM Recipe r
-    JOIN r.user u
-    LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
-    LEFT JOIN RecipeRating rr ON rr.recipe = r
-    WHERE r.isPrivate = false
-    GROUP BY r
-    ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
-""")
+                SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
+                    r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
+                    COUNT(DISTINCT rl.id), false,
+                    r.cookingTime,
+                    COALESCE(AVG(rr.rating), 0.0d),
+                    COUNT(rr.id)
+                )
+                FROM Recipe r
+                JOIN r.user u
+                LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
+                LEFT JOIN RecipeRating rr ON rr.recipe = r
+                WHERE r.isPrivate = false
+                GROUP BY r
+                ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
+            """)
     Page<RecipeSimpleDto> findPopularRecipesSince(
             @Param("startDate") LocalDateTime startDate,
             Pageable pageable);
 
 
     @Query("""
-        SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
-            r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
-            COUNT(DISTINCT rl.id), false,
-            r.cookingTime,
-            COALESCE(AVG(rr.rating), 0.0d),
-            COUNT(rr.id)
-        )
-        FROM Recipe r
-        JOIN r.user u
-        LEFT JOIN RecipeLike rl ON rl.recipe = r
-        LEFT JOIN RecipeRating rr ON rr.recipe = r
-        WHERE r.isPrivate = false
-        AND r.totalIngredientCost <= :maxCost
-        GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
-        ORDER BY r.totalIngredientCost ASC, COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
-        """)
+            SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
+                r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
+                COUNT(DISTINCT rl.id), false,
+                r.cookingTime,
+                COALESCE(AVG(rr.rating), 0.0d),
+                COUNT(rr.id)
+            )
+            FROM Recipe r
+            JOIN r.user u
+            LEFT JOIN RecipeLike rl ON rl.recipe = r
+            LEFT JOIN RecipeRating rr ON rr.recipe = r
+            WHERE r.isPrivate = false
+            AND r.totalIngredientCost <= :maxCost
+            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
+            ORDER BY r.totalIngredientCost ASC, COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
+            """)
     Page<RecipeSimpleDto> findBudgetRecipes(
             @Param("maxCost") Integer maxCost,
             Pageable pageable);
 
     @Query("""
-        SELECT new com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto(
-            r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
-        )
-        FROM Recipe r
-        JOIN r.user
-        LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
-        WHERE r.isPrivate = false
-        GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
-        ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
-    """)
+                SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
+                    r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
+                    COUNT(DISTINCT rl.id),
+                    COALESCE(AVG(rr.rating), 0.0d),
+                    COUNT(rr.id)
+                )
+                FROM Recipe r
+                JOIN r.user u
+                LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
+                LEFT JOIN RecipeRating rr ON rr.recipe = r
+                WHERE r.isPrivate = false
+                GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
+                ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
+            """)
     Page<RecipeSimpleStaticDto> findPopularRecipesStatic(
             @Param("startDate") LocalDateTime startDate,
             Pageable pageable);
 
 
     @Query("""
-        SELECT new com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto(
-            r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
-        )
-        FROM Recipe r
-        JOIN r.user
-        WHERE r.isPrivate = false
-        AND r.totalIngredientCost <= :maxCost
-        GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime
-        ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
-        """)
+            SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
+                r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
+                COUNT(DISTINCT rl.id),
+                COALESCE(AVG(rr.rating), 0.0d),
+                COUNT(rr.id)
+            )
+            FROM Recipe r
+            JOIN r.user u
+            LEFT JOIN RecipeLike rl ON rl.recipe = r
+            LEFT JOIN RecipeRating rr ON rr.recipe = r
+            WHERE r.isPrivate = false
+            AND r.totalIngredientCost <= :maxCost
+            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
+            ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
+            """)
     Page<RecipeSimpleStaticDto> findBudgetRecipesStatic(
             @Param("maxCost") Integer maxCost,
             Pageable pageable);
+
+
+    @Query("""
+            SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
+                r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
+                COUNT(DISTINCT rl.id),
+                COALESCE(AVG(rr.rating), 0.0d), 
+                COUNT(rr.id)                  
+            )
+            FROM Recipe r
+            JOIN r.user u 
+            LEFT JOIN RecipeLike rl ON rl.recipe = r 
+            LEFT JOIN RecipeRating rr ON rr.recipe = r 
+            WHERE r.id IN :ids
+            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime 
+            """)
+    List<RecipeSimpleStaticDto> findAllSimpleStaticByIds(@Param("ids") List<Long> ids);
 }

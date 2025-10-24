@@ -4,6 +4,8 @@ import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.comment.CommentRequestDto;
 import com.jdc.recipe_service.domain.dto.comment.ReplyDto;
 import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
+import com.jdc.recipe_service.domain.dto.v2.comment.CommentStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.comment.CommentStatusDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeComment;
 import com.jdc.recipe_service.domain.entity.User;
@@ -80,6 +82,54 @@ public class CommentService {
                             .build();
                 })
                 .toList();
+    }
+
+
+    @Transactional(readOnly = true)
+    public List<CommentStaticDto> getCommentsStaticForRecipeDetail(Long recipeId) {
+        List<RecipeComment> comments = recipeCommentRepository
+                .findAllWithRepliesAndUsers(recipeId, Pageable.unpaged());
+
+        if (comments.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return comments.stream()
+                .map(c -> {
+                    int replyCount = Optional.ofNullable(c.getReplies()).orElse(List.of()).size();
+
+                    return CommentMapper.toStaticDto(c)
+                            .toBuilder()
+                            .replyCount(replyCount)
+                            .build();
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CommentStatusDto> findCommentStatusesByCommentIds(Long userId, List<Long> commentIds) {
+        if (userId == null || commentIds == null || commentIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Long, Integer> likeCountMap = commentLikeRepository
+                .countLikesByCommentIds(commentIds).stream()
+                .collect(Collectors.toMap(
+                        CommentLikeCountProjection::getCommentId,
+                        CommentLikeCountProjection::getLikeCount
+                ));
+
+        Set<Long> likedCommentIds = new HashSet<>(
+                commentLikeRepository.findLikedCommentIdsByUser(userId, commentIds)
+        );
+
+        return commentIds.stream()
+                .map(commentId -> CommentStatusDto.builder()
+                        .id(commentId)
+                        .likeCount(likeCountMap.getOrDefault(commentId, 0))
+                        .likedByCurrentUser(likedCommentIds.contains(commentId))
+                        .build())
+                .collect(Collectors.toList());
     }
 
     public CommentDto createComment(Long recipeId, CommentRequestDto dto, User user) {
