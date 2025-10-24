@@ -1,9 +1,11 @@
-package com.jdc.recipe_service.domain.dto.recipe.v2;
+package com.jdc.recipe_service.domain.dto.v2.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
+import com.jdc.recipe_service.domain.dto.v2.comment.CommentStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.rating.RecipeRatingInfoStaticDto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,6 +13,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
+
+/**
+ *
+ *  레시피 상세 조회용
+ */
 
 @Getter
 @Builder
@@ -42,7 +49,7 @@ public class RecipeDetailStaticDto {
     @Schema(description = "대표 이미지 상태 정보( PENDING, ACTIVE)")
     private String imageStatus;
 
-    @Schema(description = "유튜브 링크 URL")
+    @Schema(description = "유튜브 링트 URL")
     private String youtubeUrl;
 
     @Schema(description = "조리 도구 목록")
@@ -60,6 +67,9 @@ public class RecipeDetailStaticDto {
     @Schema(description = "작성자 정보")
     private UserDto author;
 
+    @Schema(description = "평점 정보")
+    private RecipeRatingInfoStaticDto ratingInfo;
+
     @Schema(description = "태그 목록")
     private List<String> tags;
 
@@ -68,6 +78,12 @@ public class RecipeDetailStaticDto {
 
     @Schema(description = "조리 단계 목록")
     private List<RecipeStepDto> steps;
+
+    @Schema(description = "댓글 목록")
+    private List<CommentStaticDto> comments;
+
+    @Schema(description = "전체 댓글 수")
+    private long commentCount;
 
     @Schema(description = "총 재료 비용")
     private Integer totalIngredientCost;
@@ -81,11 +97,20 @@ public class RecipeDetailStaticDto {
     @Schema(description = "절약 금액")
     private Integer savings;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     @Schema(description = "생성일시 (UTC)")
     private LocalDateTime createdAt;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     @Schema(description = "업데이트일시 (UTC)")
     private LocalDateTime updatedAt;
+
 }

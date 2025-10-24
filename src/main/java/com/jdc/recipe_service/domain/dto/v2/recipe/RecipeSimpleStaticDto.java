@@ -1,4 +1,4 @@
-package com.jdc.recipe_service.domain.dto.recipe.v2;
+package com.jdc.recipe_service.domain.dto.v2.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.querydsl.core.annotations.QueryProjection;
@@ -6,7 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -41,8 +40,18 @@ public class RecipeSimpleStaticDto {
     @Schema(description = "예상 조리 시간 (분 단위)")
     private Integer cookingTime;
 
+    @Schema(description = "레시피 좋아요 수")
+    private long likeCount;
+
+    @Schema(description = "레시피 평점 평균")
+    private double avgRating;
+
+    @Schema(description = "레시피 평점 수")
+    private long ratingCount;
+
     @QueryProjection
-    public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage, LocalDateTime createdAt, Integer cookingTime) {
+    public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage, LocalDateTime createdAt, Integer cookingTime,
+    long likeCount, double avgRating, long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -51,5 +60,8 @@ public class RecipeSimpleStaticDto {
         this.profileImage = profileImage;
         this.createdAt = createdAt;
         this.cookingTime = cookingTime;
+        this.likeCount = likeCount;
+        this.avgRating = avgRating;
+        this.ratingCount = ratingCount;
     }
 }
