@@ -22,8 +22,6 @@ public class RecipeStatusService {
     private final RecipeCommentRepository recipeCommentRepository;
     private final CommentService commentService;
 
-    // RecipeStatusService.java 수정
-
     @Transactional(readOnly = true)
     public Map<Long, RecipeDetailStatusDto> getStatuses(List<Long> recipeIds, Long userId) {
         if (recipeIds == null || recipeIds.isEmpty()) {
