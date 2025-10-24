@@ -1,6 +1,6 @@
 package com.jdc.recipe_service.domain.repository;
 
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
 import org.springframework.data.domain.Page;

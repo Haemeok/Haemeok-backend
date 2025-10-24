@@ -1,9 +1,10 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeDetailStaticDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeStatusDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStatusDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStatusDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
@@ -62,9 +63,26 @@ public class RecipeSearchControllerV2 {
         return deferredResult;
     }
 
+    @GetMapping("/{id}/status")
+    @Operation(summary = "레시피 상세 상태 정보 조회 (동적)", description = "레시피 ID를 기반으로 사용자 특정 동적 정보(좋아요/즐겨찾기 여부, 나의 평점, 댓글 상태 등)를 조회합니다.")
+    public ResponseEntity<RecipeDetailStatusDto> getDetailStatus(
+            @PathVariable("id") Long recipeId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails != null ? userDetails.getUser().getId() : null;
+        Map<Long, RecipeDetailStatusDto> statuses = recipeStatusService.getStatuses(Collections.singletonList(recipeId), userId);
+        RecipeDetailStatusDto detailStatus = statuses.get(recipeId);
+
+        if (detailStatus == null) {
+            throw new CustomException(ErrorCode.RECIPE_NOT_FOUND);
+        }
+
+        return ResponseEntity.ok(detailStatus);
+    }
+
     @PostMapping("/status")
-    @Operation(summary = "레시피 상태 정보 조회 (동적)", description = "레시피 ID 목록으로 동적 정보(좋아요, 댓글 등)를 일괄 조회합니다.")
-    public ResponseEntity<Map<Long, RecipeStatusDto>> getStatuses(
+    @Operation(summary = "레시피 상태 정보 배치 조회 (목록용 동적)", description = "레시피 ID 목록으로 동적 정보(좋아요 여부)를 일괄 조회합니다. 응답은 목록 조회용(Simple Status)입니다.")
+    public ResponseEntity<Map<Long, RecipeSimpleStatusDto>> getStatuses(
             @RequestBody List<Long> recipeIds,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -72,8 +90,11 @@ public class RecipeSearchControllerV2 {
         if (recipeIds == null || recipeIds.isEmpty()) {
             return ResponseEntity.ok(Collections.emptyMap());
         }
-        Map<Long, RecipeStatusDto> statuses = recipeStatusService.getStatuses(recipeIds, userId);
-        return ResponseEntity.ok(statuses);
+
+        Map<Long, RecipeDetailStatusDto> detailStatuses = recipeStatusService.getStatuses(recipeIds, userId);
+        Map<Long, RecipeSimpleStatusDto> simpleStatuses = recipeStatusService.convertToSimpleStatus(detailStatuses);
+
+        return ResponseEntity.ok(simpleStatuses);
     }
 
     @GetMapping("/search")

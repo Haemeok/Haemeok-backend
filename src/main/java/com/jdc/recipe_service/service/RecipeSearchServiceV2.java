@@ -1,11 +1,13 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
+import com.jdc.recipe_service.domain.dto.v2.comment.CommentStaticDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeDetailStaticDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
+import com.jdc.recipe_service.domain.dto.v2.rating.RecipeRatingInfoStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.QRecipe;
 import com.jdc.recipe_service.domain.entity.QRecipeTag;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -36,10 +38,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,6 +62,7 @@ public class RecipeSearchServiceV2 {
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepRepository recipeStepRepository;
     private final RecipeTagRepository recipeTagRepository;
+    private final CommentService commentService;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -71,6 +74,14 @@ public class RecipeSearchServiceV2 {
         return key == null ? null : String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 
+    /**
+     * V2 레시피 상세 조회 (정적 정보 + 공통 동적 정보만 제공)
+     * 사용자 특정 동적 정보(좋아요/즐겨찾기 여부, 나의 평점 등)는 RecipeStatusService를 통해 별도로 조회해야 합니다.
+     *
+     * @param recipeId 레시피 ID
+     * @param currentUserId 현재 로그인한 사용자 ID (비공개 레시피 접근 제어용)
+     * @return RecipeDetailStaticDto (정적 DTO)
+     */
     @Transactional(readOnly = true)
     public RecipeDetailStaticDto getRecipeDetail(Long recipeId, Long currentUserId) {
         Recipe basic = recipeRepository.findWithUserById(recipeId)
@@ -112,6 +123,20 @@ public class RecipeSearchServiceV2 {
         int marketPrice = basic.getMarketPrice() != null ? basic.getMarketPrice() : 0;
         int savings     = marketPrice - totalCost;
 
+
+        List<Long> idList = Collections.singletonList(recipeId);
+        Map<Long, Long> ratingCounts = recipeRepository.findRatingCountsMapByIds(idList);
+        Map<Long, Double> avgRatings = recipeRepository.findAvgRatingsMapByIds(idList);
+        Map<Long, Long> commentCounts = recipeRepository.findCommentCountsMapByIds(idList);
+
+        RecipeRatingInfoStaticDto ratingInfo = RecipeRatingInfoStaticDto.builder()
+                .avgRating(BigDecimal.valueOf(avgRatings.getOrDefault(recipeId, 0.0)))
+                .ratingCount(ratingCounts.getOrDefault(recipeId, 0L))
+                .build();
+
+        List<CommentStaticDto> comments = commentService.getCommentsStaticForRecipeDetail(recipeId);
+
+
         return RecipeDetailStaticDto.builder()
                 .id(recipeId)
                 .title(basic.getTitle())
@@ -127,9 +152,12 @@ public class RecipeSearchServiceV2 {
                 .isPrivate(basic.getIsPrivate())
                 .isAiGenerated(basic.isAiGenerated())
                 .author(authorDto)
+                .ratingInfo(ratingInfo)
                 .tags(tags)
                 .ingredients(ingredients)
                 .steps(steps)
+                .comments(comments)
+                .commentCount(commentCounts.getOrDefault(recipeId, 0L))
                 .totalIngredientCost(totalCost)
                 .totalCalories(totalCalories)
                 .marketPrice(marketPrice)

@@ -1,17 +1,15 @@
 package com.jdc.recipe_service.domain.repository;
 
-import com.jdc.recipe_service.domain.dto.recipe.QRecipeSimpleDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.QRecipeSimpleStaticDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.QRecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.QRecipe;
-import com.jdc.recipe_service.domain.entity.QRecipeLike;
 import com.jdc.recipe_service.domain.entity.QRecipeTag;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,8 +49,6 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                 ? recipe.isAiGenerated.eq(isAiGenerated)
                 : null;
 
-//        BooleanExpression adminExclude     = recipe.user.id.ne(7L);
-
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleStaticDto(
                         recipe.id,
@@ -62,7 +58,10 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        recipe.cookingTime
+                        recipe.cookingTime,
+                        Expressions.constant(0L),
+                        Expressions.constant(0.0),
+                        Expressions.constant(0L)
                 ))
                 .from(recipe)
                 .leftJoin(recipe.tags, tag)
@@ -72,7 +71,6 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         dishTypeEq(dishType),
                         tagIn(tagTypes),
                         aiCondition
-//                        ,adminExclude
                 )
                 .orderBy(getOrderSpecifiers(pageable))
                 .offset(pageable.getOffset())
@@ -94,7 +92,6 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         dishTypeEq(dishType),
                         tagIn(tagTypes),
                         aiCondition
-//                        ,adminExclude
                 )
                 .fetchOne();
 
@@ -117,7 +114,10 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        recipe.cookingTime
+                        recipe.cookingTime,
+                        Expressions.constant(0L),
+                        Expressions.constant(0.0),
+                        Expressions.constant(0L)
                 ))
                 .from(recipe)
                 .where(privacyCondition)

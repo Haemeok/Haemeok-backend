@@ -1,17 +1,15 @@
 package com.jdc.recipe_service.service;
 
-import com.jdc.recipe_service.domain.dto.comment.CommentDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeStatusDto;
+import com.jdc.recipe_service.domain.dto.v2.comment.CommentStatusDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStatusDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStatusDto;
 import com.jdc.recipe_service.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,43 +22,72 @@ public class RecipeStatusService {
     private final RecipeCommentRepository recipeCommentRepository;
     private final CommentService commentService;
 
+    // RecipeStatusService.java 수정
+
     @Transactional(readOnly = true)
-    public Map<Long, RecipeStatusDto> getStatuses(List<Long> recipeIds, Long userId) {
+    public Map<Long, RecipeDetailStatusDto> getStatuses(List<Long> recipeIds, Long userId) {
         if (recipeIds == null || recipeIds.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        Set<Long> likedIds = (userId == null) ? Collections.emptySet() :
-                recipeLikeRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
-        Set<Long> favoritedIds = (userId == null) ? Collections.emptySet() :
-                recipeFavoriteRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
-        Map<Long, Integer> myRatings = (userId == null) ? Collections.emptyMap() :
-                recipeRatingRepository.findRatingsMapByUserIdAndRecipeIdIn(userId, recipeIds);
+        Map<Long, Long> recipeLikeCounts = recipeRepository.findLikeCountsMapByIds(recipeIds);
 
-        Map<Long, Long> likeCounts = recipeRepository.findLikeCountsMapByIds(recipeIds);
-        Map<Long, Long> commentCounts = recipeRepository.findCommentCountsMapByIds(recipeIds);
-        Map<Long, Double> avgRatings = recipeRepository.findAvgRatingsMapByIds(recipeIds);
-        Map<Long, Long> ratingCounts = recipeRepository.findRatingCountsMapByIds(recipeIds);
-
-        Map<Long, RecipeStatusDto> statusMap = new HashMap<>();
-        for (Long recipeId : recipeIds) {
-            List<CommentDto> comments = null;
-            if (recipeIds.size() == 1) {
-                comments = commentService.getTop3CommentsWithLikes(recipeId, userId);
+        if (userId == null) {
+            Map<Long, RecipeDetailStatusDto> statusMap = new HashMap<>();
+            for (Long recipeId : recipeIds) {
+                RecipeDetailStatusDto status = RecipeDetailStatusDto.builder()
+                        .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L).intValue())
+                        .likedByCurrentUser(false)
+                        .favoriteByCurrentUser(false)
+                        .myRating(null)
+                        .comments(Collections.emptyList())
+                        .build();
+                statusMap.put(recipeId, status);
             }
+            return statusMap;
+        }
 
-            RecipeStatusDto status = RecipeStatusDto.builder()
-                    .likeCount(likeCounts.getOrDefault(recipeId, 0L))
-                    .commentCount(commentCounts.getOrDefault(recipeId, 0L))
-                    .avgRating(avgRatings.getOrDefault(recipeId, 0.0))
-                    .ratingCount(ratingCounts.getOrDefault(recipeId, 0L))
-                    .likedByCurrentUser(likedIds.contains(recipeId))
-                    .favoriteByCurrentUser(favoritedIds.contains(recipeId))
+        Set<Long> likedRecipeIds = recipeLikeRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
+        Set<Long> favoritedRecipeIds = recipeFavoriteRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
+        Map<Long, Integer> myRatings = recipeRatingRepository.findRatingsMapByUserIdAndRecipeIdIn(userId, recipeIds);
+
+        Map<Long, List<CommentStatusDto>> commentStatusesMap = new HashMap<>();
+
+        if (recipeIds.size() == 1) {
+            Long recipeId = recipeIds.get(0);
+
+            List<Long> commentIds = recipeCommentRepository.findIdsByRecipeId(recipeId);
+
+            if (!commentIds.isEmpty()) {
+                List<CommentStatusDto> statuses = commentService.findCommentStatusesByCommentIds(userId, commentIds);
+                commentStatusesMap.put(recipeId, statuses);
+            }
+        }
+
+        Map<Long, RecipeDetailStatusDto> statusMap = new HashMap<>();
+        for (Long recipeId : recipeIds) {
+
+            RecipeDetailStatusDto status = RecipeDetailStatusDto.builder()
+                    .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L).intValue())
+                    .likedByCurrentUser(likedRecipeIds.contains(recipeId))
+                    .favoriteByCurrentUser(favoritedRecipeIds.contains(recipeId))
                     .myRating(myRatings.get(recipeId))
-                    .comments(comments)
+                    .comments(commentStatusesMap.getOrDefault(recipeId, Collections.emptyList()))
                     .build();
+
             statusMap.put(recipeId, status);
         }
         return statusMap;
+    }
+
+
+    public Map<Long, RecipeSimpleStatusDto> convertToSimpleStatus(Map<Long, RecipeDetailStatusDto> detailStatusMap) {
+        return detailStatusMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> RecipeSimpleStatusDto.builder()
+                                .likedByCurrentUser(entry.getValue().isLikedByCurrentUser())
+                                .build()
+                ));
     }
 }

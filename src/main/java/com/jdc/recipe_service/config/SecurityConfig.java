@@ -110,8 +110,7 @@ public class SecurityConfig {
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/private",
                                     "/api/recipes/*/finalize",
-                                    "/api/ws-ticket",
-                                    "/api/v2/recipes/status"
+                                    "/api/ws-ticket"
                             ).authenticated()
 
                             // 5) 보호된 PUT
@@ -223,6 +222,11 @@ public class SecurityConfig {
                                 "/api/recipes/budget"
                         ).permitAll()
 
+                        // [추가된 부분] POST /v2/recipes/status를 공개 허용
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v2/recipes/status"
+                        ).permitAll()
+
                         // 4) 인증 필요 POST
                         .requestMatchers(HttpMethod.POST,
                                 "/api/ingredients",
@@ -241,8 +245,7 @@ public class SecurityConfig {
                                 "/api/token/logout/all",
                                 "/api/recipes/*/private",
                                 "/api/recipes/*/finalize",
-                                "/api/ws-ticket",
-                                "/api/v2/recipes/status"
+                                "/api/ws-ticket"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT

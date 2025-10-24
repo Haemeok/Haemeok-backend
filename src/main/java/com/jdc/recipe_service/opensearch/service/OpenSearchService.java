@@ -2,7 +2,7 @@ package com.jdc.recipe_service.opensearch.service;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
-import com.jdc.recipe_service.domain.dto.recipe.v2.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
@@ -159,7 +159,7 @@ public class OpenSearchService {
         }
     }
 
-    public Page<RecipeSimpleStaticDto>  searchRecipesV2(RecipeSearchCondition cond, Pageable pg, Long uid) {
+    public Page<RecipeSimpleStaticDto> searchRecipesV2(RecipeSearchCondition cond, Pageable pg, Long uid) {
         try {
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
@@ -216,7 +216,10 @@ public class OpenSearchService {
                                 r.getUser().getNickname(),
                                 r.getUser().getProfileImage(),
                                 r.getCreatedAt(),
-                                r.getCookingTime() == null ? 0 : r.getCookingTime()
+                                r.getCookingTime() == null ? 0 : r.getCookingTime(),
+                                0L,
+                                0.0,
+                                0L
                         );
                     })
                     .collect(Collectors.toList());

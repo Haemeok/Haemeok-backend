@@ -2,6 +2,7 @@ package com.jdc.recipe_service.mapper;
 
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.comment.ReplyDto;
+import com.jdc.recipe_service.domain.dto.v2.comment.CommentStaticDto;
 import com.jdc.recipe_service.domain.entity.RecipeComment;
 
 public class CommentMapper {
@@ -14,6 +15,15 @@ public class CommentMapper {
                 .author(UserMapper.toCommentUserDto(comment.getUser()))
                 .likeCount(likeCount)
                 .likedByCurrentUser(isLiked)
+                .build();
+    }
+
+    public static CommentStaticDto toStaticDto(RecipeComment comment) {
+        return CommentStaticDto.builder()
+                .id(comment.getId())
+                .content(comment.getComment())
+                .createdAt(comment.getCreatedAt())
+                .author(UserMapper.toCommentUserDto(comment.getUser()))
                 .build();
     }
 
