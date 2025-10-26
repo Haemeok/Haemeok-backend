@@ -1,10 +1,7 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
-import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStaticDto;
-import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
-import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStatusDto;
-import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStatusDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.*;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
@@ -83,10 +80,13 @@ public class RecipeSearchControllerV2 {
     @PostMapping("/status")
     @Operation(summary = "레시피 상태 정보 배치 조회 (목록용 동적)", description = "레시피 ID 목록으로 동적 정보(좋아요 여부)를 일괄 조회합니다. 응답은 목록 조회용(Simple Status)입니다.")
     public ResponseEntity<Map<Long, RecipeSimpleStatusDto>> getStatuses(
-            @RequestBody List<Long> recipeIds,
+            @RequestBody RecipeStatusRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
+
+        List<Long> recipeIds = request.getRecipeIds();
+
         if (recipeIds == null || recipeIds.isEmpty()) {
             return ResponseEntity.ok(Collections.emptyMap());
         }
