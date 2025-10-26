@@ -339,7 +339,15 @@ public class RecipeSearchService {
     }
 
     protected Page<RecipeSimpleDto> addLikeInfoToPage(Page<RecipeSimpleDto> page, Long currentUserId) {
-        if (currentUserId == null || page.isEmpty()) {
+        if (page.isEmpty()) {
+            return page;
+        }
+
+        page.getContent().forEach(dto -> {
+            dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
+        });
+
+        if (currentUserId == null) {
             return page;
         }
 
@@ -354,7 +362,6 @@ public class RecipeSearchService {
                 .collect(Collectors.toSet());
 
         page.getContent().forEach(dto -> {
-            dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
             dto.setLikedByCurrentUser(likedIds.contains(dto.getId()));
         });
 
