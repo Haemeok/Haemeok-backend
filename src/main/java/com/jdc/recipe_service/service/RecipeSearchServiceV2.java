@@ -19,6 +19,7 @@ import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import com.jdc.recipe_service.mapper.UserMapper;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
+import com.jdc.recipe_service.service.CommentService;
 import com.jdc.recipe_service.util.SearchProperties;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -219,6 +220,10 @@ public class RecipeSearchServiceV2 {
         Map<Long, RecipeSimpleStaticDto> contentMap = content.stream().collect(Collectors.toMap(RecipeSimpleStaticDto::getId, dto -> dto));
         List<RecipeSimpleStaticDto> sortedContent = sortedIds.stream().map(contentMap::get).filter(Objects::nonNull).collect(Collectors.toList());
 
+        sortedContent.forEach(dto -> {
+            dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
+        });
+
         Long total = queryFactory.select(recipe.id.countDistinct()).from(recipe)
                 .leftJoin(recipe.tags, tag).where(whereClause).fetchOne();
 
@@ -250,6 +255,10 @@ public class RecipeSearchServiceV2 {
 
         Page<RecipeSimpleStaticDto> page = recipeRepository.findPopularRecipesStatic(startDate, pageable);
 
+        page.getContent().forEach(dto -> {
+            dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
+        });
+
         return page;
     }
 
@@ -268,6 +277,10 @@ public class RecipeSearchServiceV2 {
         }
 
         Page<RecipeSimpleStaticDto> page = recipeRepository.findBudgetRecipesStatic(maxCost, pageable);
+
+        page.getContent().forEach(dto -> {
+            dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
+        });
 
         return page;
     }
