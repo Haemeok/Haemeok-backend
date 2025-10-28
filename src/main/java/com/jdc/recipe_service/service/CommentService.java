@@ -108,7 +108,7 @@ public class CommentService {
 
     @Transactional(readOnly = true)
     public List<CommentStatusDto> findCommentStatusesByCommentIds(Long userId, List<Long> commentIds) {
-        if (userId == null || commentIds == null || commentIds.isEmpty()) {
+        if (commentIds == null || commentIds.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -119,9 +119,9 @@ public class CommentService {
                         CommentLikeCountProjection::getLikeCount
                 ));
 
-        Set<Long> likedCommentIds = new HashSet<>(
+        Set<Long> likedCommentIds = (userId != null) ? new HashSet<>(
                 commentLikeRepository.findLikedCommentIdsByUser(userId, commentIds)
-        );
+        ) : Collections.emptySet();
 
         return commentIds.stream()
                 .map(commentId -> CommentStatusDto.builder()

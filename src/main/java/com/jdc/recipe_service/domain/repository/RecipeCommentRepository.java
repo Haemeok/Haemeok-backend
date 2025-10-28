@@ -53,4 +53,9 @@ public interface RecipeCommentRepository extends JpaRepository<RecipeComment, Lo
 
     @Query("SELECT c.id FROM RecipeComment c WHERE c.recipe.id = :recipeId AND c.parentComment IS NULL")
     List<Long> findIdsByRecipeId(@Param("recipeId") Long recipeId);
+
+    @Query("SELECT c.id FROM RecipeComment c WHERE c.recipe.id = :recipeId AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    List<Long> findTopNIdsByRecipeId(
+            @Param("recipeId") Long recipeId,
+            Pageable pageable);
 }
