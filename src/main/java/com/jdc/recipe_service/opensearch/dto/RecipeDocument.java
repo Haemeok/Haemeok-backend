@@ -22,6 +22,7 @@ public class RecipeDocument {
     private int cookingTime;
     private String imageUrl;
     private Boolean  isAiGenerated;
+    private Boolean  isPrivate;
     private List<Long> ingredientIds;
     private Integer ingredientCount;
     private BigDecimal avgRating;
