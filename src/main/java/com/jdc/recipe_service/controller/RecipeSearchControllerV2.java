@@ -109,7 +109,14 @@ public class RecipeSearchControllerV2 {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated, maxCost);
+
+        Boolean defaultAiFilter = isAiGenerated;
+
+        if (defaultAiFilter == null && (q == null || q.isBlank())) {
+            defaultAiFilter = false;
+        }
+
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, defaultAiFilter, maxCost);
         Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }

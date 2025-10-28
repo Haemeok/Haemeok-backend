@@ -55,6 +55,8 @@ public class OpenSearchService {
         try {
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
+            bool.filter(QueryBuilders.termQuery("isPrivate", false));
+
 //            bool.mustNot(QueryBuilders.termQuery("user.id", 7));
 
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
@@ -162,6 +164,8 @@ public class OpenSearchService {
     public Page<RecipeSimpleStaticDto> searchRecipesV2(RecipeSearchCondition cond, Pageable pg, Long uid) {
         try {
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
+
+            bool.filter(QueryBuilders.termQuery("isPrivate", false));
 
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
                 String title = cond.getTitle().trim();

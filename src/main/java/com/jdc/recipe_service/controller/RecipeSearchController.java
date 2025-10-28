@@ -141,7 +141,13 @@ public class RecipeSearchController {
                 ? userDetails.getUser().getId()
                 : null;
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated, maxCost);
+        Boolean defaultAiFilter = isAiGenerated;
+
+        if (defaultAiFilter == null && (q == null || q.isBlank())) {
+            defaultAiFilter = false;
+        }
+
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, defaultAiFilter, maxCost);
 
         return ResponseEntity.ok(
                 recipeSearchService.searchRecipes(cond, pageable, userId)

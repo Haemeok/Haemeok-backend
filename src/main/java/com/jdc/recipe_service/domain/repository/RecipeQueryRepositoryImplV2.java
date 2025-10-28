@@ -72,6 +72,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         tagIn(tagTypes),
                         aiCondition
                 )
+                .distinct()
                 .orderBy(getOrderSpecifiers(pageable))
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize());
