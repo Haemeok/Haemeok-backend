@@ -134,6 +134,7 @@ public class RecipeIndexingService {
                     "cookingTime": { "type":"integer" },
                     "imageUrl":    { "type":"keyword" },
                     "isAiGenerated":{ "type":"boolean" },
+                    "isPrivate":   { "type":"boolean" },
                     "ingredientIds":  { "type": "long" },
                     "ingredientCount":{ "type": "integer" },
                     "avgRating":      { "type": "double" }
@@ -223,6 +224,7 @@ public class RecipeIndexingService {
                 .cookingTime(Optional.ofNullable(recipe.getCookingTime()).orElse(0))
                 .imageUrl(generateImageUrl(recipe.getImageKey()))
                 .isAiGenerated(recipe.isAiGenerated())
+                .isPrivate(recipe.getIsPrivate())
                 .ingredientIds(ids)
                 .ingredientCount(ids.size())
                 .avgRating(rating)
