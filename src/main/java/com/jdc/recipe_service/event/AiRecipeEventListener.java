@@ -18,7 +18,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 @Slf4j
 public class AiRecipeEventListener {
-    private final AsyncImageService asyncImageService;
+    private final AsyncImageServiceV2 asyncImageService;
     private final NotificationService notificationService;
     private final RecipeIndexingService recipeIndexingService;
 
