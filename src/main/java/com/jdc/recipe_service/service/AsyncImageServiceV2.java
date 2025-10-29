@@ -38,6 +38,9 @@ public class AsyncImageServiceV2 {
     private final DeferredResultHolder deferredResultHolder;
     private final NanoBananaImageService nanoBananaImageService;
 
+    private static final String NEGATIVE_PROMPT =
+            "Avoid text, logos, watermarks, signatures, disembodied hands, human fingers, ugly compositions, bad lighting, and cluttered backgrounds. The main dish must be in sharp focus.";
+
     private static final Map<DishType, List<String>> STYLE_PROMPTS = Map.ofEntries(
             entry(DishType.SOUP_STEW, List.of(
                     "A bubbling Korean stew in a rustic earthenware pot, styled on a wooden table with a small linen napkin and chopsticks",
@@ -215,24 +218,21 @@ public class AsyncImageServiceV2 {
                     dishDesc,
                     baseStyle,
                     sceneDescription,
-                    photographicStyle
+                    photographicStyle,
+                    NEGATIVE_PROMPT + "."
             );
 
             log.info("Generated Image Prompt: {}", imagePrompt);
 
-            List<String> dataUris = nanoBananaImageService.generateImageUrls(imagePrompt, 1, "1024x1024");
-            if (dataUris.isEmpty()) {
+            Long userId = recipe.getUser().getId();
+
+            List<String> imageUrls = nanoBananaImageService.generateImageUrls(imagePrompt, userId, recipeId);
+            if (imageUrls.isEmpty()) {
                 throw new RuntimeException("AI image generation returned no data.");
             }
 
-            String dataUri = dataUris.get(0);
-            String b64 = dataUri.substring(dataUri.indexOf(',') + 1);
-            byte[] imageBytes = Base64.getDecoder().decode(b64);
-
-            Long userId = recipe.getUser().getId();
-            String s3Key = String.format("images/recipes/%d/%d/main.jpg", userId, recipeId);
-            s3Util.upload(imageBytes, s3Key);
-            String imageUrl = generateImageUrl(s3Key);
+            String imageUrl = imageUrls.get(0);
+            String s3Key = imageUrl.substring(imageUrl.indexOf(".com/") + 5);
 
             recipe.updateImageKey(s3Key);
             recipe.updateImageStatus(RecipeImageStatus.READY);
