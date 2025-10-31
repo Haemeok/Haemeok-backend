@@ -21,7 +21,7 @@ spring:
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
             authorization-grant-type: authorization_code
-            redirect-uri: "https://www.haemeok.com/login/oauth2/code/{registrationId}"
+            redirect-uri: "https://www.recipio.kr/login/oauth2/code/{registrationId}"
             scope: openid, profile, email
 
           kakao:
@@ -29,14 +29,14 @@ spring:
             client-secret: ${KAKAO_CLIENT_SECRET}
             client-authentication-method: none
             authorization-grant-type: authorization_code
-            redirect-uri: "https://www.haemeok.com/login/oauth2/code/{registrationId}"
+            redirect-uri: "https://www.recipio.kr/login/oauth2/code/{registrationId}"
             scope: profile_nickname, account_email
 
           naver:
             client-id: ${NAVER_CLIENT_ID}
             client-secret: ${NAVER_CLIENT_SECRET}
             authorization-grant-type: authorization_code
-            redirect-uri: "https://www.haemeok.com/login/oauth2/code/{registrationId}"
+            redirect-uri: "https://www.recipio.kr/login/oauth2/code/{registrationId}"
             scope: name, email
 
         provider:

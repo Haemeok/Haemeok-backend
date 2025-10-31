@@ -78,8 +78,8 @@ public class AuthController {
                 .sameSite("Lax");
 
         if (!isLocalRequest) {
-            refreshBuilder.secure(true).domain(".haemeok.com");
-            accessBuilder.secure(true).domain(".haemeok.com");
+            refreshBuilder.secure(true).domain(".recipio.kr");
+            accessBuilder.secure(true).domain(".recipio.kr");
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
@@ -123,8 +123,8 @@ public class AuthController {
                 .sameSite("Lax");
 
         if (!isLocalRequest) {
-            deleteRefresh.secure(true).domain(".haemeok.com");
-            deleteAccess.secure(true).domain(".haemeok.com");
+            deleteRefresh.secure(true).domain(".recipio.kr");
+            deleteAccess.secure(true).domain(".recipio.kr");
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());
@@ -167,8 +167,8 @@ public class AuthController {
                 .sameSite("Lax");
 
         if (!isLocalRequest) {
-            deleteRefresh.secure(true).domain(".haemeok.com");
-            deleteAccess.secure(true).domain(".haemeok.com");
+            deleteRefresh.secure(true).domain(".recipio.kr");
+            deleteAccess.secure(true).domain(".recipio.kr");
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());

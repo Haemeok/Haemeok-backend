@@ -58,7 +58,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
         String compositeState = request.getParameter("state");
         if (compositeState == null) {
-            response.sendRedirect("https://www.haemeok.com");
+            response.sendRedirect("https://www.recipio.kr");
             return;
         }
         String[] parts = compositeState.split("\\|");
@@ -84,7 +84,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                     .secure(true)
                     .maxAge(7 * 24 * 60 * 60)
                     .sameSite("Lax")
-                    .domain(".haemeok.com")
+                    .domain(".recipio.kr")
                     .build();
             ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
                     .path("/")
@@ -92,12 +92,12 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                     .secure(true)
                     .maxAge(15 * 60)
                     .sameSite("Lax")
-                    .domain(".haemeok.com")
+                    .domain(".recipio.kr")
                     .build();
             response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
             response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
-            response.sendRedirect("https://www.haemeok.com");
+            response.sendRedirect("https://www.recipio.kr");
         }
     }
 }
