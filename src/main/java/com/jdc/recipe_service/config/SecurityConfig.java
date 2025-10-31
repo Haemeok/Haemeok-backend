@@ -292,8 +292,8 @@ public class SecurityConfig {
         cfg.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "https://www.haemeok.com",
-                "https://haemeok.com"
+                "https://www.recipio.kr",
+                "https://recipio.kr"
         ));
         cfg.setAllowedMethods(Arrays.asList("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(Arrays.asList("*"));

@@ -46,8 +46,8 @@ public class OAuthController {
                 .maxAge(7 * 24 * 60 * 60);
 
         if (!isLocal) {
-            accessB.secure(true).domain(".haemeok.com");
-            refreshB.secure(true).domain(".haemeok.com");
+            accessB.secure(true).domain(".recipio.kr");
+            refreshB.secure(true).domain(".recipio.kr");
         }
 
         return ResponseEntity.ok()

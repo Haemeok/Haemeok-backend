@@ -69,7 +69,7 @@ public class AuthService {
         if ("local".equalsIgnoreCase(env)) {
             redirectUri = "http://localhost:3000/api/auth/callback/" + registrationId;
         } else {
-            redirectUri = "https://www.haemeok.com/api/auth/callback/" + registrationId;
+            redirectUri = "https://www.recipio.kr/api/auth/callback/" + registrationId;
         }
         log.info("[AuthService] Using redirectUri={}", redirectUri);
 
