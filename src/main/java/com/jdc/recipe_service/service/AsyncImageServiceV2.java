@@ -210,13 +210,19 @@ public class AsyncImageServiceV2 {
             String randomAesthetic = PHOTO_AESTHETICS.get(ThreadLocalRandom.current().nextInt(PHOTO_AESTHETICS.size()));
 
             String photographicStyle = String.format(
-                    "%s, shot with %s at %s, under %s. Use shallow depth of field (f/1.8) and slight film grain",
+                    "%s, freshly made, richly textured, appetizing gloss, shot with %s at %s, under %s. Use shallow depth of field (f/1.8) and slight film grain",
                     randomAesthetic, randomLens, randomAngle, randomLighting
             );
+
+            String visualEmphasis = "";
+            if (!mainIng.isBlank()) {
+                visualEmphasis = String.format("Ensure the main ingredients (%s) are visibly prominent and clearly the focus of the dish.", mainIng);
+            }
 
             String imagePrompt = String.join(". ",
                     dishDesc,
                     baseStyle,
+                    visualEmphasis,
                     sceneDescription,
                     photographicStyle,
                     NEGATIVE_PROMPT + "."

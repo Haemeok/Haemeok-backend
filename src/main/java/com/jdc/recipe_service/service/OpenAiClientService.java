@@ -13,7 +13,7 @@ import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
+import com.openai.models.ResponseFormatJsonObject;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -34,12 +34,16 @@ public class OpenAiClientService {
     @TimeLimiter(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
     public CompletableFuture<RecipeCreateRequestDto> generateRecipeJson(String prompt) {
         return CompletableFuture.supplyAsync(() -> {
+
+            ResponseFormatJsonObject jsonObjectFormat = ResponseFormatJsonObject.builder().build();
+
             var params = ChatCompletionCreateParams.builder()
-                    .model(ChatModel.GPT_4_TURBO)
+                    .model(ChatModel.GPT_4O)
                     .temperature(0.0)
                     .maxCompletionTokens(1500L)
                     .addSystemMessage("너는 한국요리 전문가야. 오직 JSON 객체로만 응답해.")
                     .addUserMessage(prompt)
+                    .responseFormat(jsonObjectFormat)
                     .build();
 
             ChatCompletion completion;
