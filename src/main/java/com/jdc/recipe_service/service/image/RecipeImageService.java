@@ -1,4 +1,4 @@
-package com.jdc.recipe_service.service;
+package com.jdc.recipe_service.service.image;
 
 import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponseItem;
