@@ -26,10 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -266,6 +263,45 @@ public class RecipeIndexingService {
                     Thread.currentThread().interrupt();
                     return;
                 }
+            }
+        }
+    }
+
+
+    @Async
+    @Transactional(propagation = Propagation.NEVER)
+    public void updatePrivacyStatusSafely(Long recipeId, boolean isPrivate) {
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                Map<String, Object> updateFields = Map.of("isPrivate", isPrivate);
+                UpdateRequest req = new UpdateRequest("recipes", recipeId.toString())
+                        .doc(objectMapper.writeValueAsString(updateFields), XContentType.JSON);
+
+                client.update(req, RequestOptions.DEFAULT);
+                log.info("OpenSearch Privacy Status 업데이트 성공: ID {}, isPrivate: {} (시도 {})", recipeId, isPrivate, attempt);
+
+                failureLogService.deleteByRecipeId(recipeId);
+                return;
+
+            } catch (IOException e) {
+                log.error("OpenSearch Privacy Status 업데이트 실패 (시도 {}/{}), ID: {}",
+                        attempt, MAX_RETRY_ATTEMPTS, recipeId, e.getMessage());
+
+                if (attempt == MAX_RETRY_ATTEMPTS) {
+                    log.error("최종 업데이트 실패. ID {}를 실패 로그에 기록합니다.", recipeId);
+                    failureLogService.createLog(recipeId);
+                    return;
+                }
+
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            } catch (Exception e) {
+                log.error("OpenSearch 업데이트 중 예상치 못한 오류 발생, ID: {}", recipeId, e);
+                return;
             }
         }
     }
