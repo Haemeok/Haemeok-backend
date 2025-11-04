@@ -10,7 +10,7 @@ import java.time.ZoneId;
 @ConfigurationProperties(prefix = "ai.quota")
 @Getter @Setter
 public class QuotaProperties {
-    private int perDay = 1;
+    private int perDay = 3;
     private String timezone = "Asia/Seoul";
     public ZoneId zoneId() { return ZoneId.of(timezone); }
 }
