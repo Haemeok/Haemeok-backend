@@ -54,5 +54,5 @@ management:
 
 ai:
   quota:
-    per-day: 1
+    per-day: 3
     timezone: "Asia/Seoul"
