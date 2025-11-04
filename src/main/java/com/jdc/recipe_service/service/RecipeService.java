@@ -16,6 +16,8 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import com.jdc.recipe_service.service.ai.OpenAiClientService;
+import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.*;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -64,7 +66,7 @@ public class RecipeService {
 
     private static final String MAIN_IMAGE_SLOT = "main";
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
-    private static final int MAX_TRIES = 2;
+    private static final int MAX_TRIES = 1;
     private static final long RETRY_DELAY_MS = 500;
     private static final int DEFAULT_MARGIN_PERCENT = 30;
 
@@ -575,6 +577,14 @@ public class RecipeService {
         }
 
         recipe.updateIsPrivate(newValue);
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        recipeIndexingService.updatePrivacyStatusSafely(recipeId, newValue);
+                    }
+                });
         return newValue;
     }
 
