@@ -1,4 +1,4 @@
-package com.jdc.recipe_service.service;
+package com.jdc.recipe_service.service.image;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import com.jdc.recipe_service.service.RecipeSearchService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;

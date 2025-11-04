@@ -1,4 +1,4 @@
-package com.jdc.recipe_service.service;
+package com.jdc.recipe_service.service.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;

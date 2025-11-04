@@ -1,4 +1,4 @@
-package com.jdc.recipe_service.service;
+package com.jdc.recipe_service.service.image;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

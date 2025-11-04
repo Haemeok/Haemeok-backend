@@ -13,6 +13,7 @@ import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeMapper;
+import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
