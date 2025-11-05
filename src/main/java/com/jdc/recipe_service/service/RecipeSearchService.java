@@ -217,6 +217,9 @@ public class RecipeSearchService {
 
     @Transactional(readOnly = true)
     public RecipeDetailDto getRecipeDetail(Long recipeId, Long currentUserId) {
+
+        log.info("V1 Detail access for RecipeId: {}, CurrentUserId: {}", recipeId, currentUserId);
+
         Recipe basic = recipeRepository.findWithUserById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 

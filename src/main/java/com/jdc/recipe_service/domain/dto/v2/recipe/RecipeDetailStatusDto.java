@@ -17,7 +17,7 @@ import java.util.List;
 public class RecipeDetailStatusDto {
 
     @Schema(description = "좋아요 수")
-    private int likeCount;
+    private Long likeCount;
 
     @Schema(description = "현재 로그인한 사용자가 좋아요를 눌렀는지 여부")
     private boolean likedByCurrentUser;
@@ -26,7 +26,7 @@ public class RecipeDetailStatusDto {
     private boolean favoriteByCurrentUser;
 
     @Schema(description = "현재 로그인한 사용자의 평점")
-    private Integer myRating;
+    private Double myRating;
 
     @Schema(description = "댓글들의 사용자 특정 상태 정보 (ID 및 나의 좋아요 여부)")
     private List<CommentStatusDto> comments;
