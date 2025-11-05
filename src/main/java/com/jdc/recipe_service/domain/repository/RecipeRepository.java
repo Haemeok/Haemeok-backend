@@ -2,6 +2,7 @@ package com.jdc.recipe_service.domain.repository;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
@@ -218,6 +219,28 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
             """)
     Page<RecipeSimpleStaticDto> findBudgetRecipesStatic(
+            @Param("maxCost") Integer maxCost,
+            Pageable pageable);
+
+    @Query("""
+        SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2(
+            r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
+            COUNT(DISTINCT rl.id),
+            COALESCE(AVG(rr.rating), 0.0d),
+            COUNT(rr.id),
+            r.totalIngredientCost,
+            r.marketPrice
+        )
+        FROM Recipe r
+        JOIN r.user u
+        LEFT JOIN RecipeLike rl ON rl.recipe = r
+        LEFT JOIN RecipeRating rr ON rr.recipe = r
+        WHERE r.isPrivate = false
+        AND r.totalIngredientCost <= :maxCost
+        GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.totalIngredientCost, r.marketPrice
+        ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
+        """)
+    Page<RecipeSimpleStaticDtoV2> findBudgetRecipesStaticV2(
             @Param("maxCost") Integer maxCost,
             Pageable pageable);
 
