@@ -16,12 +16,16 @@ import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
@@ -48,6 +52,7 @@ class RecipeServiceTest {
     @Mock private S3Util s3Util;
     @Mock private ObjectMapper objectMapper;
     @Mock private EntityManager em;
+    @Mock private ApplicationEventPublisher publisher;
 
     @InjectMocks
     private RecipeService recipeService;
@@ -56,6 +61,7 @@ class RecipeServiceTest {
     private RecipeCreateRequestDto createDto;
     private List<FileInfoRequest> emptyFiles;
     private List<FileInfoRequest> nonEmptyFiles;
+    private MockedStatic<TransactionSynchronizationManager> mockedTxnManager;
 
     @BeforeEach
     void setUp() {
@@ -64,15 +70,12 @@ class RecipeServiceTest {
                 .nickname("author")
                 .build();
 
-        // 빈 리스트
         emptyFiles = Collections.emptyList();
 
-        // “main” 타입 파일이 하나 있어야 예외가 발생하지 않는다
         FileInfoRequest mainFile = FileInfoRequest.builder()
                 .type("main")
                 .build();
 
-        // step 이미지를 넣고 싶다면 아래처럼 추가 가능
         FileInfoRequest step0 = FileInfoRequest.builder()
                 .type("step")
                 .stepIndex(0)
@@ -82,7 +85,6 @@ class RecipeServiceTest {
                 .stepIndex(1)
                 .build();
 
-        // 실제 테스트에서는 최소한 mainFile 하나만 넣어두면 create() 시 USER_RECIPE_IMAGE_REQUIRED 예외가 발생하지 않는다
         nonEmptyFiles = Collections.singletonList(mainFile);
 
         createDto = RecipeCreateRequestDto.builder()
@@ -93,6 +95,17 @@ class RecipeServiceTest {
                 .steps(Collections.emptyList())
                 .tags(Collections.emptyList())
                 .build();
+
+        mockedTxnManager = Mockito.mockStatic(TransactionSynchronizationManager.class);
+        mockedTxnManager.when(() -> TransactionSynchronizationManager.registerSynchronization(any(TransactionSynchronization.class)))
+                .thenAnswer(invocation -> null);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (mockedTxnManager != null) {
+            mockedTxnManager.close();
+        }
     }
 
     @Test
@@ -113,7 +126,6 @@ class RecipeServiceTest {
                 .thenReturn(0);
         doNothing().when(recipeStepService).saveAll(any(Recipe.class), anyList());
         doNothing().when(recipeTagService).saveAll(any(Recipe.class), anyList());
-        doNothing().when(recipeIndexingService).indexRecipe(any(Recipe.class));
 
         when(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
                 .thenReturn(Collections.emptyList());
@@ -126,7 +138,6 @@ class RecipeServiceTest {
         when(recipeRepository.findWithAllRelationsById(555L))
                 .thenReturn(Optional.of(fullRecipe));
 
-        // nonEmptyFiles 에는 type="main" 인 FileInfoRequest 가 최소 하나 들어 있어야 한다
         RecipeWithImageUploadRequest requestWithFile = RecipeWithImageUploadRequest.builder()
                 .recipe(createDto)
                 .files(nonEmptyFiles)
@@ -147,7 +158,6 @@ class RecipeServiceTest {
                 .saveAll(any(Recipe.class), anyList());
         verify(recipeTagService, times(1))
                 .saveAll(any(Recipe.class), anyList());
-        verify(recipeIndexingService, times(1)).indexRecipe(any(Recipe.class));
         verify(recipeImageService, times(1))
                 .generateAndSavePresignedUrls(any(Recipe.class), anyList());
         verify(recipeRepository, times(1)).findWithAllRelationsById(555L);
@@ -159,7 +169,6 @@ class RecipeServiceTest {
         when(userRepository.findById(author.getId()))
                 .thenReturn(Optional.of(author));
 
-        // isPrivate=null 로 설정하면 내부에서 이미지 체크 로직이 실행된다
         createDto.setIsPrivate(null);
 
         RecipeWithImageUploadRequest requestWithoutFile = RecipeWithImageUploadRequest.builder()
@@ -198,7 +207,6 @@ class RecipeServiceTest {
     @Test
     @DisplayName("updateUserRecipe: 정상 수정 시 PresignedUrlResponse 반환")
     void updateRecipe_success() {
-        // 1) 기존 레시피와 유저 매칭
         Recipe existing = Recipe.builder()
                 .id(100L)
                 .user(author)
@@ -208,7 +216,6 @@ class RecipeServiceTest {
         when(recipeRepository.findWithAllRelationsById(100L))
                 .thenReturn(Optional.of(existing));
 
-        // 2) 업데이트용 DTO 세팅
         RecipeCreateRequestDto updateDto = RecipeCreateRequestDto.builder()
                 .title("수정된 레시피")
                 .dishType("볶음")
@@ -223,16 +230,13 @@ class RecipeServiceTest {
                 .files(nonEmptyFiles)
                 .build();
 
-        // 3) 식재료/단계/태그 업데이트 stub
         when(recipeIngredientService.updateIngredientsFromUser(eq(existing), anyList()))
                 .thenReturn(0);
         doNothing().when(recipeStepService).updateStepsFromUser(eq(existing), anyList());
         doNothing().when(recipeTagService).updateTags(eq(existing), anyList());
 
-        // 4) 인덱싱 서비스 stub
-        doNothing().when(recipeIndexingService).updateRecipe(any(Recipe.class));
+        doNothing().when(recipeIndexingService).indexRecipeSafelyWithRetry(100L);
 
-        // 5) 이미지 생성 stub
         when(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
                 .thenReturn(Collections.emptyList());
 
@@ -250,7 +254,7 @@ class RecipeServiceTest {
                 .updateStepsFromUser(eq(existing), anyList());
         verify(recipeTagService, times(1))
                 .updateTags(eq(existing), anyList());
-        verify(recipeIndexingService, times(1)).updateRecipe(any(Recipe.class));
+        verify(recipeIndexingService, times(1)).indexRecipeSafelyWithRetry(100L);
         verify(recipeImageService, times(1))
                 .generateAndSavePresignedUrls(any(Recipe.class), anyList());
     }
@@ -385,7 +389,7 @@ class RecipeServiceTest {
         when(recipeRepository.findWithUserById(123L)).thenReturn(Optional.of(recipe));
 
         boolean result = recipeService.togglePrivacy(123L, author.getId());
-        assertFalse(result); // 원래 true → false
+        assertFalse(result);
 
         verify(recipeRepository).findWithUserById(123L);
     }

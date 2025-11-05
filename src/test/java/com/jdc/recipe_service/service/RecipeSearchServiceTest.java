@@ -152,7 +152,7 @@ class RecipeSearchServiceTest {
                 .thenReturn(List.of(ingrEntity));
 
         RecipeIngredientDto ingrDto = new RecipeIngredientDto(
-                1L, "감자", "2", "개", 2000,1.0
+                1L, "감자", "2", "개", 2000,1.0, null
         );
         try (MockedStatic<RecipeIngredientMapper> ingrMapper = Mockito.mockStatic(RecipeIngredientMapper.class)) {
             ingrMapper.when(() ->
@@ -384,25 +384,20 @@ class RecipeSearchServiceTest {
     @Test
     @DisplayName("getBudgetRecipes: 예산 레시피 조회 시, 원가 기준 오름차순 정렬")
     void getBudgetRecipes_CallsCorrectRepositoryMethodWithSorting() {
-        // Given
         Integer maxCost = 15000;
-        Pageable pageable = Pageable.unpaged(); // 정렬은 쿼리에 하드코딩되어 있음
+        Pageable pageable = Pageable.unpaged();
         Long currentUserId = 1L;
 
-        // Mocking: findBudgetRecipes 메서드가 Page를 반환하도록 설정
         Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
         when(recipeRepository.findBudgetRecipes(any(), any())).thenReturn(mockPage);
 
-        // Mocking: addLikeInfoToPage 메서드가 Page를 반환하도록 설정
-        when(spyService.addLikeInfoToPage(any(), any())).thenReturn(mockPage);
+        doReturn(mockPage)
+                .when(spyService)
+                .addLikeInfoToPage(any(), eq(currentUserId));
 
-        // When
         spyService.getBudgetRecipes(maxCost, pageable, currentUserId);
 
-        // Then
-        // findBudgetRecipes가 올바른 maxCost와 pageable로 호출되었는지 검증
         verify(recipeRepository, times(1)).findBudgetRecipes(eq(maxCost), eq(pageable));
-        // addLikeInfoToPage가 호출되었는지 검증
         verify(spyService, times(1)).addLikeInfoToPage(any(), eq(currentUserId));
     }
 
