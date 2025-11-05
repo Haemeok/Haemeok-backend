@@ -5,6 +5,8 @@ import com.jdc.recipe_service.domain.repository.CookingRecordRepository;
 import com.jdc.recipe_service.domain.dto.calendar.*;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.util.PricingUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,16 +24,11 @@ public class CookingRecordService {
     private final UserRepository userRepo;
     private final RecipeRepository recipeRepo;
 
-
-    /** 별점 작성 시점에 호출하여 기록 생성 */
     @Transactional
-    public void createRecordFromRating(Long userId, Long recipeId, Long ratingId) {
-        if (repo.existsByRatingId(ratingId)) {
-            return;
-        }
+    public CookingRecord createCookingRecord(Long userId, Long recipeId) {
         var user = userRepo.getReferenceById(userId);
         var recipe = recipeRepo.findById(recipeId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid recipeId"));
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         int cost = recipe.getTotalIngredientCost() != null
                 ? recipe.getTotalIngredientCost()
@@ -57,16 +54,25 @@ public class CookingRecordService {
                 .ingredientCost(cost)
                 .marketPrice(market)
                 .savings(savings)
-                .ratingId(ratingId)
-                .build();
+                    .build();
 
         repo.save(rec);
+
+        if (!user.isHasFirstRecord()) {
+            user.markFirstRecord();
+        }
+
+        return rec;
     }
 
-    /** 별점 삭제 시점에 호출하여 기록 삭제 */
     @Transactional
-    public void deleteByRatingId(Long ratingId) {
-        repo.deleteByRatingId(ratingId);
+    public void deleteCookingRecord(Long userId, Long recordId) {
+        var rec = repo.findById(recordId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COOKING_RECORD_NOT_FOUND));
+        if (!rec.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.USER_ACCESS_DENIED);
+        }
+        repo.delete(rec);
     }
 
     @Value("${app.s3.bucket-name}")
@@ -134,7 +140,7 @@ public class CookingRecordService {
     public CookingRecordDto getRecordDetail(Long userId, Long recordId) {
         var rec = repo.findById(recordId)
                 .filter(r -> r.getUser().getId().equals(userId))
-                .orElseThrow(() -> new IllegalArgumentException("Record not found"));
+                .orElseThrow(() -> new CustomException(ErrorCode.COOKING_RECORD_NOT_FOUND));
         return CookingRecordDto.from(rec);
     }
 

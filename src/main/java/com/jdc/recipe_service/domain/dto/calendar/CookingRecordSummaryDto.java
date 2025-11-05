@@ -4,6 +4,7 @@ import lombok.Getter;
 
 @Getter
 public class CookingRecordSummaryDto {
+    private Long recordId;
     private Long recipeId;
     private String recipeTitle;
     private Integer ingredientCost;
@@ -15,6 +16,7 @@ public class CookingRecordSummaryDto {
             String imageUrl
     ) {
         var dto = new CookingRecordSummaryDto();
+        dto.recordId      = e.getId();
         dto.recipeId       = e.getRecipe().getId();
         dto.recipeTitle    = e.getRecipe().getTitle();
         dto.ingredientCost = e.getRecipe().getTotalIngredientCost();

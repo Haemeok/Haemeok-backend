@@ -83,18 +83,4 @@ public class CalendarController {
 
         return ResponseEntity.ok(summaries);
     }
-
-    @GetMapping("/records/{id}")
-    @Operation(summary = "요리 기록 상세 조회", description = "요리한 레시피의 상세 기록을 조회합니다.")
-    public ResponseEntity<CookingRecordDto> recordDetail(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(description = "기록 ID", example = "1") @PathVariable Long id
-    ) {
-        if (userDetails == null) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
-        }
-        Long userId = userDetails.getUser().getId();
-        CookingRecordDto detail = service.getRecordDetail(userId, id);
-        return ResponseEntity.ok(detail);
-    }
 }
