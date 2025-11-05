@@ -32,6 +32,8 @@ public class UserResponseDTO {
 
     private boolean surveyCompleted;
 
+    private boolean hasFirstRecord;
+
     private int remainingAiQuota;
 
     public void updateAiQuota(int quota) {
