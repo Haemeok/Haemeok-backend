@@ -100,8 +100,6 @@ class RecipeRatingServiceTest {
         // 댓글 저장은 넘어간 상태 (dto.getComment()가 null)
         verify(commentRepository, never()).save(any(RecipeComment.class));
 
-        // 등급 기록 생성 호출
-        verify(cookingRecordService, times(1)).createRecordFromRating(user.getId(), recipe.getId(), 200L);
     }
 
     @Test
@@ -143,8 +141,6 @@ class RecipeRatingServiceTest {
         assertEquals(BigDecimal.valueOf(2.5).setScale(2, RoundingMode.HALF_UP), recipe.getAvgRating());
         assertEquals(2L, recipe.getRatingCount());
 
-        // 등급 기록 생성 호출 (ID는 existingRating의 ID)
-        verify(cookingRecordService, times(1)).createRecordFromRating(user.getId(), recipe.getId(), existingRating.getId());
     }
 
     @Test

@@ -31,7 +31,6 @@ public class RecipeRatingService {
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final RecipeCommentRepository recipeCommentRepository;
-    private final CookingRecordService cookingRecordService;
     private final NotificationService notificationService;
 
     @Value("${app.s3.bucket-name}")
@@ -91,10 +90,6 @@ public class RecipeRatingService {
                 );
             }
         }
-
-        cookingRecordService.createRecordFromRating(
-                userId, recipeId, rating.getId()
-        );
 
         return new RecipeRatingResponseDto(
                 rating.getId(),

@@ -55,6 +55,10 @@ public enum ErrorCode {
     AI_RECIPE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "701", "AI 레시피 생성에 실패했습니다."),
     INVALID_AI_RECIPE_REQUEST(HttpStatus.BAD_REQUEST, "702", "AI 레시피 요청 형식이 잘못되었습니다."),
 
+    // --- Record (800) ---
+    COOKING_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "801", "요리 기록이 존재하지 않습니다."),
+    COOKING_RECORD_ACCESS_DENIED(HttpStatus.FORBIDDEN, "802", "요리 기록에 접근할 권한이 없습니다."),
+
     // --- Common (900) ---
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "901", "잘못된 입력값입니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "902", "허용되지 않은 메소드입니다."),
