@@ -47,6 +47,9 @@ public class User extends BaseTimeEntity {
     @Builder.Default
     private boolean surveyCompleted = false;
 
+    @Column(name = "has_first_record", nullable = false)
+    @Builder.Default
+    private boolean hasFirstRecord = false;
 
     public void updateProfile(String nickname, String profileImage, String introduction) {
         if (nickname     != null) this.nickname     = nickname;
@@ -61,4 +64,6 @@ public class User extends BaseTimeEntity {
     public void markSurveyCompleted() {
         this.surveyCompleted = true;
     }
+
+    public void markFirstRecord() {this.hasFirstRecord = true;}
 }
