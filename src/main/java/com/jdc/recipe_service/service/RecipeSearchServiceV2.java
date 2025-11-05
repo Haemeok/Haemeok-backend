@@ -8,6 +8,7 @@ import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.dto.v2.rating.RecipeRatingInfoStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.QRecipe;
 import com.jdc.recipe_service.domain.entity.QRecipeTag;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -265,10 +266,10 @@ public class RecipeSearchServiceV2 {
     /**
      * 원가 기준 예산 레시피 목록 조회 (정적 정보)
      * V2 원칙: 동적 정보(좋아요 수, 좋아요 여부)를 DTO에 포함하지 않고,
-     * 오직 정적 정보인 RecipeSimpleStaticDto만 반환합니다.
+     * 오직 정적 정보인 RecipeSimpleStaticDtoV2만 반환합니다.
      */
     @Transactional(readOnly = true)
-    public Page<RecipeSimpleStaticDto> getBudgetRecipesStatic(
+    public Page<RecipeSimpleStaticDtoV2> getBudgetRecipesStaticV2(
             Integer maxCost,
             Pageable pageable) {
 
@@ -276,7 +277,7 @@ public class RecipeSearchServiceV2 {
             maxCost = Integer.MAX_VALUE;
         }
 
-        Page<RecipeSimpleStaticDto> page = recipeRepository.findBudgetRecipesStatic(maxCost, pageable);
+        Page<RecipeSimpleStaticDtoV2> page = recipeRepository.findBudgetRecipesStaticV2(maxCost, pageable);
 
         page.getContent().forEach(dto -> {
             dto.setImageUrl(generateImageUrl(dto.getImageUrl()));

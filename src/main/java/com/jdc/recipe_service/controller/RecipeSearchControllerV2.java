@@ -134,11 +134,11 @@ public class RecipeSearchControllerV2 {
 
     @GetMapping("/budget")
     @Operation(summary = "원가 기준 예산 레시피 목록 조회 (정적)", description = "총 재료 원가(totalIngredientCost)가 특정 금액 이하인 레시피 목록을 조회합니다. **동적 정보는 /status 엔드포인트를 이용해야 합니다.**")
-    public ResponseEntity<Page<RecipeSimpleStaticDto>> getBudgetRecipesStatic(
+    public ResponseEntity<Page<RecipeSimpleStaticDtoV2>> getBudgetRecipesStatic(
             @Parameter(description = "최대 허용 원가 (원)") @RequestParam(defaultValue = "10000") Integer maxCost,
             @PageableDefault(size = 10) Pageable pageable
     ) {
-        Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.getBudgetRecipesStatic(maxCost, pageable);
+        Page<RecipeSimpleStaticDtoV2> page = recipeSearchServiceV2.getBudgetRecipesStaticV2(maxCost, pageable);
         return ResponseEntity.ok(page);
     }
 }
