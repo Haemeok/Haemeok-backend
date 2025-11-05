@@ -86,6 +86,7 @@ public class SecurityConfig {
                                     "/api/me/favorites",
                                     "/api/me/fridge/items",
                                     "/api/me/calendar/**",
+                                    "/api/me/records/**",
                                     "/api/me/streak",
                                     "/api/me/survey",
                                     "/api/me/fridge/recipes",
@@ -96,6 +97,7 @@ public class SecurityConfig {
                             // 4) 보호된 POST
                             .requestMatchers(HttpMethod.POST,
                                     "/api/me/fridge/items",
+                                    "/api/me/records",
                                     "/api/me/survey",
                                     "/api/recipes/*/comments",
                                     "/api/recipes/*/comments/*/replies",
@@ -130,6 +132,7 @@ public class SecurityConfig {
                                     "/api/recipes/*/comments/*",
                                     "/api/recipes/*",
                                     "/api/ratings/recipe/*",
+                                    "/api/me/records/*",
                                     "/api/ingredients"
                             ).authenticated()
 
@@ -195,6 +198,7 @@ public class SecurityConfig {
                                 "/api/me/favorites",
                                 "/api/me/fridge/items",
                                 "/api/me/calendar/**",
+                                "/api/me/records/**",
                                 "/api/me/streak",
                                 "/api/me/survey",
                                 "/api/me/fridge/recipes",
@@ -240,6 +244,7 @@ public class SecurityConfig {
                                 "/api/me/fridge/items",
                                 "/api/me/fridge/items/bulk",
                                 "/api/me/survey",
+                                "/api/me/records",
                                 "/api/ratings/recipe/*",
                                 "/api/token/logout",
                                 "/api/token/logout/all",
@@ -264,6 +269,7 @@ public class SecurityConfig {
                                 "/api/recipes/*",
                                 "/api/ratings/recipe/*",
                                 "/api/me",
+                                "/api/me/records/*",
                                 "/api/me/fridge/items/*",
                                 "/api/me/fridge/items/bulk"
                         ).authenticated()
