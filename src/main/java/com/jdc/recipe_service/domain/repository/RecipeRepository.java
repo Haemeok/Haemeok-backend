@@ -237,4 +237,6 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime 
             """)
     List<RecipeSimpleStaticDto> findAllSimpleStaticByIds(@Param("ids") List<Long> ids);
+
+    List<Recipe> findAllByIdInAndIsPrivateFalse(List<Long> ids);
 }
