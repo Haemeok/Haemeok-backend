@@ -32,11 +32,11 @@ public interface RecipeRatingRepository extends JpaRepository<RecipeRating, Long
     @Query("SELECT rr.recipe.id, rr.rating FROM RecipeRating rr WHERE rr.user.id = :userId AND rr.recipe.id IN :recipeIds")
     List<Object[]> findRatingsByUserIdAndRecipeIdIn(@Param("userId") Long userId, @Param("recipeIds") List<Long> recipeIds);
 
-    default Map<Long, Integer> findRatingsMapByUserIdAndRecipeIdIn(Long userId, List<Long> recipeIds) {
+    default Map<Long, Double> findRatingsMapByUserIdAndRecipeIdIn(Long userId, List<Long> recipeIds) {
         return findRatingsByUserIdAndRecipeIdIn(userId, recipeIds).stream()
                 .collect(Collectors.toMap(
                         arr -> (Long) arr[0],
-                        arr -> (Integer) arr[1]
+                        arr -> (Double) arr[1]
                 ));
     }
 }

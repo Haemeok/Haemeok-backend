@@ -48,7 +48,7 @@ public class RecipeStatusService {
             Map<Long, RecipeDetailStatusDto> statusMap = new HashMap<>();
             for (Long recipeId : recipeIds) {
                 RecipeDetailStatusDto status = RecipeDetailStatusDto.builder()
-                        .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L).intValue())
+                        .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L))
                         .likedByCurrentUser(false)
                         .favoriteByCurrentUser(false)
                         .myRating(null)
@@ -61,15 +61,16 @@ public class RecipeStatusService {
 
         Set<Long> likedRecipeIds = recipeLikeRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
         Set<Long> favoritedRecipeIds = recipeFavoriteRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
-        Map<Long, Integer> myRatings = recipeRatingRepository.findRatingsMapByUserIdAndRecipeIdIn(userId, recipeIds);
+        Map<Long, Double> myRatings = recipeRatingRepository.findRatingsMapByUserIdAndRecipeIdIn(userId, recipeIds);
 
         Map<Long, RecipeDetailStatusDto> statusMap = new HashMap<>();
         for (Long recipeId : recipeIds) {
 
-            Integer myRating = myRatings.getOrDefault(recipeId, null);
+            Double myRating = myRatings.getOrDefault(recipeId, null);
+
 
             RecipeDetailStatusDto status = RecipeDetailStatusDto.builder()
-                    .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L).intValue())
+                    .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L))
                     .likedByCurrentUser(likedRecipeIds.contains(recipeId))
                     .favoriteByCurrentUser(favoritedRecipeIds.contains(recipeId))
                     .myRating(myRating)
