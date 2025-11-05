@@ -97,7 +97,7 @@ public class FridgeRecipeSearchService {
             return new PageImpl<>(Collections.emptyList(), pageable, 0);
         }
 
-        Map<Long, Recipe> recipeMap = recipeRepository.findAllById(recipeIds).stream()
+        Map<Long, Recipe> recipeMap = recipeRepository.findAllByIdInAndIsPrivateFalse(recipeIds).stream()
                 .collect(Collectors.toMap(Recipe::getId, r -> r));
 
         Set<Long> likedSet = recipeLikeRepository
