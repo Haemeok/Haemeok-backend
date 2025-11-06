@@ -145,6 +145,7 @@ public class UserService {
 
         List<Recipe> recipes = favPage.getContent().stream()
                 .map(RecipeFavorite::getRecipe)
+                .filter(recipe -> !Boolean.TRUE.equals(recipe.getIsPrivate()))
                 .toList();
 
         List<Long> recipeIds = recipes.stream()
@@ -186,7 +187,7 @@ public class UserService {
                 })
                 .toList();
 
-        return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
+        return new PageImpl<>(dtos, pageable, dtos.size());
     }
 
 
