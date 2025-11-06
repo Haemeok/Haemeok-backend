@@ -116,22 +116,23 @@ public class FridgeRecipeSearchService {
 
         List<FridgeRecipeDto> content = new ArrayList<>();
         for (RecipeDocument doc : docs) {
-            long likeCount = doc.getLikeCount();
-
             Recipe r = recipeMap.get(doc.getId());
+            if (r == null) continue;
+
+            long likeCount = doc.getLikeCount();
             RecipeSimpleDto simple = new RecipeSimpleDto(
                     doc.getId(),
                     doc.getTitle(),
                     doc.getImageUrl(),
-                    r != null ? r.getUser().getId() : null,
-                    r != null ? r.getUser().getNickname() : null,
-                    r != null ? r.getUser().getProfileImage() : null,
+                    r.getUser().getId(),
+                    r.getUser().getNickname(),
+                    r.getUser().getProfileImage(),
                     LocalDateTime.parse(doc.getCreatedAt()),
                     likeCount,
                     likedSet.contains(doc.getId()),
                     doc.getCookingTime(),
-                    r != null && r.getAvgRating() != null ? r.getAvgRating() : BigDecimal.ZERO,
-                    r != null ? Optional.ofNullable(r.getRatingCount()).orElse(0L) : 0L
+                    r.getAvgRating() != null ? r.getAvgRating() : BigDecimal.ZERO,
+                    Optional.ofNullable(r.getRatingCount()).orElse(0L)
             );
 
             List<String> matched = doc.getIngredientIds().stream()
