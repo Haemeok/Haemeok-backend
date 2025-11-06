@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -95,18 +97,27 @@ public class RefrigeratorItemService {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.FRIDGE_UNAUTHORIZED));
 
-        List<RefrigeratorItem> items = new ArrayList<>();
+        Set<Long> existingIds = repo.findAllByUserId(userId).stream()
+                .map(item -> item.getIngredient().getId())
+                .collect(Collectors.toSet());
+
+        List<RefrigeratorItem> itemsToAdd = new ArrayList<>();
+
         for (Long id : ingredientIds) {
+            if (existingIds.contains(id)) continue;
+
             Ingredient ing = ingRepo.findById(id)
                     .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND));
 
-            Optional<RefrigeratorItem> exist = repo.findByUserIdAndIngredientId(userId, id);
-            if (exist.isPresent()) {
-                throw new CustomException(ErrorCode.DUPLICATE_FRIDGE_ITEM);
-            }
-            items.add(RefrigeratorItem.builder().user(user).ingredient(ing).build());
+            itemsToAdd.add(RefrigeratorItem.builder()
+                    .user(user)
+                    .ingredient(ing)
+                    .build());
         }
-        repo.saveAll(items);
+
+        if (!itemsToAdd.isEmpty()) {
+            repo.saveAll(itemsToAdd);
+        }
     }
 
     /** 냉장고에서 재료 여러 개 Bulk 제거 */
