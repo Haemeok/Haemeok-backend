@@ -22,6 +22,8 @@ public class RecipeCreateRequestDto {
 
     private String description;
 
+    private String cookingTips;
+
     @NotBlank(message = "요리 유형은 필수입니다.")
     private String dishType;
 

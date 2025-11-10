@@ -20,6 +20,7 @@ public class RecipeMapper {
                 .user(user)
                 .title(dto.getTitle())
                 .description(dto.getDescription())
+                .cookingTips(dto.getCookingTips())
                 .dishType(DishType.fromDisplayName(dto.getDishType()))
                 .cookingTime(dto.getCookingTime())
                 .imageKey(dto.getImageKey())

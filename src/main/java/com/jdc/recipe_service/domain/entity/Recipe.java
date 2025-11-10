@@ -113,9 +113,12 @@ public class Recipe extends BaseTimeEntity {
     @BatchSize(size = 100)
     private List<RecipeLike> likes;
 
+    @Column(columnDefinition = "TEXT")
+    private String cookingTips;
+
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
-                       Integer totalIngredientCost, Integer marketPrice) {
+                       Integer totalIngredientCost, Integer marketPrice, String cookingTips) {
         this.title = title;
         this.description = description;
         this.dishType = dishType;
@@ -126,6 +129,7 @@ public class Recipe extends BaseTimeEntity {
         this.servings = servings;
         this.totalIngredientCost = totalIngredientCost;
         this.marketPrice = marketPrice;
+        this.cookingTips = cookingTips;
     }
 
     public void updateImageKey(String imageKey) {
@@ -156,4 +160,8 @@ public class Recipe extends BaseTimeEntity {
     public void updateRatingCount(Long ratingCount) {this.ratingCount = ratingCount;}
 
     public void updateImageStatus(RecipeImageStatus imageStatus) {this.imageStatus = imageStatus;}
+
+    public void updateCookingTips(String cookingTips) {
+        this.cookingTips = cookingTips;
+    }
 }

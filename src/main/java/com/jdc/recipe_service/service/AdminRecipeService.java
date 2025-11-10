@@ -122,7 +122,8 @@ public class AdminRecipeService {
                 new HashSet<>(dto.getCookingTools()),
                 dto.getServings(),
                 null,
-                dto.getMarketPrice()
+                dto.getMarketPrice(),
+                dto.getCookingTips()
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
