@@ -97,6 +97,9 @@ public class RecipeDetailStaticDto {
     @Schema(description = "절약 금액")
     private Integer savings;
 
+    @Schema(description = "요리 팁")
+    private String cookingTips;
+
     @JsonFormat(
             shape = JsonFormat.Shape.STRING,
             pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
