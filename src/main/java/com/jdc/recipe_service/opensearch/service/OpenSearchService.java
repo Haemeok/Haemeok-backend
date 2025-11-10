@@ -84,10 +84,8 @@ public class OpenSearchService {
                 }
             }
 
-            if (cond.getIsAiGenerated() != null) {
-                bool.filter(
-                        QueryBuilders.termQuery("isAiGenerated", cond.getIsAiGenerated())
-                );
+            if (cond.getIsAiGenerated() == null || !cond.getIsAiGenerated()) {
+                bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
             }
 
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {
@@ -186,8 +184,8 @@ public class OpenSearchService {
                 }
             }
 
-            if (cond.getIsAiGenerated() != null) {
-                bool.filter(QueryBuilders.termQuery("isAiGenerated", cond.getIsAiGenerated()));
+            if (cond.getIsAiGenerated() == null || !cond.getIsAiGenerated()) {
+                bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
             }
 
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {

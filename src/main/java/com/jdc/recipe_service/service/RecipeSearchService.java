@@ -121,7 +121,8 @@ public class RecipeSearchService {
         String title = condition.getTitle();
         DishType dishType = condition.getDishTypeEnum();
         List<TagType> tagTypes = condition.getTagEnums();
-        Boolean aiFlag    = condition.getIsAiGenerated();
+        Boolean aiFlag = condition.getIsAiGenerated() != null ? condition.getIsAiGenerated() : false;
+        //Boolean aiFlag    = condition.getIsAiGenerated();
         Integer maxCost = condition.getMaxCost();
 
         Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, aiFlag, maxCost, pageable, userId);
@@ -307,6 +308,7 @@ public class RecipeSearchService {
                 .totalIngredientCost(totalCost)
                 .marketPrice(marketPrice)
                 .savings(savings)
+                .cookingTips(basic.getCookingTips())
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();
