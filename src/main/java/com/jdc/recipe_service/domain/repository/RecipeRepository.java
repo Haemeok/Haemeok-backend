@@ -194,6 +194,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
                 LEFT JOIN RecipeRating rr ON rr.recipe = r
                 WHERE r.isPrivate = false
+                  AND r.isAiGenerated = false
                 GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
                 ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
             """)
@@ -236,7 +237,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         LEFT JOIN RecipeLike rl ON rl.recipe = r
         LEFT JOIN RecipeRating rr ON rr.recipe = r
         WHERE r.isPrivate = false
-        AND r.totalIngredientCost <= :maxCost
+          AND r.isAiGenerated = false
+          AND r.totalIngredientCost <= :maxCost
         GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.totalIngredientCost, r.marketPrice
         ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
         """)

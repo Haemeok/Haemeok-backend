@@ -167,6 +167,7 @@ public class RecipeSearchServiceV2 {
                 .totalCalories(totalCalories)
                 .marketPrice(marketPrice)
                 .savings(savings)
+                .cookingTips(basic.getCookingTips())
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();
@@ -238,7 +239,9 @@ public class RecipeSearchServiceV2 {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
         BooleanExpression privacy = recipe.isPrivate.eq(false);
-        BooleanExpression ai = (cond.getIsAiGenerated() != null) ? QRecipe.recipe.isAiGenerated.eq(cond.getIsAiGenerated()) : null;
+        BooleanExpression ai = (cond.getIsAiGenerated() == null || !cond.getIsAiGenerated())
+                ? recipe.isAiGenerated.eq(false)
+                : null;
         BooleanExpression title = StringUtils.hasText(cond.getTitle()) ? recipe.title.containsIgnoreCase(cond.getTitle()) : null;
         BooleanExpression dishType = (cond.getDishTypeEnum() != null) ? recipe.dishType.eq(cond.getDishTypeEnum()) : null;
         BooleanExpression tags = (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) ? tag.tag.in(cond.getTagEnums()) : null;

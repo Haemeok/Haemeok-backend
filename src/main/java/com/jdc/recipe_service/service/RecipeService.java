@@ -16,7 +16,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
-import com.jdc.recipe_service.service.ai.OpenAiClientService;
+import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.*;
 import jakarta.persistence.EntityManager;
@@ -56,13 +56,14 @@ public class RecipeService {
     private final ObjectMapper objectMapper;
     private final ActionImageService actionImageService;
     private final SurveyService surveyService;
-    private final OpenAiClientService aiService;
+//    private final OpenAiClientService aiService;
     private final ClaudeClientService claudeClientService;
     private final UnitService unitService;
-    private final PromptBuilder promptBuilder;
+    private final PromptBuilderV3 promptBuilder;
     private final PromptBuilderV2 promptBuilderV2;
     private final ApplicationEventPublisher publisher;
     private final DailyQuotaService dailyQuotaService;
+    private final GrokClientService grokClientService;
 
     private static final String MAIN_IMAGE_SLOT = "main";
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
@@ -158,6 +159,11 @@ public class RecipeService {
 
         int marketPrice = calculateMarketPrice(dto, totalCost);
         recipe.updateMarketPrice(marketPrice);
+
+        if (sourceType == RecipeSourceType.AI && marketPrice < totalCost) {
+            marketPrice = PricingUtil.applyMargin(totalCost, 30);
+            recipe.updateMarketPrice(marketPrice);
+        }
 
         recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTags());
@@ -307,7 +313,7 @@ public class RecipeService {
 
         for (int attempt = 1; attempt <= MAX_TRIES; attempt++) {
             try {
-                generatedDto = aiService.generateRecipeJson(prompt).join();
+                generatedDto = grokClientService.generateRecipeJson(prompt).join();
                 break;
             } catch (RuntimeException e) {
                 if (attempt == MAX_TRIES) {
@@ -426,7 +432,8 @@ public class RecipeService {
                 tools,
                 dto.getServings(),
                 null,
-                dto.getMarketPrice()
+                dto.getMarketPrice(),
+                dto.getCookingTips()
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
@@ -533,8 +540,13 @@ public class RecipeService {
             activeImages.add(image.getFileKey());
         }
 
-        if (missingFiles.isEmpty() && !recipe.isAiGenerated() && hasMainImageUploaded) {
-            recipe.updateIsPrivate(false);
+        if (!recipe.isAiGenerated()) {
+            if (!hasMainImageUploaded) {
+                recipe.updateIsPrivate(true);
+                log.warn("사용자 레시피 {} finalize 실패: 메인 이미지 누락. 강제 비공개 처리.", recipeId);
+            } else {
+                recipe.updateIsPrivate(false);
+            }
         }
 
         em.flush();
