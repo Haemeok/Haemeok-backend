@@ -10,6 +10,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -107,6 +109,9 @@ public class RecipeDetailDto {
 
     @Schema(description = "요리 팁")
     private String cookingTips;
+
+    @Schema(description = "레시피 총 영양성분")
+    private RecipeNutritionDto nutrition;
 
     @JsonFormat(
             shape = JsonFormat.Shape.STRING,
