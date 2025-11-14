@@ -56,7 +56,6 @@ public class RecipeService {
     private final ObjectMapper objectMapper;
     private final ActionImageService actionImageService;
     private final SurveyService surveyService;
-//    private final OpenAiClientService aiService;
     private final ClaudeClientService claudeClientService;
     private final UnitService unitService;
     private final PromptBuilderV3 promptBuilder;
@@ -201,7 +200,8 @@ public class RecipeService {
                     new TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUser));}
+                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUser));
+                        }
                     });
         }
 
@@ -433,7 +433,12 @@ public class RecipeService {
                 dto.getServings(),
                 null,
                 dto.getMarketPrice(),
-                dto.getCookingTips()
+                dto.getCookingTips(),
+                dto.getNutrition().getProteinG(),
+                dto.getNutrition().getCarbohydrateG(),
+                dto.getNutrition().getFatG(),
+                dto.getNutrition().getSugarG(),
+                dto.getNutrition().getSodiumMg()
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
@@ -655,5 +660,4 @@ public class RecipeService {
             throw new CustomException(ErrorCode.RECIPE_ACCESS_DENIED);
         }
     }
-
 }

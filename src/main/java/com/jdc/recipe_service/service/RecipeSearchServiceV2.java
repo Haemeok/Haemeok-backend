@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeNutritionDto;
 import com.jdc.recipe_service.domain.dto.v2.comment.CommentStaticDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
@@ -128,6 +129,13 @@ public class RecipeSearchServiceV2 {
         int marketPrice = basic.getMarketPrice() != null ? basic.getMarketPrice() : 0;
         int savings     = marketPrice - totalCost;
 
+        RecipeNutritionDto nutrition = RecipeNutritionDto.builder()
+                .proteinG(basic.getProteinG())
+                .carbohydrateG(basic.getCarbohydrateG())
+                .fatG(basic.getFatG())
+                .sugarG(basic.getSugarG())
+                .sodiumMg(basic.getSodiumMg())
+                .build();
 
         List<Long> idList = Collections.singletonList(recipeId);
         Map<Long, Long> ratingCounts = recipeRepository.findRatingCountsMapByIds(idList);
@@ -168,6 +176,7 @@ public class RecipeSearchServiceV2 {
                 .marketPrice(marketPrice)
                 .savings(savings)
                 .cookingTips(basic.getCookingTips())
+                .nutrition(nutrition)
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();

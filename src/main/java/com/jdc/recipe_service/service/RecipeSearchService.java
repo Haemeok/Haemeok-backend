@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeNutritionDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingInfoDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
@@ -277,6 +278,14 @@ public class RecipeSearchService {
         int marketPrice = basic.getMarketPrice()               != null ? basic.getMarketPrice()   : 0;
         int savings     = marketPrice - totalCost;
 
+        RecipeNutritionDto nutrition = RecipeNutritionDto.builder()
+                .proteinG(basic.getProteinG())
+                .carbohydrateG(basic.getCarbohydrateG())
+                .fatG(basic.getFatG())
+                .sugarG(basic.getSugarG())
+                .sodiumMg(basic.getSodiumMg())
+                .build();
+
         List<String> tools = new ArrayList<>(basic.getCookingTools());
 
         return RecipeDetailDto.builder()
@@ -309,6 +318,7 @@ public class RecipeSearchService {
                 .marketPrice(marketPrice)
                 .savings(savings)
                 .cookingTips(basic.getCookingTips())
+                .nutrition(nutrition)
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();

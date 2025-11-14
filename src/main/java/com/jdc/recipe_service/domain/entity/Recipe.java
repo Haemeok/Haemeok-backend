@@ -116,9 +116,30 @@ public class Recipe extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String cookingTips;
 
+    @Column(name = "protein_g", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal proteinG = BigDecimal.valueOf(0.00);
+
+    @Column(name = "carbohydrate_g", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal carbohydrateG = BigDecimal.valueOf(0.00);
+
+    @Column(name = "fat_g", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal fatG = BigDecimal.valueOf(0.00);
+
+    @Column(name = "sugar_g", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal sugarG = BigDecimal.valueOf(0.00);
+
+    @Column(name = "sodium_mg")
+    @Builder.Default
+    private Integer sodiumMg = 0;
+
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
-                       Integer totalIngredientCost, Integer marketPrice, String cookingTips) {
+                       Integer totalIngredientCost, Integer marketPrice, String cookingTips,
+                       BigDecimal proteinG, BigDecimal carbohydrateG, BigDecimal fatG, BigDecimal sugarG, Integer sodiumMg) {
         this.title = title;
         this.description = description;
         this.dishType = dishType;
@@ -130,6 +151,20 @@ public class Recipe extends BaseTimeEntity {
         this.totalIngredientCost = totalIngredientCost;
         this.marketPrice = marketPrice;
         this.cookingTips = cookingTips;
+        this.proteinG = proteinG;
+        this.carbohydrateG = carbohydrateG;
+        this.fatG = fatG;
+        this.sugarG = sugarG;
+        this.sodiumMg = sodiumMg;
+    }
+
+    public void updateNutrition(BigDecimal proteinG, BigDecimal carbohydrateG, BigDecimal fatG,
+                                BigDecimal sugarG, Integer sodiumMg) {
+        this.proteinG = proteinG;
+        this.carbohydrateG = carbohydrateG;
+        this.fatG = fatG;
+        this.sugarG = sugarG;
+        this.sodiumMg = sodiumMg;
     }
 
     public void updateImageKey(String imageKey) {

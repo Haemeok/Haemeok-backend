@@ -37,6 +37,8 @@ public class RecipeCreateRequestDto {
     private Integer marketPrice;
     private Boolean isPrivate;
 
+    private RecipeNutritionDto nutrition;
+
     private List<RecipeIngredientRequestDto> ingredients;
     private List<RecipeStepRequestDto> steps;
     private List<String> tags;

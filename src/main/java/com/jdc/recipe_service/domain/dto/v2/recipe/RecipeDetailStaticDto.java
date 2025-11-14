@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.v2.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeNutritionDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
@@ -11,6 +12,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -99,6 +102,9 @@ public class RecipeDetailStaticDto {
 
     @Schema(description = "요리 팁")
     private String cookingTips;
+
+    @Schema(description = "레시피 총 영양성분")
+    private RecipeNutritionDto nutrition;
 
     @JsonFormat(
             shape = JsonFormat.Shape.STRING,
