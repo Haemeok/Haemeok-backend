@@ -130,11 +130,11 @@ public class RecipeSearchServiceV2 {
         int savings     = marketPrice - totalCost;
 
         RecipeNutritionDto nutrition = RecipeNutritionDto.builder()
-                .proteinG(basic.getProteinG())
-                .carbohydrateG(basic.getCarbohydrateG())
-                .fatG(basic.getFatG())
-                .sugarG(basic.getSugarG())
-                .sodiumMg(basic.getSodiumMg())
+                .protein(basic.getProtein())
+                .carbohydrate(basic.getCarbohydrate())
+                .fat(basic.getFat())
+                .sugar(basic.getSugar())
+                .sodium(basic.getSodium())
                 .build();
 
         List<Long> idList = Collections.singletonList(recipeId);

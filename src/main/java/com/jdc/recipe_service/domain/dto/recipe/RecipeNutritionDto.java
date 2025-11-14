@@ -11,17 +11,17 @@ import java.math.BigDecimal;
 public class RecipeNutritionDto {
 
     @Schema(description = "단백질 (g)")
-    private BigDecimal proteinG;
+    private BigDecimal protein;
 
     @Schema(description = "탄수화물 (g)")
-    private BigDecimal carbohydrateG;
+    private BigDecimal carbohydrate;
 
     @Schema(description = "지방 (g)")
-    private BigDecimal fatG;
+    private BigDecimal fat;
 
     @Schema(description = "당류 (g)")
-    private BigDecimal sugarG;
+    private BigDecimal sugar;
 
     @Schema(description = "나트륨 (mg)")
-    private Integer sodiumMg;
+    private Integer sodium;
 }

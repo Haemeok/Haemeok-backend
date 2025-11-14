@@ -39,11 +39,11 @@ public class RecipeMapper {
                 .marketPrice(dto.getMarketPrice())
                 .totalIngredientCost(0)
                 .isPrivate(dto.getIsPrivate() != null ? dto.getIsPrivate() : false)
-                .proteinG(Optional.ofNullable(nutrition.getProteinG()).orElse(zeroBigDecimal))
-                .carbohydrateG(Optional.ofNullable(nutrition.getCarbohydrateG()).orElse(zeroBigDecimal))
-                .fatG(Optional.ofNullable(nutrition.getFatG()).orElse(zeroBigDecimal))
-                .sugarG(Optional.ofNullable(nutrition.getSugarG()).orElse(zeroBigDecimal))
-                .sodiumMg(Optional.ofNullable(nutrition.getSodiumMg()).orElse(0))
+                .protein(Optional.ofNullable(nutrition.getProtein()).orElse(zeroBigDecimal))
+                .carbohydrate(Optional.ofNullable(nutrition.getCarbohydrate()).orElse(zeroBigDecimal))
+                .fat(Optional.ofNullable(nutrition.getFat()).orElse(zeroBigDecimal))
+                .sugar(Optional.ofNullable(nutrition.getSugar()).orElse(zeroBigDecimal))
+                .sodium(Optional.ofNullable(nutrition.getSodium()).orElse(0))
                 .build();
     }
 

@@ -124,11 +124,11 @@ public class AdminRecipeService {
                 null,
                 dto.getMarketPrice(),
                 dto.getCookingTips(),
-                dto.getNutrition().getProteinG(),
-                dto.getNutrition().getCarbohydrateG(),
-                dto.getNutrition().getFatG(),
-                dto.getNutrition().getSugarG(),
-                dto.getNutrition().getSodiumMg()
+                dto.getNutrition().getProtein(),
+                dto.getNutrition().getCarbohydrate(),
+                dto.getNutrition().getFat(),
+                dto.getNutrition().getSugar(),
+                dto.getNutrition().getSodium()
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
