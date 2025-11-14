@@ -60,6 +60,7 @@ public class SecurityConfig {
                             .requestMatchers("/h2-console/**", "/local-token").permitAll()
                             .requestMatchers("/actuator/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/test/ai-recipe").permitAll()
 
                             // 2) 공개 GET (인증 없이 모두 허용)
                             .requestMatchers(HttpMethod.GET,
