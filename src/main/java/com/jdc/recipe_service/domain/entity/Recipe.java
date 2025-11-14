@@ -116,30 +116,30 @@ public class Recipe extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String cookingTips;
 
-    @Column(name = "protein_g", precision = 5, scale = 2)
+    @Column(name = "protein", precision = 5, scale = 2)
     @Builder.Default
-    private BigDecimal proteinG = BigDecimal.valueOf(0.00);
+    private BigDecimal protein = BigDecimal.valueOf(0.00);
 
-    @Column(name = "carbohydrate_g", precision = 5, scale = 2)
+    @Column(name = "carbohydrate", precision = 5, scale = 2)
     @Builder.Default
-    private BigDecimal carbohydrateG = BigDecimal.valueOf(0.00);
+    private BigDecimal carbohydrate = BigDecimal.valueOf(0.00);
 
-    @Column(name = "fat_g", precision = 5, scale = 2)
+    @Column(name = "fat", precision = 5, scale = 2)
     @Builder.Default
-    private BigDecimal fatG = BigDecimal.valueOf(0.00);
+    private BigDecimal fat = BigDecimal.valueOf(0.00);
 
-    @Column(name = "sugar_g", precision = 5, scale = 2)
+    @Column(name = "sugar", precision = 5, scale = 2)
     @Builder.Default
-    private BigDecimal sugarG = BigDecimal.valueOf(0.00);
+    private BigDecimal sugar = BigDecimal.valueOf(0.00);
 
-    @Column(name = "sodium_mg")
+    @Column(name = "sodium")
     @Builder.Default
-    private Integer sodiumMg = 0;
+    private Integer sodium = 0;
 
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice, String cookingTips,
-                       BigDecimal proteinG, BigDecimal carbohydrateG, BigDecimal fatG, BigDecimal sugarG, Integer sodiumMg) {
+                       BigDecimal protein, BigDecimal carbohydrate, BigDecimal fat, BigDecimal sugar, Integer sodium) {
         this.title = title;
         this.description = description;
         this.dishType = dishType;
@@ -151,20 +151,11 @@ public class Recipe extends BaseTimeEntity {
         this.totalIngredientCost = totalIngredientCost;
         this.marketPrice = marketPrice;
         this.cookingTips = cookingTips;
-        this.proteinG = proteinG;
-        this.carbohydrateG = carbohydrateG;
-        this.fatG = fatG;
-        this.sugarG = sugarG;
-        this.sodiumMg = sodiumMg;
-    }
-
-    public void updateNutrition(BigDecimal proteinG, BigDecimal carbohydrateG, BigDecimal fatG,
-                                BigDecimal sugarG, Integer sodiumMg) {
-        this.proteinG = proteinG;
-        this.carbohydrateG = carbohydrateG;
-        this.fatG = fatG;
-        this.sugarG = sugarG;
-        this.sodiumMg = sodiumMg;
+        this.protein = protein;
+        this.carbohydrate = carbohydrate;
+        this.fat = fat;
+        this.sugar = sugar;
+        this.sodium = sodium;
     }
 
     public void updateImageKey(String imageKey) {
