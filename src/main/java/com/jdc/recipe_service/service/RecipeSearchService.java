@@ -106,6 +106,16 @@ public class RecipeSearchService {
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
+        Sort.Order likeSort = pageable.getSort().getOrderFor("likeCount");
+        Sort.Order ratingSort = pageable.getSort().getOrderFor("avgRating");
+
+        if (likeSort != null) {
+            return searchWithQuerydslSortedByDynamicField(condition, pageable, "likeCount", likeSort.getDirection(), userId);
+        }
+        if (ratingSort != null) {
+            return searchWithQuerydslSortedByDynamicField(condition, pageable, "avgRating", ratingSort.getDirection(), userId);
+        }
+
         boolean useOpenSearch = shouldUseOpenSearch(condition);
 
         if (useOpenSearch) {
@@ -115,6 +125,29 @@ public class RecipeSearchService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> searchWithQuerydslSortedByDynamicField(
+            RecipeSearchCondition cond,
+            Pageable pageable,
+            String property,
+            Sort.Direction direction,
+            Long userId) {
+
+
+        Page<RecipeSimpleDto> page = recipeRepository.searchAndSortByDynamicField(
+                cond.getTitle(),
+                cond.getDishTypeEnum(),
+                cond.getTagEnums(),
+                cond.getIsAiGenerated() != null ? cond.getIsAiGenerated() : false,
+                cond.getMaxCost(),
+                property,
+                direction,
+                pageable,
+                userId
+        );
+
+        return addLikeInfoToPage(page, userId);
+    }
 
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchWithQuerydsl(RecipeSearchCondition condition, Pageable pageable, Long userId) {

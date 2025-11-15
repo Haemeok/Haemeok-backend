@@ -100,6 +100,11 @@ public class FridgeRecipeSearchService {
         Map<Long, Recipe> recipeMap = recipeRepository.findAllByIdInAndIsPrivateFalse(recipeIds).stream()
                 .collect(Collectors.toMap(Recipe::getId, r -> r));
 
+        Map<Long, Long> likeCountsMap = recipeRepository.findLikeCountsMapByIds(recipeIds);
+        Map<Long, Double> avgRatingsMap = recipeRepository.findAvgRatingsByIdsRaw(recipeIds).stream()
+                .collect(Collectors.toMap(a -> (Long) a[0], a -> (Double) a[1])); // findAvgRatingsByIdsRaw 사용 가정
+        Map<Long, Long> ratingCountsMap = recipeRepository.findRatingCountsMapByIds(recipeIds);
+
         Set<Long> likedSet = recipeLikeRepository
                 .findByUserIdAndRecipeIdIn(userId, recipeIds).stream()
                 .map(like -> like.getRecipe().getId())
@@ -119,7 +124,10 @@ public class FridgeRecipeSearchService {
             Recipe r = recipeMap.get(doc.getId());
             if (r == null) continue;
 
-            long likeCount = doc.getLikeCount();
+            long likeCount = likeCountsMap.getOrDefault(doc.getId(), 0L);
+            BigDecimal avgRating = BigDecimal.valueOf(avgRatingsMap.getOrDefault(doc.getId(), 0.0d));
+            long ratingCount = ratingCountsMap.getOrDefault(doc.getId(), 0L);
+
             RecipeSimpleDto simple = new RecipeSimpleDto(
                     doc.getId(),
                     doc.getTitle(),
@@ -131,8 +139,8 @@ public class FridgeRecipeSearchService {
                     likeCount,
                     likedSet.contains(doc.getId()),
                     doc.getCookingTime(),
-                    r.getAvgRating() != null ? r.getAvgRating() : BigDecimal.ZERO,
-                    Optional.ofNullable(r.getRatingCount()).orElse(0L)
+                    avgRating,
+                    ratingCount
             );
 
             List<String> matched = doc.getIngredientIds().stream()

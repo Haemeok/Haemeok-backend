@@ -18,12 +18,12 @@ public class RecipeDocument {
     private List<String> tags;
     private String dishType;
     private String createdAt;
-    private int likeCount;
+//    private int likeCount;
     private int cookingTime;
     private String imageUrl;
     private Boolean  isAiGenerated;
     private Boolean  isPrivate;
     private List<Long> ingredientIds;
     private Integer ingredientCount;
-    private BigDecimal avgRating;
+//    private BigDecimal avgRating;
 }
