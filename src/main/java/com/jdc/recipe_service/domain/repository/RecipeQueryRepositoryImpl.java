@@ -2,11 +2,10 @@ package com.jdc.recipe_service.domain.repository;
 
 import com.jdc.recipe_service.domain.dto.recipe.QRecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
-import com.jdc.recipe_service.domain.entity.QRecipe;
-import com.jdc.recipe_service.domain.entity.QRecipeLike;
-import com.jdc.recipe_service.domain.entity.QRecipeTag;
+import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -262,6 +261,56 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
 
+    @Override
+    public Page<Recipe> findByFridgeFallback(
+            List<Long> fridgeIds,
+            AiRecipeFilter aiFilter,
+            Pageable pageable
+    ) {
+        QRecipe recipe = QRecipe.recipe;
+        QRecipeIngredient ri = QRecipeIngredient.recipeIngredient;
+        QIngredient ing = QIngredient.ingredient;
+        QUser user = QUser.user;
+
+        BooleanExpression aiCond = buildAiFilter(aiFilter, recipe);
+
+        var query = queryFactory
+                .select(recipe)
+                .from(recipe)
+                .join(recipe.user, user).fetchJoin()
+                .join(recipe.ingredients, ri)
+                .join(ri.ingredient, ing)
+                .where(
+                        recipe.isPrivate.isFalse(),
+                        ing.id.in(fridgeIds),
+                        aiCond
+                )
+                .groupBy(recipe.id)
+                .orderBy(
+                        ri.count().desc(),
+                        recipe.createdAt.desc()
+                );
+
+        List<Recipe> content = query
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(recipe.countDistinct())
+                .from(recipe)
+                .join(recipe.ingredients, ri)
+                .join(ri.ingredient, ing)
+                .where(
+                        recipe.isPrivate.isFalse(),
+                        ing.id.in(fridgeIds),
+                        aiCond
+                )
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total == null ? 0 : total);
+    }
+
 
     private OrderSpecifier<?>[] getOrderSpecifiers(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
@@ -302,5 +351,12 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
     private BooleanExpression maxCostLoe(Integer maxCost) {
         return (maxCost != null) ? QRecipe.recipe.totalIngredientCost.loe(maxCost) : null;
+    }
+
+    private BooleanExpression buildAiFilter(AiRecipeFilter filter, QRecipe recipe) {
+        if (filter == null || filter == AiRecipeFilter.ALL) return null;
+        if (filter == AiRecipeFilter.USER_ONLY) return recipe.isAiGenerated.isFalse();
+        if (filter == AiRecipeFilter.AI_ONLY) return recipe.isAiGenerated.isTrue();
+        return null;
     }
 }

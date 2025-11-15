@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -264,4 +265,20 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     List<RecipeSimpleStaticDto> findAllSimpleStaticByIds(@Param("ids") List<Long> ids);
 
     List<Recipe> findAllByIdInAndIsPrivateFalse(List<Long> ids);
+
+
+    Page<Recipe> findByFridgeFallback(
+            List<Long> fridgeIds,
+            AiRecipeFilter aiFilter,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT r
+            FROM Recipe r
+            JOIN FETCH r.user
+            WHERE r.id IN :ids
+              AND r.isPrivate = false
+            """)
+    List<Recipe> findAllByIdInAndIsPrivateFalseFetchUser(@Param("ids") List<Long> ids);
 }
