@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -18,12 +17,11 @@ public class RecipeDocument {
     private List<String> tags;
     private String dishType;
     private String createdAt;
-//    private int likeCount;
     private int cookingTime;
     private String imageUrl;
     private Boolean  isAiGenerated;
     private Boolean  isPrivate;
     private List<Long> ingredientIds;
+    private List<String> ingredientNames;
     private Integer ingredientCount;
-//    private BigDecimal avgRating;
 }
