@@ -42,7 +42,7 @@ public class RecipeIndexingService {
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MS = 2000;
 
-    private static final Set<Long> PANTRY_IDS = Set.of(
+    public static final Set<Long> PANTRY_IDS = Set.of(
             18L, 25L, 26L, 27L, 28L, 31L, 35L, 42L, 43L, 51L,
             56L, 57L, 59L, 60L, 63L, 64L, 82L, 95L, 97L, 100L,
             113L, 116L, 118L, 119L, 123L, 124L, 129L, 131L,

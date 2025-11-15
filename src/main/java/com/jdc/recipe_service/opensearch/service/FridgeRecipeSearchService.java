@@ -225,6 +225,7 @@ public class FridgeRecipeSearchService {
             List<String> matched = r.getIngredients().stream()
                     .map(ri -> ri.getIngredient())
                     .filter(ing -> fridgeSet.contains(ing.getId()))
+                    .filter(ing -> !RecipeIndexingService.PANTRY_IDS.contains(ing.getId()))
                     .map(Ingredient::getName)
                     .toList();
 
