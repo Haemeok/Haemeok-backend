@@ -53,7 +53,8 @@ public class RecipeIndexingService {
             305L, 319L, 322L, 325L, 331L, 332L, 335L, 339L,
             342L, 344L, 346L, 353L, 354L, 355L, 356L, 360L,
             370L, 379L, 384L, 388L, 391L, 403L, 405L, 410L,
-            416L, 420L
+            416L, 420L,
+            148L, 45L
     );
 
     @Value("${app.s3.bucket-name}")
@@ -189,12 +190,20 @@ public class RecipeIndexingService {
      * 문서에 들어갈 데이터를 Recipe → RecipeDocument 로 변환합니다.
      */
     private RecipeDocument buildDocument(Recipe recipe) {
-        List<Long> ids = Optional.ofNullable(recipe.getIngredients())
+
+        var filteredIngredients = Optional.ofNullable(recipe.getIngredients())
                 .orElse(List.of())
                 .stream()
                 .filter(ri -> ri.getIngredient() != null)
+                .filter(ri -> !PANTRY_IDS.contains(ri.getIngredient().getId()))
+                .toList();
+
+        List<Long> ids = filteredIngredients.stream()
                 .map(ri -> ri.getIngredient().getId())
-                .filter(id -> !PANTRY_IDS.contains(id))
+                .toList();
+
+        List<String> names = filteredIngredients.stream()
+                .map(ri -> ri.getIngredient().getName())
                 .toList();
 
         List<String> tags = Optional.ofNullable(recipe.getTags())
@@ -215,6 +224,7 @@ public class RecipeIndexingService {
                 .isAiGenerated(recipe.isAiGenerated())
                 .isPrivate(recipe.getIsPrivate())
                 .ingredientIds(ids)
+                .ingredientNames(names)
                 .ingredientCount(ids.size())
                 .build();
     }
