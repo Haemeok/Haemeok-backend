@@ -118,14 +118,6 @@ public class OpenSearchService {
             Map<Long, Recipe> recipeMap = recipes.stream()
                     .collect(Collectors.toMap(Recipe::getId, Function.identity()));
 
-            Set<Long> likedIds = uid != null
-                    ? recipeLikeRepository
-                    .findByUserIdAndRecipeIdIn(uid, ids)
-                    .stream()
-                    .map(l -> l.getRecipe().getId())
-                    .collect(Collectors.toSet())
-                    : Collections.emptySet();
-
             List<RecipeSimpleDto> list = ids.stream()
                     .filter(recipeMap::containsKey)
                     .map(id -> {
@@ -140,11 +132,11 @@ public class OpenSearchService {
                                 r.getUser().getNickname(),
                                 r.getUser().getProfileImage(),
                                 r.getCreatedAt(),
-                                (long) r.getLikes().size(),
-                                likedIds.contains(r.getId()),
+                                0L,
+                                false,
                                 r.getCookingTime() == null ? 0 : r.getCookingTime(),
-                                r.getAvgRating(),
-                                r.getRatingCount()
+                                null,
+                                0L
                         );
                     })
                     .collect(Collectors.toList());

@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -165,6 +166,97 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .select(recipe.count())
                 .from(recipe)
                 .where(privacyCondition)
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0);
+    }
+
+    @Override
+    public Page<RecipeSimpleDto> searchAndSortByDynamicField(
+            String title, DishType dishType, List<TagType> tags,
+            Boolean isAiGenerated, Integer maxCost, String property,
+            Sort.Direction direction, Pageable pageable, Long userId) {
+
+        QRecipe recipe = QRecipe.recipe;
+        QRecipeTag tag = QRecipeTag.recipeTag;
+        QRecipeLike rLike = QRecipeLike.recipeLike;
+
+        // ⭐ 평점은 Recipe 엔티티에 직접 저장되어 있으므로 별도 Q-Type은 필요 없음
+
+        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
+        BooleanExpression aiCondition = (isAiGenerated != null)
+                ? recipe.isAiGenerated.eq(isAiGenerated)
+                : null;
+
+        // 1. 동적 정렬 조건 생성
+        Order dir = direction.isAscending() ? Order.ASC : Order.DESC;
+        OrderSpecifier<?> dynamicOrder;
+
+        if ("likeCount".equals(property)) {
+            // 좋아요 수로 정렬: COUNT(rLike.id) 사용
+            dynamicOrder = new OrderSpecifier<>(dir, rLike.id.countDistinct());
+        } else if ("avgRating".equals(property)) {
+            // 평균 평점으로 정렬: recipe.avgRating 필드 사용
+            dynamicOrder = new OrderSpecifier<>(dir, recipe.avgRating);
+        } else {
+            // 안전 장치: 지원되지 않는 정렬이면 최신순으로 정렬
+            dynamicOrder = new OrderSpecifier<>(Order.DESC, recipe.createdAt);
+        }
+
+        // 2. 검색 쿼리 실행
+        var contentQuery = queryFactory
+                .select(new QRecipeSimpleDto(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        rLike.id.countDistinct().castToNum(Long.class),
+                        Expressions.constant(false),
+                        recipe.cookingTime,
+                        recipe.avgRating.coalesce(BigDecimal.valueOf(0.0d)),
+                        recipe.ratingCount.coalesce(0L)
+                ))
+                .from(recipe)
+                .leftJoin(recipe.tags, tag)
+                .leftJoin(recipe.likes, rLike)
+                .where(
+                        privacyCondition,
+                        titleContains(title),
+                        dishTypeEq(dishType),
+                        tagIn(tags),
+                        aiCondition,
+                        maxCostLoe(maxCost)
+                )
+                .groupBy(
+                        recipe.id, recipe.title, recipe.imageKey, recipe.user.id, recipe.user.nickname,
+                        recipe.user.profileImage, recipe.createdAt, recipe.cookingTime,
+                        recipe.avgRating, recipe.ratingCount
+                )
+                .orderBy(dynamicOrder, new OrderSpecifier<>(Order.DESC, recipe.createdAt))
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize());
+
+        List<RecipeSimpleDto> content = contentQuery.fetch();
+
+        if (!content.isEmpty()) {
+            content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
+        }
+
+        Long total = queryFactory
+                .select(recipe.countDistinct())
+                .from(recipe)
+                .leftJoin(recipe.tags, tag)
+                .where(
+                        privacyCondition,
+                        titleContains(title),
+                        dishTypeEq(dishType),
+                        tagIn(tags),
+                        aiCondition,
+                        maxCostLoe(maxCost)
+                )
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);

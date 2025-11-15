@@ -127,14 +127,12 @@ public class RecipeIndexingService {
                     "dishType":    { "type":"keyword" },
                     "tags":        { "type":"keyword" },
                     "createdAt":   { "type":"date" },
-                    "likeCount":   { "type":"integer" },
                     "cookingTime": { "type":"integer" },
                     "imageUrl":    { "type":"keyword" },
                     "isAiGenerated":{ "type":"boolean" },
                     "isPrivate":   { "type":"boolean" },
                     "ingredientIds":  { "type": "long" },
-                    "ingredientCount":{ "type": "integer" },
-                    "avgRating":      { "type": "double" }
+                    "ingredientCount":{ "type": "integer" }
                   }
                 }
                 """, XContentType.JSON);
@@ -206,25 +204,18 @@ public class RecipeIndexingService {
                 .filter(name -> name != null && !name.isBlank())
                 .toList();
 
-        int likeCount = likeRepository.countByRecipeId(recipe.getId());
-
-        BigDecimal rating = Optional.ofNullable(recipe.getAvgRating())
-                .orElse(BigDecimal.ZERO);
-
         return RecipeDocument.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
                 .tags(tags)
                 .dishType(recipe.getDishType().name())
                 .createdAt(recipe.getCreatedAt().toString())
-                .likeCount(likeCount)
                 .cookingTime(Optional.ofNullable(recipe.getCookingTime()).orElse(0))
                 .imageUrl(generateImageUrl(recipe.getImageKey()))
                 .isAiGenerated(recipe.isAiGenerated())
                 .isPrivate(recipe.getIsPrivate())
                 .ingredientIds(ids)
                 .ingredientCount(ids.size())
-                .avgRating(rating)
                 .build();
     }
 
