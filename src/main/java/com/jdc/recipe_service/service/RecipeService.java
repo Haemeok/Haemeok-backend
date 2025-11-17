@@ -29,6 +29,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -422,6 +423,14 @@ public class RecipeService {
 
         Set<String> tools = new HashSet<>(Optional.ofNullable(dto.getCookingTools()).orElse(Collections.emptyList()));
 
+        RecipeNutritionDto nutritionDto = dto.getNutrition();
+
+        BigDecimal protein = (nutritionDto != null) ? nutritionDto.getProtein() : null;
+        BigDecimal carbohydrate = (nutritionDto != null) ? nutritionDto.getCarbohydrate() : null;
+        BigDecimal fat = (nutritionDto != null) ? nutritionDto.getFat() : null;
+        BigDecimal sugar = (nutritionDto != null) ? nutritionDto.getSugar() : null;
+        Integer sodium = (nutritionDto != null) ? nutritionDto.getSodium() : null;
+
         recipe.update(
                 dto.getTitle(),
                 dto.getDescription(),
@@ -434,11 +443,11 @@ public class RecipeService {
                 null,
                 dto.getMarketPrice(),
                 dto.getCookingTips(),
-                dto.getNutrition().getProtein(),
-                dto.getNutrition().getCarbohydrate(),
-                dto.getNutrition().getFat(),
-                dto.getNutrition().getSugar(),
-                dto.getNutrition().getSodium()
+                protein,
+                carbohydrate,
+                fat,
+                sugar,
+                sodium
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
