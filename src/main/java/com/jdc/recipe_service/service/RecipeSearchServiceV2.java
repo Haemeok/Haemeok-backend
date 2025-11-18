@@ -142,13 +142,15 @@ public class RecipeSearchServiceV2 {
         Map<Long, Double> avgRatings = recipeRepository.findAvgRatingsMapByIds(idList);
         Map<Long, Long> commentCounts = recipeRepository.findCommentCountsMapByIds(idList);
 
+        BigDecimal avgRating = BigDecimal.valueOf(avgRatings.getOrDefault(recipeId, 0.0))
+                .setScale(2, RoundingMode.HALF_UP);
+
         RecipeRatingInfoStaticDto ratingInfo = RecipeRatingInfoStaticDto.builder()
-                .avgRating(BigDecimal.valueOf(avgRatings.getOrDefault(recipeId, 0.0)))
+                .avgRating(avgRating)
                 .ratingCount(ratingCounts.getOrDefault(recipeId, 0L))
                 .build();
 
         List<CommentStaticDto> comments = commentService.getCommentsStaticForRecipeDetail(recipeId);
-
 
         return RecipeDetailStaticDto.builder()
                 .id(recipeId)
