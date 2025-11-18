@@ -265,13 +265,13 @@ public class RecipeSearchServiceV2 {
      * 오직 정적 정보인 RecipeSimpleStaticDto만 반환합니다.
      */
     @Transactional(readOnly = true)
-    public Page<RecipeSimpleStaticDto> getPopularRecipesStatic(
+    public Page<RecipeSimpleStaticDto> getPopularRecipesStaticV2(
             String periodCode,
             Pageable pageable) {
 
         java.time.LocalDateTime startDate = java.time.LocalDateTime.now().minusDays(7);
 
-        Page<RecipeSimpleStaticDto> page = recipeRepository.findPopularRecipesStatic(startDate, pageable);
+        Page<RecipeSimpleStaticDto> page = recipeRepository.findPopularRecipesStaticV2(startDate, pageable);
 
         page.getContent().forEach(dto -> {
             dto.setImageUrl(generateImageUrl(dto.getImageUrl()));

@@ -187,7 +187,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
                     r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
                     COUNT(DISTINCT rl.id),
-                    COALESCE(AVG(rr.rating), 0.0d),
+                    COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
                     COUNT(rr.id)
                 )
                 FROM Recipe r
@@ -199,36 +199,15 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
                 ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
             """)
-    Page<RecipeSimpleStaticDto> findPopularRecipesStatic(
+    Page<RecipeSimpleStaticDto> findPopularRecipesStaticV2(
             @Param("startDate") LocalDateTime startDate,
-            Pageable pageable);
-
-
-    @Query("""
-            SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
-                r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
-                COUNT(DISTINCT rl.id),
-                COALESCE(AVG(rr.rating), 0.0d),
-                COUNT(rr.id)
-            )
-            FROM Recipe r
-            JOIN r.user u
-            LEFT JOIN RecipeLike rl ON rl.recipe = r
-            LEFT JOIN RecipeRating rr ON rr.recipe = r
-            WHERE r.isPrivate = false
-            AND r.totalIngredientCost <= :maxCost
-            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
-            ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
-            """)
-    Page<RecipeSimpleStaticDto> findBudgetRecipesStatic(
-            @Param("maxCost") Integer maxCost,
             Pageable pageable);
 
     @Query("""
         SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2(
             r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
             COUNT(DISTINCT rl.id),
-            COALESCE(AVG(rr.rating), 0.0d),
+            COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
             COUNT(rr.id),
             r.totalIngredientCost,
             r.marketPrice
@@ -263,9 +242,6 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime 
             """)
     List<RecipeSimpleStaticDto> findAllSimpleStaticByIds(@Param("ids") List<Long> ids);
-
-    List<Recipe> findAllByIdInAndIsPrivateFalse(List<Long> ids);
-
 
     Page<Recipe> findByFridgeFallback(
             List<Long> fridgeIds,
