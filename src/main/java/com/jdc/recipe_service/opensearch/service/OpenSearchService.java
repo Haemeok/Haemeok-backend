@@ -114,31 +114,16 @@ public class OpenSearchService {
                 return new PageImpl<>(Collections.emptyList(), pg, 0);
             }
 
-            List<Recipe> recipes = recipeRepository.findAllById(ids);
-            Map<Long, Recipe> recipeMap = recipes.stream()
-                    .collect(Collectors.toMap(Recipe::getId, Function.identity()));
+            List<RecipeSimpleDto> listWithCounts = recipeRepository.findAllSimpleDtoWithCountsByIdIn(ids);
+
+            // ID를 키로 하는 맵으로 변환하여 순서를 맞춥니다.
+            Map<Long, RecipeSimpleDto> dtoMap = listWithCounts.stream()
+                    .collect(Collectors.toMap(RecipeSimpleDto::getId, Function.identity()));
 
             List<RecipeSimpleDto> list = ids.stream()
-                    .filter(recipeMap::containsKey)
-                    .map(id -> {
-                        Recipe r = recipeMap.get(id);
-                        return new RecipeSimpleDto(
-                                r.getId(),
-                                r.getTitle(),
-                                r.getImageKey() == null ? null
-                                        : String.format("https://%s.s3.%s.amazonaws.com/%s",
-                                        bucketName, region, r.getImageKey()),
-                                r.getUser().getId(),
-                                r.getUser().getNickname(),
-                                r.getUser().getProfileImage(),
-                                r.getCreatedAt(),
-                                0L,
-                                false,
-                                r.getCookingTime() == null ? 0 : r.getCookingTime(),
-                                null,
-                                0L
-                        );
-                    })
+                    .filter(dtoMap::containsKey)
+                    .map(dtoMap::get) // OpenSearch ID 순서대로 DTO를 가져옴
+                    // ⚠️ DTO 생성자 호출 로직을 삭제합니다. (이미 Repository에서 DTO 생성 완료)
                     .collect(Collectors.toList());
 
             return new PageImpl<>(list, pg, hits.getTotalHits().value);
