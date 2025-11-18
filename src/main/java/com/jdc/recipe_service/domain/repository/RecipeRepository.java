@@ -50,7 +50,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 COUNT(DISTINCT rl.id), false,
                 r.cookingTime,
                 COALESCE(AVG(rr.rating), 0.0d),
-                COUNT(rr.id)
+                COUNT(DISTINCT rr.id)
             )
             FROM Recipe r
             JOIN r.user u
@@ -70,7 +70,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 COUNT(DISTINCT rl.id), false,
                 r.cookingTime,
                 COALESCE(AVG(rr.rating), 0.0d),
-                COUNT(rr.id)
+                COUNT(DISTINCT rr.id)
             )
             FROM Recipe r
             JOIN r.user u
@@ -144,7 +144,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                     COUNT(DISTINCT rl.id), false,
                     r.cookingTime,
                     COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
-                    COUNT(rr.id)
+                    COUNT(DISTINCT rr.id)
                 )
                 FROM Recipe r
                 JOIN r.user u
@@ -165,7 +165,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 COUNT(DISTINCT rl.id), false,
                 r.cookingTime,
                 COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
-                COUNT(rr.id)
+                COUNT(DISTINCT rr.id)
             )
             FROM Recipe r
             JOIN r.user u
@@ -188,7 +188,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                     r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
                     COUNT(DISTINCT rl.id),
                     COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
-                    COUNT(rr.id)
+                    COUNT(DISTINCT rr.id)
                 )
                 FROM Recipe r
                 JOIN r.user u
@@ -208,7 +208,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
             COUNT(DISTINCT rl.id),
             COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
-            COUNT(rr.id),
+            COUNT(DISTINCT rr.id),
             r.totalIngredientCost,
             r.marketPrice
         )
