@@ -281,4 +281,13 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
               AND r.isPrivate = false
             """)
     List<Recipe> findAllByIdInAndIsPrivateFalseFetchUser(@Param("ids") List<Long> ids);
+
+    @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
+            "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
+            "COUNT(l.id), FALSE, r.cookingTime, r.avgRating, r.ratingCount) " +
+            "FROM Recipe r " +
+            "LEFT JOIN RecipeLike l ON l.recipe.id = r.id " +
+            "WHERE r.id IN :ids " +
+            "GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime, r.avgRating, r.ratingCount")
+    List<RecipeSimpleDto> findAllSimpleDtoWithCountsByIdIn(List<Long> ids);
 }
