@@ -127,7 +127,7 @@ public class RecipeSearchControllerV2 {
             @Parameter(description = "기간 기준 (weekly, monthly)") @RequestParam(defaultValue = "weekly") String period,
             @PageableDefault(size = 10) Pageable pageable
     ) {
-        Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.getPopularRecipesStatic(period, pageable);
+        Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.getPopularRecipesStaticV2(period, pageable);
         return ResponseEntity.ok(page);
     }
 
