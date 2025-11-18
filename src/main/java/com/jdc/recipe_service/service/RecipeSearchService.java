@@ -119,7 +119,8 @@ public class RecipeSearchService {
         boolean useOpenSearch = shouldUseOpenSearch(condition);
 
         if (useOpenSearch) {
-            return openSearchService.searchRecipes(condition, pageable, userId);
+            Page<RecipeSimpleDto> page = openSearchService.searchRecipes(condition, pageable, userId);
+            return addLikeInfoToPage(page, userId);
         } else {
             return searchWithQuerydsl(condition, pageable, userId);
         }
