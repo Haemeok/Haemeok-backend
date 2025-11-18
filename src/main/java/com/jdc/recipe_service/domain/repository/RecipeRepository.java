@@ -143,7 +143,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                     r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
                     COUNT(DISTINCT rl.id), false,
                     r.cookingTime,
-                    COALESCE(AVG(rr.rating), 0.0d),
+                    COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
                     COUNT(rr.id)
                 )
                 FROM Recipe r
@@ -164,7 +164,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
                 COUNT(DISTINCT rl.id), false,
                 r.cookingTime,
-                COALESCE(AVG(rr.rating), 0.0d),
+                COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
                 COUNT(rr.id)
             )
             FROM Recipe r
@@ -260,7 +260,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
             "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
-            "COUNT(l.id), FALSE, r.cookingTime, r.avgRating, r.ratingCount) " +
+            "COUNT(l.id), FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount) " +
             "FROM Recipe r " +
             "LEFT JOIN RecipeLike l ON l.recipe.id = r.id " +
             "WHERE r.id IN :ids " +
