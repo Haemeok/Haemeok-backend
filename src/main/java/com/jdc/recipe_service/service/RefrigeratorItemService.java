@@ -60,6 +60,14 @@ public class RefrigeratorItemService {
         );
     }
 
+    /** 내 냉장고 아이템 id 조회 */
+    @Transactional(readOnly = true)
+    public List<Long> getMyIngredientIds(Long userId) {
+        return repo.findAllByUserId(userId).stream()
+                .map(item -> item.getIngredient().getId())
+                .toList();
+    }
+
     /** 냉장고에 재료 단건 추가 */
     public RefrigeratorItemResponseDto addItem(Long userId, RefrigeratorItemRequestDto dto) {
         User user = userRepo.findById(userId)
