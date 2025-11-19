@@ -20,6 +20,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/me/fridge")
@@ -53,6 +54,19 @@ public class RefrigeratorItemController {
                 service.getMyItems(userId, koCategory, pageable);
 
         return ResponseEntity.ok(page);
+    }
+
+    @GetMapping("/items/ids")
+    @Operation(
+            summary = "내 냉장고 재료 ID 목록 조회",
+            description = "현재 냉장고에 있는 재료의 ingredientId(Long)만 단순 리스트로 반환합니다."
+    )
+    public ResponseEntity<List<Long>> getMyIngredientIds(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails.getUser().getId();
+        return ResponseEntity.ok(service.getMyIngredientIds(userId));
     }
 
     @PostMapping("/items")
