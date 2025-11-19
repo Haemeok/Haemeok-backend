@@ -32,7 +32,6 @@ public class RecipeController {
     @Operation(summary = "레시피 생성 + 이미지 Presigned URL 발급", description = "레시피 생성 요청과 함께 이미지 업로드용 Presigned URL을 발급합니다. source 값에 따라 AI 생성 또는 유저 입력을 구분합니다.")
     public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
             @Parameter(description = "레시피 생성 출처 (예: AI, USER)") @RequestParam(value = "source", required = false) String source,
-            @Parameter(description = "AI 모델 선택 (기본값: openai, 선택: claude)") @RequestParam(value = "aiModel", defaultValue = "openai") String aiModel,
             @Parameter(description = "AI 레시피 생성 시 사용할 로봇 타입 (예: CLASSIC, FUNNY 등)") @RequestParam(value = "robotType", required = false) RobotType robotTypeParam,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "레시피 생성 요청 DTO (이미지 키 포함)") @RequestBody @Valid RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -47,20 +46,12 @@ public class RecipeController {
         PresignedUrlResponse response;
 
         if (sourceType == RecipeSourceType.AI) {
-            if ("claude".equalsIgnoreCase(aiModel)) {
-                response = recipeService.createRecipeWithAiLogicV2(
-                        robotTypeParam,
-                        request,
-                        userId
-                );
-            } else {
-                response = recipeService.createRecipeWithAiLogic(
-                        sourceType,
-                        robotTypeParam,
-                        request,
-                        userId
-                );
-            }
+            response = recipeService.createRecipeWithAiLogic(
+                    sourceType,
+                    robotTypeParam,
+                    request,
+                    userId
+            );
         } else {
             response = recipeService.createUserRecipeAndGenerateUrls(request, userId, sourceType);
         }

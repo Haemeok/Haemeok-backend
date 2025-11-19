@@ -57,17 +57,15 @@ public class RecipeService {
     private final ObjectMapper objectMapper;
     private final ActionImageService actionImageService;
     private final SurveyService surveyService;
-    private final ClaudeClientService claudeClientService;
     private final UnitService unitService;
     private final PromptBuilderV3 promptBuilder;
-    private final PromptBuilderV2 promptBuilderV2;
     private final ApplicationEventPublisher publisher;
     private final DailyQuotaService dailyQuotaService;
     private final GrokClientService grokClientService;
 
     private static final String MAIN_IMAGE_SLOT = "main";
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
-    private static final int MAX_TRIES = 1;
+    private static final int MAX_TRIES = 2;
     private static final long RETRY_DELAY_MS = 500;
     private static final int DEFAULT_MARGIN_PERCENT = 30;
 
@@ -209,98 +207,6 @@ public class RecipeService {
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
                 .uploads(uploads)
-                .build();
-    }
-
-    @Transactional
-    public PresignedUrlResponse createRecipeWithAiLogicV2(
-            RobotType robotTypeParam,
-            RecipeWithImageUploadRequest request,
-            Long userId) {
-
-        if (request.getAiRequest() == null) {
-            throw new CustomException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "AI 레시피 생성을 위한 요청 정보(aiRequest)가 비어있습니다."
-            );
-        }
-
-        if (robotTypeParam == null) {
-            throw new CustomException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "AI 모드일 때는 robotType 파라미터가 필요합니다."
-            );
-        }
-
-        dailyQuotaService.consumeForUserOrThrow(userId);
-
-        try {
-            AiRecipeRequestDto aiReq = request.getAiRequest();
-            aiReq.setUserId(userId);
-
-            UserSurveyDto survey = surveyService.getSurvey(userId);
-            applySurveyInfoToAiRequest(aiReq, survey);
-
-            String prompt = promptBuilderV2.buildPrompt(aiReq, robotTypeParam);
-
-            RecipeWithImageUploadRequest processingRequest =
-                    buildRecipeFromClaudeAiRequest(prompt, aiReq, request.getFiles());
-
-            for (RecipeStepRequestDto step : processingRequest.getRecipe().getSteps()) {
-                String action = step.getAction();
-                if (action != null) {
-                    String key = actionImageService.generateImageKey(robotTypeParam, action);
-                    step.updateImageKey(key);
-                }
-            }
-
-            return createUserRecipeAndGenerateUrls(processingRequest, userId, RecipeSourceType.AI);
-
-        } catch (Exception e) {
-            dailyQuotaService.refundIfPolicyAllows(userId);
-            throw e;
-        }
-    }
-
-    @Transactional
-    public RecipeWithImageUploadRequest buildRecipeFromClaudeAiRequest(
-            String prompt,
-            AiRecipeRequestDto aiReq,
-            List<FileInfoRequest> originalFiles) {
-
-        RecipeCreateRequestDto generatedDto;
-        try {
-            generatedDto = claudeClientService.generateRecipeJson(prompt).join();
-        } catch (RuntimeException e) {
-            throw new CustomException(
-                    ErrorCode.AI_RECIPE_GENERATION_FAILED,
-                    "Claude AI 레시피 생성에 최종 실패했습니다: " + e.getMessage(), e
-            );
-        }
-
-        if (generatedDto == null) {
-            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Claude AI 응답 결과가 null입니다.");
-        }
-
-        generatedDto.setIngredients(correctIngredientUnits(generatedDto.getIngredients()));
-
-        if (generatedDto.getSteps() == null || generatedDto.getSteps().isEmpty()) {
-            throw new CustomException(
-                    ErrorCode.AI_RECIPE_GENERATION_FAILED,
-                    "AI가 요리 단계를 생성하지 못했습니다. 다시 시도해 주세요."
-            );
-        }
-        if (generatedDto.getTags() == null || generatedDto.getTags().isEmpty()) {
-            throw new CustomException(
-                    ErrorCode.AI_RECIPE_GENERATION_FAILED,
-                    "AI가 태그 정보를 생성하지 못했습니다. 다시 시도해 주세요."
-            );
-        }
-
-        return RecipeWithImageUploadRequest.builder()
-                .aiRequest(aiReq)
-                .recipe(generatedDto)
-                .files(originalFiles)
                 .build();
     }
 
