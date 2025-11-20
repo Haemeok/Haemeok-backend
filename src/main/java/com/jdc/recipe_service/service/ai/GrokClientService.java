@@ -137,7 +137,7 @@ public class GrokClientService {
     private String normalizeFields(String json) {
         return json
                 .replaceAll(
-                        "\"(customPrice|caloriesPerUnit|marketPrice|cookingTime|servings|protein|carbohydrate|fat|sugar|sodium)\"\\s*:\\s*(\"\\s*\"|null)",
+                        "\"(customPrice|customCalories|customCarbohydrate|customProtein|customFat|customSugar|customSodium|marketPrice|cookingTime|servings|protein|carbohydrate|fat|sugar|sodium)\"\\s*:\\s*(\"\\s*\"|null)",
                         "\"$1\": 0"
                 )
                 .replaceAll("\"quantity\"\\s*:\\s*(\"\\s*\"|null)", "\"quantity\": \"0\"")
@@ -167,7 +167,7 @@ public class GrokClientService {
             if (n.getCarbohydrate() != null && n.getCarbohydrate().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "탄수화물 음수");
             if (n.getFat() != null && n.getFat().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "지방 음수");
             if (n.getSugar() != null && n.getSugar().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "당류 음수");
-            if (n.getSodium() != null && n.getSodium() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "나트륨 음수");
+            if (n.getSodium() != null && n.getSodium().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "나트륨 음수");
         }
 
         if (recipe.getCookingTime() != null && recipe.getCookingTime() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "조리 시간 음수");
