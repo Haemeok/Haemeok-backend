@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.entity.RecipeStep;
 import com.jdc.recipe_service.domain.entity.RecipeStepIngredient;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public class StepIngredientMapper {
@@ -21,6 +22,11 @@ public class StepIngredientMapper {
                 ? dto.getCustomUnit()
                 : recipeIngredient.getUnit();
 
+        BigDecimal customPriceBd = null;
+        if (isCustom && recipeIngredient.getCustomPrice() != null) {
+            customPriceBd = BigDecimal.valueOf(recipeIngredient.getCustomPrice());
+        }
+
         return RecipeStepIngredient.builder()
                 .step(step)
                 .recipeIngredient(recipeIngredient)
@@ -29,7 +35,7 @@ public class StepIngredientMapper {
                 .unit(unit)
                 .customName(isCustom && recipeIngredient.getCustomName() != null ? recipeIngredient.getCustomName().trim() : null)
                 .customUnit(isCustom ? recipeIngredient.getCustomUnit() : null)
-                .customPrice(isCustom ? recipeIngredient.getCustomPrice() : null)
+                .customPrice(customPriceBd)
                 .build();
     }
 
