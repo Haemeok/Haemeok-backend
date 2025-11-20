@@ -56,12 +56,20 @@ public class RecipeIngredientService {
             }
 
             Ingredient masterIngredient = ingredientMap.get(nameKey);
-            BigDecimal unitPrice = BigDecimal.ZERO;
+
+            int calculatedPrice = 0;
             String unitForRecipeItem;
 
             if (masterIngredient != null) {
-                unitPrice = (masterIngredient.getPrice() != null) ? BigDecimal.valueOf(masterIngredient.getPrice()) : BigDecimal.ZERO;
-                unitForRecipeItem = (dto.getCustomUnit() != null && !dto.getCustomUnit().isBlank()) ? dto.getCustomUnit() : masterIngredient.getUnit();
+                BigDecimal pricePerUnit = (masterIngredient.getPrice() != null)
+                        ? BigDecimal.valueOf(masterIngredient.getPrice())
+                        : BigDecimal.ZERO;
+
+                calculatedPrice = pricePerUnit.multiply(BigDecimal.valueOf(quantity)).intValue();
+
+                unitForRecipeItem = (dto.getCustomUnit() != null && !dto.getCustomUnit().isBlank())
+                        ? dto.getCustomUnit()
+                        : masterIngredient.getUnit();
             } else {
                 unitForRecipeItem = dto.getCustomUnit();
 
@@ -69,13 +77,15 @@ public class RecipeIngredientService {
                     throw new CustomException(ErrorCode.CUSTOM_INGREDIENT_INFO_MISSING, dto.getName());
                 }
 
-                unitPrice = (dto.getCustomPrice() != null) ? dto.getCustomPrice() : BigDecimal.ZERO;
                 if (dto.getCustomPrice() == null) {
                     log.warn("신규 재료 '{}' customPrice 누락 → 0으로 처리", dto.getName());
                 }
+
+                calculatedPrice = (dto.getCustomPrice() != null)
+                        ? dto.getCustomPrice().intValue()
+                        : 0;
             }
 
-            int calculatedPrice = unitPrice.multiply(BigDecimal.valueOf(quantity)).intValue();
             totalCost += calculatedPrice;
 
             RecipeIngredient entity = RecipeIngredientMapper.toEntity(dto, recipe, masterIngredient, calculatedPrice, unitForRecipeItem, sourceType);

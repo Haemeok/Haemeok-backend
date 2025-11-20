@@ -42,6 +42,7 @@ public class RecipeService {
 
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
+    private final RecipeIngredientRepository recipeIngredientRepository;
 
     private final RecipeIngredientService recipeIngredientService;
     private final RecipeStepService recipeStepService;
@@ -154,6 +155,9 @@ public class RecipeService {
 
         int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), sourceType);
         recipe.updateTotalIngredientCost(totalCost);
+
+        List<RecipeIngredient> savedIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+        calculateAndSetTotalNutrition(recipe, savedIngredients);
 
         int marketPrice = calculateMarketPrice(dto, totalCost);
         recipe.updateMarketPrice(marketPrice);
@@ -335,7 +339,7 @@ public class RecipeService {
         BigDecimal carbohydrate = (nutritionDto != null) ? nutritionDto.getCarbohydrate() : null;
         BigDecimal fat = (nutritionDto != null) ? nutritionDto.getFat() : null;
         BigDecimal sugar = (nutritionDto != null) ? nutritionDto.getSugar() : null;
-        Integer sodium = (nutritionDto != null) ? nutritionDto.getSodium() : null;
+        BigDecimal sodium = (nutritionDto != null) ? nutritionDto.getSodium() : null;
 
         recipe.update(
                 dto.getTitle(),
@@ -349,11 +353,11 @@ public class RecipeService {
                 null,
                 dto.getMarketPrice(),
                 dto.getCookingTips(),
-                protein,
-                carbohydrate,
-                fat,
-                sugar,
-                sodium
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
@@ -364,6 +368,9 @@ public class RecipeService {
             int marketPrice = calculateMarketPrice(dto, newTotalCost);
             recipe.updateMarketPrice(marketPrice);
         }
+
+        List<RecipeIngredient> currentIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+        calculateAndSetTotalNutrition(recipe, currentIngredients);
 
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTags());
@@ -554,6 +561,11 @@ public class RecipeService {
                             .customPrice(ing.getCustomPrice())
                             .customUnit(finalUnit)
                             .customCalories(ing.getCustomCalories())
+                            .customCarbohydrate(ing.getCustomCarbohydrate())
+                            .customProtein(ing.getCustomProtein())
+                            .customFat(ing.getCustomFat())
+                            .customSugar(ing.getCustomSugar())
+                            .customSodium(ing.getCustomSodium())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -573,6 +585,60 @@ public class RecipeService {
     private void validateOwnership(Recipe recipe, Long userId) {
         if (!recipe.getUser().getId().equals(userId)) {
             throw new CustomException(ErrorCode.RECIPE_ACCESS_DENIED);
+        }
+    }
+
+    private void calculateAndSetTotalNutrition(Recipe recipe, List<RecipeIngredient> ingredients) {
+        BigDecimal totalCalorie = BigDecimal.ZERO;
+        BigDecimal totalCarb = BigDecimal.ZERO;
+        BigDecimal totalProtein = BigDecimal.ZERO;
+        BigDecimal totalFat = BigDecimal.ZERO;
+        BigDecimal totalSugar = BigDecimal.ZERO;
+        BigDecimal totalSodium = BigDecimal.ZERO;
+
+        for (RecipeIngredient ri : ingredients) {
+            BigDecimal quantity = parseQuantityToBigDecimal(ri.getQuantity());
+
+            if (ri.getIngredient() != null) {
+                Ingredient ing = ri.getIngredient();
+
+                totalCalorie = totalCalorie.add(ing.getCalorie().multiply(quantity));
+                totalCarb = totalCarb.add(ing.getCarbohydrate().multiply(quantity));
+                totalProtein = totalProtein.add(ing.getProtein().multiply(quantity));
+                totalFat = totalFat.add(ing.getFat().multiply(quantity));
+                totalSugar = totalSugar.add(ing.getSugar().multiply(quantity));
+                totalSodium = totalSodium.add(ing.getSodium().multiply(quantity));
+            } else {
+                totalCalorie = totalCalorie.add(ri.getCustomCalorie());
+                totalCarb = totalCarb.add(ri.getCustomCarbohydrate());
+                totalProtein = totalProtein.add(ri.getCustomProtein());
+                totalFat = totalFat.add(ri.getCustomFat());
+                totalSugar = totalSugar.add(ri.getCustomSugar());
+                totalSodium = totalSodium.add(ri.getCustomSodium());
+            }
+        }
+
+        recipe.updateNutrition(totalProtein, totalCarb, totalFat, totalSugar, totalSodium);
+    }
+
+    private BigDecimal parseQuantityToBigDecimal(String quantityStr) {
+        if (quantityStr == null || quantityStr.isBlank()) return BigDecimal.ZERO;
+
+        String cleanStr = quantityStr.replaceAll("[^0-9./]", "");
+
+        try {
+            if (cleanStr.contains("/")) {
+                String[] parts = cleanStr.split("/");
+                if (parts.length == 2) {
+                    double num = Double.parseDouble(parts[0]);
+                    double den = Double.parseDouble(parts[1]);
+                    if (den == 0) return BigDecimal.ZERO;
+                    return BigDecimal.valueOf(num / den);
+                }
+            }
+            return new BigDecimal(cleanStr);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
         }
     }
 }
