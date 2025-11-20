@@ -30,17 +30,42 @@ public class RecipeIngredientMapper {
         if (masterIngredient != null) {
             builder.ingredient(masterIngredient)
                     .customName(null)
-                    .customPrice(null)
+                    .customPrice(0)
                     .customUnit(null)
-                    .customCalorie(null);
+                    .customCalorie(BigDecimal.ZERO)
+                    .customCarbohydrate(BigDecimal.ZERO)
+                    .customProtein(BigDecimal.ZERO)
+                    .customFat(BigDecimal.ZERO)
+                    .customSugar(BigDecimal.ZERO)
+                    .customSodium(BigDecimal.ZERO);
         } else {
+            int priceValue = (dto.getCustomPrice() != null)
+                    ? dto.getCustomPrice().intValue()
+                    : 0;
+
+
+
             builder.ingredient(null)
                     .customName(dto.getName())
                     .customUnit(unitForRecipeItemField)
-                    .customPrice(
-                            Optional.ofNullable(dto.getCustomPrice()).orElse(BigDecimal.ZERO)
+                    .customPrice(priceValue)
+                    .customCalorie(
+                            Optional.ofNullable(dto.getCustomCalories()).orElse(BigDecimal.ZERO)
                     )
-                    .customCalorie(dto.getCustomCalories());
+                    .customCarbohydrate(
+                            Optional.ofNullable(dto.getCustomCarbohydrate()).orElse(BigDecimal.ZERO)
+                    )
+                    .customProtein(
+                            Optional.ofNullable(dto.getCustomProtein()).orElse(BigDecimal.ZERO)
+                    )
+                    .customFat(
+                            Optional.ofNullable(dto.getCustomFat()).orElse(BigDecimal.ZERO)
+                    )
+                    .customSugar(
+                            Optional.ofNullable(dto.getCustomSugar()).orElse(BigDecimal.ZERO)
+                    )
+                    .customSodium(
+                            Optional.ofNullable(dto.getCustomSodium()).orElse(BigDecimal.ZERO));
         }
         return builder.build();
     }
@@ -58,17 +83,17 @@ public class RecipeIngredientMapper {
         } catch (Exception e) {
         }
 
-        BigDecimal calPerUnitBd = isCustom
-                ? entity.getCustomCalorie()
-                : Optional.ofNullable(ingredient.getCalorie()).map(BigDecimal::valueOf).orElse(null);
+        Double totalCalories = null;
 
-        Double caloriePerUnit = calPerUnitBd != null
-                ? calPerUnitBd.doubleValue()
-                : null;
-
-        Double totalCalories = (quantityValue != null && caloriePerUnit != null)
-                ? quantityValue * caloriePerUnit
-                : null;
+        if (isCustom) {
+            if (entity.getCustomCalorie() != null) {
+                totalCalories = entity.getCustomCalorie().doubleValue();
+            }
+        } else {
+            if (ingredient != null && ingredient.getCalorie() != null && quantityValue != null) {
+                totalCalories = ingredient.getCalorie().doubleValue() * quantityValue;
+            }
+        }
 
         return RecipeIngredientDto.builder()
                 .id(isCustom ? null : ingredient.getId())
@@ -88,6 +113,7 @@ public class RecipeIngredientMapper {
     }
 
     private static double parseQuantity(String quantityStr) {
+        if (quantityStr == null) return 0.0;
         quantityStr = quantityStr.trim();
         quantityStr = quantityStr.replaceAll("[^0-9./]", "");
         if (quantityStr.contains("/")) {

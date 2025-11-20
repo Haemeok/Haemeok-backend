@@ -43,7 +43,7 @@ public class RecipeMapper {
                 .carbohydrate(Optional.ofNullable(nutrition.getCarbohydrate()).orElse(zeroBigDecimal))
                 .fat(Optional.ofNullable(nutrition.getFat()).orElse(zeroBigDecimal))
                 .sugar(Optional.ofNullable(nutrition.getSugar()).orElse(zeroBigDecimal))
-                .sodium(Optional.ofNullable(nutrition.getSodium()).orElse(0))
+                .sodium(Optional.ofNullable(nutrition.getSodium()).orElse(BigDecimal.ZERO))
                 .build();
     }
 
