@@ -106,7 +106,7 @@ public class PromptBuilderV3 {
                 **[JSON 출력 형식 규칙]**
                 
                 --- [🚨 CRITICAL WARNING: 숫자 필드 NULL/공백 절대 금지 🚨] ---
-                - **모든 숫자 필드**(`quantity`, `customPrice`, `caloriesPerUnit`, `marketPrice`, `cookingTime`, `servings`, `protein`, `carbohydrate`, `fat`, `sugar`, `sodium`)는 **0.00 이상의 유효한 숫자만** 허용됩니다.
+                - **모든 숫자 필드**(`quantity`, `customPrice`, `customCalories`, `customCarbohydrate`, `customProtein`, `customFat`, `customSugar`, `customSodium`, `marketPrice`, `cookingTime`, `servings`)는 **0.00 이상의 유효한 숫자만** 허용됩니다.
                 - **절대로 빈 문자열("") 또는 null 값을 사용하지 마세요.** 이를 위반하면 JSON 전체가 무효화되고 에러가 발생합니다.
                 ---
                 
@@ -129,10 +129,15 @@ public class PromptBuilderV3 {
                 
                 --- "ingredients" 필드 (재료 필드 강제 규칙 - 반드시 준수) ---
                 - DB에 없는 재료(%s)는 **반드시** 아래 2개 필드 포함:
-                  - `customPrice`: 1단위당 가격 (정수, 원)
-                  - `caloriesPerUnit`: 1단위당 칼로리 (정수 또는 소수점 첫째 자리, kcal). `unit`이 'g'일 경우 1g당 칼로리를 계산하여 소수로 넣으세요.
+                  - `customPrice`: **해당 재료의 Quantity(총량)에 대한 전체 원가** (정수, 원).
+                  - `customCalories`: **해당 재료의 Quantity(총량)에 대한 전체 칼로리** (소수점 포함 숫자, kcal)
+                  - `customCarbohydrate`: **해당 재료의 Quantity(총량)에 대한 전체 탄수화물** (소수점 포함 숫자, g)
+                  - `customProtein`: **해당 재료의 Quantity(총량)에 대한 전체 단백질** (소수점 포함 숫자, g)
+                  - `customFat`: **해당 재료의 Quantity(총량)에 대한 전체 지방** (소수점 포함 숫자, g)
+                  - `customSugar`: **해당 재료의 Quantity(총량)에 대한 전체 당류** (소수점 포함 숫자, g)
+                  - `customSodium`: **해당 재료의 Quantity(총량)에 대한 전체 나트륨** (소수점 포함 숫자, mg)
                   - 이 필드 누락 시 출력 전체 무효
-                - DB에 있는 재료는 `customPrice`, `caloriesPerUnit` **절대 포함 금지**
+                - DB에 있는 재료는 `customPrice`, `customCalories`,'customCarbohydrate',`customProtein`,`customFat`,`customSugar`,`customSodium` **절대 포함 금지**
                 - 또한 모든 재료의 quantity는 요청된 인분 수에 맞추어 자동으로 조절해야 하며, 기본 1인분 기준으로 자연스럽게 확장하거나 축소된 값으로 작성해야 합니다. 인분 수가 제공되지 않은 경우 모델이 적절한 기본 인분을 가정하여 일관성 있게 계산하세요.
                 - 재료별 기본 단위 매핑: {%s}
               
@@ -151,20 +156,13 @@ public class PromptBuilderV3 {
                 - **Servings 기준:** Servings가 **1인분일 때만** '🍽️ 혼밥' 태그를 선택 가능합니다.
                 - **시간 기준:** '⚡ 초스피드 / 간단 요리' 태그는 CookingTime이 **15분 이내**일 경우에만 선택 가능합니다.
                 - **조리 방식 기준:** '🔌 에어프라이어' 태그는 레시피의 **`cookingTools` 필드에 '오븐' 또는 '에어프라이어'가 명시적으로 포함**되어 있거나, `dishType`이 **'구이'** 또는 **'튀김/부침'**에 해당될 경우에만 선택 가능합니다.
-                - **건강 기준:** '🥗 다이어트 / 건강식' 태그는 레시피의 지방(`fat`) 및 당분(`sugar`) 함량이 **총 영양 성분의 10%% 미만**인 경우에만 선택 가능합니다.
+                - **건강 기준:** '🥗 다이어트 / 건강식' 태그는 **설탕, 튀김류, 가공육(햄/소시지)**이 주재료로 사용되지 않고, **채소나 단백질 위주**의 식단일 경우에만 선택 가능합니다.
                 - **나머지 태그 (홈파티, 야식, 술안주 등):** 레시피의 분위기나 재료에 따라 AI가 자유롭게 판단하여 선택합니다.
                 - **배제 규칙:** Servings가 2인분 초과일 경우 '🍽️ 혼밥' 태그를 절대 선택 불가. 지방/칼로리가 높거나 조리 시간이 20분 초과(오븐/찜 포함)일 경우 '⚡ 초스피드 / 간단 요리' 또는 '🥗 다이어트 / 건강식' 태그를 절대 선택 불가.
                 
                 --- "marketPrice" 필드 (배달 가격 규칙) ---
                 - 레시피 전체 **실제 예상 배달 가격** (정수, 원)을 한국 배달 앱 기준으로 현실적으로 추정하세요.
-                - **[CRITICAL PRICE RULE]** 배달 가격은 **원가, 인건비, 포장비, 마진**을 모두 포함해야 하므로, **절대로 저렴한 가격으로 책정해서는 안 됩니다.** 일반적인 **배달 전문점**의 메뉴판 가격(예: 1인분당 최소 9,000원 이상)을 기준으로 **충분히 현실적인 고가**로 설정하세요.
-               
-                --- "nutrition" 필드 (영양성분 규칙) ---
-                - 레시피 전체의 총 영양성분 정보를 객체 형태로 **반드시** 포함해야 합니다.
-                - `protein`, `carbohydrate`, `fat`, `sugar`는 **레시피 전체 기준**의 최종 합산값(BigDecimal)으로 출력하세요. (소수점 2자리까지 허용)
-                - **[CRITICAL]** `sodium` 수치는 1인분 기준 **1800mg**을 절대 초과할 수 없으며, 요리의 종류와 간의 정도에 따라 현실적으로 추정해야 합니다.
-                  **(최종 강제:** 찌개, 볶음, 조림 등 **짠 양념이 사용되는 메인 요리**는 1인분당 **최소 800mg**을 기준으로 잡으세요.)
-                - **이 필드들(`protein`, `carbohydrate`, `fat`, `sugar`, `sodium`)은 0.00 이상의 숫자로 채워져야 하며, null이나 빈 문자열은 절대 허용되지 않습니다.**
+                - **[CRITICAL PRICE RULE]** 배달 가격은 **원가, 인건비, 포장비, 마진**을 모두 포함해야 하므로, **절대로 저렴한 가격으로 책정해서는 안 됩니다.** 일반적인 **배달 전문점**의 메뉴판 가격(예: 1인분당 최소 9,000원 이상)을 기준으로 **충분히 현실적인 고가**로 설정하세요.           
                 
                 --- "cookingTips" 필드 (팁 규칙) ---
                 - **서빙 / 맛 강화 / 재활용 / 보조 재료 대체 팁 3~5개**를 생성하세요.
@@ -216,7 +214,7 @@ public class PromptBuilderV3 {
                   "cookingTools": ["팬", "주걱"],
                   "servings": 2.0,
                   "ingredients": [
-                    { "name": "주재료A", "quantity": "100", "unit": "g", "customPrice": 50, "caloriesPerUnit": 3.0 },
+                    { "name": "주재료A", "quantity": "100", "unit": "g", "customPrice": 50, "customCalories": 300.0, "customCarbohydrate": 20.50, "customProtein": 35.00, "customFat": 10.00, "customSugar": 5.00, "customSodium": 150 },
                     { "name": "주재료B", "quantity": "1", "unit": "개" },
                     { "name": "보조재료C", "quantity": "1", "unit": "작은술" }
                   ],
@@ -226,14 +224,7 @@ public class PromptBuilderV3 {
                   ],
                   "tags": ["🍽️ 혼밥"],
                   "marketPrice": 8000,
-                   "cookingTips": "팁1. 팁2. 팁3.",
-                   "nutrition": {
-                     "protein": 15.25,
-                     "carbohydrate": 45.50,
-                     "fat": 10.75,
-                     "sugar": 12.80,
-                     "sodium": 500
-                   }
+                   "cookingTips": "팁1. 팁2. 팁3."
                 }
                 """;
 
