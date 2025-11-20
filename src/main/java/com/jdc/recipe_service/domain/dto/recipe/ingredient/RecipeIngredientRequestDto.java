@@ -26,6 +26,11 @@ public class RecipeIngredientRequestDto {
     @JsonProperty("unit")
     private String customUnit;
 
-    @JsonProperty("caloriesPerUnit")
     private BigDecimal customCalories;
+
+    private BigDecimal customCarbohydrate;
+    private BigDecimal customProtein;
+    private BigDecimal customFat;
+    private BigDecimal customSugar;
+    private BigDecimal customSodium;
 }

@@ -23,5 +23,5 @@ public class RecipeNutritionDto {
     private BigDecimal sugar;
 
     @Schema(description = "나트륨 (mg)")
-    private Integer sodium;
+    private BigDecimal sodium;
 }

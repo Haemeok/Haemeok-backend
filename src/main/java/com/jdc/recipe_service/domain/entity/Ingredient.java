@@ -3,6 +3,7 @@ package com.jdc.recipe_service.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -34,8 +35,9 @@ public class Ingredient {
     @Column
     private String unit;
 
-    @Column(name = "calorie", nullable = true)
-    private Double calorie;
+    @Column(name = "calorie", precision = 7, scale = 2)
+    @Builder.Default
+    private BigDecimal calorie = BigDecimal.ZERO;
 
     @Column(name = "english_name", length = 100)
     private String englishName;
@@ -45,4 +47,24 @@ public class Ingredient {
 
     @Column(name = "coupang_link_updated_at", nullable = true)
     private LocalDateTime coupangLinkUpdatedAt;
+
+    @Column(name = "carbohydrate", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal carbohydrate = BigDecimal.ZERO;
+
+    @Column(name = "protein", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal protein = BigDecimal.ZERO;
+
+    @Column(name = "fat", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal fat = BigDecimal.ZERO;
+
+    @Column(name = "sugar", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal sugar = BigDecimal.ZERO;
+
+    @Column(name = "sodium", precision = 7, scale = 2)
+    @Builder.Default
+    private BigDecimal sodium = BigDecimal.ZERO;
 }

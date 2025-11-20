@@ -132,14 +132,14 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private BigDecimal sugar = BigDecimal.valueOf(0.00);
 
-    @Column(name = "sodium")
+    @Column(name = "sodium", precision = 7, scale = 2)
     @Builder.Default
-    private Integer sodium = 0;
+    private BigDecimal sodium = BigDecimal.ZERO;
 
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice, String cookingTips,
-                       BigDecimal protein, BigDecimal carbohydrate, BigDecimal fat, BigDecimal sugar, Integer sodium) {
+                       BigDecimal protein, BigDecimal carbohydrate, BigDecimal fat, BigDecimal sugar, BigDecimal sodium) {
         this.title = title;
         this.description = description;
         this.dishType = dishType;
@@ -189,5 +189,13 @@ public class Recipe extends BaseTimeEntity {
 
     public void updateCookingTips(String cookingTips) {
         this.cookingTips = cookingTips;
+    }
+
+    public void updateNutrition(BigDecimal protein, BigDecimal carbohydrate, BigDecimal fat, BigDecimal sugar, BigDecimal sodium) {
+        this.protein = protein;
+        this.carbohydrate = carbohydrate;
+        this.fat = fat;
+        this.sugar = sugar;
+        this.sodium = sodium;
     }
 }
