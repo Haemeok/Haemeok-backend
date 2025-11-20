@@ -34,11 +34,38 @@ public class RecipeIngredient {
     private String unit;
 
     @Column(name = "price")
-    private Integer price;
+    @Builder.Default
+    private Integer price = 0;
 
     private String customName;
-    private BigDecimal customPrice;
     private String customUnit;
-    @Column(precision=8, scale=2)
-    private BigDecimal customCalorie;
+
+
+    @Column(name = "custom_price")
+    @Builder.Default
+    private Integer customPrice = 0;
+
+    @Column(name = "custom_calorie", precision=8, scale=2)
+    @Builder.Default
+    private BigDecimal customCalorie = BigDecimal.ZERO;
+
+    @Column(name = "custom_carbohydrate", precision=7, scale=2)
+    @Builder.Default
+    private BigDecimal customCarbohydrate = BigDecimal.ZERO;
+
+    @Column(name = "custom_protein", precision=7, scale=2)
+    @Builder.Default
+    private BigDecimal customProtein = BigDecimal.ZERO;
+
+    @Column(name = "custom_fat", precision=7, scale=2)
+    @Builder.Default
+    private BigDecimal customFat = BigDecimal.ZERO;
+
+    @Column(name = "custom_sugar", precision=7, scale=2)
+    @Builder.Default
+    private BigDecimal customSugar = BigDecimal.ZERO;
+
+    @Column(name = "custom_sodium", precision = 7, scale = 2)
+    @Builder.Default
+    private BigDecimal customSodium = BigDecimal.ZERO;
 }
