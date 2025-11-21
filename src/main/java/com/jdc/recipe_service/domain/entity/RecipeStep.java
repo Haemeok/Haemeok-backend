@@ -14,6 +14,7 @@ import java.util.List;
         @UniqueConstraint(columnNames = {"recipe_id", "step_number"})
 })
 @Getter
+@ToString(exclude = "recipe")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder

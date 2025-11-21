@@ -10,6 +10,7 @@ import java.math.BigDecimal;
         @UniqueConstraint(columnNames = {"recipe_id", "ingredient_id"})
 })
 @Getter
+@ToString(exclude = "recipe")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
