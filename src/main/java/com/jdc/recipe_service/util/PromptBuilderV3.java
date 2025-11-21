@@ -3,12 +3,15 @@ package com.jdc.recipe_service.util;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
+import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeStep;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.service.SurveyService;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -255,5 +258,92 @@ public class PromptBuilderV3 {
                 + "\n--- 예시 끝 ---\n"
                 + "\n\n" + requestContext
                 + "\n\n" + jsonFormatRules;
+    }
+
+    public String buildAnalysisPrompt(Recipe recipe) {
+        String ingredientsStr = (recipe.getIngredients() != null)
+                ? recipe.getIngredients().stream()
+                .map(ri -> {
+                    String name = (ri.getIngredient() != null) ? ri.getIngredient().getName() : ri.getCustomName();
+                    String quantity = ri.getQuantity() != null ? ri.getQuantity() : "";
+                    String unit = ri.getUnit() != null ? ri.getUnit() : "";
+
+                    return String.format("%s(%s %s)", name, quantity, unit).trim().replace("  ", " ");
+                })
+                .collect(Collectors.joining(", "))
+                : "재료 정보 없음";
+
+        String stepsStr = (recipe.getSteps() != null)
+                ? recipe.getSteps().stream()
+                .sorted(Comparator.comparing(RecipeStep::getStepNumber))
+                .map(step -> step.getStepNumber() + ". " + step.getInstruction())
+                .collect(Collectors.joining("\n"))
+                : "조리 과정 정보 없음";
+
+        Set<String> tools = recipe.getCookingTools();
+        String toolsStr = (tools != null && !tools.isEmpty()) ? String.join(", ", tools) : "일반 조리 도구";
+
+        String description = recipe.getDescription() != null ? recipe.getDescription() : "설명 없음";
+        String servings = recipe.getServings() != null ? String.valueOf(recipe.getServings()) : "1";
+        String dishTypeStr = recipe.getDishType() != null ? recipe.getDishType().name() : "기타";
+
+        return """
+                너는 한국 배달 음식 시장 가격 분석과 식품 위생/안전 전문가야.
+                다음 레시피 데이터를 분석하여 **오직 JSON 형식**으로만 응답해. (마크다운, 서론, 결론 금지)
+                        
+                **[레시피 정보]**
+                - 요리명: %s
+                - 설명: %s
+                - 종류: %s
+                - 인분: %s인분
+                - 조리 도구: %s
+                        
+                **[재료 목록]**
+                %s
+                        
+                **[조리 과정]**
+                %s
+                        
+                ---------------------------------------------------
+                        
+                **[출력 필드 및 작성 규칙]**
+                        
+                1. "marketPrice" (Integer):
+                   - 위 레시피가 **%s인분**임을 감안하여 가격을 책정해.
+                   - '배달의민족'이나 '요기요' 같은 한국 배달 앱 기준 **적정 판매가**여야 해.
+                   - 재료비 + 인건비 + 포장비 + 가게 마진 + 배달 대행료 감안 비용을 모두 포함하여 **현실적인 외식 물가(다소 비싼 편)**로 잡아야 해.
+                   - (예: 국밥 11,000, 파스타 16,000, 떡볶이 1인분 5,000 등)
+                   
+                2. "cookingTips" (String):
+                   - 현재 사용 가능한 조리 도구(%s)나 재료 상황을 고려하여 팁을 작성해.
+                   - 요리의 맛을 한 층 더 올릴 수 있는 비법(마이야르, 불조절 등)이나 재료 대체 팁을 **2~3문장의 줄글**로 작성해.
+                   - **[중요] 재료를 대체할 것을 추천한다면, 반드시 구체적인 양을 명시해야 해.**
+                     (나쁜 예: "우유 대신 두유를 쓰세요.")
+                     (좋은 예: "우유가 없다면 두유 100ml로 대체하여 더 고소한 맛을 낼 수 있습니다.")
+                   - 문체는 친절하고 전문적인 '사장님 팁' 말투로 작성해 (~해요, ~합니다).
+                   
+                3. "isAbusive" (Boolean):
+                   - 레시피의 제목, 설명, 재료, 조리법 전체 내용을 분석해.
+                   - **심한 욕설, 성적 비하, 폭력적 묘사(동물 학대 등), 혐오 표현, 광고성 도배**가 포함되어 있는지 엄격하게 판단해.
+                   - 단순히 레시피가 맛없어 보이거나, 설명이 부족하거나, 오타가 있는 경우는 `false`야.
+                   - 운영 정책을 위반하는 심각한 내용일 경우에만 `true`를 반환해.
+                        
+                [JSON 출력 예시]
+                {
+                  "marketPrice": 14500,
+                  "cookingTips": "마지막에 트러플 오일을 두 방울 떨어뜨리면 풍미가 살아납니다. 생크림이 없다면 우유 150ml와 버터 10g을 섞어 사용해도 좋습니다.",
+                  "isAbusive": false
+                }
+                """.formatted(
+                recipe.getTitle(),
+                description,
+                dishTypeStr,
+                servings,
+                toolsStr,
+                ingredientsStr,
+                stepsStr,
+                servings,
+                toolsStr
+        );
     }
 }
