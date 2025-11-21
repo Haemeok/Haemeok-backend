@@ -287,14 +287,6 @@ public class RecipeSearchService {
                 recipeIngredientRepository.findByRecipeId(recipeId)
         );
 
-        double rawTotal = ingredients.stream()
-                .mapToDouble(i -> i.getCalories() != null ? i.getCalories() : 0.0)
-                .sum();
-        double totalCalories = BigDecimal
-                .valueOf(rawTotal)
-                .setScale(2, RoundingMode.DOWN)
-                .doubleValue();
-
         List<RecipeStepDto> steps = recipeStepRepository
                 .findWithIngredientsByRecipeIdOrderByStepNumber(recipeId)
                 .stream()
@@ -344,7 +336,7 @@ public class RecipeSearchService {
                 .favoriteByCurrentUser(favoritedByUser)
                 .tags(tags)
                 .ingredients(ingredients)
-                .totalCalories(totalCalories)
+                .totalCalories(basic.getTotalCalories() != null ? basic.getTotalCalories().doubleValue() : null)
                 .steps(steps)
                 .comments(comments)
                 .commentCount(commentCount)
