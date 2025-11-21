@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service.ai;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -77,6 +78,29 @@ public class GrokClientService {
                         log.error("WebClient 오류: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString())
                 )
                 .flatMap(this::parseGrokResponse)
+                .toFuture();
+    }
+
+    public CompletableFuture<RecipeAnalysisResponseDto> analyzeRecipe(String prompt) {
+        log.info("Grok 레시피 분석 호출 시작");
+
+        Map<String, Object> requestBody = Map.of(
+                "model", grokRecipeModelName,
+                "temperature", 0.1,
+                "max_tokens", 500,
+                "messages", List.of(
+                        Map.of("role", "system", "content", "너는 JSON 응답만 출력하는 분석가야."),
+                        Map.of("role", "user", "content", prompt)
+                ),
+                "response_format", Map.of("type", "json_object")
+        );
+
+        return client.post()
+                .uri("/chat/completions")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(this::parseAnalysisResponse)
                 .toFuture();
     }
 
@@ -184,5 +208,21 @@ public class GrokClientService {
                         "Grok 레시피 생성 실패 (재시도/서킷/타임아웃): " + ex.getMessage(),
                         ex)
         );
+    }
+
+    private RecipeAnalysisResponseDto parseAnalysisResponse(String jsonResponse) {
+        try {
+            Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<>() {});
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
+            Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+            String content = message.get("content").toString();
+
+            String cleanedJson = content.replaceAll("(?s)```json\\s*", "").replaceAll("(?s)```\\s*", "").trim();
+
+            return objectMapper.readValue(cleanedJson, RecipeAnalysisResponseDto.class);
+        } catch (Exception e) {
+            log.error("분석 결과 파싱 실패", e);
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "분석 결과 파싱 실패");
+        }
     }
 }
