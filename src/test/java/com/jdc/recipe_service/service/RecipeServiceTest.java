@@ -10,6 +10,8 @@ import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
@@ -216,16 +218,17 @@ class RecipeServiceTest {
         when(recipeRepository.findWithAllRelationsById(100L))
                 .thenReturn(Optional.of(existing));
 
-        RecipeCreateRequestDto updateDto = RecipeCreateRequestDto.builder()
+        RecipeUpdateRequestDto updateDto = RecipeUpdateRequestDto.builder()
                 .title("수정된 레시피")
                 .dishType("볶음")
                 .isPrivate(false)
                 .ingredients(Collections.emptyList())
                 .steps(Collections.emptyList())
                 .tags(Collections.emptyList())
+                .isIngredientsModified(false)
                 .build();
 
-        RecipeWithImageUploadRequest updateRequest = RecipeWithImageUploadRequest.builder()
+        RecipeUpdateWithImageRequest updateRequest = RecipeUpdateWithImageRequest.builder()
                 .recipe(updateDto)
                 .files(nonEmptyFiles)
                 .build();
@@ -264,8 +267,8 @@ class RecipeServiceTest {
     void updateRecipe_notFound_throwsException() {
         when(recipeRepository.findWithUserById(2000L)).thenReturn(Optional.empty());
 
-        RecipeWithImageUploadRequest dummyRequest = RecipeWithImageUploadRequest.builder()
-                .recipe(createDto)
+        RecipeUpdateWithImageRequest dummyRequest = RecipeUpdateWithImageRequest.builder()
+                .recipe(RecipeUpdateRequestDto.builder().build())
                 .files(emptyFiles)
                 .build();
 
@@ -290,8 +293,8 @@ class RecipeServiceTest {
         when(recipeRepository.findWithUserById(300L))
                 .thenReturn(Optional.of(existing));
 
-        RecipeWithImageUploadRequest dummyRequest = RecipeWithImageUploadRequest.builder()
-                .recipe(createDto)
+        RecipeUpdateWithImageRequest dummyRequest = RecipeUpdateWithImageRequest.builder()
+                .recipe(RecipeUpdateRequestDto.builder().build()) // 빈 UpdateDto
                 .files(emptyFiles)
                 .build();
 

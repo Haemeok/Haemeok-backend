@@ -1,13 +1,17 @@
 package com.jdc.recipe_service.service.ai;
 
+import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
+import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.util.PromptBuilderV3;
 import com.jdc.recipe_service.util.UnitService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +31,8 @@ public class RecipeTestService {
     private final GrokClientService grokClientService;
     private final UnitService unitService;
     private final IngredientRepository ingredientRepo;
+    private final RecipeRepository recipeRepository;
+    private final PromptBuilderV3 promptBuilder;
 
 
     /**
@@ -329,8 +335,27 @@ public class RecipeTestService {
                             .customPrice(ing.getCustomPrice())
                             .customUnit(finalUnit)
                             .customCalories(ing.getCustomCalories())
+                            .customCarbohydrate(ing.getCustomCarbohydrate())
+                            .customProtein(ing.getCustomProtein())
+                            .customFat(ing.getCustomFat())
+                            .customSugar(ing.getCustomSugar())
+                            .customSodium(ing.getCustomSodium())
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * [테스트용] 특정 레시피 ID에 대해 분석(가격/팁/욕설)만 수행하고 결과를 반환
+     * (DB 업데이트 X)
+     */
+    public RecipeAnalysisResponseDto analyzeRecipeTest(Long recipeId) {
+        Recipe recipe = recipeRepository.findById(recipeId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+
+        String prompt = promptBuilder.buildAnalysisPrompt(recipe);
+        log.info(">>>> [TEST] Analysis Prompt Generated: \n{}", prompt);
+
+        return grokClientService.analyzeRecipe(prompt).join();
     }
 }
