@@ -17,6 +17,7 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
+import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.*;
 import jakarta.persistence.EntityManager;
@@ -63,6 +64,7 @@ public class RecipeService {
     private final ApplicationEventPublisher publisher;
     private final DailyQuotaService dailyQuotaService;
     private final GrokClientService grokClientService;
+    private final RecipeAnalysisService recipeAnalysisService;
 
     private static final String MAIN_IMAGE_SLOT = "main";
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
@@ -173,21 +175,12 @@ public class RecipeService {
         em.flush();
         em.clear();
 
+
         Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
                 .orElseThrow(() -> new CustomException(
                         ErrorCode.RECIPE_NOT_FOUND, "생성된 레시피를 조회할 수 없습니다.")
                 );
 
-        if (sourceType != RecipeSourceType.AI) {
-            final Long recipeId = full.getId();
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
-                        }
-                    });
-        }
         //recipeIndexingService.indexRecipe(full);
 
         final List<PresignedUrlResponseItem> uploads =
@@ -195,18 +188,22 @@ public class RecipeService {
                         ? recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles())
                         : Collections.emptyList();
 
-        if (sourceType == RecipeSourceType.AI) {
-            final Long recipeId = recipe.getId();
-            final Long targetUser = recipe.getUser().getId();
+        final Long recipeId = recipe.getId();
+        final Long targetUserId = recipe.getUser().getId();
 
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUser));
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        if (sourceType == RecipeSourceType.AI) {
+                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
                         }
-                    });
-        }
+                        else {
+                            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
+                        }
+                        recipeAnalysisService.analyzeRecipeAsync(recipeId);
+                    }
+                });
 
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
@@ -325,8 +322,8 @@ public class RecipeService {
 
 
     @Transactional
-    public PresignedUrlResponse updateUserRecipe(Long recipeId, Long userId, RecipeWithImageUploadRequest req) {
-        RecipeCreateRequestDto dto = req.getRecipe();
+    public PresignedUrlResponse updateUserRecipe(Long recipeId, Long userId, RecipeUpdateWithImageRequest req) {
+        RecipeUpdateRequestDto dto = req.getRecipe();
 
         Recipe recipe = getRecipeOrThrow(recipeId);
         validateOwnership(recipe, userId);
@@ -365,7 +362,7 @@ public class RecipeService {
 
         if (!Objects.equals(newTotalCost, prevTotalCost)) {
             recipe.updateTotalIngredientCost(newTotalCost);
-            int marketPrice = calculateMarketPrice(dto, newTotalCost);
+            int marketPrice = calculateMarketPriceForUpdate(dto, newTotalCost);
             recipe.updateMarketPrice(marketPrice);
         }
 
@@ -377,6 +374,17 @@ public class RecipeService {
 
         em.flush();
         em.clear();
+
+        if (Boolean.TRUE.equals(dto.getIsIngredientsModified())) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            log.info("DB 커밋 완료. 수정된 내용으로 AI 분석 시작. ID: {}", recipe.getId());
+                            recipeAnalysisService.analyzeRecipeAsync(recipe.getId());
+                        }
+                    });
+        }
 
         Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
@@ -541,6 +549,16 @@ public class RecipeService {
     }
 
     private static int calculateMarketPrice(RecipeCreateRequestDto dto, int totalCost) {
+        Integer providedMp = dto.getMarketPrice();
+        int marketPrice = (providedMp != null && providedMp > 0)
+                ? providedMp
+                : (totalCost > 0
+                ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(DEFAULT_MARGIN_PERCENT))
+                : 0);
+        return marketPrice;
+    }
+
+    private static int calculateMarketPriceForUpdate(RecipeUpdateRequestDto dto, int totalCost) {
         Integer providedMp = dto.getMarketPrice();
         int marketPrice = (providedMp != null && providedMp > 0)
                 ? providedMp
