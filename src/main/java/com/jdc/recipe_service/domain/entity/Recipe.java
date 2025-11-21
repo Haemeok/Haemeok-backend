@@ -136,6 +136,9 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private BigDecimal sodium = BigDecimal.ZERO;
 
+    @Column(name = "ai_analysis_status", length = 20)
+    private String aiAnalysisStatus;
+
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice, String cookingTips,
@@ -197,5 +200,14 @@ public class Recipe extends BaseTimeEntity {
         this.fat = fat;
         this.sugar = sugar;
         this.sodium = sodium;
+    }
+
+    public void updateAiAnalysisStatus(String status) {
+        this.aiAnalysisStatus = status;
+    }
+
+    public void updateAiInfo(String cookingTips, Integer marketPrice) {
+        this.cookingTips = cookingTips;
+        this.marketPrice = marketPrice;
     }
 }
