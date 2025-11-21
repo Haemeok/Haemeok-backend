@@ -1,13 +1,16 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.RobotType;
+import com.jdc.recipe_service.domain.type.Role;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeService;
+import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +30,7 @@ import java.util.Map;
 public class RecipeController {
 
     private final RecipeService recipeService;
+    private final RecipeAnalysisService recipeAnalysisService;
 
     @PostMapping
     @Operation(summary = "레시피 생성 + 이미지 Presigned URL 발급", description = "레시피 생성 요청과 함께 이미지 업로드용 Presigned URL을 발급합니다. source 값에 따라 AI 생성 또는 유저 입력을 구분합니다.")
@@ -62,7 +66,8 @@ public class RecipeController {
     @Operation(summary = "레시피 수정", description = "기존 레시피를 수정하고 이미지가 변경된 경우 Presigned URL을 다시 발급합니다.")
     public ResponseEntity<PresignedUrlResponse> updateRecipe(
             @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "수정할 레시피 정보") @RequestBody @Valid RecipeWithImageUploadRequest request,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "수정할 레시피 정보")
+            @RequestBody @Valid RecipeUpdateWithImageRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -109,5 +114,24 @@ public class RecipeController {
                 "isPrivate", newIsPrivate,
                 "message", newIsPrivate ? "레시피가 비공개로 전환되었습니다." : "레시피가 공개로 전환되었습니다."
         ));
+    }
+
+    @PostMapping("/{recipeId}/analyze")
+    @Operation(summary = "레시피 AI 분석 수동 요청 (관리자 전용)", description = "특정 레시피의 가격 책정, 팁 생성, 유해성 검사를 실행합니다.")
+    public ResponseEntity<String> analyzeRecipeManually(
+            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (userDetails.getUser().getRole() != Role.ADMIN) {
+            throw new CustomException(ErrorCode.ADMIN_ACCESS_DENIED);
+        }
+
+        recipeAnalysisService.analyzeRecipeAsync(recipeId);
+
+        return ResponseEntity.ok("AI 분석 요청이 비동기로 전송되었습니다. 잠시 후 결과가 반영됩니다.");
     }
 }
