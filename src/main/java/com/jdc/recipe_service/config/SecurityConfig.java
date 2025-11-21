@@ -284,6 +284,8 @@ public class SecurityConfig {
                         // 8) 관리자용 API
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/recipes/*/analyze").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/recipes/*/nutrition").hasRole("ADMIN")
+
                         // 9) 나머지 전부 차단
                         .anyRequest().denyAll()
                 )

@@ -134,4 +134,23 @@ public class RecipeController {
 
         return ResponseEntity.ok("AI 분석 요청이 비동기로 전송되었습니다. 잠시 후 결과가 반영됩니다.");
     }
+
+    @PostMapping("/{recipeId}/nutrition")
+    @Operation(summary = "레시피 영양소 재계산 (관리자 전용)", description = "재료 정보를 바탕으로 탄단지/당/나트륨/칼로리를 다시 계산하여 DB에 반영합니다.")
+    public ResponseEntity<String> recalculateNutrition(
+            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (userDetails.getUser().getRole() != Role.ADMIN) {
+            throw new CustomException(ErrorCode.ADMIN_ACCESS_DENIED);
+        }
+
+        recipeService.recalculateNutrition(recipeId);
+
+        return ResponseEntity.ok("영양소 정보가 성공적으로 재계산되어 DB에 반영되었습니다.");
+    }
 }
