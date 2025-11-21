@@ -145,7 +145,7 @@ class RecipeSearchServiceTest {
                 .unit("개")
                 .price(2000)
                 .customName("감자")
-                .customPrice(BigDecimal.valueOf(1000))
+                .customPrice(1000)
                 .customUnit("개")
                 .build();
         when(recipeIngredientRepository.findByRecipeId(existingId))
