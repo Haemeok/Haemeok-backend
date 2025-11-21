@@ -348,8 +348,8 @@ public class RecipeService {
                 tools,
                 dto.getServings(),
                 null,
-                dto.getMarketPrice(),
-                dto.getCookingTips(),
+                (dto.getMarketPrice() != null && dto.getMarketPrice() > 0) ? dto.getMarketPrice() : recipe.getMarketPrice(),
+                (dto.getCookingTips() != null && !dto.getCookingTips().isBlank()) ? dto.getCookingTips() : recipe.getCookingTips(),
                 null,
                 null,
                 null,
@@ -429,6 +429,18 @@ public class RecipeService {
         recipeIndexingService.deleteRecipe(recipeId);
 
         return recipeId;
+    }
+
+    @Transactional
+    public void recalculateNutrition(Long recipeId) {
+        Recipe recipe = getRecipeOrThrow(recipeId);
+        List<RecipeIngredient> ingredients = recipeIngredientRepository.findByRecipeId(recipeId);
+
+        calculateAndSetTotalNutrition(recipe, ingredients);
+
+        recipeRepository.save(recipe);
+
+        log.info("레시피 영양소 재계산 완료. ID: {}", recipeId);
     }
 
     @Transactional
@@ -636,7 +648,7 @@ public class RecipeService {
             }
         }
 
-        recipe.updateNutrition(totalProtein, totalCarb, totalFat, totalSugar, totalSodium);
+        recipe.updateNutrition(totalProtein, totalCarb, totalFat, totalSugar, totalSodium, totalCalorie);
     }
 
     private BigDecimal parseQuantityToBigDecimal(String quantityStr) {

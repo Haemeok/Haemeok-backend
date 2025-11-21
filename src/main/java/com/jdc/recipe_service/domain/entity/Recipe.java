@@ -136,6 +136,10 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private BigDecimal sodium = BigDecimal.ZERO;
 
+    @Column(name = "total_calories", precision = 7, scale = 2)
+    @Builder.Default
+    private BigDecimal totalCalories = BigDecimal.ZERO;
+
     @Column(name = "ai_analysis_status", length = 20)
     private String aiAnalysisStatus;
 
@@ -194,12 +198,13 @@ public class Recipe extends BaseTimeEntity {
         this.cookingTips = cookingTips;
     }
 
-    public void updateNutrition(BigDecimal protein, BigDecimal carbohydrate, BigDecimal fat, BigDecimal sugar, BigDecimal sodium) {
+    public void updateNutrition(BigDecimal protein, BigDecimal carbohydrate, BigDecimal fat, BigDecimal sugar, BigDecimal sodium, BigDecimal totalCalories) {
         this.protein = protein;
         this.carbohydrate = carbohydrate;
         this.fat = fat;
         this.sugar = sugar;
         this.sodium = sodium;
+        this.totalCalories = totalCalories;
     }
 
     public void updateAiAnalysisStatus(String status) {
