@@ -266,4 +266,13 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "WHERE r.id IN :ids " +
             "GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime, r.avgRating, r.ratingCount")
     List<RecipeSimpleDto> findAllSimpleDtoWithCountsByIdIn(List<Long> ids);
+
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
+    @Query("UPDATE Recipe r SET r.cookingTips = :tips, r.marketPrice = :price, r.aiAnalysisStatus = :status WHERE r.id = :id")
+    void updateAiAnalysisResult(
+            @Param("id") Long id,
+            @Param("tips") String tips,
+            @Param("price") Integer price,
+            @Param("status") String status
+    );
 }
