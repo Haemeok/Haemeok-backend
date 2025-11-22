@@ -76,9 +76,11 @@ public class RecipeAnalysisService {
     }
 
     private void handleNormalRecipe(Recipe recipe, RecipeAnalysisResponseDto response) {
-        recipe.updateAiInfo(response.getCookingTips(), response.getMarketPrice());
-        recipe.updateAiAnalysisStatus("COMPLETED");
-
-        recipeRepository.save(recipe);
+        recipeRepository.updateAiAnalysisResult(
+                recipe.getId(),
+                response.getCookingTips(),
+                response.getMarketPrice(),
+                "COMPLETED"
+        );
     }
 }
