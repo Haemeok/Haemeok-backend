@@ -7,5 +7,6 @@ public enum NotificationType {
     NEW_FAVORITE,
     NEW_RECIPE_LIKE,
     NEW_COMMENT_LIKE,
-    NEW_RECIPE_RATING
+    NEW_RECIPE_RATING,
+    RECIPE_POLICY_VIOLATION
 }
