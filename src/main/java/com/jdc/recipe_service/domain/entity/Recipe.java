@@ -116,27 +116,27 @@ public class Recipe extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String cookingTips;
 
-    @Column(name = "protein", precision = 5, scale = 2)
+    @Column(name = "protein", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal protein = BigDecimal.valueOf(0.00);
 
-    @Column(name = "carbohydrate", precision = 5, scale = 2)
+    @Column(name = "carbohydrate", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal carbohydrate = BigDecimal.valueOf(0.00);
 
-    @Column(name = "fat", precision = 5, scale = 2)
+    @Column(name = "fat", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal fat = BigDecimal.valueOf(0.00);
 
-    @Column(name = "sugar", precision = 5, scale = 2)
+    @Column(name = "sugar", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal sugar = BigDecimal.valueOf(0.00);
 
-    @Column(name = "sodium", precision = 7, scale = 2)
+    @Column(name = "sodium", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal sodium = BigDecimal.ZERO;
 
-    @Column(name = "total_calories", precision = 7, scale = 2)
+    @Column(name = "total_calories", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal totalCalories = BigDecimal.ZERO;
 
