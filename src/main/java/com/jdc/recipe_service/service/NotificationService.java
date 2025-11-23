@@ -58,6 +58,7 @@ public class NotificationService {
                 .relatedType(dto.getRelatedType())
                 .relatedId(dto.getRelatedId())
                 .relatedUrl(dto.getRelatedUrl())
+                .message(dto.getMessage())
                 .build();
         notificationRepo.save(n);
 

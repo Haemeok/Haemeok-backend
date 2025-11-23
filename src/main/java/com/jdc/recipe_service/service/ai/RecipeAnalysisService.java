@@ -95,7 +95,8 @@ public class RecipeAnalysisService {
                     .type(NotificationType.RECIPE_POLICY_VIOLATION)
                     .relatedType(NotificationRelatedType.RECIPE)
                     .relatedId(recipe.getId())
-                    .relatedUrl(reason)
+                    .relatedUrl(null)
+                    .message(reason)
                     .imageUrl(null)
                     .build();
 
