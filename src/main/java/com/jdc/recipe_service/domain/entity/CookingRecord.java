@@ -38,22 +38,22 @@ public class CookingRecord {
     @Column(nullable = false)
     private Integer savings;
 
-    @Column(name = "protein", precision = 5, scale = 2)
+    @Column(name = "protein", precision = 10, scale = 2)
     private BigDecimal protein;
 
-    @Column(name = "carbohydrate", precision = 5, scale = 2)
+    @Column(name = "carbohydrate", precision = 10, scale = 2)
     private BigDecimal carbohydrate;
 
-    @Column(name = "fat", precision = 5, scale = 2)
+    @Column(name = "fat", precision = 10, scale = 2)
     private BigDecimal fat;
 
-    @Column(name = "sugar", precision = 5, scale = 2)
+    @Column(name = "sugar", precision = 10, scale = 2)
     private BigDecimal sugar;
 
-    @Column(name = "sodium", precision = 7, scale = 2)
+    @Column(name = "sodium", precision = 10, scale = 2)
     private BigDecimal sodium;
 
-    @Column(name = "total_calories", precision = 7, scale = 2)
+    @Column(name = "total_calories", precision = 10, scale = 2)
     private BigDecimal totalCalories;
 
     @CreationTimestamp

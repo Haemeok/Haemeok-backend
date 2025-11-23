@@ -35,7 +35,7 @@ public class Ingredient {
     @Column
     private String unit;
 
-    @Column(name = "calorie", precision = 7, scale = 2)
+    @Column(name = "calorie", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal calorie = BigDecimal.ZERO;
 
@@ -48,23 +48,23 @@ public class Ingredient {
     @Column(name = "coupang_link_updated_at", nullable = true)
     private LocalDateTime coupangLinkUpdatedAt;
 
-    @Column(name = "carbohydrate", precision = 5, scale = 2)
+    @Column(name = "carbohydrate", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal carbohydrate = BigDecimal.ZERO;
 
-    @Column(name = "protein", precision = 5, scale = 2)
+    @Column(name = "protein", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal protein = BigDecimal.ZERO;
 
-    @Column(name = "fat", precision = 5, scale = 2)
+    @Column(name = "fat", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal fat = BigDecimal.ZERO;
 
-    @Column(name = "sugar", precision = 5, scale = 2)
+    @Column(name = "sugar", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal sugar = BigDecimal.ZERO;
 
-    @Column(name = "sodium", precision = 7, scale = 2)
+    @Column(name = "sodium", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal sodium = BigDecimal.ZERO;
 }
