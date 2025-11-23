@@ -18,4 +18,5 @@ public class NotificationCreateDto {
     private NotificationRelatedType relatedType;
     private Long relatedId;
     private String relatedUrl;
+    private String message;
 }
