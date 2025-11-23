@@ -12,7 +12,7 @@ public interface RecipeImageRepository extends JpaRepository<RecipeImage, Long> 
     List<RecipeImage> findByRecipeId(Long recipeId);
 
     @Transactional
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RecipeImage i WHERE i.recipe.id = :recipeId")
     void deleteByRecipeId(Long recipeId);
 

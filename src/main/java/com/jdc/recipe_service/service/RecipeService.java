@@ -44,6 +44,7 @@ public class RecipeService {
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
+    private final RecipeRatingRepository recipeRatingRepository;
 
     private final RecipeIngredientService recipeIngredientService;
     private final RecipeStepService recipeStepService;
@@ -424,9 +425,17 @@ public class RecipeService {
 
         recipeTagService.deleteAllByRecipeId(recipeId);
 
+        recipeRatingRepository.deleteByRecipeId(recipeId);
+
         recipeRepository.delete(recipe);
 
-        recipeIndexingService.deleteRecipe(recipeId);
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        recipeIndexingService.deleteRecipeSafelyWithRetry(recipeId);
+                    }
+                });
 
         return recipeId;
     }

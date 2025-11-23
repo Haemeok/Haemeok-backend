@@ -4,6 +4,8 @@ import com.jdc.recipe_service.domain.entity.RecipeStep;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +20,8 @@ public interface RecipeStepRepository extends JpaRepository<RecipeStep, Long> {
     @EntityGraph(attributePaths = {"stepIngredients", "stepIngredients.ingredient"})
     List<RecipeStep> findWithIngredientsByRecipeIdOrderByStepNumber(Long recipeId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM RecipeStep rs WHERE rs.recipe.id = :recipeId")
     @Transactional
-    void deleteByRecipeId(Long recipeId);
+    void deleteByRecipeId(@Param("recipeId") Long recipeId);
 }

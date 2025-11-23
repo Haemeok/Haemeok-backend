@@ -341,15 +341,12 @@ public class CommentService {
         recipeCommentRepository.delete(comment);
     }
 
+    @Transactional
     public void deleteAllByRecipeId(Long recipeId) {
-        List<RecipeComment> comments = recipeCommentRepository.findByRecipeId(recipeId);
-        List<Long> commentIds = comments.stream()
-                .map(RecipeComment::getId)
-                .toList();
+        commentLikeRepository.deleteAllByRecipeId(recipeId);
 
-        if (!commentIds.isEmpty()) {
-            commentLikeRepository.deleteByCommentIdIn(commentIds);
-        }
+        recipeCommentRepository.deleteRepliesByRecipeId(recipeId);
+
         recipeCommentRepository.deleteByRecipeId(recipeId);
     }
 

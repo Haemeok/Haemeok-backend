@@ -3,6 +3,7 @@ package com.jdc.recipe_service.domain.repository;
 import com.jdc.recipe_service.domain.entity.CommentLike;
 import com.jdc.recipe_service.domain.projection.CommentLikeCountProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -28,5 +29,11 @@ public interface CommentLikeRepository extends JpaRepository<CommentLike, Long> 
             "GROUP BY cl.comment.id")
     List<CommentLikeCountProjection> countLikesByCommentIds(@Param("commentIds") List<Long> commentIds);
 
-    void deleteByCommentIdIn(List<Long> commentIds);
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM CommentLike cl WHERE cl.comment.id IN :commentIds")
+    void deleteByCommentIdIn(@Param("commentIds") List<Long> commentIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM CommentLike cl WHERE cl.comment.id IN (SELECT c.id FROM RecipeComment c WHERE c.recipe.id = :recipeId)")
+    void deleteAllByRecipeId(@Param("recipeId") Long recipeId);
 }

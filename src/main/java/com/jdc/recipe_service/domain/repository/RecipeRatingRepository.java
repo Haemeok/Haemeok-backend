@@ -24,9 +24,8 @@ public interface RecipeRatingRepository extends JpaRepository<RecipeRating, Long
     @Query("SELECT COUNT(r) FROM RecipeRating r WHERE r.recipe.id = :recipeId")
     long countByRecipeId(@Param("recipeId") Long recipeId);
 
-    @Modifying
-    @Transactional
-    @Query("DELETE FROM RecipeRating r WHERE r.recipe.id = :recipeId")
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM RecipeRating rr WHERE rr.recipe.id = :recipeId")
     void deleteByRecipeId(@Param("recipeId") Long recipeId);
 
     @Query("SELECT rr.recipe.id, rr.rating FROM RecipeRating rr WHERE rr.user.id = :userId AND rr.recipe.id IN :recipeIds")
