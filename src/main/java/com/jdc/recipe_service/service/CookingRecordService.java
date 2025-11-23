@@ -45,7 +45,6 @@ public class CookingRecordService {
             market = 0;
         }
 
-        // 3) 절약액
         int savings = market - cost;
 
         CookingRecord rec = CookingRecord.builder()
@@ -54,6 +53,12 @@ public class CookingRecordService {
                 .ingredientCost(cost)
                 .marketPrice(market)
                 .savings(savings)
+                .protein(recipe.getProtein())
+                .carbohydrate(recipe.getCarbohydrate())
+                .fat(recipe.getFat())
+                .sugar(recipe.getSugar())
+                .sodium(recipe.getSodium())
+                .totalCalories(recipe.getTotalCalories())
                     .build();
 
         repo.save(rec);
