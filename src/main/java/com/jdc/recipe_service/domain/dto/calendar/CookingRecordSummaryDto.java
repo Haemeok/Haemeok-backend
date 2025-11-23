@@ -2,6 +2,8 @@ package com.jdc.recipe_service.domain.dto.calendar;
 
 import lombok.Getter;
 
+import java.math.BigDecimal;
+
 @Getter
 public class CookingRecordSummaryDto {
     private Long recordId;
@@ -9,6 +11,8 @@ public class CookingRecordSummaryDto {
     private String recipeTitle;
     private Integer ingredientCost;
     private Integer marketPrice;
+    private NutritionSummaryDto nutrition;
+    private BigDecimal calories;
     private String imageUrl;
 
     public static CookingRecordSummaryDto from(
@@ -21,6 +25,8 @@ public class CookingRecordSummaryDto {
         dto.recipeTitle    = e.getRecipe().getTitle();
         dto.ingredientCost = e.getRecipe().getTotalIngredientCost();
         dto.marketPrice    = e.getRecipe().getMarketPrice();
+        dto.nutrition = NutritionSummaryDto.from(e);
+        dto.calories = e.getTotalCalories();
         dto.imageUrl       = imageUrl;
         return dto;
     }
