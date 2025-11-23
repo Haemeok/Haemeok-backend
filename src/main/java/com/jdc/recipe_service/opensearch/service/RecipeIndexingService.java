@@ -307,6 +307,35 @@ public class RecipeIndexingService {
         }
     }
 
+    @Async
+    @Transactional(propagation = Propagation.NEVER)
+    public void deleteRecipeSafelyWithRetry(Long recipeId) {
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                deleteRecipe(recipeId);
+                log.info("레시피 OpenSearch 삭제 성공: ID {} (시도 {})", recipeId, attempt);
+
+                failureLogService.deleteByRecipeId(recipeId);
+                return;
+            } catch (CustomException e) {
+                log.error("OpenSearch 삭제 실패 (시도 {}/{}), ID: {}", attempt, MAX_RETRY_ATTEMPTS, recipeId);
+
+                if (attempt == MAX_RETRY_ATTEMPTS) {
+                    log.error("최종 삭제 실패. ID {}를 실패 로그에 기록합니다.", recipeId);
+                    failureLogService.createLog(recipeId);
+                    return;
+                }
+
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+    }
+
     private void doIndex(Recipe recipe) {
         try {
             RecipeDocument doc = buildDocument(recipe);
