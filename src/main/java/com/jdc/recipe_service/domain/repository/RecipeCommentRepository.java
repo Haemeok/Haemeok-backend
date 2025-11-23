@@ -4,6 +4,7 @@ import com.jdc.recipe_service.domain.entity.RecipeComment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -42,7 +43,15 @@ public interface RecipeCommentRepository extends JpaRepository<RecipeComment, Lo
             @Param("recipeId") Long recipeId,
             Pageable pageable
     );
-    void deleteByRecipeId(Long recipeId);
+
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM RecipeComment c WHERE c.recipe.id = :recipeId AND c.parentComment IS NOT NULL")
+    void deleteRepliesByRecipeId(@Param("recipeId") Long recipeId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM RecipeComment c WHERE c.recipe.id = :recipeId")
+    void deleteByRecipeId(@Param("recipeId") Long recipeId);
 
     List<RecipeComment> findByRecipeId(Long recipeId);
 

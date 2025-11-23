@@ -199,16 +199,10 @@ public class RecipeStepService {
         }
     }
 
-    private void deleteAllStepIngredients(RecipeStep step) {
-        recipeStepIngredientRepository.deleteByStepId(step.getId());
-    }
-
     @Transactional
     public void deleteAllByRecipeId(Long recipeId) {
-        List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
-        for (RecipeStep step : steps) {
-            deleteAllStepIngredients(step);
-        }
+        recipeStepIngredientRepository.deleteAllByRecipeId(recipeId);
+
         recipeStepRepository.deleteByRecipeId(recipeId);
     }
 

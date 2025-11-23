@@ -107,7 +107,7 @@ public class RecipeImageService {
             }
         }
 
-        recipeImageRepository.deleteAll(images);
+        recipeImageRepository.deleteByRecipeId(recipeId);
     }
 
     @Transactional

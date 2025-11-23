@@ -275,4 +275,14 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("price") Integer price,
             @Param("status") String status
     );
+
+    @Query("""
+            SELECT DISTINCT r FROM Recipe r
+            LEFT JOIN FETCH r.tags
+            LEFT JOIN FETCH r.ingredients ri
+            LEFT JOIN FETCH ri.ingredient
+            WHERE r.isPrivate = false
+            ORDER BY r.avgRating DESC
+            """)
+    List<Recipe> findCandidatesForRecommendation(Pageable pageable);
 }

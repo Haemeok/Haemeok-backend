@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -22,7 +23,9 @@ public interface RecipeFavoriteRepository extends JpaRepository<RecipeFavorite, 
 
     boolean existsByRecipeIdAndUserId(Long recipeId, Long userId);
 
-    void deleteByRecipeId(Long recipeId);
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM RecipeFavorite rf WHERE rf.recipe.id = :recipeId")
+    void deleteByRecipeId(@Param("recipeId") Long recipeId);
 
     @Query("SELECT rf.recipe.id FROM RecipeFavorite rf WHERE rf.user.id = :userId AND rf.recipe.id IN :recipeIds")
     Set<Long> findRecipeIdsByUserIdAndRecipeIdIn(@Param("userId") Long userId, @Param("recipeIds") List<Long> recipeIds);
