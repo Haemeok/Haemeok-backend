@@ -22,6 +22,7 @@ public class NotificationDto {
     private NotificationRelatedType relatedType;
     private Long relatedId;
     private String relatedUrl;
+    private String message;
     private boolean isRead;
     private LocalDateTime createdAt;
 
@@ -36,6 +37,7 @@ public class NotificationDto {
                 .relatedType(n.getRelatedType())
                 .relatedId(n.getRelatedId())
                 .relatedUrl(n.getRelatedUrl())
+                .message(n.getMessage())
                 .isRead(n.getIsRead())
                 .createdAt(n.getCreatedAt())
                 .build();
