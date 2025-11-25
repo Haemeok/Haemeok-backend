@@ -21,6 +21,7 @@ import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import com.jdc.recipe_service.mapper.UserMapper;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
 import com.jdc.recipe_service.util.SearchProperties;
 import lombok.RequiredArgsConstructor;
@@ -139,7 +140,7 @@ public class RecipeSearchService {
                 cond.getTitle(),
                 cond.getDishTypeEnum(),
                 cond.getTagEnums(),
-                cond.getIsAiGenerated() != null ? cond.getIsAiGenerated() : false,
+                cond.getAiFilter(),
                 cond.getMaxCost(),
                 property,
                 direction,
@@ -156,11 +157,11 @@ public class RecipeSearchService {
         String title = condition.getTitle();
         DishType dishType = condition.getDishTypeEnum();
         List<TagType> tagTypes = condition.getTagEnums();
-        Boolean aiFlag = condition.getIsAiGenerated() != null ? condition.getIsAiGenerated() : false;
-        //Boolean aiFlag    = condition.getIsAiGenerated();
+        AiRecipeFilter aiFilter = condition.getAiFilter();
+
         Integer maxCost = condition.getMaxCost();
 
-        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, aiFlag, maxCost, pageable, userId);
+        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, aiFilter, maxCost, pageable, userId);
 
         if (userId != null) {
             List<Long> recipeIds = page.getContent().stream()
