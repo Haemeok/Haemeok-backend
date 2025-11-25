@@ -8,7 +8,9 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.RecipeRecommendationService;
 import com.jdc.recipe_service.service.RecipeSearchService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +37,7 @@ public class RecipeSearchController {
     private final RecipeSearchService recipeSearchService;
     private final RecipeRepository recipeRepository;
     private final DeferredResultHolder deferredResultHolder;
+    private final RecipeRecommendationService recipeRecommendationService;
 
     @GetMapping("/{id}")
     @Operation(summary = "레시피 상세 조회", description = "레시피 ID를 기반으로 상세 정보를 조회합니다.")
@@ -132,7 +135,7 @@ public class RecipeSearchController {
             @Parameter(description = "검색어 (제목, 설명, 재료명 포함)") @RequestParam(required = false) String q,
             @Parameter(description = "디시타입 (예: 볶음, 찜/조림 등)") @RequestParam(required = false) String dishType,
             @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tags,
-            @Parameter(description = "AI 생성 여부 (true: AI가 만든 레시피만, false: 유저 생성 레시피만)") @RequestParam(required = false) Boolean isAiGenerated,
+            @Parameter(description = "AI 필터 (USER_ONLY, AI_ONLY, ALL) - 미입력 시 USER_ONLY") @RequestParam(required = false) AiRecipeFilter aiFilter,
             @Parameter(description = "최대 허용 원가 (원)") @RequestParam(required = false) Integer maxCost,
             @Parameter(hidden = true) @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
@@ -141,13 +144,11 @@ public class RecipeSearchController {
                 ? userDetails.getUser().getId()
                 : null;
 
-        Boolean defaultAiFilter = isAiGenerated;
-
-        if (defaultAiFilter == null && (q == null || q.isBlank())) {
-            defaultAiFilter = false;
+        if (aiFilter == null) {
+            aiFilter = AiRecipeFilter.USER_ONLY;
         }
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, defaultAiFilter, maxCost);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, aiFilter, maxCost);
 
         return ResponseEntity.ok(
                 recipeSearchService.searchRecipes(cond, pageable, userId)
@@ -184,5 +185,19 @@ public class RecipeSearchController {
         return ResponseEntity.ok(
                 recipeSearchService.getBudgetRecipes(maxCost, pageable, userId)
         );
+    }
+
+    @GetMapping("/{id}/recommendations")
+    @Operation(summary = "상세 페이지 하단 추천 레시피 조회")
+    public ResponseEntity<List<RecipeSimpleDto>> getRecommendations(
+            @PathVariable("id") Long recipeId,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long currentUserId = userDetails != null ? userDetails.getUser().getId() : null;
+
+        List<RecipeSimpleDto> recommendations = recipeRecommendationService.getRecommendations(recipeId, size, currentUserId);
+
+        return ResponseEntity.ok(recommendations);
     }
 }
