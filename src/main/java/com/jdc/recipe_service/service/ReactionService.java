@@ -54,20 +54,28 @@ public class ReactionService {
             }
         }
 
+        double baseRating = 3.8 + (random.nextInt(8) * 0.1);
+
         for (int i = 0; i < dto.getRatingCount(); i++) {
             Long userId = TEST_USER_START_ID + i;
             User user = getUserOrThrow(userId);
 
-            double randomScore = 4.0 + (random.nextInt(11) / 10.0);
+            double tempScore = baseRating + ((random.nextInt(11) - 5) * 0.1);
+            tempScore = Math.round(tempScore * 10.0) / 10.0;
+
+            if (tempScore > 5.0) tempScore = 5.0;
+            if (tempScore < 0.0) tempScore = 0.0;
+
+            double finalScore = tempScore;
 
             RecipeRating rating = recipeRatingRepository.findByUserAndRecipe(user, recipe)
                     .orElseGet(() -> RecipeRating.builder()
                             .user(user)
                             .recipe(recipe)
-                            .rating(randomScore)
+                            .rating(finalScore)
                             .build());
 
-            rating.updateRating(randomScore);
+            rating.updateRating(finalScore);
             recipeRatingRepository.save(rating);
         }
 
