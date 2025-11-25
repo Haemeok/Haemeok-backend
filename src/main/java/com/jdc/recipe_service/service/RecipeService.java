@@ -419,13 +419,17 @@ public class RecipeService {
 
         commentService.deleteAllByRecipeId(recipeId);
 
+        recipeRatingRepository.deleteByRecipeId(recipeId);
+
         recipeStepService.deleteAllByRecipeId(recipeId);
 
         recipeIngredientService.deleteAllByRecipeId(recipeId);
 
         recipeTagService.deleteAllByRecipeId(recipeId);
 
-        recipeRatingRepository.deleteByRecipeId(recipeId);
+        if (recipe.getIngredients() != null) recipe.getIngredients().clear();
+        if (recipe.getSteps() != null) recipe.getSteps().clear();
+        if (recipe.getTags() != null) recipe.getTags().clear();
 
         recipeRepository.delete(recipe);
 
