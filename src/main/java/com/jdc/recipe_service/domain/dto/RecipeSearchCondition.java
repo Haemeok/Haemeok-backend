@@ -2,6 +2,7 @@ package com.jdc.recipe_service.domain.dto;
 
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,7 +18,7 @@ public class RecipeSearchCondition {
     private String title;
     private String dishType;
     private List<String> tags;
-    private Boolean isAiGenerated;
+    private AiRecipeFilter aiFilter;
     private Integer maxCost;
 
     public DishType getDishTypeEnum() {
@@ -30,5 +31,9 @@ public class RecipeSearchCondition {
         return tags.stream()
                 .map(TagType::fromCode)
                 .toList();
+    }
+
+    public AiRecipeFilter getAiFilter() {
+        return this.aiFilter == null ? AiRecipeFilter.USER_ONLY : this.aiFilter;
     }
 }

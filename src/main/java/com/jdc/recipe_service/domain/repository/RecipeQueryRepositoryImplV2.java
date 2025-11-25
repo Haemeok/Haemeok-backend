@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.entity.QRecipe;
 import com.jdc.recipe_service.domain.entity.QRecipeTag;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -40,14 +41,12 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
     }
 
     @Override
-    public Page<RecipeSimpleStaticDto> searchStatic(String title, DishType dishType, List<TagType> tagTypes, Boolean isAiGenerated, Pageable pageable, Long currentUserId) {
+    public Page<RecipeSimpleStaticDto> searchStatic(String title, DishType dishType, List<TagType> tagTypes, AiRecipeFilter aiFilter, Pageable pageable, Long currentUserId) {
         QRecipe recipe   = QRecipe.recipe;
         QRecipeTag tag    = QRecipeTag.recipeTag;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-        BooleanExpression aiCondition      = (isAiGenerated != null)
-                ? recipe.isAiGenerated.eq(isAiGenerated)
-                : null;
+        BooleanExpression aiCondition = filterAiGenerated(aiFilter);
 
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleStaticDto(
@@ -170,6 +169,16 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
 
     private BooleanExpression titleContains(String title) {
         return StringUtils.hasText(title) ? QRecipe.recipe.title.containsIgnoreCase(title) : null;
+    }
+
+    private BooleanExpression filterAiGenerated(AiRecipeFilter filter) {
+        if (filter == AiRecipeFilter.AI_ONLY) {
+            return QRecipe.recipe.isAiGenerated.isTrue();
+        }
+        if (filter == AiRecipeFilter.ALL) {
+            return null;
+        }
+        return QRecipe.recipe.isAiGenerated.isFalse();
     }
 
 }

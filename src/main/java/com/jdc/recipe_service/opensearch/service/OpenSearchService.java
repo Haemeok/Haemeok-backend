@@ -9,6 +9,7 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.keyword.KeywordService;
 import lombok.RequiredArgsConstructor;
 import org.opensearch.action.search.SearchRequest;
@@ -57,7 +58,6 @@ public class OpenSearchService {
 
             bool.filter(QueryBuilders.termQuery("isPrivate", false));
 
-//            bool.mustNot(QueryBuilders.termQuery("user.id", 7));
 
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
                 String title = cond.getTitle().trim();
@@ -84,8 +84,11 @@ public class OpenSearchService {
                 }
             }
 
-            if (cond.getIsAiGenerated() == null || !cond.getIsAiGenerated()) {
+            AiRecipeFilter filter = cond.getAiFilter();
+            if (filter == AiRecipeFilter.USER_ONLY) {
                 bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
+            } else if (filter == AiRecipeFilter.AI_ONLY) {
+                bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
             }
 
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {
@@ -116,14 +119,12 @@ public class OpenSearchService {
 
             List<RecipeSimpleDto> listWithCounts = recipeRepository.findAllSimpleDtoWithCountsByIdIn(ids);
 
-            // ID를 키로 하는 맵으로 변환하여 순서를 맞춥니다.
             Map<Long, RecipeSimpleDto> dtoMap = listWithCounts.stream()
                     .collect(Collectors.toMap(RecipeSimpleDto::getId, Function.identity()));
 
             List<RecipeSimpleDto> list = ids.stream()
                     .filter(dtoMap::containsKey)
-                    .map(dtoMap::get) // OpenSearch ID 순서대로 DTO를 가져옴
-                    // ⚠️ DTO 생성자 호출 로직을 삭제합니다. (이미 Repository에서 DTO 생성 완료)
+                    .map(dtoMap::get)
                     .collect(Collectors.toList());
 
             return new PageImpl<>(list, pg, hits.getTotalHits().value);
@@ -161,8 +162,11 @@ public class OpenSearchService {
                 }
             }
 
-            if (cond.getIsAiGenerated() == null || !cond.getIsAiGenerated()) {
+            AiRecipeFilter filter = cond.getAiFilter();
+            if (filter == AiRecipeFilter.USER_ONLY) {
                 bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
+            } else if (filter == AiRecipeFilter.AI_ONLY) {
+                bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
             }
 
             if (bool.must().isEmpty() && bool.filter().isEmpty()) {
@@ -229,8 +233,11 @@ public class OpenSearchService {
                 bool.filter(QueryBuilders.termQuery("tags", tag));
             }
         }
-        if (cond.getIsAiGenerated() != null) {
-            bool.filter(QueryBuilders.termQuery("isAiGenerated", cond.getIsAiGenerated()));
+        AiRecipeFilter filter = cond.getAiFilter();
+        if (filter == AiRecipeFilter.USER_ONLY) {
+            bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
+        } else if (filter == AiRecipeFilter.AI_ONLY) {
+            bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
         }
         if (bool.must().isEmpty() && bool.filter().isEmpty()) {
             bool.must(QueryBuilders.matchAllQuery());

@@ -7,6 +7,7 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeSearchServiceV2;
 import com.jdc.recipe_service.service.RecipeStatusService;
@@ -103,20 +104,18 @@ public class RecipeSearchControllerV2 {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String dishType,
             @RequestParam(required = false) List<String> tags,
-            @RequestParam(required = false) Boolean isAiGenerated,
+            @RequestParam(required = false) AiRecipeFilter aiFilter,
             @RequestParam(required = false) Integer maxCost,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
 
-        Boolean defaultAiFilter = isAiGenerated;
-
-        if (defaultAiFilter == null && (q == null || q.isBlank())) {
-            defaultAiFilter = false;
+        if (aiFilter == null) {
+            aiFilter = AiRecipeFilter.USER_ONLY;
         }
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, defaultAiFilter, maxCost);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, aiFilter, maxCost);
         Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }

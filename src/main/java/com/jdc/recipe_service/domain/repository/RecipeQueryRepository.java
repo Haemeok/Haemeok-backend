@@ -11,13 +11,13 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface RecipeQueryRepository {
-    Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Boolean isAiGenerated,Integer maxCost, Pageable pageable, Long currentUserId);
+    Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, AiRecipeFilter aiFilter,Integer maxCost, Pageable pageable, Long currentUserId);
     Page<RecipeSimpleDto> findAllSimpleWithRatingAndCookingInfo(Pageable pageable);
     Page<RecipeSimpleDto> searchAndSortByDynamicField(
             String title,
             DishType dishType,
             List<TagType> tags,
-            Boolean isAiGenerated,
+            AiRecipeFilter aiFilter,
             Integer maxCost,
             String property,
             org.springframework.data.domain.Sort.Direction direction,
