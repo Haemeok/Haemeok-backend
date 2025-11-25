@@ -144,6 +144,7 @@ public class SecurityConfig {
 
                             // 7) 관리자용 API
                             .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                            .requestMatchers("/api/test/recipes/**").hasRole("ADMIN")
 
                             // 8) 나머지 요청은 모두 공개
                             .anyRequest().permitAll()
@@ -285,6 +286,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/recipes/*/analyze").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/recipes/*/nutrition").hasRole("ADMIN")
+                        .requestMatchers("/api/test/recipes/**").hasRole("ADMIN")
 
                         // 9) 나머지 전부 차단
                         .anyRequest().denyAll()

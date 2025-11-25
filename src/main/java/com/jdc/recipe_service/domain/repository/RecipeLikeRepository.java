@@ -1,6 +1,8 @@
 package com.jdc.recipe_service.domain.repository;
 
+import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeLike;
+import com.jdc.recipe_service.domain.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +18,7 @@ public interface RecipeLikeRepository extends JpaRepository<RecipeLike, Long> {
 
     int countByRecipeId(Long recipeId);
     boolean existsByRecipeIdAndUserId(Long recipeId, Long userId);
+    boolean existsByUserAndRecipe(User user, Recipe recipe);
 
     List<RecipeLike> findByUserIdAndRecipeIdIn(Long userId, List<Long> recipeIds);
 
