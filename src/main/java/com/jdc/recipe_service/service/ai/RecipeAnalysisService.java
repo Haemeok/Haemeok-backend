@@ -13,11 +13,11 @@ import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.util.PromptBuilderV3;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate; // ★ 추가됨
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -29,19 +29,22 @@ public class RecipeAnalysisService {
     private final GrokClientService grokClientService;
     private final PromptBuilderV3 promptBuilder;
     private final NotificationService notificationService;
-    private final TransactionTemplate transactionTemplate;
 
     @Autowired
     @Lazy
     private RecipeService recipeService;
 
     @Async
+    @Transactional
     public void analyzeRecipeAsync(Long recipeId) {
-        Recipe recipe = recipeRepository.findById(recipeId).orElse(null);
+        Recipe recipe = recipeRepository.findById(recipeId)
+                .orElse(null);
+
         if (recipe == null) return;
 
         try {
             String prompt = promptBuilder.buildAnalysisPrompt(recipe);
+
             RecipeAnalysisResponseDto response = grokClientService.analyzeRecipe(prompt).join();
 
             boolean isReallyAbusive = response.isAbusive() ||
@@ -51,24 +54,16 @@ public class RecipeAnalysisService {
                 try {
                     handleAbusiveRecipe(recipe, response);
                 } catch (Exception e) {
-                    log.error("유해 레시피 삭제 과정 중 에러 발생: {}", e.getMessage());
+                    log.error("유해 레시피 삭제 과정 중 에러 발생 (OpenSearch 등): {}", e.getMessage());
                 }
             } else {
-                transactionTemplate.execute(status -> {
-                    handleNormalRecipe(recipe, response);
-                    return null;
-                });
+                handleNormalRecipe(recipe, response);
             }
 
         } catch (Exception e) {
             log.error("레시피 분석 중 오류 발생 ID: " + recipeId, e);
-
-            if (recipeRepository.existsById(recipeId)) {
-                transactionTemplate.execute(status -> {
-                    updateAnalysisStatusToFailed(recipeId);
-                    return null;
-                });
-            }
+            recipe.updateAiAnalysisStatus("FAILED");
+            recipeRepository.save(recipe);
         }
     }
 
@@ -79,18 +74,16 @@ public class RecipeAnalysisService {
         String stepsSnapshot = recipe.getSteps() != null ? recipe.getSteps().toString() : "[]";
         String reason = (response.getAbuseType() != null) ? response.getAbuseType() : "ABUSIVE_CONTENT";
 
-        transactionTemplate.execute(status -> {
-            RecipeTrashLog trashLog = RecipeTrashLog.builder()
-                    .originalRecipeId(recipe.getId())
-                    .userId(recipe.getUser().getId())
-                    .title(recipe.getTitle())
-                    .ingredientsSnapshot(ingredientsSnapshot)
-                    .instructionSnapshot(stepsSnapshot)
-                    .detectedReason(reason)
-                    .build();
-            trashLogRepository.save(trashLog);
-            return null;
-        });
+        RecipeTrashLog trashLog = RecipeTrashLog.builder()
+                .originalRecipeId(recipe.getId())
+                .userId(recipe.getUser().getId())
+                .title(recipe.getTitle())
+                .ingredientsSnapshot(ingredientsSnapshot)
+                .instructionSnapshot(stepsSnapshot)
+                .detectedReason(reason)
+                .build();
+
+        trashLogRepository.save(trashLog);
 
         recipeService.deleteRecipe(recipe.getId(), recipe.getUser().getId());
 
@@ -116,19 +109,11 @@ public class RecipeAnalysisService {
     }
 
     private void handleNormalRecipe(Recipe recipe, RecipeAnalysisResponseDto response) {
-        recipeRepository.findById(recipe.getId()).ifPresent(r -> {
-            recipeRepository.updateAiAnalysisResult(
-                    r.getId(),
-                    response.getCookingTips(),
-                    response.getMarketPrice(),
-                    "COMPLETED"
-            );
-        });
-    }
-
-    private void updateAnalysisStatusToFailed(Long recipeId) {
-        recipeRepository.findById(recipeId).ifPresent(r -> {
-            r.updateAiAnalysisStatus("FAILED");
-        });
+        recipeRepository.updateAiAnalysisResult(
+                recipe.getId(),
+                response.getCookingTips(),
+                response.getMarketPrice(),
+                "COMPLETED"
+        );
     }
 }
