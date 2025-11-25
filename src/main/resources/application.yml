@@ -13,6 +13,11 @@ spring:
     async:
       request-timeout: 600000   # 10분 (밀리초)
 
+  jpa:
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+
 server:
   forward-headers-strategy: framework
 

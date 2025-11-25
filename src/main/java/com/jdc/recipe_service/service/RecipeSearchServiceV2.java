@@ -20,8 +20,8 @@ import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import com.jdc.recipe_service.mapper.UserMapper;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
-import com.jdc.recipe_service.service.CommentService;
 import com.jdc.recipe_service.util.SearchProperties;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -210,7 +210,7 @@ public class RecipeSearchServiceV2 {
                 condition.getTitle(),
                 condition.getDishTypeEnum(),
                 condition.getTagEnums(),
-                condition.getIsAiGenerated(),
+                condition.getAiFilter(),
                 pageable,
                 userId
         );
@@ -250,9 +250,13 @@ public class RecipeSearchServiceV2 {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
         BooleanExpression privacy = recipe.isPrivate.eq(false);
-        BooleanExpression ai = (cond.getIsAiGenerated() == null || !cond.getIsAiGenerated())
-                ? recipe.isAiGenerated.eq(false)
-                : null;
+        AiRecipeFilter filter = cond.getAiFilter();
+        BooleanExpression ai = null;
+        if (filter == AiRecipeFilter.USER_ONLY) {
+            ai = recipe.isAiGenerated.isFalse();
+        } else if (filter == AiRecipeFilter.AI_ONLY) {
+            ai = recipe.isAiGenerated.isTrue();
+        }
         BooleanExpression title = StringUtils.hasText(cond.getTitle()) ? recipe.title.containsIgnoreCase(cond.getTitle()) : null;
         BooleanExpression dishType = (cond.getDishTypeEnum() != null) ? recipe.dishType.eq(cond.getDishTypeEnum()) : null;
         BooleanExpression tags = (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) ? tag.tag.in(cond.getTagEnums()) : null;

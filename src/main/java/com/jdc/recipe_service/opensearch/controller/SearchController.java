@@ -2,6 +2,7 @@ package com.jdc.recipe_service.opensearch.controller;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.dto.IngredientSearchDto;
 import com.jdc.recipe_service.opensearch.service.IngredientSearchService;
 import com.jdc.recipe_service.opensearch.service.OpenSearchSuggestionService;
@@ -38,7 +39,7 @@ public class SearchController {
             @Parameter(description = "검색어 (제목, 설명, 재료 포함)") @RequestParam(required = false) String q,
             @Parameter(description = "디시타입 필터") @RequestParam(required = false) String dishType,
             @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tags,
-            @Parameter(description = "AI 생성 여부 (true: AI가 만든 레시피만, false: 유저 생성 레시피만)") @RequestParam(required = false) Boolean isAiGenerated,
+            @Parameter(description = "AI 필터 (USER_ONLY, AI_ONLY, ALL) - 미입력 시 USER_ONLY") @RequestParam(required = false) AiRecipeFilter aiFilter,
             @Parameter(description = "최대 허용 원가 (원)") @RequestParam(required = false) Integer maxCost,
             @Parameter(
                     name = "sort",
@@ -50,7 +51,7 @@ public class SearchController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, isAiGenerated, maxCost);
+        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, aiFilter, maxCost);
         Page<RecipeSimpleDto> page = searchService.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }

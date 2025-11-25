@@ -277,10 +277,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     );
 
     @Query("""
-            SELECT DISTINCT r FROM Recipe r
-            LEFT JOIN FETCH r.tags
-            LEFT JOIN FETCH r.ingredients ri
-            LEFT JOIN FETCH ri.ingredient
+            SELECT r FROM Recipe r
             WHERE r.isPrivate = false
             ORDER BY r.avgRating DESC
             """)

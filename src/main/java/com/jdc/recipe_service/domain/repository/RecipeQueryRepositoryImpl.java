@@ -42,16 +42,14 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     }
 
     @Override
-    public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, Boolean isAiGenerated, Integer maxCost, Pageable pageable, Long currentUserId) {
+    public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, AiRecipeFilter aiFilter, Integer maxCost, Pageable pageable, Long currentUserId) {
         QRecipe recipe   = QRecipe.recipe;
         QRecipeTag tag    = QRecipeTag.recipeTag;
         QRecipeLike rLike = QRecipeLike.recipeLike;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-        BooleanExpression aiCondition      = (isAiGenerated != null)
-                ? recipe.isAiGenerated.eq(isAiGenerated)
-                : null;
-//        BooleanExpression adminExclude     = recipe.user.id.ne(7L);
+
+        BooleanExpression aiCondition = filterAiGenerated(aiFilter);
 
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleDto(
@@ -78,7 +76,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         tagIn(tagTypes),
                         aiCondition,
                         maxCostLoe(maxCost)
-//                        ,adminExclude
                 )
                 .groupBy(
                         recipe.id,
@@ -124,7 +121,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         tagIn(tagTypes),
                         aiCondition,
                         maxCostLoe(maxCost)
-//                        ,adminExclude
                 )
                 .fetchOne();
 
@@ -173,36 +169,27 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     @Override
     public Page<RecipeSimpleDto> searchAndSortByDynamicField(
             String title, DishType dishType, List<TagType> tags,
-            Boolean isAiGenerated, Integer maxCost, String property,
+            AiRecipeFilter aiFilter, Integer maxCost, String property,
             Sort.Direction direction, Pageable pageable, Long userId) {
 
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
         QRecipeLike rLike = QRecipeLike.recipeLike;
 
-        // ⭐ 평점은 Recipe 엔티티에 직접 저장되어 있으므로 별도 Q-Type은 필요 없음
-
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-        BooleanExpression aiCondition = (isAiGenerated != null)
-                ? recipe.isAiGenerated.eq(isAiGenerated)
-                : null;
+        BooleanExpression aiCondition = filterAiGenerated(aiFilter);
 
-        // 1. 동적 정렬 조건 생성
         Order dir = direction.isAscending() ? Order.ASC : Order.DESC;
         OrderSpecifier<?> dynamicOrder;
 
         if ("likeCount".equals(property)) {
-            // 좋아요 수로 정렬: COUNT(rLike.id) 사용
             dynamicOrder = new OrderSpecifier<>(dir, rLike.id.countDistinct());
         } else if ("avgRating".equals(property)) {
-            // 평균 평점으로 정렬: recipe.avgRating 필드 사용
             dynamicOrder = new OrderSpecifier<>(dir, recipe.avgRating);
         } else {
-            // 안전 장치: 지원되지 않는 정렬이면 최신순으로 정렬
             dynamicOrder = new OrderSpecifier<>(Order.DESC, recipe.createdAt);
         }
 
-        // 2. 검색 쿼리 실행
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleDto(
                         recipe.id,
@@ -351,6 +338,16 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
     private BooleanExpression maxCostLoe(Integer maxCost) {
         return (maxCost != null) ? QRecipe.recipe.totalIngredientCost.loe(maxCost) : null;
+    }
+
+    private BooleanExpression filterAiGenerated(AiRecipeFilter filter) {
+        if (filter == AiRecipeFilter.AI_ONLY) {
+            return QRecipe.recipe.isAiGenerated.isTrue();
+        }
+        if (filter == AiRecipeFilter.ALL) {
+            return null;
+        }
+        return QRecipe.recipe.isAiGenerated.isFalse();
     }
 
     private BooleanExpression buildAiFilter(AiRecipeFilter filter, QRecipe recipe) {
