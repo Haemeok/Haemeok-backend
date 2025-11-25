@@ -285,4 +285,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             ORDER BY r.avgRating DESC
             """)
     List<Recipe> findCandidatesForRecommendation(Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM Recipe r WHERE r.id = :id")
+    void deleteByIdDirectly(@Param("id") Long id);
 }

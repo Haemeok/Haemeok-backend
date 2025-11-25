@@ -427,7 +427,7 @@ public class RecipeService {
 
         recipeTagService.deleteAllByRecipeId(recipeId);
 
-        recipeRepository.delete(recipe);
+        recipeRepository.deleteByIdDirectly(recipeId);
 
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
