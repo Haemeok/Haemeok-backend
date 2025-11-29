@@ -23,6 +23,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermsSetQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,12 @@ public class FridgeRecipeSearchService {
     private final RecipeRepository recipeRepository;
     private final RecipeLikeRepository recipeLikeRepository;
 
+    @Value("${app.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
     @Transactional(readOnly = true)
     public Page<FridgeRecipeDto> searchByFridge(Long userId,
                                                 Pageable pageable,
@@ -54,6 +61,10 @@ public class FridgeRecipeSearchService {
         List<Long> fridgeIds = fridgeRepo.findAllByUserId(userId).stream()
                 .map(fi -> fi.getIngredient().getId())
                 .toList();
+
+        if (fridgeIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
 
         try {
             return searchWithOpenSearch(userId, pageable, aiFilter, fridgeIds);
@@ -94,15 +105,11 @@ public class FridgeRecipeSearchService {
             boolQuery.filter(QueryBuilders.termQuery("isAiGenerated", true));
         }
 
-        if (fridgeIds.isEmpty()) {
-            boolQuery.must(QueryBuilders.matchAllQuery());
-        } else {
-            TermsSetQueryBuilder termsSetQuery =
-                    new TermsSetQueryBuilder("ingredientIds", fridgeIds)
-                            .setMinimumShouldMatchField("ingredientCount");
+        TermsSetQueryBuilder termsSetQuery =
+                new TermsSetQueryBuilder("ingredientIds", fridgeIds)
+                        .setMinimumShouldMatchField("ingredientCount");
 
-            boolQuery.must(termsSetQuery);
-        }
+        boolQuery.must(termsSetQuery);
 
         ssb.query(boolQuery);
 
@@ -140,8 +147,6 @@ public class FridgeRecipeSearchService {
                 .collect(Collectors.toMap(Recipe::getId, r -> r));
 
         Map<Long, Long> likeCountsMap = recipeRepository.findLikeCountsMapByIds(recipeIds);
-        Map<Long, Double> avgRatingsMap = recipeRepository.findAvgRatingsMapByIds(recipeIds);
-        Map<Long, Long> ratingCountsMap = recipeRepository.findRatingCountsMapByIds(recipeIds);
 
         Set<Long> likedSet = recipeLikeRepository
                 .findByUserIdAndRecipeIdIn(userId, recipeIds).stream()
@@ -155,13 +160,13 @@ public class FridgeRecipeSearchService {
             if (r == null) continue;
 
             long likeCount = likeCountsMap.getOrDefault(doc.getId(), 0L);
-            BigDecimal avgRating = BigDecimal.valueOf(avgRatingsMap.getOrDefault(doc.getId(), 0.0d));
-            long ratingCount = ratingCountsMap.getOrDefault(doc.getId(), 0L);
+            BigDecimal avgRating = Optional.ofNullable(r.getAvgRating()).orElse(BigDecimal.ZERO);
+            long ratingCount = Optional.ofNullable(r.getRatingCount()).orElse(0L);
 
             RecipeSimpleDto simple = new RecipeSimpleDto(
                     doc.getId(),
                     doc.getTitle(),
-                    doc.getImageUrl(),
+                    r.getImageKey() == null ? null : String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, r.getImageKey()),
                     r.getUser().getId(),
                     r.getUser().getNickname(),
                     r.getUser().getProfileImage(),
@@ -199,8 +204,16 @@ public class FridgeRecipeSearchService {
 
         if (fridgeIds.isEmpty()) return Page.empty(pageable);
 
+        List<Long> effectiveFridgeIds = fridgeIds.stream()
+                .filter(id -> !RecipeIndexingService.PANTRY_IDS.contains(id))
+                .toList();
+
+        if (effectiveFridgeIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
         Page<Recipe> recipePage =
-                recipeRepository.findByFridgeFallback(fridgeIds, aiFilter, pageable);
+                recipeRepository.findByFridgeFallback(effectiveFridgeIds, aiFilter, pageable);
 
         List<Recipe> recipes = recipePage.getContent();
         if (recipes.isEmpty()) return Page.empty(pageable);
@@ -210,8 +223,6 @@ public class FridgeRecipeSearchService {
                 .toList();
 
         Map<Long, Long> likeCounts = recipeRepository.findLikeCountsMapByIds(recipeIds);
-        Map<Long, Double> avgRatings = recipeRepository.findAvgRatingsMapByIds(recipeIds);
-        Map<Long, Long> ratingCounts = recipeRepository.findRatingCountsMapByIds(recipeIds);
 
         Set<Long> liked = recipeLikeRepository
                 .findByUserIdAndRecipeIdIn(userId, recipeIds).stream()
@@ -228,20 +239,24 @@ public class FridgeRecipeSearchService {
                     .filter(ing -> !RecipeIndexingService.PANTRY_IDS.contains(ing.getId()))
                     .map(Ingredient::getName)
                     .toList();
+            long likeCount = likeCounts.getOrDefault(r.getId(), 0L);
+
+            BigDecimal avgRating = Optional.ofNullable(r.getAvgRating()).orElse(BigDecimal.ZERO);
+            long ratingCount = Optional.ofNullable(r.getRatingCount()).orElse(0L);
 
             RecipeSimpleDto simple = new RecipeSimpleDto(
                     r.getId(),
                     r.getTitle(),
-                    r.getImageKey(),
+                    r.getImageKey() == null ? null : String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, r.getImageKey()),
                     r.getUser().getId(),
                     r.getUser().getNickname(),
                     r.getUser().getProfileImage(),
                     r.getCreatedAt(),
-                    likeCounts.getOrDefault(r.getId(), 0L),
+                    likeCount,
                     liked.contains(r.getId()),
                     Optional.ofNullable(r.getCookingTime()).orElse(0),
-                    BigDecimal.valueOf(avgRatings.getOrDefault(r.getId(), 0.0)),
-                    ratingCounts.getOrDefault(r.getId(), 0L)
+                    avgRating,
+                    ratingCount
             );
 
             return new FridgeRecipeDto(simple, matched);
