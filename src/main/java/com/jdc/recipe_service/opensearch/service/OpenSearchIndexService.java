@@ -61,12 +61,10 @@ public class OpenSearchIndexService {
     public boolean createIngredientIndex() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("ingredients");
 
-        //settings: 샤드 + 레플리카 + 한글 초성 분석기 + 동의어 필터 추가
         request.settings(Settings.builder()
                 .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
+                .put("index.number_of_replicas", 0)
 
-                //동의어 필터 정의
                 .put("analysis.filter.synonym_filter.type", "synonym")
                 .putList("analysis.filter.synonym_filter.synonyms",
                         "파프리카, 피망",

@@ -77,43 +77,46 @@ public class RecipeIndexingService {
         var request = new CreateIndexRequest("recipes");
 
         request.settings("""
-        {
-          "index": {
-            "max_ngram_diff": 18
-          },
-          "analysis": {
-            "filter": {
-              "infix_ngram": {
-                "type":     "ngram",
-                "min_gram": 2,
-                "max_gram": 20
-              },
-              "my_synonym": {
-                "type":     "synonym",
-                "synonyms": ["감자,포테이토", "김치,kimchi"]
-              }
-            },
-            "tokenizer": {
-              "edge_ngram_tokenizer": {
-                "type":       "edge_ngram",
-                "min_gram":   1,
-                "max_gram":   20,
-                "token_chars":["letter","digit"]
-              }
-            },
-            "analyzer": {
-              "autocomplete_analyzer": {
-                "tokenizer": "edge_ngram_tokenizer",
-                "filter":    ["lowercase","my_synonym"]
-              },
-              "infix_analyzer": {
-                "tokenizer": "standard",
-                "filter":    ["lowercase","infix_ngram"]
-              }
-            }
-          }
-        }
-        """, XContentType.JSON);
+                {
+                  "index": {
+                    "number_of_shards": 1,    
+                    "number_of_replicas": 0,  
+                    "refresh_interval": "30s",
+                    "max_ngram_diff": 18
+                            },
+                  "analysis": {
+                    "filter": {
+                      "infix_ngram": {
+                        "type":     "ngram",
+                        "min_gram": 2,
+                        "max_gram": 20
+                      },
+                      "my_synonym": {
+                        "type":     "synonym",
+                        "synonyms": ["감자,포테이토", "김치,kimchi"]
+                      }
+                    },
+                    "tokenizer": {
+                      "edge_ngram_tokenizer": {
+                        "type":       "edge_ngram",
+                        "min_gram":   1,
+                        "max_gram":   20,
+                        "token_chars":["letter","digit"]
+                      }
+                    },
+                    "analyzer": {
+                      "autocomplete_analyzer": {
+                        "tokenizer": "edge_ngram_tokenizer",
+                        "filter":    ["lowercase","my_synonym"]
+                      },
+                      "infix_analyzer": {
+                        "tokenizer": "standard",
+                        "filter":    ["lowercase","infix_ngram"]
+                      }
+                    }
+                  }
+                }
+                """, XContentType.JSON);
 
         request.mapping("""
                 {
