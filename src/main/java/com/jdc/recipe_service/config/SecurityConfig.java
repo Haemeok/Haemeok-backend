@@ -191,7 +191,8 @@ public class SecurityConfig {
                                 "/api/tags/**",
                                 "/", "/oauth2/**", "/login/**", "/error",
                                 "/h2-console/**",
-                                "/api/opensearch/**"
+                                "/api/opensearch/**",
+                                "/test/ai-recipe/**"
                         ).permitAll()
 
 
