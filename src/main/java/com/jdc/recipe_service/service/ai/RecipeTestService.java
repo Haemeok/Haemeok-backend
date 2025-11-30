@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service.ai;
 
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
+import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
@@ -98,6 +99,109 @@ public class RecipeTestService {
         return generatedDto;
     }
 
+    public RecipeCreateRequestDto generateRecipeFromTemplate(AiPromptRequestDto templateReq) {
+
+        AiRecipeRequestDto data = templateReq.getRequestData();
+        String template = templateReq.getPrompt();
+
+        String allowedUnits = unitService.unitsAsString();
+        String unitMapping = unitService.mappingAsString();
+
+        List<String> names = data.getIngredients();
+
+        List<Ingredient> knownIngredients = ingredientRepo.findAllByNameIn(names);
+
+        List<String> knownNames = knownIngredients.stream()
+                .map(Ingredient::getName).collect(Collectors.toList());
+        List<String> unknownNames = names.stream()
+                .filter(n -> !knownNames.contains(n)).collect(Collectors.toList());
+
+
+        String knownListStr;
+
+        knownListStr = knownNames.isEmpty() ? "없음" : String.join(", ", knownNames);
+
+        /* // [옵션 B: 가성비 모드용] 이름 + 가격 + 단위 정보 포함
+        // 예: "삼겹살(2500원/100g), 두부(1000원/모)"
+        if (!knownIngredients.isEmpty()) {
+             knownListStr = knownIngredients.stream()
+                    .map(ing -> String.format("%s(%d원/%s)",
+                            ing.getName(),
+                            ing.getPrice() != null ? ing.getPrice() : 0,
+                            ing.getUnit() != null ? ing.getUnit() : "개"))
+                    .collect(Collectors.joining(", "));
+        }
+        */
+
+        /*
+        // [옵션 C: 헬스/식단 모드용] 이름 + 단백질/칼로리 정보 포함
+        // 예: "닭가슴살(23g단백질/100g), 고구마(128kcal/개)"
+        if (!knownIngredients.isEmpty()) {
+             knownListStr = knownIngredients.stream()
+                    .map(ing -> String.format("%s(%.1fg단백질, %.1fkcal/%s)",
+                            ing.getName(),
+                            ing.getProtein() != null ? ing.getProtein().doubleValue() : 0.0,
+                            ing.getCalorie() != null ? ing.getCalorie().doubleValue() : 0.0,
+                            ing.getUnit() != null ? ing.getUnit() : "개"))
+                    .collect(Collectors.joining(", "));
+        }
+        */
+
+        String unknownListStr = unknownNames.isEmpty() ? "없음" : String.join(", ", unknownNames);
+
+
+        String ingredientsWithUnits = names.stream()
+                .map(name -> name + "(" + unitService.getDefaultUnit(name).orElse("g") + ")")
+                .collect(Collectors.joining(", "));
+
+        String tagsJson = (data.getTags() == null || data.getTags().isEmpty())
+                ? "[]" : "[\"" + String.join("\", \"", data.getTags()) + "\"]";
+
+        String dishType = (data.getDishType() == null || data.getDishType().isBlank())
+                ? "AI 추천" : data.getDishType();
+
+        String cookingTimeText = (data.getCookingTime() != null && data.getCookingTime() > 0)
+                ? String.format("- 희망 조리 시간: %d분 이내", data.getCookingTime())
+                : "- 희망 조리 시간 정보가 제공되지 않았습니다. AI 모델이 자동으로 예상 조리 시간을 추정하세요.";
+
+        String servingsText = (data.getServings() != null && data.getServings() > 0)
+                ? String.format("- 인분 수: %.1f인분", data.getServings())
+                : "- 인분 수 정보가 제공되지 않았습니다. AI 모델이 적절히 판단하여 작성하세요.";
+
+        String finalPrompt = template
+                .replace("{{UNIT_MAPPING}}", unitMapping)
+                .replace("{{ALLOWED_UNITS}}", allowedUnits)
+
+                .replace("{{KNOWN_INGREDIENTS}}", knownListStr)
+
+                .replace("{{UNKNOWN_INGREDIENTS}}", unknownListStr)
+                .replace("{{USER_INGREDIENTS}}", ingredientsWithUnits)
+                .replace("{{DISH_TYPE}}", dishType)
+                .replace("{{TAGS}}", tagsJson)
+
+                .replace("{{SPICE_LEVEL}}", String.valueOf(data.getSpiceLevel() != null ? data.getSpiceLevel() : 0))
+                .replace("{{ALLERGY}}", (data.getAllergy() != null && !data.getAllergy().isBlank()) ? data.getAllergy() : "없음")
+
+                .replace("{{COOKING_TIME_TEXT}}", cookingTimeText)
+                .replace("{{SERVINGS_TEXT}}", servingsText);
+
+        log.info(">>>> [TEMPLATE TEST] 생성된 프롬프트 길이: {}", finalPrompt.length());
+
+        try {
+            RecipeCreateRequestDto result = grokClientService.generateRecipeJson(finalPrompt).join();
+
+            if (result != null) {
+                result.setIngredients(correctIngredientUnits(result.getIngredients()));
+            }
+            return result;
+
+        } catch (RuntimeException e) {
+            throw new CustomException(
+                    ErrorCode.AI_RECIPE_GENERATION_FAILED,
+                    "템플릿 테스트 실패 (JSON 파싱 오류 가능성): " + e.getMessage(), e
+            );
+        }
+    }
 
     /**
      * DB 및 SurveyService 호출을 완전히 제거한 테스트 전용 프롬프트 빌더.
@@ -206,7 +310,7 @@ public class RecipeTestService {
                 - DB에 있는 재료는 `customPrice`, `customCalories`,'customCarbohydrate',`customProtein`,`customFat`,`customSugar`,`customSodium` **절대 포함 금지**
                 - 또한 모든 재료의 quantity는 요청된 인분 수에 맞추어 자동으로 조절해야 하며, 기본 1인분 기준으로 자연스럽게 확장하거나 축소된 값으로 작성해야 합니다. 인분 수가 제공되지 않은 경우 모델이 적절한 기본 인분을 가정하여 일관성 있게 계산하세요.
                 - 재료별 기본 단위 매핑: {%s}
-              
+                
                 --- "steps" 필드 (단계 규칙) ---
                 - "steps" 배열의 "action" 필드는 반드시 아래 19개 중 하나만 사용해야 합니다:
                   썰기, 다지기, 채썰기, 손질하기, 볶기, 튀기기, 끓이기, 찌기(스팀), 데치기, 구이, 조림, 무치기, 절이기, 담그기(마리네이드), 섞기, 젓기, 버무리기, 로스팅, 캐러멜라이즈, 부치기
@@ -234,7 +338,7 @@ public class RecipeTestService {
                 - **서빙 / 맛 강화 / 재활용 / 보조 재료 대체 팁 3~5개**를 생성하세요.
                 - 보조 재료 대체 가능하지만, 요리 본연의 맛과 취지를 해치지 않는 범위에서만 허용됩니다. (예: 고춧가루 → 청양고추 O)
                 - 반드시 문장 단위로 이어서 작성하고, 숫자나 목록 표시(1, 2, 3...)는 사용하지 마세요.
-
+                
                 --- 기타 필드 ---
                 - `cookingTime`, `cookingTools`, `servings`는 요청 조건과 요리 원리에 맞춰 적절히 작성하세요.
                 
