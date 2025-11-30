@@ -12,7 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/test/ai-recipe")
+@RequestMapping("/api/test/ai-recipe")
 @RequiredArgsConstructor
 public class AiTestController {
 
