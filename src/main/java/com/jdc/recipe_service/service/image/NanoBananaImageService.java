@@ -34,9 +34,9 @@ public class NanoBananaImageService {
     private static final String GCP_PROJECT_ID = "gen-lang-client-0326396795";
     private static final String GCP_REGION = "us-central1";
 
-    private static final int MAX_IMAGES_PER_REQUEST = 1;
+    //private static final int MAX_IMAGES_PER_REQUEST = 1;
 
-    private static final String IMAGEN_MODEL_FULL = "imagen-3.0-generate-002";
+    private static final String IMAGEN_MODEL_FULL = "imagen-4.0-generate-001";
     private static final String IMAGEN_API_URL =
             "https://" + GCP_REGION + "-aiplatform.googleapis.com/v1/projects/" + GCP_PROJECT_ID + "/locations/" + GCP_REGION + "/publishers/google/models/" + IMAGEN_MODEL_FULL + ":predict?key={key}";
 
@@ -48,8 +48,7 @@ public class NanoBananaImageService {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> parameters = new HashMap<>();
-        parameters.put("number_of_images", Math.min(1, MAX_IMAGES_PER_REQUEST));
-        parameters.put("aspect_ratio", "1:1");
+        parameters.put("aspectRatio", "1:1");
         parameters.put("sampleCount", 1);
 
         Map<String, Object> body = Map.of(

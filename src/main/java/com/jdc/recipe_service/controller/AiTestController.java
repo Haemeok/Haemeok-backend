@@ -5,11 +5,16 @@ import com.jdc.recipe_service.domain.dto.recipe.AiImageTestRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.RobotType;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.ai.RecipeTestService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -41,7 +46,28 @@ public class AiTestController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * [REAL] 실제 DB 저장 + 커스텀 이미지 생성 테스트
+     * 요청: 레시피 JSON + 이미지 프롬프트
+     * 결과: 내 계정(Token)으로 DB에 저장됨 & S3에 이미지 저장됨
+     */
     @PostMapping("/image")
+    @Operation(summary = "실제 DB 저장 및 이미지 생성", description = "로그인한 유저의 계정으로 레시피를 저장하고, 입력한 프롬프트로 이미지를 생성해 연결합니다.")
+    public ResponseEntity<RecipeCreateRequestDto> createRealRecipeWithImage(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestBody AiImageTestRequestDto request) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Long userId = userDetails.getUser().getId();
+
+        RecipeCreateRequestDto result = recipeService.createRealRecipeWithCustomImage(userId, request);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/image/prompt")
     @Operation(summary = "이미지 프롬프트 테스트", description = "레시피 JSON과 프롬프트를 보내면, 이미지가 추가된 완성된 레시피 JSON을 반환합니다.")
     public ResponseEntity<RecipeCreateRequestDto> testImagePrompt(
             @RequestBody AiImageTestRequestDto request) {
