@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service.ai;
 
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
+import com.jdc.recipe_service.domain.dto.recipe.AiImageTestRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
@@ -12,16 +13,14 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.service.image.NanoBananaImageService;
 import com.jdc.recipe_service.util.PromptBuilderV3;
 import com.jdc.recipe_service.util.UnitService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,6 +33,11 @@ public class RecipeTestService {
     private final IngredientRepository ingredientRepo;
     private final RecipeRepository recipeRepository;
     private final PromptBuilderV3 promptBuilder;
+    private final NanoBananaImageService nanoBananaImageService;
+
+
+    private static final String FIXED_DISH_TYPE_LIST =
+            "볶음, 국/찌개/탕, 구이, 무침/샐러드, 튀김/부침, 찜/조림, 오븐요리, 생식/회, 절임/피클류, 밥/면/파스타, 디저트/간식류";
 
 
     /**
@@ -99,6 +103,11 @@ public class RecipeTestService {
         return generatedDto;
     }
 
+    /**
+     * [TEST용] 템플릿 기반 프롬프트 생성 (완전체)
+     * - 재료 미입력 시: UnitService가 로딩한 CSV 전체 재료 리스트 주입
+     * - DishType: 고정 리스트 주입
+     */
     public RecipeCreateRequestDto generateRecipeFromTemplate(AiPromptRequestDto templateReq) {
 
         AiRecipeRequestDto data = templateReq.getRequestData();
@@ -107,99 +116,147 @@ public class RecipeTestService {
         String allowedUnits = unitService.unitsAsString();
         String unitMapping = unitService.mappingAsString();
 
-        List<String> names = data.getIngredients();
+        List<String> names = (data.getIngredients() != null) ? data.getIngredients() : Collections.emptyList();
 
-        List<Ingredient> knownIngredients = ingredientRepo.findAllByNameIn(names);
+        String marketInventoryStr;
+        String ingredientsWithUnits;
+        String knownListStr = "없음";
+        String unknownListStr = "없음";
 
-        List<String> knownNames = knownIngredients.stream()
-                .map(Ingredient::getName).collect(Collectors.toList());
-        List<String> unknownNames = names.stream()
-                .filter(n -> !knownNames.contains(n)).collect(Collectors.toList());
+        if (names.isEmpty()) {
+            marketInventoryStr = unitService.getMarketInventoryString();
+            if (marketInventoryStr == null) marketInventoryStr = "제공된 재료 데이터 없음";
 
+            ingredientsWithUnits = "없음 (위 [마켓 재료 리스트]에서 AI가 예산/영양에 맞춰 자율 선택)";
 
-        String knownListStr;
+        } else {
+            List<String> known = ingredientRepo.findAllByNameIn(names).stream()
+                    .map(Ingredient::getName).collect(Collectors.toList());
+            List<String> unknown = names.stream()
+                    .filter(n -> !known.contains(n)).collect(Collectors.toList());
 
-        knownListStr = knownNames.isEmpty() ? "없음" : String.join(", ", knownNames);
+            knownListStr = known.isEmpty() ? "없음" : String.join(", ", known);
+            unknownListStr = unknown.isEmpty() ? "없음" : String.join(", ", unknown);
 
-        /* // [옵션 B: 가성비 모드용] 이름 + 가격 + 단위 정보 포함
-        // 예: "삼겹살(2500원/100g), 두부(1000원/모)"
-        if (!knownIngredients.isEmpty()) {
-             knownListStr = knownIngredients.stream()
-                    .map(ing -> String.format("%s(%d원/%s)",
-                            ing.getName(),
-                            ing.getPrice() != null ? ing.getPrice() : 0,
-                            ing.getUnit() != null ? ing.getUnit() : "개"))
+            marketInventoryStr = "없음 (사용자가 재료를 지정했음)";
+            ingredientsWithUnits = names.stream()
+                    .map(name -> name + "(" + unitService.getDefaultUnit(name).orElse("g") + ")")
                     .collect(Collectors.joining(", "));
         }
-        */
 
-        /*
-        // [옵션 C: 헬스/식단 모드용] 이름 + 단백질/칼로리 정보 포함
-        // 예: "닭가슴살(23g단백질/100g), 고구마(128kcal/개)"
-        if (!knownIngredients.isEmpty()) {
-             knownListStr = knownIngredients.stream()
-                    .map(ing -> String.format("%s(%.1fg단백질, %.1fkcal/%s)",
-                            ing.getName(),
-                            ing.getProtein() != null ? ing.getProtein().doubleValue() : 0.0,
-                            ing.getCalorie() != null ? ing.getCalorie().doubleValue() : 0.0,
-                            ing.getUnit() != null ? ing.getUnit() : "개"))
-                    .collect(Collectors.joining(", "));
-        }
-        */
-
-        String unknownListStr = unknownNames.isEmpty() ? "없음" : String.join(", ", unknownNames);
-
-
-        String ingredientsWithUnits = names.stream()
-                .map(name -> name + "(" + unitService.getDefaultUnit(name).orElse("g") + ")")
-                .collect(Collectors.joining(", "));
-
-        String tagsJson = (data.getTags() == null || data.getTags().isEmpty())
-                ? "[]" : "[\"" + String.join("\", \"", data.getTags()) + "\"]";
-
-        String dishType = (data.getDishType() == null || data.getDishType().isBlank())
-                ? "AI 추천" : data.getDishType();
+        String userDishType = (data.getDishType() != null && !data.getDishType().isBlank())
+                ? data.getDishType()
+                : "AI 자유 선택 (위 [허용된 요리 종류] 목록 중 택1)";
 
         String cookingTimeText = (data.getCookingTime() != null && data.getCookingTime() > 0)
                 ? String.format("- 희망 조리 시간: %d분 이내", data.getCookingTime())
-                : "- 희망 조리 시간 정보가 제공되지 않았습니다. AI 모델이 자동으로 예상 조리 시간을 추정하세요.";
+                : "- 희망 조리 시간: AI 자율 판단";
 
         String servingsText = (data.getServings() != null && data.getServings() > 0)
                 ? String.format("- 인분 수: %.1f인분", data.getServings())
-                : "- 인분 수 정보가 제공되지 않았습니다. AI 모델이 적절히 판단하여 작성하세요.";
+                : "- 인분 수: 1인분 (기본값)";
+
+        String tagsJson = (data.getTags() == null || data.getTags().isEmpty()) ? "[]" : "[\"" + String.join("\", \"", data.getTags()) + "\"]";
+        String spiceLevel = (data.getSpiceLevel() != null) ? String.valueOf(data.getSpiceLevel()) : "0";
+        String allergy = (data.getAllergy() != null && !data.getAllergy().isBlank()) ? data.getAllergy() : "없음";
+
 
         String finalPrompt = template
                 .replace("{{UNIT_MAPPING}}", unitMapping)
                 .replace("{{ALLOWED_UNITS}}", allowedUnits)
 
-                .replace("{{KNOWN_INGREDIENTS}}", knownListStr)
+                .replace("{{MARKET_INVENTORY}}", marketInventoryStr)
 
+                .replace("{{KNOWN_INGREDIENTS}}", knownListStr)
                 .replace("{{UNKNOWN_INGREDIENTS}}", unknownListStr)
                 .replace("{{USER_INGREDIENTS}}", ingredientsWithUnits)
-                .replace("{{DISH_TYPE}}", dishType)
+
+                .replace("{{DISH_TYPE_LIST}}", FIXED_DISH_TYPE_LIST)
+                .replace("{{DISH_TYPE}}", userDishType)
+
                 .replace("{{TAGS}}", tagsJson)
-
-                .replace("{{SPICE_LEVEL}}", String.valueOf(data.getSpiceLevel() != null ? data.getSpiceLevel() : 0))
-                .replace("{{ALLERGY}}", (data.getAllergy() != null && !data.getAllergy().isBlank()) ? data.getAllergy() : "없음")
-
+                .replace("{{SPICE_LEVEL}}", spiceLevel)
+                .replace("{{ALLERGY}}", allergy)
                 .replace("{{COOKING_TIME_TEXT}}", cookingTimeText)
                 .replace("{{SERVINGS_TEXT}}", servingsText);
 
-        log.info(">>>> [TEMPLATE TEST] 생성된 프롬프트 길이: {}", finalPrompt.length());
+        log.info(">>>> [TEMPLATE TEST] Prompt Generated. Length: {}", finalPrompt.length());
 
         try {
             RecipeCreateRequestDto result = grokClientService.generateRecipeJson(finalPrompt).join();
-
             if (result != null) {
                 result.setIngredients(correctIngredientUnits(result.getIngredients()));
             }
             return result;
-
         } catch (RuntimeException e) {
             throw new CustomException(
                     ErrorCode.AI_RECIPE_GENERATION_FAILED,
-                    "템플릿 테스트 실패 (JSON 파싱 오류 가능성): " + e.getMessage(), e
+                    "템플릿 테스트 실패: " + e.getMessage(), e
             );
+        }
+    }
+
+    /**
+     * [TEST용] 이미지 생성 후, 이미지가 포함된 레시피 객체 반환
+     */
+    public RecipeCreateRequestDto testImageGeneration(AiImageTestRequestDto request) {
+
+        RecipeCreateRequestDto recipe = request.getRequestData();
+        String promptTemplate = request.getPrompt();
+
+        if (recipe == null || promptTemplate == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 데이터와 프롬프트가 필요합니다.");
+        }
+
+        String title = recipe.getTitle() != null ? recipe.getTitle() : "";
+        String dishType = recipe.getDishType() != null ? recipe.getDishType() : "";
+        String description = recipe.getDescription() != null ? recipe.getDescription() : "";
+
+        String ingredients = "";
+        if (recipe.getIngredients() != null && !recipe.getIngredients().isEmpty()) {
+            ingredients = recipe.getIngredients().stream()
+                    .map(RecipeIngredientRequestDto::getName)
+                    .collect(Collectors.joining(", "));
+        }
+
+        String stepsSummary = "";
+        if (recipe.getSteps() != null && !recipe.getSteps().isEmpty()) {
+            stepsSummary = recipe.getSteps().stream()
+                    .map(step -> step.getStepNumber() + ". " + step.getInstruction())
+                    .collect(Collectors.joining(" "));
+        }
+
+        String tagsDetail = "";
+        if (recipe.getTags() != null && !recipe.getTags().isEmpty()) {
+            tagsDetail = String.join(", ", recipe.getTags());
+        }
+
+        String finalImagePrompt = promptTemplate
+                .replace("{{TITLE}}", title)
+                .replace("{{DISH_TYPE}}", dishType)
+                .replace("{{DESCRIPTION}}", description)
+                .replace("{{INGREDIENTS}}", ingredients)
+                .replace("{{STEPS_SUMMARY}}", stepsSummary)
+                .replace("{{TAGS_DETAIL}}", tagsDetail);
+
+        log.info(">>>> [IMAGE TEST] Generated Prompt: {}", finalImagePrompt);
+
+        try {
+            long randomId = System.currentTimeMillis();
+            List<String> imageUrls = nanoBananaImageService.generateImageUrls(finalImagePrompt, 0L, randomId);
+
+            if (imageUrls.isEmpty()) {
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 결과 없음");
+            }
+
+            String fullImageUrl = imageUrls.get(0);
+
+            recipe.setImageKey(fullImageUrl);
+
+            return recipe;
+
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 실패: " + e.getMessage());
         }
     }
 
