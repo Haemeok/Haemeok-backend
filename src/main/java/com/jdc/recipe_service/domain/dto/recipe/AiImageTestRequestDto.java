@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
+import com.jdc.recipe_service.domain.type.ImageGenModel;
 import lombok.*;
 
 @Getter @Setter
@@ -9,4 +10,5 @@ import lombok.*;
 public class AiImageTestRequestDto {
     private RecipeCreateRequestDto requestData;
     private String prompt;
+    private ImageGenModel model;
 }
