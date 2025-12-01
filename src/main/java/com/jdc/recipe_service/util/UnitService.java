@@ -18,6 +18,8 @@ public class UnitService {
     private List<String> allowedUnits;
     private Map<String,String> defaultUnitByIngredient;
 
+    private String marketInventoryString;
+
     @PostConstruct
     public void loadUnits() {
         try (var reader = new BufferedReader(
@@ -40,6 +42,24 @@ public class UnitService {
                     .distinct()
                     .toList();
 
+            StringBuilder sb = new StringBuilder();
+
+            for (String line : lines) {
+                String[] parts = line.split(",");
+                if (parts.length >= 2) {
+                    String name = parts[0].trim();
+                    String unit = parts[1].trim();
+
+                    String price = (parts.length > 2) ? parts[2].trim() : "0";
+                    String calorie = (parts.length > 4) ? parts[4].trim() : "0";
+                    String protein = (parts.length > 5) ? parts[5].trim() : "0";
+
+                    sb.append(String.format("- %s (1%s당: %s원 | %skcal | 단백질 %sg)\n",
+                            name, unit, price, calorie, protein));
+                }
+            }
+            this.marketInventoryString = sb.toString();
+
         } catch (Exception e) {
             throw new IllegalStateException("units.csv 로드 실패", e);
         }
@@ -61,5 +81,9 @@ public class UnitService {
 
     public Map<String,String> mappingByIngredient() {
         return Collections.unmodifiableMap(defaultUnitByIngredient);
+    }
+
+    public String getMarketInventoryString() {
+        return this.marketInventoryString;
     }
 }

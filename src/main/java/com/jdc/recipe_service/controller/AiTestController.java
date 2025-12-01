@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
+import com.jdc.recipe_service.domain.dto.recipe.AiImageTestRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
@@ -40,6 +41,16 @@ public class AiTestController {
         return ResponseEntity.ok(result);
     }
 
+    @PostMapping("/image")
+    @Operation(summary = "이미지 프롬프트 테스트", description = "레시피 JSON과 프롬프트를 보내면, 이미지가 추가된 완성된 레시피 JSON을 반환합니다.")
+    public ResponseEntity<RecipeCreateRequestDto> testImagePrompt(
+            @RequestBody AiImageTestRequestDto request) {
+
+        RecipeCreateRequestDto result = recipeService.testImageGeneration(request);
+
+        return ResponseEntity.ok(result);
+    }
+
     @PostMapping("/analyze/{recipeId}")
     @Operation(summary = "레시피 분석 테스트 (결과값만 확인)", description = "DB에 저장된 레시피 ID를 넣으면, 가격/팁/욕설여부 분석 결과를 JSON으로 반환합니다.")
     public ResponseEntity<RecipeAnalysisResponseDto> analyzeRecipeTest(
@@ -49,5 +60,4 @@ public class AiTestController {
 
         return ResponseEntity.ok(result);
     }
-
 }
