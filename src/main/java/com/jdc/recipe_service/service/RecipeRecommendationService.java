@@ -186,7 +186,7 @@ public class RecipeRecommendationService {
                 recipe.getUser().getNickname(),
                 recipe.getUser().getProfileImage(),
                 recipe.getCreatedAt(),
-                (long) (recipe.getLikes() != null ? recipe.getLikes().size() : 0),
+                recipe.getLikeCount(),
                 false,
                 recipe.getCookingTime(),
                 recipe.getAvgRating() != null ? recipe.getAvgRating() : BigDecimal.ZERO,

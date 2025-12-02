@@ -221,7 +221,7 @@ public class RecipeSearchServiceV2 {
         QRecipeTag tag = QRecipeTag.recipeTag;
         BooleanExpression whereClause = createWhereClauseForSearch(cond);
         OrderSpecifier<?> orderSpecifier = "likeCount".equals(property)
-                ? (direction == Sort.Direction.ASC ? recipe.likes.size().asc() : recipe.likes.size().desc())
+                ? (direction == Sort.Direction.ASC ? recipe.likeCount.asc() : recipe.likeCount.desc())
                 : (direction == Sort.Direction.ASC ? recipe.avgRating.asc() : recipe.avgRating.desc());
 
         List<Long> sortedIds = queryFactory.select(recipe.id).from(recipe)
