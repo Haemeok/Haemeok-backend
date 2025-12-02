@@ -30,11 +30,11 @@ public class UnitService {
             List<String> lines = reader.lines().skip(1).toList();
 
             defaultUnitByIngredient = lines.stream()
-                    .map(line -> line.split(","))
+                    .map(line -> line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1))
                     .filter(parts -> parts.length > 1)
                     .collect(Collectors.toMap(
-                            parts -> parts[0].trim(),
-                            parts -> parts[1].trim(),
+                            parts -> parts[0].trim().replace("\"", ""), // 이름
+                            parts -> parts[1].trim().replace("\"", ""), // 단위
                             (u1, u2) -> u1
                     ));
 
@@ -45,17 +45,24 @@ public class UnitService {
             StringBuilder sb = new StringBuilder();
 
             for (String line : lines) {
-                String[] parts = line.split(",");
-                if (parts.length >= 2) {
-                    String name = parts[0].trim();
-                    String unit = parts[1].trim();
+                String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
 
-                    String price = (parts.length > 2) ? parts[2].trim() : "0";
-                    String calorie = (parts.length > 4) ? parts[4].trim() : "0";
-                    String protein = (parts.length > 5) ? parts[5].trim() : "0";
+                if (parts.length >= 10) {
+                    String name = parts[0].trim().replace("\"", "");
+                    String unit = parts[1].trim().replace("\"", "");
 
-                    sb.append(String.format("- %s (1%s당: %s원 | %skcal | 단백질 %sg)\n",
-                            name, unit, price, calorie, protein));
+                    String price = parts[2].trim().replace("\"", "").replace(",", "");
+
+
+                    String cal = parts[4].isBlank() ? "0" : parts[4].trim();
+                    String carb = parts[5].isBlank() ? "0" : parts[5].trim();
+                    String prot = parts[6].isBlank() ? "0" : parts[6].trim();
+                    String fat = parts[7].isBlank() ? "0" : parts[7].trim();
+                    String sugar = parts[8].isBlank() ? "0" : parts[8].trim();
+                    String sodium = parts[9].isBlank() ? "0" : parts[9].trim();
+
+                    sb.append(String.format("- %s (1%s당: %s원 | %skcal | 탄수%sg, 단백%sg, 지방%sg, 당%sg, 나트륨%smg)\n",
+                            name, unit, price, cal, carb, prot, fat, sugar, sodium));
                 }
             }
             this.marketInventoryString = sb.toString();

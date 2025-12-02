@@ -36,6 +36,7 @@ public class RecipeCreateRequestDto {
     private Integer totalIngredientCost;
     private Integer marketPrice;
     private Boolean isPrivate;
+    private Double totalCalories;
 
     private RecipeNutritionDto nutrition;
 
