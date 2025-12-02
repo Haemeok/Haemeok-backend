@@ -114,12 +114,13 @@ class RecipeSearchServiceTest {
     @Test
     @DisplayName("getRecipeDetail: 존재하는 레시피 ID인 경우, 올바른 DTO 반환")
     void getRecipeDetail_Success() {
+        ReflectionTestUtils.setField(sampleRecipe, "likeCount", 10L);
+
         // 1) recipeRepository.findWithUserById(existingId) 모킹
         when(recipeRepository.findWithUserById(existingId))
                 .thenReturn(Optional.of(sampleRecipe));
 
         // 2) 좋아요·즐겨찾기 정보 모킹
-        when(recipeLikeRepository.countByRecipeId(existingId)).thenReturn(10);
         when(recipeLikeRepository.existsByRecipeIdAndUserId(existingId, userId)).thenReturn(true);
         when(recipeFavoriteRepository.existsByRecipeIdAndUserId(existingId, userId)).thenReturn(false);
 
@@ -296,7 +297,6 @@ class RecipeSearchServiceTest {
 
                         // 내부 호출 verify
                         verify(recipeRepository, times(1)).findWithUserById(existingId);
-                        verify(recipeLikeRepository, times(1)).countByRecipeId(existingId);
                         verify(recipeLikeRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
                         verify(recipeFavoriteRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
                         verify(recipeRatingService, times(1)).getMyRating(existingId, userId);
