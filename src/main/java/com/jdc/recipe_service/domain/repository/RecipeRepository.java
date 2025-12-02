@@ -47,7 +47,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("""
             SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
                 r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
-                COUNT(DISTINCT rl.id), false,
+                r.likeCount, false,
                 r.cookingTime,
                 COALESCE(AVG(rr.rating), 0.0d),
                 COUNT(DISTINCT rr.id)
@@ -59,7 +59,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             LEFT JOIN RecipeRating rr ON rr.recipe = r
             WHERE rt.tag = :tag
             AND r.isPrivate = false
-            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
+            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.likeCount
             """)
     Page<RecipeSimpleDto> findByTagWithLikeCount(@Param("tag") TagType tag, Pageable pageable);
 
@@ -67,7 +67,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("""
             SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
                 r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
-                COUNT(DISTINCT rl.id), false,
+                r.likeCount, false,
                 r.cookingTime,
                 COALESCE(AVG(rr.rating), 0.0d),
                 COUNT(DISTINCT rr.id)
@@ -78,7 +78,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             LEFT JOIN RecipeRating rr ON rr.recipe = r
             WHERE r.dishType = :dishType
             AND r.isPrivate = false
-            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
+            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.likeCount
             """)
     Page<RecipeSimpleDto> findByDishTypeWithLikeCount(@Param("dishType") DishType dishType, Pageable pageable);
 
@@ -92,7 +92,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     Optional<Recipe> findWithAllRelationsById(Long id);
 
 
-    @Query("SELECT r.id, COUNT(rl.id) FROM Recipe r LEFT JOIN r.likes rl WHERE r.id IN :ids GROUP BY r.id")
+    @Query("SELECT r.id, r.likeCount FROM Recipe r WHERE r.id IN :ids")
     List<Object[]> findLikeCountsByIdsRaw(@Param("ids") List<Long> ids);
 
     default Map<Long, Long> findLikeCountsMapByIds(List<Long> ids) {
@@ -162,7 +162,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("""
             SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
                 r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
-                COUNT(DISTINCT rl.id), false,
+                r.likeCount, false,
                 r.cookingTime,
                 COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
                 COUNT(DISTINCT rr.id)
@@ -173,7 +173,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             LEFT JOIN RecipeRating rr ON rr.recipe = r
             WHERE r.isPrivate = false
             AND r.totalIngredientCost <= :maxCost
-            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime
+            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.likeCount
             ORDER BY r.totalIngredientCost ASC, COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
             """)
     Page<RecipeSimpleDto> findBudgetRecipes(
@@ -206,7 +206,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("""
         SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2(
             r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
-            COUNT(DISTINCT rl.id),
+            r.likeCount,
             COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
             COUNT(DISTINCT rr.id),
             r.totalIngredientCost,
@@ -219,7 +219,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         WHERE r.isPrivate = false
           AND r.isAiGenerated = false
           AND r.totalIngredientCost <= :maxCost
-        GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.totalIngredientCost, r.marketPrice
+        GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.totalIngredientCost, r.marketPrice, r.likeCount
         ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
         """)
     Page<RecipeSimpleStaticDtoV2> findBudgetRecipesStaticV2(
@@ -230,7 +230,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("""
             SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
                 r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
-                COUNT(DISTINCT rl.id),
+                r.likeCount,
                 COALESCE(AVG(rr.rating), 0.0d), 
                 COUNT(rr.id)                  
             )
@@ -239,7 +239,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             LEFT JOIN RecipeLike rl ON rl.recipe = r 
             LEFT JOIN RecipeRating rr ON rr.recipe = r 
             WHERE r.id IN :ids
-            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime 
+            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.likeCount
             """)
     List<RecipeSimpleStaticDto> findAllSimpleStaticByIds(@Param("ids") List<Long> ids);
 
@@ -260,11 +260,11 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
             "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
-            "COUNT(l.id), FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount) " +
+            "r.likeCount, FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount) " +
             "FROM Recipe r " +
             "LEFT JOIN RecipeLike l ON l.recipe.id = r.id " +
             "WHERE r.id IN :ids " +
-            "GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime, r.avgRating, r.ratingCount")
+            "GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime, r.avgRating, r.ratingCount, r.likeCount")
     List<RecipeSimpleDto> findAllSimpleDtoWithCountsByIdIn(List<Long> ids);
 
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
