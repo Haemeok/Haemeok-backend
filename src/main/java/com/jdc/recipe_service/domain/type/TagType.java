@@ -22,7 +22,8 @@ public enum TagType {
     HOLIDAY("🎉 기념일 / 명절"),
     LUNCHBOX("🍱 도시락"),
     AIR_FRYER("🔌 에어프라이어"),
-    HANGOVER("🍲 해장");
+    HANGOVER("🍲 해장"),
+    CHEF_RECIPE("👨‍🍳 셰프 레시피");
 
     private final String displayName;
 
