@@ -28,6 +28,10 @@ public class FridgeRecipeController {
             @RequestParam(name = "aiFilter", defaultValue = "USER_ONLY")
             AiRecipeFilter aiFilter
     ) {
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
         Long userId = userDetails.getUser().getId();
         Page<FridgeRecipeDto> result =
                 service.searchByFridge(userId, pageable, aiFilter);
@@ -42,6 +46,10 @@ public class FridgeRecipeController {
             @RequestParam(name = "aiFilter", defaultValue = "USER_ONLY")
             AiRecipeFilter aiFilter
     ) {
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
         Long userId = userDetails.getUser().getId();
         Page<FridgeRecipeDto> result =
                 service.searchByFridgeQueryOnly(userId, pageable, aiFilter);

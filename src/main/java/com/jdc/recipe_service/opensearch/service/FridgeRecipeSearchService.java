@@ -146,8 +146,6 @@ public class FridgeRecipeSearchService {
                 .findAllByIdInAndIsPrivateFalseFetchUser(recipeIds).stream()
                 .collect(Collectors.toMap(Recipe::getId, r -> r));
 
-        Map<Long, Long> likeCountsMap = recipeRepository.findLikeCountsMapByIds(recipeIds);
-
         Set<Long> likedSet = recipeLikeRepository
                 .findByUserIdAndRecipeIdIn(userId, recipeIds).stream()
                 .map(like -> like.getRecipe().getId())
@@ -159,7 +157,6 @@ public class FridgeRecipeSearchService {
             Recipe r = recipeMap.get(doc.getId());
             if (r == null) continue;
 
-            long likeCount = likeCountsMap.getOrDefault(doc.getId(), 0L);
             BigDecimal avgRating = Optional.ofNullable(r.getAvgRating()).orElse(BigDecimal.ZERO);
             long ratingCount = Optional.ofNullable(r.getRatingCount()).orElse(0L);
 
@@ -171,7 +168,7 @@ public class FridgeRecipeSearchService {
                     r.getUser().getNickname(),
                     r.getUser().getProfileImage(),
                     LocalDateTime.parse(doc.getCreatedAt()),
-                    likeCount,
+                    r.getLikeCount(),
                     likedSet.contains(doc.getId()),
                     doc.getCookingTime(),
                     avgRating,
@@ -222,8 +219,6 @@ public class FridgeRecipeSearchService {
                 .map(Recipe::getId)
                 .toList();
 
-        Map<Long, Long> likeCounts = recipeRepository.findLikeCountsMapByIds(recipeIds);
-
         Set<Long> liked = recipeLikeRepository
                 .findByUserIdAndRecipeIdIn(userId, recipeIds).stream()
                 .map(l -> l.getRecipe().getId())
@@ -239,7 +234,6 @@ public class FridgeRecipeSearchService {
                     .filter(ing -> !RecipeIndexingService.PANTRY_IDS.contains(ing.getId()))
                     .map(Ingredient::getName)
                     .toList();
-            long likeCount = likeCounts.getOrDefault(r.getId(), 0L);
 
             BigDecimal avgRating = Optional.ofNullable(r.getAvgRating()).orElse(BigDecimal.ZERO);
             long ratingCount = Optional.ofNullable(r.getRatingCount()).orElse(0L);
@@ -252,7 +246,7 @@ public class FridgeRecipeSearchService {
                     r.getUser().getNickname(),
                     r.getUser().getProfileImage(),
                     r.getCreatedAt(),
-                    likeCount,
+                    r.getLikeCount(),
                     liked.contains(r.getId()),
                     Optional.ofNullable(r.getCookingTime()).orElse(0),
                     avgRating,
