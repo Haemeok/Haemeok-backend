@@ -46,7 +46,7 @@ public class GrokClientService {
         Map<String, Object> requestBody = Map.of(
                 "model", grokRecipeModelName,
                 "temperature", 0.3,
-                "max_tokens", 1500,
+                "max_tokens", 3000,
                 "messages", List.of(
                         Map.of(
                                 "role", "system",
