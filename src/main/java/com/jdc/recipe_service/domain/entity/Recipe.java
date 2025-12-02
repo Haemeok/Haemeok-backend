@@ -57,6 +57,10 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Long ratingCount = 0L;
 
+    @Column(name = "like_count")
+    @Builder.Default
+    private Long likeCount = 0L;
+
     @Column(name = "image_key")
     private String imageKey;
 
@@ -214,5 +218,14 @@ public class Recipe extends BaseTimeEntity {
     public void updateAiInfo(String cookingTips, Integer marketPrice) {
         this.cookingTips = cookingTips;
         this.marketPrice = marketPrice;
+    }
+
+    public void increaseLikeCount() {
+        this.likeCount++;
+    }
+    public void decreaseLikeCount() {
+        if (this.likeCount > 0) {
+            this.likeCount--;
+        }
     }
 }
