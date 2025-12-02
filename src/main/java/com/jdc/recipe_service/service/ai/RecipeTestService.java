@@ -1,10 +1,7 @@
 package com.jdc.recipe_service.service.ai;
 
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
-import com.jdc.recipe_service.domain.dto.recipe.AiImageTestRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -37,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -213,6 +211,7 @@ public class RecipeTestService {
             RecipeCreateRequestDto result = grokClientService.generateRecipeJson(finalPrompt).join();
             if (result != null) {
                 result.setIngredients(correctIngredientUnits(result.getIngredients()));
+                calculateAndSetDtoNutritionAndCost(result);
             }
             return result;
         } catch (RuntimeException e) {
@@ -693,8 +692,7 @@ public class RecipeTestService {
                 ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(DEFAULT_MARGIN_PERCENT))
                 : 0);
 
-        // AI 생성일 경우 원가보다 낮으면 강제 마진 적용
-        if (marketPrice < totalCost) {
+       if (marketPrice < totalCost) {
             marketPrice = PricingUtil.applyMargin(totalCost, DEFAULT_MARGIN_PERCENT);
         }
         return marketPrice;
@@ -731,6 +729,75 @@ public class RecipeTestService {
         recipe.updateNutrition(totalProtein, totalCarb, totalFat, totalSugar, totalSodium, totalCalorie);
     }
 
+
+    private void calculateAndSetDtoNutritionAndCost(RecipeCreateRequestDto dto) {
+        if (dto.getIngredients() == null || dto.getIngredients().isEmpty()) return;
+
+        List<String> names = dto.getIngredients().stream()
+                .map(RecipeIngredientRequestDto::getName)
+                .collect(Collectors.toList());
+
+        List<Ingredient> dbIngredients = ingredientRepo.findAllByNameIn(names);
+        Map<String, Ingredient> ingredientMap = dbIngredients.stream()
+                .collect(Collectors.toMap(Ingredient::getName, i -> i));
+
+        BigDecimal totalCalorie = BigDecimal.ZERO;
+        BigDecimal totalCarb = BigDecimal.ZERO;
+        BigDecimal totalProtein = BigDecimal.ZERO;
+        BigDecimal totalFat = BigDecimal.ZERO;
+        BigDecimal totalSugar = BigDecimal.ZERO;
+        BigDecimal totalSodium = BigDecimal.ZERO;
+
+        BigDecimal totalCost = BigDecimal.ZERO;
+
+        for (RecipeIngredientRequestDto ri : dto.getIngredients()) {
+            BigDecimal quantity = parseQuantityToBigDecimal(ri.getQuantity());
+            Ingredient dbIng = ingredientMap.get(ri.getName());
+
+            if (dbIng != null) {
+                totalCalorie = totalCalorie.add(safeMultiply(dbIng.getCalorie(), quantity));
+                totalCarb = totalCarb.add(safeMultiply(dbIng.getCarbohydrate(), quantity));
+                totalProtein = totalProtein.add(safeMultiply(dbIng.getProtein(), quantity));
+                totalFat = totalFat.add(safeMultiply(dbIng.getFat(), quantity));
+                totalSugar = totalSugar.add(safeMultiply(dbIng.getSugar(), quantity));
+                totalSodium = totalSodium.add(safeMultiply(dbIng.getSodium(), quantity));
+
+                if (dbIng.getPrice() != null) {
+                    totalCost = totalCost.add(BigDecimal.valueOf(dbIng.getPrice()).multiply(quantity));
+                }
+            } else {
+                totalCalorie = totalCalorie.add(safeBigDecimal(ri.getCustomCalories()));
+                totalCarb = totalCarb.add(safeBigDecimal(ri.getCustomCarbohydrate()));
+                totalProtein = totalProtein.add(safeBigDecimal(ri.getCustomProtein()));
+                totalFat = totalFat.add(safeBigDecimal(ri.getCustomFat()));
+                totalSugar = totalSugar.add(safeBigDecimal(ri.getCustomSugar()));
+                totalSodium = totalSodium.add(safeBigDecimal(ri.getCustomSodium()));
+
+                if (ri.getCustomPrice() != null) {
+                    totalCost = totalCost.add(ri.getCustomPrice());
+                }
+            }
+        }
+
+        RecipeNutritionDto nutrition = RecipeNutritionDto.builder()
+                .carbohydrate(totalCarb)
+                .protein(totalProtein)
+                .fat(totalFat)
+                .sugar(totalSugar)
+                .sodium(totalSodium)
+                .build();
+        dto.setNutrition(nutrition);
+
+        dto.setTotalCalories(totalCalorie.doubleValue());
+
+        int costInt = totalCost.intValue();
+        dto.setTotalIngredientCost(costInt);
+
+        if (dto.getMarketPrice() == null || dto.getMarketPrice() <= 0) {
+            dto.setMarketPrice(PricingUtil.applyMargin(costInt, DEFAULT_MARGIN_PERCENT));
+        }
+    }
+
     private java.math.BigDecimal parseQuantityToBigDecimal(String quantityStr) {
         if (quantityStr == null || quantityStr.isBlank()) return java.math.BigDecimal.ZERO;
         String cleanStr = quantityStr.replaceAll("[^0-9./]", "");
@@ -755,5 +822,14 @@ public class RecipeTestService {
             return geminiImageService.generateImageUrls(prompt, userId, recipeId);
         }
         return nanoBananaImageService.generateImageUrls(prompt, userId, recipeId);
+    }
+
+    private BigDecimal safeMultiply(BigDecimal value, BigDecimal quantity) {
+        if (value == null) return BigDecimal.ZERO;
+        return value.multiply(quantity);
+    }
+
+    private BigDecimal safeBigDecimal(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 }
