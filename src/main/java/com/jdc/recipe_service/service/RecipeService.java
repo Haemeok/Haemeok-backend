@@ -333,11 +333,16 @@ public class RecipeService {
 
         RecipeNutritionDto nutritionDto = dto.getNutrition();
 
-        BigDecimal protein = (nutritionDto != null) ? nutritionDto.getProtein() : null;
-        BigDecimal carbohydrate = (nutritionDto != null) ? nutritionDto.getCarbohydrate() : null;
-        BigDecimal fat = (nutritionDto != null) ? nutritionDto.getFat() : null;
-        BigDecimal sugar = (nutritionDto != null) ? nutritionDto.getSugar() : null;
-        BigDecimal sodium = (nutritionDto != null) ? nutritionDto.getSodium() : null;
+        BigDecimal protein = (nutritionDto != null && nutritionDto.getProtein() != null)
+                ? nutritionDto.getProtein() : recipe.getProtein();
+        BigDecimal carbohydrate = (nutritionDto != null && nutritionDto.getCarbohydrate() != null)
+                ? nutritionDto.getCarbohydrate() : recipe.getCarbohydrate();
+        BigDecimal fat = (nutritionDto != null && nutritionDto.getFat() != null)
+                ? nutritionDto.getFat() : recipe.getFat();
+        BigDecimal sugar = (nutritionDto != null && nutritionDto.getSugar() != null)
+                ? nutritionDto.getSugar() : recipe.getSugar();
+        BigDecimal sodium = (nutritionDto != null && nutritionDto.getSodium() != null)
+                ? nutritionDto.getSodium() : recipe.getSodium();
 
         recipe.update(
                 dto.getTitle(),
@@ -351,11 +356,11 @@ public class RecipeService {
                 null,
                 (dto.getMarketPrice() != null && dto.getMarketPrice() > 0) ? dto.getMarketPrice() : recipe.getMarketPrice(),
                 (dto.getCookingTips() != null && !dto.getCookingTips().isBlank()) ? dto.getCookingTips() : recipe.getCookingTips(),
-                null,
-                null,
-                null,
-                null,
-                null
+                protein,
+                carbohydrate,
+                fat,
+                sugar,
+                sodium
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
@@ -367,8 +372,10 @@ public class RecipeService {
             recipe.updateMarketPrice(marketPrice);
         }
 
-        List<RecipeIngredient> currentIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
-        calculateAndSetTotalNutrition(recipe, currentIngredients);
+        if (Boolean.TRUE.equals(dto.getIsIngredientsModified())) {
+            List<RecipeIngredient> currentIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+            calculateAndSetTotalNutrition(recipe, currentIngredients);
+        }
 
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTags());
