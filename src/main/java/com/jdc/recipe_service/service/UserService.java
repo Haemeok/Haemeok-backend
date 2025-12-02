@@ -152,13 +152,6 @@ public class UserService {
                 .map(Recipe::getId)
                 .toList();
 
-        Map<Long, Long> likeCountMap = recipeLikeRepository.countLikesRaw(recipeIds)
-                .stream()
-                .collect(Collectors.toMap(
-                        row -> (Long) row[0],
-                        row -> (Long) row[1]
-                ));
-
         Set<Long> likedIds = (currentUserId != null)
                 ? recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
                 .stream()
@@ -176,7 +169,7 @@ public class UserService {
                             recipe.getUser().getNickname(),
                             recipe.getUser().getProfileImage(),
                             recipe.getCreatedAt(),
-                            likeCountMap.getOrDefault(recipe.getId(), 0L),
+                            recipe.getLikeCount(),
                             likedIds.contains(recipe.getId()),
                             recipe.getCookingTime(),
                             recipe.getAvgRating(),

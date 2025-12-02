@@ -265,7 +265,7 @@ public class RecipeSearchService {
             throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
         }
 
-        int likeCount = recipeLikeRepository.countByRecipeId(recipeId);
+        long likeCount = basic.getLikeCount();
         boolean likedByUser = currentUserId != null &&
                 recipeLikeRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
         boolean favoritedByUser = currentUserId != null &&

@@ -51,6 +51,7 @@ public class ReactionService {
                         .user(user)
                         .recipe(recipe)
                         .build());
+                recipe.increaseLikeCount();
             }
         }
 
