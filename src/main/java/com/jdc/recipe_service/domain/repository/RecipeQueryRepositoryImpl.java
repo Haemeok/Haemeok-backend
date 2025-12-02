@@ -9,7 +9,9 @@ import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,10 +47,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, AiRecipeFilter aiFilter, Integer maxCost, Pageable pageable, Long currentUserId) {
         QRecipe recipe   = QRecipe.recipe;
         QRecipeTag tag    = QRecipeTag.recipeTag;
-        QRecipeLike rLike = QRecipeLike.recipeLike;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-
         BooleanExpression aiCondition = filterAiGenerated(aiFilter);
 
         var contentQuery = queryFactory
@@ -60,7 +60,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        rLike.id.countDistinct().castToNum(Long.class),
+                        recipe.likeCount,
                         Expressions.constant(false),
                         recipe.cookingTime,
                         recipe.avgRating,
@@ -68,7 +68,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 ))
                 .from(recipe)
                 .leftJoin(recipe.tags, tag)
-                .leftJoin(recipe.likes, rLike)
                 .where(
                         privacyCondition,
                         titleContains(title),
@@ -87,7 +86,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.createdAt,
                         recipe.cookingTime,
                         recipe.avgRating,
-                        recipe.ratingCount
+                        recipe.ratingCount,
+                        recipe.likeCount
                 )
                 .orderBy(getOrderSpecifiers(pageable))
                 .offset(pageable.getOffset())
@@ -143,7 +143,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        recipe.likes.size().castToNum(Long.class),
+                        recipe.likeCount,
                         com.querydsl.core.types.dsl.Expressions.constant(false),
                         recipe.cookingTime,
                         recipe.avgRating,
@@ -174,7 +174,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
-        QRecipeLike rLike = QRecipeLike.recipeLike;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
         BooleanExpression aiCondition = filterAiGenerated(aiFilter);
@@ -183,7 +182,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         OrderSpecifier<?> dynamicOrder;
 
         if ("likeCount".equals(property)) {
-            dynamicOrder = new OrderSpecifier<>(dir, rLike.id.countDistinct());
+            dynamicOrder = new OrderSpecifier<>(dir, recipe.likeCount);
         } else if ("avgRating".equals(property)) {
             dynamicOrder = new OrderSpecifier<>(dir, recipe.avgRating);
         } else {
@@ -199,7 +198,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        rLike.id.countDistinct().castToNum(Long.class),
+                        recipe.likeCount,
                         Expressions.constant(false),
                         recipe.cookingTime,
                         recipe.avgRating.coalesce(BigDecimal.valueOf(0.0d)),
@@ -207,7 +206,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 ))
                 .from(recipe)
                 .leftJoin(recipe.tags, tag)
-                .leftJoin(recipe.likes, rLike)
                 .where(
                         privacyCondition,
                         titleContains(title),
@@ -217,9 +215,17 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         maxCostLoe(maxCost)
                 )
                 .groupBy(
-                        recipe.id, recipe.title, recipe.imageKey, recipe.user.id, recipe.user.nickname,
-                        recipe.user.profileImage, recipe.createdAt, recipe.cookingTime,
-                        recipe.avgRating, recipe.ratingCount
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.cookingTime,
+                        recipe.avgRating,
+                        recipe.ratingCount,
+                        recipe.likeCount
                 )
                 .orderBy(dynamicOrder, new OrderSpecifier<>(Order.DESC, recipe.createdAt))
                 .offset(pageable.getOffset())
@@ -259,7 +265,14 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QIngredient ing = QIngredient.ingredient;
         QUser user = QUser.user;
 
-        BooleanExpression aiCond = buildAiFilter(aiFilter, recipe);
+        BooleanExpression aiCondition = buildAiFilter(aiFilter, recipe);
+        Set<Long> pantryIds = com.jdc.recipe_service.opensearch.service.RecipeIndexingService.PANTRY_IDS;
+
+        NumberExpression<Long> totalEssentialCount = ri.count();
+        NumberExpression<Long> myFridgeCount = new CaseBuilder()
+                .when(ing.id.in(fridgeIds)).then(1L)
+                .otherwise((Long) null)
+                .count();
 
         var query = queryFactory
                 .select(recipe)
@@ -267,35 +280,59 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .join(recipe.user, user).fetchJoin()
                 .join(recipe.ingredients, ri)
                 .join(ri.ingredient, ing)
+
                 .where(
                         recipe.isPrivate.isFalse(),
-                        ing.id.in(fridgeIds),
-                        aiCond
+                        aiCondition,
+                        ing.id.notIn(pantryIds)
                 )
                 .groupBy(recipe.id)
-                .orderBy(
-                        ri.count().desc(),
-                        recipe.createdAt.desc()
-                );
+                .having(totalEssentialCount.eq(myFridgeCount))
+                .orderBy(getFallbackOrderSpecifiers(pageable));
 
         List<Recipe> content = query
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
 
-        Long total = queryFactory
-                .select(recipe.countDistinct())
+        long total = queryFactory
+                .select(recipe.id)
                 .from(recipe)
                 .join(recipe.ingredients, ri)
                 .join(ri.ingredient, ing)
                 .where(
                         recipe.isPrivate.isFalse(),
-                        ing.id.in(fridgeIds),
-                        aiCond
+                        aiCondition,
+                        ing.id.notIn(pantryIds)
                 )
-                .fetchOne();
+                .groupBy(recipe.id)
+                .having(totalEssentialCount.eq(myFridgeCount))
+                .fetch().size();
 
-        return new PageImpl<>(content, pageable, total == null ? 0 : total);
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private OrderSpecifier<?>[] getFallbackOrderSpecifiers(Pageable pageable) {
+        QRecipe recipe = QRecipe.recipe;
+
+        if (pageable.getSort().isEmpty()) {
+            return new OrderSpecifier[]{recipe.createdAt.desc()};
+        }
+
+        return pageable.getSort().stream().map(order -> {
+            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+            switch (order.getProperty()) {
+                case "avgRating":
+                    return new OrderSpecifier<>(direction, recipe.avgRating);
+                case "likeCount":
+                    return new OrderSpecifier<>(direction, recipe.likeCount);
+                case "cookingTime":
+                    return new OrderSpecifier<>(direction, recipe.cookingTime);
+                case "createdAt":
+                default:
+                    return new OrderSpecifier<>(direction, recipe.createdAt);
+            }
+        }).toArray(OrderSpecifier[]::new);
     }
 
 
@@ -307,7 +344,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                     Order dir = o.getDirection().isAscending() ? Order.ASC : Order.DESC;
                     switch (o.getProperty()) {
                         case "likeCount":
-                            return new OrderSpecifier<>(dir, recipe.likes.size());
+                            return new OrderSpecifier<>(dir, recipe.likeCount);
                         case "cookingTime":
                             return new OrderSpecifier<>(dir, recipe.cookingTime);
                         case "avgRating":
