@@ -5,7 +5,6 @@ import com.jdc.recipe_service.domain.dto.recipe.AiImageTestRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
-import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -64,16 +63,6 @@ public class AiTestController {
         Long userId = userDetails.getUser().getId();
 
         RecipeCreateRequestDto result = recipeService.createRealRecipeWithCustomImage(userId, request);
-        return ResponseEntity.ok(result);
-    }
-
-    @PostMapping("/image/prompt")
-    @Operation(summary = "이미지 프롬프트 테스트", description = "레시피 JSON과 프롬프트를 보내면, 이미지가 추가된 완성된 레시피 JSON을 반환합니다.")
-    public ResponseEntity<RecipeCreateRequestDto> testImagePrompt(
-            @RequestBody AiImageTestRequestDto request) {
-
-        RecipeCreateRequestDto result = recipeService.testImageGeneration(request);
-
         return ResponseEntity.ok(result);
     }
 
