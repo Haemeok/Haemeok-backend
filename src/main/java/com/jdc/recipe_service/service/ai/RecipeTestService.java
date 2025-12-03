@@ -12,7 +12,6 @@ import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.type.*;
-import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
 import com.jdc.recipe_service.event.UserRecipeCreatedEvent;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -37,6 +36,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.util.Map.entry;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +65,129 @@ public class RecipeTestService {
     private static final String FIXED_DISH_TYPE_LIST =
             "볶음, 국/찌개/탕, 구이, 무침/샐러드, 튀김/부침, 찜/조림, 오븐요리, 생식/회, 절임/피클류, 밥/면/파스타, 디저트/간식류";
     private static final int DEFAULT_MARGIN_PERCENT = 30;
+
+    private static final Set<String> NON_VISUAL_INGREDIENTS = Set.of(
+            // 1. 액체류
+            "물", "water", "육수", "stock", "broth", "사골육수", "다시마",
+            "간장", "soy sauce", "진간장", "국간장", "양조간장", "어간장",
+            "식초", "vinegar", "발사믹", "balsamic",
+            "맛술", "cooking wine", "미림", "mirin", "청주", "sake",
+            "액젓", "fish sauce", "참치액", "멸치액젓", "까나리액젓", "새우젓", "갈치속젓",
+            "연두", "yondu",
+            "식용유", "oil", "cooking oil", "올리브유", "olive oil", "포도씨유",
+            "참기름", "sesame oil", "들기름", "perilla oil", "고추기름", "chili oil",
+            "레몬즙", "lemon juice", "라임즙",
+
+            // 2. 당류/시럽
+            "매실청", "plum extract", "생강청", "양파청", "유자청",
+            "올리고당", "corn syrup", "물엿", "starch syrup", "꿀", "honey", "조청",
+            "메이플시럽", "maple syrup", "카라멜시럽", "시럽",
+            "설탕", "sugar", "흑설탕", "brown sugar", "원당", "cane sugar",
+            "뉴슈가", "스테비아", "알룰로스", "에리스리톨",
+
+            // 3. 가루/조미료
+            "소금", "salt", "천일염", "sea salt", "허브솔트", "herb salt", "죽염",
+            "후추", "pepper", "black pepper", "통후추", "peperoncino", "페페론치노", "베트남고추",
+            "고춧가루", "red pepper powder", "chili powder", "파프리카가루",
+            "미원", "msg", "다시다", "beef stock powder", "치킨스톡", "chicken stock",
+            "전분", "starch", "밀가루", "flour", "부침가루", "튀김가루",
+            "베이킹파우더", "baking powder", "슈가파우더", "sugar powder",
+            "짜장분말", "카레분말", "분말",
+            "깨", "sesame", "통깨", "sesame seeds", "파슬리", "오레가노", "바질",
+
+            // 4. 페이스트/장류
+            "고추장", "gochujang", "red pepper paste", "초고추장",
+            "된장", "doenjang", "soybean paste", "쌈장", "청국장", "미소된장",
+            "춘장", "black bean paste", "두반장",
+            "굴소스", "oyster sauce",
+            "마요네즈", "mayonnaise", "케찹", "ketchup",
+            "머스타드", "mustard", "홀그레인머스타드", "겨자", "연겨자", "mustard paste",
+            "고추냉이", "wasabi", "와사비",
+            "바질페스토", "pesto",
+            "스리라차", "칠리소스", "핫소스", "살사소스", "타르타르소스", "돈까스소스", "스테이크소스", "우스타소스", "불닭소스", "마라소스",
+
+            // 5. 다진 향신채
+            "다진마늘", "minced garlic", "다진 마늘", "crushed garlic", "마늘가루",
+            "다진생강", "minced ginger", "다진 생강", "생강가루",
+            "다진파", "chopped green onion", "다진대파"
+    );
+
+    private static final Map<String, String> DISH_TYPE_CONTAINER_MAP = Map.ofEntries(
+            entry("국/찌개/탕", "in a bubbling hot earthenware pot (Ttukbaegi)"),
+            entry("면/국수", "in a deep, textured ceramic noodle bowl"),
+            entry("밥/면/파스타", "in a deep, textured ceramic noodle bowl or pasta plate"),
+            entry("밥/덮밥", "in a wide, modern ceramic bowl"),
+            entry("볶음", "on a modern ceramic plate with slightly raised edges"),
+            entry("구이", "on a sizzling cast-iron skillet or rustic wooden board"),
+            entry("찜/조림", "in a wide rustic clay pot or shallow braising pan"),
+            entry("튀김/부침", "on a bamboo tray with oil-absorbing paper"),
+            entry("무침/샐러드", "in a clear glass bowl or fresh white plate"),
+            entry("생식/회", "on a dark slate stone plate or wooden board"),
+            entry("절임/피클류", "in a clear glass side-dish container"),
+            entry("오븐요리", "in a hot ceramic baking dish (gratin dish)"),
+            entry("디저트/간식류", "on an elegant dessert plate")
+    );
+
+    private static final Map<String, String> TEXTURE_ADJECTIVES = Map.ofEntries(
+            entry("국/찌개/탕", "bubbling hot with steam rising, rich glossy broth"),
+            entry("면/국수", "chewy texture, moist, perfectly coated in sauce"),
+            entry("밥/면/파스타", "moist, chewy, perfectly coated in sauce"),
+            entry("밥/덮밥", "warm and hearty, with toppings neatly arranged"),
+            entry("볶음", "glossy oil coating, vibrant fresh colors, visible steam"),
+            entry("구이", "distinct char marks, glistening natural juices, smoky finish"),
+            entry("찜/조림", "tender ingredients glazed with rich shiny sauce"),
+            entry("튀김/부침", "golden brown, crispy, crunchy surface detail"),
+            entry("무침/샐러드", "fresh, crisp, crunchy, with visible water droplets"),
+            entry("생식/회", "translucent, glossy, firm and fresh raw texture"),
+            entry("절임/피클류", "plump, moist, and glossy with marinade"),
+            entry("오븐요리", "golden roasted top, melted and caramelized"),
+            entry("디저트/간식류", "soft, sweet, powdery or smooth glazed details")
+    );
+
+    // [Updated] 마스터 템플릿 (Color Action 변수 추가됨)
+    private static final String DEFAULT_PROMPT_TEMPLATE = """
+            **[Subject]**
+            A high-resolution, appetizing food photography of "{{TITLE}}".
+            Category: {{DISH_TYPE}}.
+            
+            **[Visual Contents]**
+            - **Key Ingredients:** {{INGREDIENTS}}.
+            - **Overall Vibe:** The food looks freshly cooked, appetizing, and high-quality.
+            
+            **[Critical Preparation Rule]**
+            (This rule applies to ALL ingredients to ensure a clean composition)
+            1. **Aromatics & Garnish:** Ingredients used for flavor/garnish (Garlic, Ginger, Green Onions, Chili Peppers, Sesame) must be **finely chopped, sliced, or sprinkled**. Do not show them whole or in large piles.
+            2. **Main Ingredients:** Main proteins (Meat, Seafood, Eggs, Tofu) and **substantial vegetables** (e.g., Kimchi, Radish, Pasta, Potatoes) must retain their **bite-sized chunks or natural volume**. Do not mince the main ingredients.
+            
+            **[Visual Details & Texture]**
+            - **Texture:** The food appears **{{TEXTURE}}**.
+            - **Color & Coating:** The ingredients are **{{COLOR_ACTION}}** a **{{COLOR_TONE}}**.
+            - **Garnish:** Minimal garnish is applied to enhance the color contrast.
+            
+            **[Composition & Styling]**
+            - **Plating:** Served **{{VESSEL}}**.
+            - **Angle:** {{ANGLE}}.
+            - **Lighting:** {{LIGHTING}}.
+            
+            **[Technical Quality]**
+            - 8k resolution, hyper-realistic, cinematic lighting, shallow depth of field (bokeh background), Michelin star plating style.
+            --no text, --no watermark, --no hands, --no messy piles, --no raw powder, --no distorted blurry food.
+            """;
+
+    private static final List<String> LIGHTING_OPTIONS = List.of(
+            "Soft natural window light from the side (Bright & Airy)", // 화사함
+            "Warm golden hour sunlight (Cozy & Home-cooked)",          // 따뜻함
+            "Professional studio softbox lighting (Clean & Sharp)",    // 깔끔함
+            "Moody cinematic lighting with deep shadows (Dramatic)"    // 분위기 있음
+    );
+
+    private static final List<String> ANGLE_OPTIONS = List.of(
+            "Standard 45-degree angle shot showing the entire plate and table context",
+            "Top-down flat lay view showing the table setting",
+            "Medium shot, slightly zoomed out to show the full plating",
+            "Close-up macro shot focusing on the appetizing texture and details"
+    );
+
 
     /**
      * 신규 추가 메서드: 이미지/DB 저장 없이 AI 레시피 텍스트(JSON DTO)만 생성
@@ -223,70 +347,6 @@ public class RecipeTestService {
     }
 
     /**
-     * [TEST용] 이미지 생성 후, 이미지가 포함된 레시피 객체 반환
-     */
-    public RecipeCreateRequestDto testImageGeneration(AiImageTestRequestDto request) {
-
-        RecipeCreateRequestDto recipe = request.getRequestData();
-        String promptTemplate = request.getPrompt();
-
-        if (recipe == null || promptTemplate == null) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 데이터와 프롬프트가 필요합니다.");
-        }
-
-        String title = recipe.getTitle() != null ? recipe.getTitle() : "";
-        String dishType = recipe.getDishType() != null ? recipe.getDishType() : "";
-        String description = recipe.getDescription() != null ? recipe.getDescription() : "";
-
-        String ingredients = "";
-        if (recipe.getIngredients() != null && !recipe.getIngredients().isEmpty()) {
-            ingredients = recipe.getIngredients().stream()
-                    .map(RecipeIngredientRequestDto::getName)
-                    .collect(Collectors.joining(", "));
-        }
-
-        String stepsSummary = "";
-        if (recipe.getSteps() != null && !recipe.getSteps().isEmpty()) {
-            stepsSummary = recipe.getSteps().stream()
-                    .map(step -> step.getStepNumber() + ". " + step.getInstruction())
-                    .collect(Collectors.joining(" "));
-        }
-
-        String tagsDetail = "";
-        if (recipe.getTags() != null && !recipe.getTags().isEmpty()) {
-            tagsDetail = String.join(", ", recipe.getTags());
-        }
-
-        String finalImagePrompt = promptTemplate
-                .replace("{{TITLE}}", title)
-                .replace("{{DISH_TYPE}}", dishType)
-                .replace("{{DESCRIPTION}}", description)
-                .replace("{{INGREDIENTS}}", ingredients)
-                .replace("{{STEPS_SUMMARY}}", stepsSummary)
-                .replace("{{TAGS_DETAIL}}", tagsDetail);
-
-        log.info(">>>> [IMAGE TEST] Generated Prompt: {}", finalImagePrompt);
-
-        try {
-            long randomId = System.currentTimeMillis();
-            List<String> imageUrls = nanoBananaImageService.generateImageUrls(finalImagePrompt, 0L, randomId);
-
-            if (imageUrls.isEmpty()) {
-                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 결과 없음");
-            }
-
-            String fullImageUrl = imageUrls.get(0);
-
-            recipe.setImageKey(fullImageUrl);
-
-            return recipe;
-
-        } catch (Exception e) {
-            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 실패: " + e.getMessage());
-        }
-    }
-
-    /**
      * [REAL - FULL LOGIC]
      * 실제 RecipeService의 저장 로직을 100% 재현하여 DB에 저장하고,
      * 이미지는 커스텀 프롬프트로 생성하여 연결한 뒤,
@@ -296,7 +356,6 @@ public class RecipeTestService {
     public RecipeCreateRequestDto createRealRecipeWithCustomImage(Long userId, AiImageTestRequestDto request) {
 
         RecipeCreateRequestDto dto = request.getRequestData();
-        String promptTemplate = request.getPrompt();
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -325,54 +384,79 @@ public class RecipeTestService {
         recipe.updateMarketPrice(marketPrice);
 
         recipeStepService.saveAll(recipe, dto.getSteps());
-
         recipeTagService.saveAll(recipe, dto.getTags());
 
         em.flush();
         em.clear();
 
-        String ingredientsStr = "";
-        if (dto.getIngredients() != null && !dto.getIngredients().isEmpty()) {
-            List<String> ingredientNames = dto.getIngredients().stream()
-                    .map(RecipeIngredientRequestDto::getName)
-                    .collect(Collectors.toList());
+        List<String> allIngredientNames = dto.getIngredients().stream()
+                .map(RecipeIngredientRequestDto::getName)
+                .collect(Collectors.toList());
 
-            Map<String, Ingredient> ingredientMap = ingredientRepo.findAllByNameIn(ingredientNames).stream()
-                    .collect(Collectors.toMap(Ingredient::getName, ingredient -> ingredient));
+        String smartColorTone = determineColorTone(dto.getTitle(), allIngredientNames);
 
-            ingredientsStr = dto.getIngredients().stream()
-                    .map(ri -> {
-                        Ingredient dbIng = ingredientMap.get(ri.getName());
-
-                        String name = (dbIng != null && dbIng.getEnglishName() != null && !dbIng.getEnglishName().isBlank())
-                                ? dbIng.getEnglishName()
-                                : ri.getName();
-                        return name;
-                    })
-                    .collect(Collectors.joining(", "));
+        String dishTypeKey = dto.getDishType();
+        String colorAction;
+        if (dishTypeKey.contains("샐러드") || dishTypeKey.contains("무침") ||
+                dishTypeKey.contains("튀김") || dishTypeKey.contains("구이") ||
+                dishTypeKey.contains("생식") || dishTypeKey.contains("회") ||
+                dishTypeKey.contains("디저트")) {
+            colorAction = "lightly drizzled with, dipped in, or accented by";
+        } else {
+            colorAction = "generously coated in or submerged in";
         }
 
-        String stepsSummary = "";
-        if (dto.getSteps() != null) {
-            stepsSummary = dto.getSteps().stream()
-                    .map(step -> step.getStepNumber() + ". " + step.getInstruction())
-                    .collect(Collectors.joining(" "));
+        String visualIngredients = dto.getIngredients().stream()
+                .map(RecipeIngredientRequestDto::getName)
+                .filter(this::isVisualIngredient)
+                .limit(8)
+                .map(name -> {
+                    if (name.contains("매생이")) return "fine silky green seaweed (Maesaengi)";
+                    if (name.contains("순대")) return "Korean blood sausage (Sundae)";
+                    if (name.contains("떡")) return "chewy rice cakes";
+                    return name;
+                })
+                .collect(Collectors.joining(", "));
+
+        if (visualIngredients.isBlank()) visualIngredients = dto.getTitle();
+
+        String smartVessel = DISH_TYPE_CONTAINER_MAP.entrySet().stream()
+                .filter(entry -> dishTypeKey.contains(entry.getKey()) || entry.getKey().contains(dishTypeKey))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse("on a clean modern white plate");
+
+        String smartTexture = TEXTURE_ADJECTIVES.entrySet().stream()
+                .filter(entry -> dishTypeKey.contains(entry.getKey()) || entry.getKey().contains(dishTypeKey))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse("freshly cooked and appetizing");
+
+        String promptTemplate = request.getPrompt();
+        if (promptTemplate == null || promptTemplate.isBlank()) {
+            promptTemplate = DEFAULT_PROMPT_TEMPLATE;
         }
 
-        String tagsDetail = "";
-        if (dto.getTags() != null) {
-            tagsDetail = String.join(", ", dto.getTags());
+        String randomLighting = LIGHTING_OPTIONS.get(new Random().nextInt(LIGHTING_OPTIONS.size()));
+        String randomAngle = ANGLE_OPTIONS.get(new Random().nextInt(ANGLE_OPTIONS.size()));
+
+        if (smartVessel.contains("deep") || smartVessel.contains("pot")) {
+            randomAngle = "45-degree angle shot to show depth";
         }
 
         String finalImagePrompt = promptTemplate
                 .replace("{{TITLE}}", dto.getTitle())
                 .replace("{{DISH_TYPE}}", dto.getDishType())
-                .replace("{{DESCRIPTION}}", dto.getDescription())
-                .replace("{{INGREDIENTS}}", ingredientsStr)
-                .replace("{{STEPS_SUMMARY}}", stepsSummary)
-                .replace("{{TAGS_DETAIL}}", tagsDetail);
+                .replace("{{INGREDIENTS}}", visualIngredients)
+                .replace("{{VESSEL}}", smartVessel)
+                .replace("{{ANGLE}}", randomAngle)
+                .replace("{{LIGHTING}}", randomLighting)
+                .replace("{{TEXTURE}}", smartTexture)
+                .replace("{{COLOR_TONE}}", smartColorTone)
+                .replace("{{COLOR_ACTION}}", colorAction)
+                .replace("{{DESCRIPTION}}", dto.getDescription());
 
-        log.info(">>>> [REAL IMAGE GEN] Recipe ID: {}, Prompt: {}", recipe.getId(), finalImagePrompt);
+        log.info(">>>> [SMART PROMPT GEN] Recipe ID: {}, Prompt: \n{}", recipe.getId(), finalImagePrompt);
 
         try {
             List<String> imageUrls = generateImageWithSelectedModel(
@@ -389,7 +473,6 @@ public class RecipeTestService {
                 savedRecipe.updateIsPrivate(false);
 
                 dto.setImageKey(fullUrl);
-
                 recipeRepository.save(savedRecipe);
             } else {
                 throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 결과 없음");
@@ -402,7 +485,6 @@ public class RecipeTestService {
         }
 
         final Long finalRecipeId = recipe.getId();
-
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
@@ -412,12 +494,8 @@ public class RecipeTestService {
                         } catch (Exception e) {
                             log.error("인덱싱 실패", e);
                         }
-
                         publisher.publishEvent(new UserRecipeCreatedEvent(finalRecipeId));
-
                         recipeAnalysisService.analyzeRecipeAsync(finalRecipeId);
-
-                        log.info(">>>> [REAL PROCESS COMPLETE] ID: {}", finalRecipeId);
                     }
                 });
 
@@ -796,6 +874,109 @@ public class RecipeTestService {
         if (dto.getMarketPrice() == null || dto.getMarketPrice() <= 0) {
             dto.setMarketPrice(PricingUtil.applyMargin(costInt, DEFAULT_MARGIN_PERCENT));
         }
+    }
+
+    private String determineColorTone(String title, List<String> ingredients) {
+
+        // 0. [방어 로직] 제목(Title)이 깡패다 (재료보다 우선함)
+        if (title != null) {
+            String t = title.replace(" ", "");
+            // 하얀색 강제 (백김치, 맑은탕, 지리 등)
+            if (t.contains("백김치") || t.contains("백짬뽕") || t.contains("지리") ||
+                    t.contains("맑은") || t.contains("하얀") || t.contains("연포탕") ||
+                    t.contains("곰탕") || t.contains("설렁탕") || t.contains("삼계탕")) {
+                return "Clear, translucent, or creamy white (Non-spicy)";
+            }
+            // 검은색 강제 (짜장)
+            if (t.contains("짜장") || t.contains("블랙")) {
+                return "Glossy thick black bean sauce";
+            }
+            // 노란색 강제 (카레)
+            if (t.contains("카레") || t.contains("강황")) {
+                return "Vibrant golden yellow";
+            }
+        }
+
+        if (ingredients == null || ingredients.isEmpty()) return "Natural appetizing colors";
+
+        // 1. 블랙 (짜장, 춘장, 오징어먹물, 발사믹)
+        boolean isBlack = ingredients.stream().anyMatch(name ->
+                name.contains("짜장") || name.contains("춘장") ||
+                        name.contains("오징어먹물") || name.contains("발사믹"));
+
+        if (isBlack) return "Glossy thick black or dark brown glaze";
+
+        // 2. 로제/핑크 (로제, 명란)
+        boolean hasCream = ingredients.stream().anyMatch(n -> n.contains("크림") || n.contains("우유"));
+        boolean hasRedBase = ingredients.stream().anyMatch(n -> n.contains("토마토") || n.contains("고추장") || n.contains("케찹"));
+
+        boolean isRose = ingredients.stream().anyMatch(name -> name.contains("로제") || name.contains("명란"))
+                || (hasCream && hasRedBase);
+
+        if (isRose) return "Creamy reddish-pink (Rose) sauce";
+
+        // 3. 빨간색 (마라, 김치, 고추장, 케찹, 토마토)
+        boolean isRed = ingredients.stream().anyMatch(name ->
+                name.contains("마라") || name.contains("불닭") || name.contains("짬뽕") ||
+                        name.contains("고춧가루") || name.contains("고추장") ||
+                        name.contains("김치") || name.contains("깍두기") ||
+                        name.contains("케찹") || name.contains("토마토") || name.contains("칠리") ||
+                        name.contains("스리라차") || name.contains("제육") || name.contains("닭갈비"));
+
+        if (isRed) return "Deep vibrant red, spicy chili or tomato based sauce";
+
+        // 4. 노란색 (카레, 겨자, 머스타드, 단호박)
+        boolean isYellow = ingredients.stream().anyMatch(name ->
+                name.contains("카레") || name.contains("강황") || name.contains("터메릭") ||
+                        name.contains("겨자") || name.contains("머스타드") || name.contains("단호박") ||
+                        name.contains("계란찜"));
+
+        if (isYellow) return "Vibrant golden yellow";
+
+        // 5. 갈색 (간장, 된장, 데리야끼, 돈까스소스)
+        boolean isBrown = ingredients.stream().anyMatch(name ->
+                name.contains("간장") || name.contains("데리야끼") || name.contains("우스타") ||
+                        name.contains("굴소스") || name.contains("된장") || name.contains("쌈장") ||
+                        name.contains("갈비") || name.contains("불고기") || name.contains("장조림") ||
+                        name.contains("돈까스소스") || name.contains("스테이크소스"));
+
+        if (isBrown) return "Rich savory dark brown, glossy soy glaze";
+
+        // 6. 크림/하얀색
+        boolean isCreamy = ingredients.stream().anyMatch(name ->
+                name.contains("크림") || name.contains("우유") ||
+                        name.contains("치즈") || name.contains("마요네즈") ||
+                        name.contains("사골") || name.contains("콩국수") || name.contains("들깨") ||
+                        name.contains("타르타르") || name.contains("요거트"));
+
+        if (isCreamy) return "Creamy white, rich and smooth texture";
+
+        // 7. 초록색
+        boolean isGreen = ingredients.stream().anyMatch(name ->
+                name.contains("바질") || name.contains("매생이") ||
+                        name.contains("시금치") || name.contains("녹차") || name.contains("말차") || name.contains("아보카도"));
+
+        if (isGreen) return "Vibrant fresh green";
+
+        return "Clear, translucent, and natural golden colors";
+    }
+
+    private boolean isVisualIngredient(String name) {
+        if (name == null || name.isBlank()) return false;
+        String cleanName = name.trim();
+
+        if (NON_VISUAL_INGREDIENTS.stream().anyMatch(cleanName::contains)) return false;
+
+        if (cleanName.startsWith("다진") || cleanName.contains("minced")) return false;
+
+        if (cleanName.endsWith("가루") || cleanName.contains("powder")) return false;
+        if (cleanName.endsWith("분말") || cleanName.contains("파우더")) return false;
+
+        if (cleanName.endsWith("즙") || cleanName.endsWith("액")) return false;
+
+        if (cleanName.contains("양념") || cleanName.contains("소스") || cleanName.contains("드레싱")) return false;
+
+        return true;
     }
 
     private java.math.BigDecimal parseQuantityToBigDecimal(String quantityStr) {
