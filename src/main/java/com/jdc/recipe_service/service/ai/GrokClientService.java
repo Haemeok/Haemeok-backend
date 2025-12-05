@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service.ai;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
@@ -20,6 +21,8 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -104,6 +107,166 @@ public class GrokClientService {
                 .toFuture();
     }
 
+    @TimeLimiter(name = "grok")
+    @CircuitBreaker(name = "grok", fallbackMethod = "fallbackFinalPrompt")
+    @Retry(name = "grok")
+    public CompletableFuture<String> generateFinalImagePrompt(String title, String ingredients, String dishType, String description) {
+        log.info("Grok에게 전체 프롬프트 작성 요청: {}", title);
+
+        Map<String, Object> requestBody = buildFullPromptRequestBody(title, ingredients, dishType, description);
+
+        return client.post()
+                .uri("/chat/completions")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(this::parseDescriptionContent)
+                .toFuture();
+    }
+
+    private Map<String, Object> buildFullPromptRequestBody(String title, String ingredients, String dishType, String description) {
+
+        String systemPrompt = """
+                You are an expert AI Prompt Engineer specialized in High-End Food Photography.
+                Your goal is to analyze the input recipe and write a ONE SINGLE, HIGH-QUALITY PROMPT for Google Imagen.
+                
+                [UNIVERSAL LOGIC - Apply to ANY Dish]
+                
+                1. **The "Edibility" Rule (State Transformation):**
+                   - **Raw Meat/Seafood:** Must be described as **"Fully Cooked"**, **"Braised"**, **"Grilled"**, or **"Fried"**. NEVER raw unless specified (e.g., Sashimi).
+                   - **Inedible Parts:** AUTOMATICALLY REMOVE shells, skins, tails, bones, and stems. (e.g., Shrimp -> "Peeled shrimp", Clam -> "Shelled clam", Egg -> "Cooked egg/Yolk").
+                   - **Processing:** If ingredient is 'Minced' or 'Chopped', describe it as "integrated particles" or "sauce texture", NOT as whole objects.
+                
+                2. **The "Color & Consistency" Rule:**
+                   - Derive the color ONLY from the provided sauces/spices (e.g., Chili=Red, Cream=White, Soy=Dark Brown).
+                   - Determine liquid consistency based on the **Dish Category**:
+                     * Soup/Stew -> Liquid/Broth (Translucent or Thick based on ingredients).
+                     * Stir-fry/Roast -> Glossy Glaze/Coated.
+                     * Salad/Cold -> Fresh/Dry.
+                
+                3. **The "Zero Hallucination" Rule (Strict):**
+                   - **ONLY** use ingredients listed in the input.
+                   - DO NOT add unlisted garnishes (No Sesame, No Parsley, No Scallions unless listed).
+                   - DO NOT add side dishes.
+                
+                4. **The "Focus" Rule:**
+                   - Filter out invisible ingredients (Salt, Sugar, Water, Vinegar, Oil, MSG).
+                   - Focus description on the **Main Solids** (Meat, Veggies, Tofu, Noodles).
+                
+                    [STYLE GUIDE - Select the best option based on the dish]
+                    - **Lighting:** 1. **Soft Window Light:** (Bright, airy, natural. Best for breakfast/lunch).
+                       2. **Warm Ambient Light:** (Cozy, appetizing home-cooking vibe. Best for stews/rice).
+                       3. **Cinematic Lighting:** (High contrast, dramatic shadows. Best for premium dinner/steak).
+               
+                    - **Angle:** 1. **45-degree (Standard):** (Best for Bowls, Soups, Deep plates).
+                       2. **Top-down (Flat lay):** (Best for Spreads, Pizza, Bibimbap, Platter).
+                       3. **Eye-level (Side view):** (Best for Burgers, Sandwiches, Stacked desserts).
+                       4. **Macro (Close-up):** (Best for highlighting textures like grains or sauce).
+                
+                    - **Background:** 1. **Clean Wooden Table:** (Warm, rustic).
+                       2. **White Marble Surface:** (Modern, clean).
+                       3. **Blurred Dining Room:** (Depth, realistic).
+                
+                [TASK]
+                Fill in the prompt template. Output ONLY the filled text.
+                """;
+
+        String userPrompt = String.format("""
+                **Recipe Info:**
+                - Title: %s
+                - Category: %s
+                - Description: %s
+                - Ingredients: %s
+                
+                **REQUIRED OUTPUT FORMAT (Fill in the brackets):**
+                
+                **[Subject]**
+                A high-resolution, appetizing food photography of "%s".
+                Category: %s.
+                
+                **[Visual Contents]**
+                - **Key Ingredients:** (Write a descriptive paragraph here. Describe colors/textures. e.g. "Chunks of pork and translucent kimchi in a pale orange broth...")
+                - **Overall Vibe:** The food looks freshly cooked, appetizing, and high-quality.
+                
+                **[Visual Details & Texture]**
+                - **Texture:** (Choose best adjectives from Style Guide e.g., Moist, Glossy)
+                - **Sauce & Glaze:** (Describe color/consistency e.g., Clear golden broth)
+                
+                **[Composition & Styling]**
+                - **Plating:** Served in a clean porcelain bowl.
+                - **Framing:** Medium shot (Zoom out slightly).
+                - **Angle:** (Choose best angle from Style Guide)
+                - **Lighting:** (Choose best lighting from Style Guide)
+                - **Background:** Clean wooden table. NO side dishes.
+                
+                **[Technical Quality]**
+                - 8k resolution, hyper-realistic, cinematic lighting
+                - Shallow depth of field (smooth bokeh)
+                - Michelin star plating aesthetic
+                --no text, --no watermark, --no hands, --no messy piles,
+                --no raw powder, --no distorted blurry food, --no cropped plate,
+                --no raw granules, --no visible dry seasoning, --no scattered toppings,
+                --no mutated, --no irrational geometry, --no unnatural texture, --no plastic look, --no bad anatomy.
+                
+                (OUTPUT ONLY THE FILLED PROMPT TEXT. NO EXPLANATION.)
+                """, title, dishType, description, ingredients, title, dishType);
+
+        List<Map<String, String>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", systemPrompt));
+        messages.add(Map.of("role", "user", "content", userPrompt));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", grokRecipeModelName);
+        body.put("messages", messages);
+        body.put("temperature", 0.3);
+        body.put("stream", false);
+
+        return body;
+    }
+
+    private String parseDescriptionContent(String jsonResponse) {
+        try {
+            JsonNode root = objectMapper.readTree(jsonResponse);
+            return root.path("choices")
+                    .get(0)
+                    .path("message")
+                    .path("content")
+                    .asText();
+        } catch (Exception e) {
+            log.error("Grok 이미지 묘사 응답 파싱 실패: {}", jsonResponse, e);
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "AI 응답 파싱 중 오류 발생");
+        }
+    }
+
+    private CompletableFuture<String> fallbackFinalPrompt(String title, String ingredients, String dishType, String description, Throwable ex) {
+        log.error("Grok 프롬프트 생성 실패 (Fallback 실행): {}", ex.getMessage());
+
+        // Grok이 죽었을 때를 대비한 비상용 단순 프롬프트 (Java 포맷팅으로 떼우기)
+        String fallbackPrompt = String.format(
+                "**[Subject]**\n" +
+                        "A high-resolution, appetizing food photography of \"%s\".\n" +
+                        "Category: %s.\n\n" +
+                        "**[Visual Contents]**\n" +
+                        "- **Key Ingredients:** %s\n" +
+                        "- **Overall Vibe:** Delicious and high quality.\n\n" +
+                        "**[Technical Quality]**\n" +
+                        "- 8k resolution, hyper-realistic, cinematic lighting.\n" +
+                        "--no text, --no watermark, --no messy piles, --no shells, --no raw meat.",
+                title,
+                dishType != null ? dishType : "Food",
+                ingredients
+        );
+
+        return CompletableFuture.completedFuture(fallbackPrompt);
+    }
+
+    private CompletableFuture<String> fallbackGenerateDescription(String title, String ingredients, Throwable ex) {
+        log.error("Grok 이미지 묘사 생성 실패 (Fallback 실행): {}", ex.getMessage());
+        return CompletableFuture.completedFuture(
+                "A delicious high-quality photography of " + title + ", michelin star plating."
+        );
+    }
+
     private Mono<RecipeCreateRequestDto> parseGrokResponse(String jsonResponse) {
         return Mono.fromCallable(() -> {
             if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
@@ -113,7 +276,8 @@ public class GrokClientService {
             String cleanedJson = null;
 
             try {
-                Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<Map<String, Object>>() {});
+                Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<Map<String, Object>>() {
+                });
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
 
                 if (choices == null || choices.isEmpty()) {
@@ -187,16 +351,24 @@ public class GrokClientService {
 
         if (recipe.getNutrition() != null) {
             var n = recipe.getNutrition();
-            if (n.getProtein() != null && n.getProtein().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "단백질 음수");
-            if (n.getCarbohydrate() != null && n.getCarbohydrate().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "탄수화물 음수");
-            if (n.getFat() != null && n.getFat().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "지방 음수");
-            if (n.getSugar() != null && n.getSugar().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "당류 음수");
-            if (n.getSodium() != null && n.getSodium().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "나트륨 음수");
+            if (n.getProtein() != null && n.getProtein().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "단백질 음수");
+            if (n.getCarbohydrate() != null && n.getCarbohydrate().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "탄수화물 음수");
+            if (n.getFat() != null && n.getFat().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "지방 음수");
+            if (n.getSugar() != null && n.getSugar().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "당류 음수");
+            if (n.getSodium() != null && n.getSodium().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "나트륨 음수");
         }
 
-        if (recipe.getCookingTime() != null && recipe.getCookingTime() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "조리 시간 음수");
-        if (recipe.getServings() != null && recipe.getServings() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "인분 음수");
-        if (recipe.getMarketPrice() != null && recipe.getMarketPrice() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "시장 가격 음수");
+        if (recipe.getCookingTime() != null && recipe.getCookingTime() < 0)
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "조리 시간 음수");
+        if (recipe.getServings() != null && recipe.getServings() < 0)
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "인분 음수");
+        if (recipe.getMarketPrice() != null && recipe.getMarketPrice() < 0)
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "시장 가격 음수");
 
         log.debug("레시피 DTO 검증 완료: title={}", recipe.getTitle());
     }
@@ -212,7 +384,8 @@ public class GrokClientService {
 
     private RecipeAnalysisResponseDto parseAnalysisResponse(String jsonResponse) {
         try {
-            Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<>() {});
+            Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<>() {
+            });
             List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
             Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
             String content = message.get("content").toString();
