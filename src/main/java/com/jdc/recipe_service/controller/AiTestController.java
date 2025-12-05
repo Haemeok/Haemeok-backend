@@ -10,6 +10,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.ai.RecipeTestService;
+import com.jdc.recipe_service.service.ai.RecipeTestServiceV2;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class AiTestController {
 
     private final RecipeTestService recipeService;
+    private final RecipeTestServiceV2 recipeServiceV2;
 
     @PostMapping
     public ResponseEntity<RecipeCreateRequestDto> generateTextRecipe(
@@ -63,6 +65,28 @@ public class AiTestController {
         Long userId = userDetails.getUser().getId();
 
         RecipeCreateRequestDto result = recipeService.createRealRecipeWithCustomImage(userId, request);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * [REAL V2] Grok All-in-One 로직 (New!)
+     * Grok이 프롬프트 전체를 작성하고 Imagen이 그리는 최신 로직
+     */
+    @PostMapping("/image2")
+    @Operation(summary = "V2: 실제 DB 저장 + Grok 자동 프롬프트 생성 (NEW)",
+            description = "Grok이 미슐랭 셰프 페르소나로 완벽한 프롬프트를 작성해주는 V2 로직입니다. (껍질, 참치, 국물 오류 해결됨)")
+    public ResponseEntity<RecipeCreateRequestDto> createRealRecipeWithImageV2(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestBody AiImageTestRequestDto request) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Long userId = userDetails.getUser().getId();
+
+        RecipeCreateRequestDto result = recipeServiceV2.createRealRecipeWithCustomImage(userId, request);
+
         return ResponseEntity.ok(result);
     }
 
