@@ -3,15 +3,8 @@ package com.jdc.recipe_service.service.ai;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
-import com.jdc.recipe_service.domain.entity.Ingredient;
-import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.entity.RecipeIngredient;
-import com.jdc.recipe_service.domain.entity.User;
-import com.jdc.recipe_service.domain.repository.IngredientRepository;
-import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
-import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.entity.*;
+import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.event.UserRecipeCreatedEvent;
 import com.jdc.recipe_service.exception.CustomException;
@@ -59,6 +52,7 @@ public class RecipeTestService {
     private final ApplicationEventPublisher publisher;
     private final EntityManager em;
     private final GeminiImageService geminiImageService;
+    private final RecipeImageRepository recipeImageRepository;
 
     private static final String FIXED_DISH_TYPE_LIST =
             "볶음, 국/찌개/탕, 구이, 무침/샐러드, 튀김/부침, 찜/조림, 오븐요리, 생식/회, 절임/피클류, 밥/면/파스타, 디저트/간식류";
@@ -362,10 +356,20 @@ public class RecipeTestService {
             if (!imageUrls.isEmpty()) {
                 String fullUrl = imageUrls.get(0);
                 String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
+
                 Recipe savedRecipe = recipeRepository.findById(recipe.getId()).orElseThrow();
                 savedRecipe.updateImageKey(s3Key);
                 savedRecipe.updateImageStatus(RecipeImageStatus.READY);
                 savedRecipe.updateIsPrivate(false);
+
+                RecipeImage recipeImage = RecipeImage.builder()
+                        .recipe(savedRecipe)
+                        .fileKey(s3Key)
+                        .slot("main")
+                        .status(ImageStatus.ACTIVE)
+                        .build();
+
+                recipeImageRepository.save(recipeImage);
                 dto.setImageKey(fullUrl);
                 recipeRepository.save(savedRecipe);
             } else {

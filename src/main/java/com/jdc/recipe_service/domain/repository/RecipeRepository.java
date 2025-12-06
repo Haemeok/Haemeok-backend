@@ -43,6 +43,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     Page<Recipe> findByUserId(Long userId, Pageable pageable);
 
+    Page<Recipe> findByUserIdAndIsPrivateFalse(Long userId, Pageable pageable);
+
 
     @Query("""
             SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
