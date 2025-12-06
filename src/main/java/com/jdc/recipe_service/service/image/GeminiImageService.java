@@ -44,18 +44,17 @@ public class GeminiImageService {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> imageConfig = Map.of(
-                "aspectRatio", "1:1",
-                "imageSize", "2K"
+                "aspectRatio", "1:1"
         );
 
         Map<String, Object> generationConfig = Map.of(
-                "responseModalities", List.of("TEXT", "IMAGE"),
+                "responseModalities", List.of("IMAGE"),
                 "candidateCount", 1,
                 "imageConfig", imageConfig
         );
 
 
-        String enhancedPrompt = prompt + " , high quality, photorealistic food photography, 1:1 aspect ratio, 2K resolution";
+        String enhancedPrompt = prompt + " , high quality, photorealistic food photography, 1:1 aspect ratio";
 
         Map<String, Object> body = Map.of(
                 "contents", List.of(
@@ -96,7 +95,7 @@ public class GeminiImageService {
                 if (part.containsKey("inlineData")) {
                     Map<String, Object> inlineData = (Map<String, Object>) part.get("inlineData");
                     String base64Data = (String) inlineData.get("data");
-                    imageUrls.add(uploadToS3(base64Data, userId, recipeId));
+                    imageUrls.add(uploadOriginalToS3(base64Data, userId, recipeId));
                 }
             }
         }
@@ -109,10 +108,30 @@ public class GeminiImageService {
         return imageUrls;
     }
 
-    private String uploadToS3(String base64, Long userId, Long recipeId) {
+    /**
+     * [Lambda Trigger용 업로드 메서드]
+     * 1. 'original/' 폴더에 원본(JPG) 업로드 -> Lambda가 감지하고 동작함
+     * 2. DB에는 'images/' 폴더의 WebP URL을 미리 반환 (Lambda가 변환해서 거기에 넣어둘 것이므로)
+     */
+    private String uploadOriginalToS3(String base64, Long userId, Long recipeId) {
         byte[] bytes = Base64.getDecoder().decode(base64);
-        String s3Key = String.format("images/recipes/%d/%d/%s.jpg", userId, recipeId, UUID.randomUUID().toString().substring(0, 8));
-        s3Util.upload(bytes, s3Key);
-        return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, s3Key);
+
+        String originalKey = String.format("original/images/recipes/%d/%d/main.jpg", userId, recipeId);
+
+        String finalWebpKey = String.format("images/recipes/%d/%d/main.webp", userId, recipeId);
+
+        s3Util.upload(bytes, originalKey);
+
+        log.info("📤 원본 업로드 완료 (-> Lambda 변환 대기): {}", originalKey);
+        log.info("🔗 DB 저장 예정 URL: {}", finalWebpKey);
+
+        return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, finalWebpKey);
     }
+
+//    private String uploadToS3(String base64, Long userId, Long recipeId) {
+//        byte[] bytes = Base64.getDecoder().decode(base64);
+//        String s3Key = String.format("images/recipes/%d/%d/main.jpg", userId, recipeId);
+//        s3Util.upload(bytes, s3Key);
+//        return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, s3Key);
+//    }
 }

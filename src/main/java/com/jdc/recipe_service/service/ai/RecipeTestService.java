@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service.ai;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
@@ -20,7 +21,6 @@ import com.jdc.recipe_service.service.RecipeIngredientService;
 import com.jdc.recipe_service.service.RecipeStepService;
 import com.jdc.recipe_service.service.RecipeTagService;
 import com.jdc.recipe_service.service.image.GeminiImageService;
-import com.jdc.recipe_service.service.image.NanoBananaImageService;
 import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.PromptBuilderV3;
 import com.jdc.recipe_service.util.UnitService;
@@ -38,7 +38,6 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-import static java.util.Map.entry;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +49,6 @@ public class RecipeTestService {
     private final IngredientRepository ingredientRepo;
     private final RecipeRepository recipeRepository;
     private final PromptBuilderV3 promptBuilder;
-    private final NanoBananaImageService nanoBananaImageService;
     private final UserRepository userRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepService recipeStepService;
@@ -66,82 +64,64 @@ public class RecipeTestService {
             "볶음, 국/찌개/탕, 구이, 무침/샐러드, 튀김/부침, 찜/조림, 오븐요리, 생식/회, 절임/피클류, 밥/면/파스타, 디저트/간식류";
     private static final int DEFAULT_MARGIN_PERCENT = 30;
 
-    // 1. 요리 종류별 '그릇(Vessel)' 매핑
-    private static final Map<String, String> DISH_TYPE_CONTAINER_MAP = Map.ofEntries(
-            entry("국/찌개/탕", "in a bubbling hot earthenware pot (Ttukbaegi)"),
-            entry("면/국수", "in a deep, textured ceramic noodle bowl"),
-            entry("밥/면/파스타", "in a deep, textured ceramic noodle bowl or pasta plate"),
-            entry("밥/덮밥", "in a wide, modern ceramic bowl"),
-            entry("볶음", "on a modern ceramic plate with slightly raised edges"),
-            entry("구이", "on a sizzling cast-iron skillet or rustic wooden board"),
-            entry("찜/조림", "in a wide rustic clay pot or shallow braising pan"),
-            entry("튀김/부침", "on a bamboo tray with oil-absorbing paper"),
-            entry("무침/샐러드", "in a clear glass bowl or fresh white plate"),
-            entry("생식/회", "on a dark slate stone plate or wooden board"),
-            entry("절임/피클류", "in a clear glass side-dish container"),
-            entry("오븐요리", "in a hot ceramic baking dish (gratin dish)"),
-            entry("디저트/간식류", "on an elegant dessert plate")
-    );
-
-    // 2. 요리 종류별 '질감(Texture)' 매핑
-    private static final Map<String, String> TEXTURE_ADJECTIVES = Map.ofEntries(
-            entry("국/찌개/탕", "bubbling hot with steam rising, rich glossy broth"),
-            entry("면/국수", "chewy texture, moist, perfectly coated in sauce"),
-            entry("밥/면/파스타", "moist, chewy, perfectly coated in sauce"),
-            entry("밥/덮밥", "warm and hearty, with toppings neatly arranged"),
-            entry("볶음", "glossy oil coating, vibrant fresh colors, visible steam"),
-            entry("구이", "distinct char marks, glistening natural juices, smoky finish"),
-            entry("찜/조림", "tender ingredients glazed with rich shiny sauce"),
-            entry("튀김/부침", "golden brown, crispy, crunchy surface detail"),
-            entry("무침/샐러드", "fresh, crisp, crunchy, with visible water droplets"),
-            entry("생식/회", "translucent, glossy, firm and fresh raw texture"),
-            entry("절임/피클류", "plump, moist, and glossy with marinade"),
-            entry("오븐요리", "golden roasted top, melted and caramelized"),
-            entry("디저트/간식류", "soft, sweet, powdery or smooth glazed details")
-    );
-
     private static final List<String> LIGHTING_OPTIONS = List.of(
-            "Soft natural window light from the side (Bright & Airy)",
-            "Warm golden hour sunlight (Cozy & Home-cooked)",
-            "Professional studio softbox lighting (Clean & Sharp)",
-            "Moody cinematic lighting with deep shadows (Dramatic)"
+            "Natural morning sunlight streaming through a kitchen window (Bright & Fresh)",
+            "Warm cozy indoor kitchen lighting at dinner time (Homey & Inviting)",
+            "Slightly direct overhead kitchen light (Realistic & Vivid)",
+            "Soft afternoon daylight from the side (Natural & Airy)"
     );
 
     private static final List<String> ANGLE_OPTIONS = List.of(
-            "Standard 45-degree angle shot showing the entire plate and table context",
-            "Top-down flat lay view showing the table setting",
-            "Medium shot, slightly zoomed out to show the full plating",
-            "Close-up macro shot focusing on the appetizing texture and details"
+            "High-angle POV shot (Point of View) looking down at the table as if ready to eat",
+            "Casual top-down flat lay shot for Instagram",
+            "Slightly tilted close-up shot focusing on the delicious texture",
+            "Hand-held camera angle, slightly imperfect but authentic composition"
+    );
+
+    private static final List<String> BACKGROUND_OPTIONS = List.of(
+            "Clean white marble table with soft natural texture (Modern & Chic)",
+            "Warm light beige linen tablecloth (Cozy & Homey)",
+            "Rustic dark wooden table with rich grain (Vintage & Mood)",
+            "Bright white wooden table surface (Clean & Minimalist)"
     );
 
     private static final String DEFAULT_PROMPT_TEMPLATE = """
             **[Subject]**
-            A high-resolution, appetizing food photography of "{{TITLE}}".
+            A realistic, high-quality food photo of "{{TITLE}}", taken with an iPhone 15 Pro Max.
             Category: {{DISH_TYPE}}.
+            
+            **[Cooking Analysis for Visualization]**
+            **Based on the following cooking steps, infer the final look of the dish:**
+            {{STEPS}}
             
             **[Visual Contents]**
             - **Key Ingredients:** {{INGREDIENTS}}.
-            - **Overall Vibe:** The food looks freshly cooked, appetizing, and high-quality.
+            - **Overall Vibe:** Neat and appetizing plating, bright and fresh atmosphere. Focus strictly on the main food.
             
             **[Smart Filtering & Preparation Rules]**
-            1. **Filter & Color:** From the ingredient list, **do NOT visualize** water, sugar, salt, MSG, or liquid sauces as separate items. **HOWEVER, use these ingredients (e.g., Soy Sauce, Chili Powder, Cream) to determine the correct color tone of the dish.**
-            2. **Cooked State:** All ingredients must appear **fully cooked and integrated** into the dish. **Do NOT pile raw ingredients** (like minced garlic, chopped onions, or powders) on top.
-            3. **Ingredient Identity:** Main ingredients (Meat, Seafood, Tofu, Vegetables) must retain their natural texture under the sauce.
-            
-            **[Visual Details & Texture]**
-            - **Texture:** The food appears **{{TEXTURE}}**.
-            - **Sauce & Glaze:** Based on the "{{TITLE}}" and ingredients, apply a natural, appetizing glaze or broth color (e.g., Red for Spicy, Brown for Soy, Clear for Mild).
-            - **Garnish:** Minimal garnish is applied to enhance the color contrast.
+            1. **Filter & Color:** Do NOT visualize water/salt/sugar/MSG separately. Use sauces (Soy, Chili, etc.) to determine color tone.
+            2. **Cooked State:** All ingredients must appear fully cooked and integrated.
+            3. **Ingredient Identity:** Main ingredients must retain their natural texture.
             
             **[Composition & Styling]**
-            - **Plating:** Served **{{VESSEL}}**.
             - **Angle:** {{ANGLE}}.
             - **Lighting:** {{LIGHTING}}.
-            - **Background:** Placed on a clean wooden or marble table with minimal cutlery. Maintain some negative space around the plate.
+            - **Background:** {{BACKGROUND}}. **Simple cutlery (spoon, chopsticks) placed neatly next to the plate is allowed.** NO clutter, NO side dishes, NO extra bowls.
+            
+            **[Visual Details (AI Inference)]**
+            - **Plating & Vessel:** **Select the most appropriate tableware that perfectly matches the cuisine type and the title.** (e.g., Use a rustic clay pot for Korean stews, a wide elegant plate for pasta/steak, a wooden board for bakery). **Served on a SINGLE plate.**
+            - **Texture:** Render the food texture realistically based on the cooking method. Enhance the glistening details of oils, sauces, or moisture to make it look freshly cooked and steaming hot.
             
             **[Technical Quality]**
-            - 8k resolution, hyper-realistic, cinematic lighting, shallow depth of field (bokeh background), Michelin star plating style.
-            --no text, --no watermark, --no hands, --no messy piles, --no raw powder, --no distorted blurry food, --no cropped plate.
+            - Shot on iPhone 15 Pro Max, social media aesthetic, Instagram food porn style, sharp focus on food, natural depth of field, vivid colors.
+            
+            **[Negative Prompts]**
+            --no people, --no human body, --no hands, --no arms, --no chopsticks held by hand, 
+            --no alcohol, --no soju glass, --no beverage, 
+            --no side dishes, --no banchan, --no small plates, --no bowls, --no soup, 
+            --no messy piles, --no unappetizing mess, --no crumbs, 
+            --no raw powder, --no distorted blurry food, --no cropped plate, --no plastic look, 
+            --no text, --no watermark.
             """;
 
     /**
@@ -308,9 +288,8 @@ public class RecipeTestService {
      * 검색 인덱싱 및 이벤트 발행까지 수행합니다.
      */
     @Transactional
-    public RecipeCreateRequestDto createRealRecipeWithCustomImage(Long userId, AiImageTestRequestDto request) {
+    public RecipeCreateRequestDto createRealRecipeWithCustomImage(Long userId, RecipeCreateRequestDto dto) {
 
-        RecipeCreateRequestDto dto = request.getRequestData();
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         Recipe recipe = Recipe.builder()
@@ -353,47 +332,33 @@ public class RecipeTestService {
         }
         if (allIngredients.isBlank()) allIngredients = dto.getTitle();
 
-        String dishTypeKey = dto.getDishType();
-        String smartVessel = DISH_TYPE_CONTAINER_MAP.entrySet().stream()
-                .filter(entry -> dishTypeKey.contains(entry.getKey()) || entry.getKey().contains(dishTypeKey))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse("on a clean modern white plate");
-
-        String smartTexture = TEXTURE_ADJECTIVES.entrySet().stream()
-                .filter(entry -> dishTypeKey.contains(entry.getKey()) || entry.getKey().contains(dishTypeKey))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse("freshly cooked and appetizing");
-
-        String promptTemplate = request.getPrompt();
-        if (promptTemplate == null || promptTemplate.isBlank()) {
-            promptTemplate = DEFAULT_PROMPT_TEMPLATE;
+        String allSteps = "";
+        if (dto.getSteps() != null) {
+            allSteps = dto.getSteps().stream()
+                    .sorted(Comparator.comparingInt(RecipeStepRequestDto::getStepNumber))
+                    .map(step -> String.format("- Step %d (%s): %s", step.getStepNumber(), step.getAction(), step.getInstruction()))
+                    .collect(Collectors.joining("\n"));
         }
 
         String randomLighting = LIGHTING_OPTIONS.get(ThreadLocalRandom.current().nextInt(LIGHTING_OPTIONS.size()));
         String randomAngle = ANGLE_OPTIONS.get(ThreadLocalRandom.current().nextInt(ANGLE_OPTIONS.size()));
+        String randomBackground = BACKGROUND_OPTIONS.get(ThreadLocalRandom.current().nextInt(BACKGROUND_OPTIONS.size()));
 
-        if (smartVessel.contains("deep") || smartVessel.contains("pot")) {
-            randomAngle = "45-degree angle shot to show depth";
-        }
-
-        String finalImagePrompt = promptTemplate
+        String finalImagePrompt = DEFAULT_PROMPT_TEMPLATE
                 .replace("{{TITLE}}", dto.getTitle())
                 .replace("{{DISH_TYPE}}", dto.getDishType())
                 .replace("{{INGREDIENTS}}", allIngredients)
-                .replace("{{VESSEL}}", smartVessel)
+                .replace("{{STEPS}}", allSteps)
                 .replace("{{ANGLE}}", randomAngle)
                 .replace("{{LIGHTING}}", randomLighting)
-                .replace("{{TEXTURE}}", smartTexture)
+                .replace("{{BACKGROUND}}", randomBackground)
                 .replace("{{DESCRIPTION}}", dto.getDescription());
 
         log.info(">>>> [SMART PROMPT GEN] Recipe ID: {}, Prompt: \n{}", recipe.getId(), finalImagePrompt);
 
         try {
-            List<String> imageUrls = generateImageWithSelectedModel(
-                    request.getModel(), finalImagePrompt, userId, recipe.getId()
-            );
+            List<String> imageUrls = geminiImageService.generateImageUrls(finalImagePrompt, userId, recipe.getId());
+
             if (!imageUrls.isEmpty()) {
                 String fullUrl = imageUrls.get(0);
                 String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
@@ -822,13 +787,6 @@ public class RecipeTestService {
         } catch (Exception e) {
             return java.math.BigDecimal.ZERO;
         }
-    }
-
-    private List<String> generateImageWithSelectedModel(ImageGenModel model, String prompt, Long userId, Long recipeId) {
-        if (model == ImageGenModel.GEMINI) {
-            return geminiImageService.generateImageUrls(prompt, userId, recipeId);
-        }
-        return nanoBananaImageService.generateImageUrls(prompt, userId, recipeId);
     }
 
     private BigDecimal safeMultiply(BigDecimal value, BigDecimal quantity) {

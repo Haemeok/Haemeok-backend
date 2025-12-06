@@ -76,8 +76,14 @@ public class RecipeSearchService {
     private String region;
 
     public String generateImageUrl(String key) {
-        return key == null ? null :
-                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+        if (key == null) {
+            return null;
+        }
+        if (key.startsWith("http")) {
+            return key;
+        }
+
+        return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 
     @Transactional(readOnly = true)
