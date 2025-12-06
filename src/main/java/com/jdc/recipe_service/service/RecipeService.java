@@ -32,6 +32,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -333,16 +334,13 @@ public class RecipeService {
 
         RecipeNutritionDto nutritionDto = dto.getNutrition();
 
-        BigDecimal protein = (nutritionDto != null && nutritionDto.getProtein() != null)
-                ? nutritionDto.getProtein() : recipe.getProtein();
-        BigDecimal carbohydrate = (nutritionDto != null && nutritionDto.getCarbohydrate() != null)
-                ? nutritionDto.getCarbohydrate() : recipe.getCarbohydrate();
-        BigDecimal fat = (nutritionDto != null && nutritionDto.getFat() != null)
-                ? nutritionDto.getFat() : recipe.getFat();
-        BigDecimal sugar = (nutritionDto != null && nutritionDto.getSugar() != null)
-                ? nutritionDto.getSugar() : recipe.getSugar();
-        BigDecimal sodium = (nutritionDto != null && nutritionDto.getSodium() != null)
-                ? nutritionDto.getSodium() : recipe.getSodium();
+        BigDecimal protein = resolve(nutritionDto, RecipeNutritionDto::getProtein, recipe.getProtein());
+        BigDecimal carbohydrate = resolve(nutritionDto, RecipeNutritionDto::getCarbohydrate, recipe.getCarbohydrate());
+        BigDecimal fat = resolve(nutritionDto, RecipeNutritionDto::getFat, recipe.getFat());
+        BigDecimal sugar = resolve(nutritionDto, RecipeNutritionDto::getSugar, recipe.getSugar());
+        BigDecimal sodium = resolve(nutritionDto, RecipeNutritionDto::getSodium, recipe.getSodium());
+
+        Integer newTotalIngredientCost = (dto.getTotalIngredientCost() != null) ? dto.getTotalIngredientCost() : recipe.getTotalIngredientCost();
 
         recipe.update(
                 dto.getTitle(),
@@ -353,7 +351,7 @@ public class RecipeService {
                 null,
                 tools,
                 dto.getServings(),
-                null,
+                newTotalIngredientCost,
                 (dto.getMarketPrice() != null && dto.getMarketPrice() > 0) ? dto.getMarketPrice() : recipe.getMarketPrice(),
                 (dto.getCookingTips() != null && !dto.getCookingTips().isBlank()) ? dto.getCookingTips() : recipe.getCookingTips(),
                 protein,
@@ -364,17 +362,19 @@ public class RecipeService {
         );
 
         int prevTotalCost = Optional.ofNullable(recipe.getTotalIngredientCost()).orElse(0);
-        int newTotalCost = recipeIngredientService.updateIngredientsFromUser(recipe, dto.getIngredients());
-
-        if (!Objects.equals(newTotalCost, prevTotalCost)) {
-            recipe.updateTotalIngredientCost(newTotalCost);
-            int marketPrice = calculateMarketPriceForUpdate(dto, newTotalCost);
-            recipe.updateMarketPrice(marketPrice);
-        }
+        int newTotalCost = prevTotalCost;
 
         if (Boolean.TRUE.equals(dto.getIsIngredientsModified())) {
+            newTotalCost = recipeIngredientService.updateIngredientsFromUser(recipe, dto.getIngredients());
+            recipe.updateTotalIngredientCost(newTotalCost);
+
             List<RecipeIngredient> currentIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
             calculateAndSetTotalNutrition(recipe, currentIngredients);
+        }
+
+        if (!Objects.equals(newTotalCost, prevTotalCost)) {
+            int marketPrice = calculateMarketPriceForUpdate(dto, newTotalCost);
+            recipe.updateMarketPrice(marketPrice);
         }
 
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
@@ -686,5 +686,11 @@ public class RecipeService {
         } catch (Exception e) {
             return BigDecimal.ZERO;
         }
+    }
+
+    private <T> T resolve(RecipeNutritionDto dto, Function<RecipeNutritionDto, T> getter, T currentValue) {
+        if (dto == null) return currentValue;
+        T newValue = getter.apply(dto);
+        return (newValue != null) ? newValue : currentValue;
     }
 }
