@@ -193,7 +193,14 @@ public class UserService {
         userRepository.findById(targetUserId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        Page<Recipe> recipesPage = recipeRepository.findByUserId(targetUserId, pageable);
+        boolean isOwner = (viewerId != null && viewerId.equals(targetUserId));
+
+        Page<Recipe> recipesPage;
+        if (isOwner) {
+            recipesPage = recipeRepository.findByUserId(targetUserId, pageable);
+        } else {
+            recipesPage = recipeRepository.findByUserIdAndIsPrivateFalse(targetUserId, pageable);
+        }
 
         Set<Long> likedIds;
         if (viewerId != null && recipesPage.hasContent()) {
