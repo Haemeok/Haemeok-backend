@@ -6,14 +6,8 @@ import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
-import com.jdc.recipe_service.domain.entity.Ingredient;
-import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.entity.RecipeIngredient;
-import com.jdc.recipe_service.domain.entity.User;
-import com.jdc.recipe_service.domain.repository.IngredientRepository;
-import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
-import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.entity.*;
+import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
 import com.jdc.recipe_service.event.UserRecipeCreatedEvent;
@@ -61,6 +55,7 @@ public class RecipeTestService {
     private final ApplicationEventPublisher publisher;
     private final EntityManager em;
     private final GeminiImageService geminiImageService;
+    private final RecipeImageRepository recipeImageRepository;
 
 
     private static final String FIXED_DISH_TYPE_LIST =
@@ -388,6 +383,15 @@ public class RecipeTestService {
                 savedRecipe.updateImageKey(s3Key);
                 savedRecipe.updateImageStatus(RecipeImageStatus.READY);
                 savedRecipe.updateIsPrivate(false);
+
+                RecipeImage recipeImage = RecipeImage.builder()
+                        .recipe(savedRecipe)
+                        .fileKey(s3Key)
+                        .slot("main")
+                        .status(ImageStatus.ACTIVE)
+                        .build();
+
+                recipeImageRepository.save(recipeImage);
 
                 dto.setImageKey(fullUrl);
 
