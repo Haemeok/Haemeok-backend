@@ -1,15 +1,11 @@
 package com.jdc.recipe_service.service.ai;
 
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
-import com.jdc.recipe_service.domain.dto.recipe.AiImageTestRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.AiPromptRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
-import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
 import com.jdc.recipe_service.event.UserRecipeCreatedEvent;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -18,7 +14,6 @@ import com.jdc.recipe_service.service.RecipeIngredientService;
 import com.jdc.recipe_service.service.RecipeStepService;
 import com.jdc.recipe_service.service.RecipeTagService;
 import com.jdc.recipe_service.service.image.GeminiImageService;
-import com.jdc.recipe_service.service.image.NanoBananaImageService;
 import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.PromptBuilderV3;
 import com.jdc.recipe_service.util.UnitService;
@@ -31,8 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +42,6 @@ public class RecipeTestService {
     private final IngredientRepository ingredientRepo;
     private final RecipeRepository recipeRepository;
     private final PromptBuilderV3 promptBuilder;
-    private final NanoBananaImageService nanoBananaImageService;
     private final UserRepository userRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepService recipeStepService;
@@ -57,10 +54,69 @@ public class RecipeTestService {
     private final GeminiImageService geminiImageService;
     private final RecipeImageRepository recipeImageRepository;
 
-
     private static final String FIXED_DISH_TYPE_LIST =
             "볶음, 국/찌개/탕, 구이, 무침/샐러드, 튀김/부침, 찜/조림, 오븐요리, 생식/회, 절임/피클류, 밥/면/파스타, 디저트/간식류";
     private static final int DEFAULT_MARGIN_PERCENT = 30;
+
+    private static final List<String> LIGHTING_OPTIONS = List.of(
+            "Natural morning sunlight streaming through a kitchen window (Bright & Fresh)",
+            "Warm cozy indoor kitchen lighting at dinner time (Homey & Inviting)",
+            "Slightly direct overhead kitchen light (Realistic & Vivid)",
+            "Soft afternoon daylight from the side (Natural & Airy)"
+    );
+
+    private static final List<String> ANGLE_OPTIONS = List.of(
+            "High-angle POV shot (Point of View) looking down at the table as if ready to eat",
+            "Casual top-down flat lay shot for Instagram",
+            "Slightly tilted close-up shot focusing on the delicious texture",
+            "Hand-held camera angle, slightly imperfect but authentic composition"
+    );
+
+    private static final List<String> BACKGROUND_OPTIONS = List.of(
+            "Clean white marble table with soft natural texture (Modern & Chic)",
+            "Warm light beige linen tablecloth (Cozy & Homey)",
+            "Rustic dark wooden table with rich grain (Vintage & Mood)",
+            "Bright white wooden table surface (Clean & Minimalist)"
+    );
+
+    private static final String DEFAULT_PROMPT_TEMPLATE = """
+            **[Subject]**
+            A realistic, high-quality food photo of "{{TITLE}}", taken with an iPhone 15 Pro Max.
+            Category: {{DISH_TYPE}}.
+            
+            **[Cooking Analysis for Visualization]**
+            **Based on the following cooking steps, infer the final look of the dish:**
+            {{STEPS}}
+            
+            **[Visual Contents]**
+            - **Key Ingredients:** {{INGREDIENTS}}.
+            - **Overall Vibe:** Neat and appetizing plating, bright and fresh atmosphere. Focus strictly on the main food.
+            
+            **[Smart Filtering & Preparation Rules]**
+            1. **Filter & Color:** Do NOT visualize water/salt/sugar/MSG separately. Use sauces (Soy, Chili, etc.) to determine color tone.
+            2. **Cooked State:** All ingredients must appear fully cooked and integrated.
+            3. **Ingredient Identity:** Main ingredients must retain their natural texture.
+            
+            **[Composition & Styling]**
+            - **Angle:** {{ANGLE}}.
+            - **Lighting:** {{LIGHTING}}.
+            - **Background:** {{BACKGROUND}}. **Simple cutlery (spoon, chopsticks) placed neatly next to the plate is allowed.** NO clutter, NO side dishes, NO extra bowls.
+            
+            **[Visual Details (AI Inference)]**
+            - **Plating & Vessel:** **Select the most appropriate tableware that perfectly matches the cuisine type and the title.** (e.g., Use a rustic clay pot for Korean stews, a wide elegant plate for pasta/steak, a wooden board for bakery). **Served on a SINGLE plate.**
+            - **Texture:** Render the food texture realistically based on the cooking method. Enhance the glistening details of oils, sauces, or moisture to make it look freshly cooked and steaming hot.
+            
+            **[Technical Quality]**
+            - Shot on iPhone 15 Pro Max, social media aesthetic, Instagram food porn style, sharp focus on food, natural depth of field, vivid colors.
+            
+            **[Negative Prompts]**
+            --no people, --no human body, --no hands, --no arms, --no chopsticks held by hand, 
+            --no alcohol, --no soju glass, --no beverage, 
+            --no side dishes, --no banchan, --no small plates, --no bowls, --no soup, 
+            --no messy piles, --no unappetizing mess, --no crumbs, 
+            --no raw powder, --no distorted blurry food, --no cropped plate, --no plastic look, 
+            --no text, --no watermark.
+            """;
 
     /**
      * 신규 추가 메서드: 이미지/DB 저장 없이 AI 레시피 텍스트(JSON DTO)만 생성
@@ -208,6 +264,7 @@ public class RecipeTestService {
             RecipeCreateRequestDto result = grokClientService.generateRecipeJson(finalPrompt).join();
             if (result != null) {
                 result.setIngredients(correctIngredientUnits(result.getIngredients()));
+                calculateAndSetDtoNutritionAndCost(result);
             }
             return result;
         } catch (RuntimeException e) {
@@ -219,83 +276,15 @@ public class RecipeTestService {
     }
 
     /**
-     * [TEST용] 이미지 생성 후, 이미지가 포함된 레시피 객체 반환
-     */
-    public RecipeCreateRequestDto testImageGeneration(AiImageTestRequestDto request) {
-
-        RecipeCreateRequestDto recipe = request.getRequestData();
-        String promptTemplate = request.getPrompt();
-
-        if (recipe == null || promptTemplate == null) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 데이터와 프롬프트가 필요합니다.");
-        }
-
-        String title = recipe.getTitle() != null ? recipe.getTitle() : "";
-        String dishType = recipe.getDishType() != null ? recipe.getDishType() : "";
-        String description = recipe.getDescription() != null ? recipe.getDescription() : "";
-
-        String ingredients = "";
-        if (recipe.getIngredients() != null && !recipe.getIngredients().isEmpty()) {
-            ingredients = recipe.getIngredients().stream()
-                    .map(RecipeIngredientRequestDto::getName)
-                    .collect(Collectors.joining(", "));
-        }
-
-        String stepsSummary = "";
-        if (recipe.getSteps() != null && !recipe.getSteps().isEmpty()) {
-            stepsSummary = recipe.getSteps().stream()
-                    .map(step -> step.getStepNumber() + ". " + step.getInstruction())
-                    .collect(Collectors.joining(" "));
-        }
-
-        String tagsDetail = "";
-        if (recipe.getTags() != null && !recipe.getTags().isEmpty()) {
-            tagsDetail = String.join(", ", recipe.getTags());
-        }
-
-        String finalImagePrompt = promptTemplate
-                .replace("{{TITLE}}", title)
-                .replace("{{DISH_TYPE}}", dishType)
-                .replace("{{DESCRIPTION}}", description)
-                .replace("{{INGREDIENTS}}", ingredients)
-                .replace("{{STEPS_SUMMARY}}", stepsSummary)
-                .replace("{{TAGS_DETAIL}}", tagsDetail);
-
-        log.info(">>>> [IMAGE TEST] Generated Prompt: {}", finalImagePrompt);
-
-        try {
-            long randomId = System.currentTimeMillis();
-            List<String> imageUrls = nanoBananaImageService.generateImageUrls(finalImagePrompt, 0L, randomId);
-
-            if (imageUrls.isEmpty()) {
-                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 결과 없음");
-            }
-
-            String fullImageUrl = imageUrls.get(0);
-
-            recipe.setImageKey(fullImageUrl);
-
-            return recipe;
-
-        } catch (Exception e) {
-            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 실패: " + e.getMessage());
-        }
-    }
-
-    /**
      * [REAL - FULL LOGIC]
      * 실제 RecipeService의 저장 로직을 100% 재현하여 DB에 저장하고,
      * 이미지는 커스텀 프롬프트로 생성하여 연결한 뒤,
      * 검색 인덱싱 및 이벤트 발행까지 수행합니다.
      */
     @Transactional
-    public RecipeCreateRequestDto createRealRecipeWithCustomImage(Long userId, AiImageTestRequestDto request) {
+    public RecipeCreateRequestDto createRealRecipeWithCustomImage(Long userId, RecipeCreateRequestDto dto) {
 
-        RecipeCreateRequestDto dto = request.getRequestData();
-        String promptTemplate = request.getPrompt();
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         Recipe recipe = Recipe.builder()
                 .user(user)
@@ -313,67 +302,56 @@ public class RecipeTestService {
 
         int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), RecipeSourceType.USER);
         recipe.updateTotalIngredientCost(totalCost);
-
         List<RecipeIngredient> savedIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
         calculateAndSetTotalNutrition(recipe, savedIngredients);
-
         int marketPrice = calculateMarketPrice(dto, totalCost);
         recipe.updateMarketPrice(marketPrice);
-
         recipeStepService.saveAll(recipe, dto.getSteps());
-
         recipeTagService.saveAll(recipe, dto.getTags());
 
         em.flush();
         em.clear();
 
-        String ingredientsStr = "";
-        if (dto.getIngredients() != null && !dto.getIngredients().isEmpty()) {
-            List<String> ingredientNames = dto.getIngredients().stream()
+        String allIngredients = "";
+        if (dto.getIngredients() != null) {
+            allIngredients = dto.getIngredients().stream()
                     .map(RecipeIngredientRequestDto::getName)
-                    .collect(Collectors.toList());
-
-            Map<String, Ingredient> ingredientMap = ingredientRepo.findAllByNameIn(ingredientNames).stream()
-                    .collect(Collectors.toMap(Ingredient::getName, ingredient -> ingredient));
-
-            ingredientsStr = dto.getIngredients().stream()
-                    .map(ri -> {
-                        Ingredient dbIng = ingredientMap.get(ri.getName());
-
-                        String name = (dbIng != null && dbIng.getEnglishName() != null && !dbIng.getEnglishName().isBlank())
-                                ? dbIng.getEnglishName()
-                                : ri.getName();
+                    .map(name -> {
+                        if (name.contains("매생이")) return "fine silky green seaweed (Maesaengi)";
+                        if (name.contains("순대")) return "Korean blood sausage (Sundae)";
+                        if (name.contains("떡")) return "chewy rice cakes";
                         return name;
                     })
                     .collect(Collectors.joining(", "));
         }
+        if (allIngredients.isBlank()) allIngredients = dto.getTitle();
 
-        String stepsSummary = "";
+        String allSteps = "";
         if (dto.getSteps() != null) {
-            stepsSummary = dto.getSteps().stream()
-                    .map(step -> step.getStepNumber() + ". " + step.getInstruction())
-                    .collect(Collectors.joining(" "));
+            allSteps = dto.getSteps().stream()
+                    .sorted(Comparator.comparingInt(RecipeStepRequestDto::getStepNumber))
+                    .map(step -> String.format("- Step %d (%s): %s", step.getStepNumber(), step.getAction(), step.getInstruction()))
+                    .collect(Collectors.joining("\n"));
         }
 
-        String tagsDetail = "";
-        if (dto.getTags() != null) {
-            tagsDetail = String.join(", ", dto.getTags());
-        }
+        String randomLighting = LIGHTING_OPTIONS.get(ThreadLocalRandom.current().nextInt(LIGHTING_OPTIONS.size()));
+        String randomAngle = ANGLE_OPTIONS.get(ThreadLocalRandom.current().nextInt(ANGLE_OPTIONS.size()));
+        String randomBackground = BACKGROUND_OPTIONS.get(ThreadLocalRandom.current().nextInt(BACKGROUND_OPTIONS.size()));
 
-        String finalImagePrompt = promptTemplate
+        String finalImagePrompt = DEFAULT_PROMPT_TEMPLATE
                 .replace("{{TITLE}}", dto.getTitle())
                 .replace("{{DISH_TYPE}}", dto.getDishType())
-                .replace("{{DESCRIPTION}}", dto.getDescription())
-                .replace("{{INGREDIENTS}}", ingredientsStr)
-                .replace("{{STEPS_SUMMARY}}", stepsSummary)
-                .replace("{{TAGS_DETAIL}}", tagsDetail);
+                .replace("{{INGREDIENTS}}", allIngredients)
+                .replace("{{STEPS}}", allSteps)
+                .replace("{{ANGLE}}", randomAngle)
+                .replace("{{LIGHTING}}", randomLighting)
+                .replace("{{BACKGROUND}}", randomBackground)
+                .replace("{{DESCRIPTION}}", dto.getDescription());
 
-        log.info(">>>> [REAL IMAGE GEN] Recipe ID: {}, Prompt: {}", recipe.getId(), finalImagePrompt);
+        log.info(">>>> [SMART PROMPT GEN] Recipe ID: {}, Prompt: \n{}", recipe.getId(), finalImagePrompt);
 
         try {
-            List<String> imageUrls = generateImageWithSelectedModel(
-                    request.getModel(), finalImagePrompt, userId, recipe.getId()
-            );
+            List<String> imageUrls = geminiImageService.generateImageUrls(finalImagePrompt, userId, recipe.getId());
 
             if (!imageUrls.isEmpty()) {
                 String fullUrl = imageUrls.get(0);
@@ -392,9 +370,7 @@ public class RecipeTestService {
                         .build();
 
                 recipeImageRepository.save(recipeImage);
-
                 dto.setImageKey(fullUrl);
-
                 recipeRepository.save(savedRecipe);
             } else {
                 throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "이미지 생성 결과 없음");
@@ -407,7 +383,6 @@ public class RecipeTestService {
         }
 
         final Long finalRecipeId = recipe.getId();
-
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
@@ -417,12 +392,8 @@ public class RecipeTestService {
                         } catch (Exception e) {
                             log.error("인덱싱 실패", e);
                         }
-
                         publisher.publishEvent(new UserRecipeCreatedEvent(finalRecipeId));
-
                         recipeAnalysisService.analyzeRecipeAsync(finalRecipeId);
-
-                        log.info(">>>> [REAL PROCESS COMPLETE] ID: {}", finalRecipeId);
                     }
                 });
 
@@ -697,7 +668,6 @@ public class RecipeTestService {
                 ? PricingUtil.applyMargin(totalCost, PricingUtil.randomizeMarginPercent(DEFAULT_MARGIN_PERCENT))
                 : 0);
 
-        // AI 생성일 경우 원가보다 낮으면 강제 마진 적용
         if (marketPrice < totalCost) {
             marketPrice = PricingUtil.applyMargin(totalCost, DEFAULT_MARGIN_PERCENT);
         }
@@ -735,6 +705,75 @@ public class RecipeTestService {
         recipe.updateNutrition(totalProtein, totalCarb, totalFat, totalSugar, totalSodium, totalCalorie);
     }
 
+
+    private void calculateAndSetDtoNutritionAndCost(RecipeCreateRequestDto dto) {
+        if (dto.getIngredients() == null || dto.getIngredients().isEmpty()) return;
+
+        List<String> names = dto.getIngredients().stream()
+                .map(RecipeIngredientRequestDto::getName)
+                .collect(Collectors.toList());
+
+        List<Ingredient> dbIngredients = ingredientRepo.findAllByNameIn(names);
+        Map<String, Ingredient> ingredientMap = dbIngredients.stream()
+                .collect(Collectors.toMap(Ingredient::getName, i -> i));
+
+        BigDecimal totalCalorie = BigDecimal.ZERO;
+        BigDecimal totalCarb = BigDecimal.ZERO;
+        BigDecimal totalProtein = BigDecimal.ZERO;
+        BigDecimal totalFat = BigDecimal.ZERO;
+        BigDecimal totalSugar = BigDecimal.ZERO;
+        BigDecimal totalSodium = BigDecimal.ZERO;
+
+        BigDecimal totalCost = BigDecimal.ZERO;
+
+        for (RecipeIngredientRequestDto ri : dto.getIngredients()) {
+            BigDecimal quantity = parseQuantityToBigDecimal(ri.getQuantity());
+            Ingredient dbIng = ingredientMap.get(ri.getName());
+
+            if (dbIng != null) {
+                totalCalorie = totalCalorie.add(safeMultiply(dbIng.getCalorie(), quantity));
+                totalCarb = totalCarb.add(safeMultiply(dbIng.getCarbohydrate(), quantity));
+                totalProtein = totalProtein.add(safeMultiply(dbIng.getProtein(), quantity));
+                totalFat = totalFat.add(safeMultiply(dbIng.getFat(), quantity));
+                totalSugar = totalSugar.add(safeMultiply(dbIng.getSugar(), quantity));
+                totalSodium = totalSodium.add(safeMultiply(dbIng.getSodium(), quantity));
+
+                if (dbIng.getPrice() != null) {
+                    totalCost = totalCost.add(BigDecimal.valueOf(dbIng.getPrice()).multiply(quantity));
+                }
+            } else {
+                totalCalorie = totalCalorie.add(safeBigDecimal(ri.getCustomCalories()));
+                totalCarb = totalCarb.add(safeBigDecimal(ri.getCustomCarbohydrate()));
+                totalProtein = totalProtein.add(safeBigDecimal(ri.getCustomProtein()));
+                totalFat = totalFat.add(safeBigDecimal(ri.getCustomFat()));
+                totalSugar = totalSugar.add(safeBigDecimal(ri.getCustomSugar()));
+                totalSodium = totalSodium.add(safeBigDecimal(ri.getCustomSodium()));
+
+                if (ri.getCustomPrice() != null) {
+                    totalCost = totalCost.add(ri.getCustomPrice());
+                }
+            }
+        }
+
+        RecipeNutritionDto nutrition = RecipeNutritionDto.builder()
+                .carbohydrate(totalCarb)
+                .protein(totalProtein)
+                .fat(totalFat)
+                .sugar(totalSugar)
+                .sodium(totalSodium)
+                .build();
+        dto.setNutrition(nutrition);
+
+        dto.setTotalCalories(totalCalorie.doubleValue());
+
+        int costInt = totalCost.intValue();
+        dto.setTotalIngredientCost(costInt);
+
+        if (dto.getMarketPrice() == null || dto.getMarketPrice() <= 0) {
+            dto.setMarketPrice(PricingUtil.applyMargin(costInt, DEFAULT_MARGIN_PERCENT));
+        }
+    }
+
     private java.math.BigDecimal parseQuantityToBigDecimal(String quantityStr) {
         if (quantityStr == null || quantityStr.isBlank()) return java.math.BigDecimal.ZERO;
         String cleanStr = quantityStr.replaceAll("[^0-9./]", "");
@@ -754,10 +793,12 @@ public class RecipeTestService {
         }
     }
 
-    private List<String> generateImageWithSelectedModel(ImageGenModel model, String prompt, Long userId, Long recipeId) {
-        if (model == ImageGenModel.GEMINI) {
-            return geminiImageService.generateImageUrls(prompt, userId, recipeId);
-        }
-        return nanoBananaImageService.generateImageUrls(prompt, userId, recipeId);
+    private BigDecimal safeMultiply(BigDecimal value, BigDecimal quantity) {
+        if (value == null) return BigDecimal.ZERO;
+        return value.multiply(quantity);
+    }
+
+    private BigDecimal safeBigDecimal(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 }

@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service.ai;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
@@ -20,6 +21,8 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -46,7 +49,7 @@ public class GrokClientService {
         Map<String, Object> requestBody = Map.of(
                 "model", grokRecipeModelName,
                 "temperature", 0.3,
-                "max_tokens", 1500,
+                "max_tokens", 3000,
                 "messages", List.of(
                         Map.of(
                                 "role", "system",
@@ -113,7 +116,8 @@ public class GrokClientService {
             String cleanedJson = null;
 
             try {
-                Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<Map<String, Object>>() {});
+                Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<Map<String, Object>>() {
+                });
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
 
                 if (choices == null || choices.isEmpty()) {
@@ -187,16 +191,24 @@ public class GrokClientService {
 
         if (recipe.getNutrition() != null) {
             var n = recipe.getNutrition();
-            if (n.getProtein() != null && n.getProtein().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "단백질 음수");
-            if (n.getCarbohydrate() != null && n.getCarbohydrate().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "탄수화물 음수");
-            if (n.getFat() != null && n.getFat().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "지방 음수");
-            if (n.getSugar() != null && n.getSugar().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "당류 음수");
-            if (n.getSodium() != null && n.getSodium().compareTo(BigDecimal.ZERO) < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "나트륨 음수");
+            if (n.getProtein() != null && n.getProtein().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "단백질 음수");
+            if (n.getCarbohydrate() != null && n.getCarbohydrate().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "탄수화물 음수");
+            if (n.getFat() != null && n.getFat().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "지방 음수");
+            if (n.getSugar() != null && n.getSugar().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "당류 음수");
+            if (n.getSodium() != null && n.getSodium().compareTo(BigDecimal.ZERO) < 0)
+                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "나트륨 음수");
         }
 
-        if (recipe.getCookingTime() != null && recipe.getCookingTime() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "조리 시간 음수");
-        if (recipe.getServings() != null && recipe.getServings() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "인분 음수");
-        if (recipe.getMarketPrice() != null && recipe.getMarketPrice() < 0) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "시장 가격 음수");
+        if (recipe.getCookingTime() != null && recipe.getCookingTime() < 0)
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "조리 시간 음수");
+        if (recipe.getServings() != null && recipe.getServings() < 0)
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "인분 음수");
+        if (recipe.getMarketPrice() != null && recipe.getMarketPrice() < 0)
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "시장 가격 음수");
 
         log.debug("레시피 DTO 검증 완료: title={}", recipe.getTitle());
     }
@@ -212,7 +224,8 @@ public class GrokClientService {
 
     private RecipeAnalysisResponseDto parseAnalysisResponse(String jsonResponse) {
         try {
-            Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<>() {});
+            Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<>() {
+            });
             List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
             Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
             String content = message.get("content").toString();
