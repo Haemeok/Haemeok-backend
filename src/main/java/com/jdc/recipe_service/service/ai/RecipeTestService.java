@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service.ai;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
