@@ -235,7 +235,7 @@ public class AsyncImageService {
 
             Long userId = recipe.getUser().getId();
             String s3Key = String.format("images/recipes/%d/%d/main.jpg", userId, recipeId);
-            s3Util.upload(imageBytes, s3Key);
+            s3Util.upload(imageBytes, s3Key, "image/jpeg");
             String imageUrl = generateImageUrl(s3Key);
 
             recipe.updateImageKey(s3Key);

@@ -37,16 +37,19 @@ public class S3Util {
         }
     }
 
-    public String createPresignedUrl(String fileKey) {
+    public String createPresignedUrl(String fileKey, String contentType) {
         ensureBucketExists();
         PutObjectRequest objectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(fileKey)
+                .contentType(contentType)
                 .build();
+
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofMinutes(10))
                 .putObjectRequest(objectRequest)
                 .build();
+
         return s3Presigner.presignPutObject(presignRequest)
                 .url()
                 .toString();
@@ -93,11 +96,12 @@ public class S3Util {
      * @param data  업로드할 바이트 배열
      * @param s3Key S3에 저장할 키
      */
-    public void upload(byte[] data, String s3Key) {
+    public void upload(byte[] data, String s3Key, String contentType) {
         ensureBucketExists();
         PutObjectRequest putReq = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(s3Key)
+                .contentType(contentType)
                 .contentLength((long) data.length)
                 .build();
         s3Client.putObject(putReq, RequestBody.fromBytes(data));

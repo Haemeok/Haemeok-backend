@@ -178,8 +178,15 @@ public class AdminRecipeService {
 
         for (FileInfoRequest fileInfo : files) {
             String slot = fileInfo.getType().equals("main") ? "main" : "step_" + fileInfo.getStepIndex();
-            String fileKey = "recipes/" + recipe.getId() + "/" + slot + ".jpg";
-            String presignedUrl = s3Util.createPresignedUrl(fileKey);
+            String contentType = fileInfo.getContentType();
+            if (contentType == null || contentType.isBlank()) {
+                contentType = "image/jpeg";
+            }
+
+            String extension = getFileExtension(contentType);
+            String fileKey = "recipes/" + recipe.getId() + "/" + slot + extension;
+
+            String presignedUrl = s3Util.createPresignedUrl(fileKey, contentType);
 
             uploads.add(PresignedUrlResponseItem.builder()
                     .fileKey(fileKey)
@@ -207,6 +214,16 @@ public class AdminRecipeService {
         } else {
             return 0;
         }
+    }
+
+    private String getFileExtension(String contentType) {
+        if (contentType == null) return ".jpg";
+        return switch (contentType.toLowerCase()) {
+            case "image/webp" -> ".webp";
+            case "image/png" -> ".png";
+            case "image/jpeg" -> ".jpg";
+            default -> ".jpg";
+        };
     }
 
     private Recipe getRecipeOrThrow(Long recipeId) {

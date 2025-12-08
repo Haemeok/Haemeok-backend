@@ -55,15 +55,34 @@ public class UserService {
 
     // presigned URL 생성
     @Transactional(readOnly = true)
-    public PresignedUrlResponseItem generateProfileImagePresign(Long userId) {
+    public PresignedUrlResponseItem generateProfileImagePresign(Long userId, String contentType) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        String key = String.format("images/profiles/%d/%s.jpg", userId, UUID.randomUUID());
-        String presignedUrl = s3Util.createPresignedUrl(key);
+
+        if (contentType == null || contentType.isBlank()) {
+            contentType = "image/jpeg";
+        }
+
+        String extension = getFileExtension(contentType);
+
+        String key = String.format("images/profiles/%d/%s%s", userId, UUID.randomUUID(), extension);
+
+        String presignedUrl = s3Util.createPresignedUrl(key, contentType);
+
         return PresignedUrlResponseItem.builder()
                 .fileKey(key)
                 .presignedUrl(presignedUrl)
                 .build();
+    }
+
+    private String getFileExtension(String contentType) {
+        if (contentType == null) return ".jpg";
+        return switch (contentType.toLowerCase()) {
+            case "image/webp" -> ".webp";
+            case "image/png" -> ".png";
+            case "image/jpeg" -> ".jpg";
+            default -> ".jpg";
+        };
     }
 
     //  프로필 수정 (관리자 or 나)
