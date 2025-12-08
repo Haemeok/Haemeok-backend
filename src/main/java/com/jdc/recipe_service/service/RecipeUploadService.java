@@ -25,12 +25,17 @@ public class RecipeUploadService {
 
     public UpdatePresignedUrlResponse generatePresignedUrlsForUpdate(Long recipeId, Long userId, List<FileInfoRequest> files) {
         List<PresignedUrlResponseItem> uploads = files.stream().map(file -> {
-            String fileKey = generateFileKey(userId, recipeId, file);
+            String contentType = file.getContentType();
+            if (contentType == null || contentType.isEmpty()) {
+                contentType = "image/jpeg";
+            }
+
+            String fileKey = generateFileKey(userId, recipeId, file, contentType);
 
             PutObjectRequest objectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(fileKey)
-                    .contentType(file.getContentType())
+                    .contentType(contentType)
                     .build();
 
             PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
@@ -45,12 +50,25 @@ public class RecipeUploadService {
         return new UpdatePresignedUrlResponse(uploads);
     }
 
-    private String generateFileKey(Long userId, Long recipeId, FileInfoRequest file) {
+    private String generateFileKey(Long userId, Long recipeId, FileInfoRequest file, String contentType) {
         String prefix = String.format("images/recipes/%d/%d", userId, recipeId);
+
+        String extension = getFileExtension(contentType);
+
         if ("main".equals(file.getType())) {
-            return String.format("%s/main.jpg", prefix);
+            return String.format("%s/main%s", prefix, extension);
         } else {
-            return String.format("%s/steps/%d.jpg", prefix, file.getStepIndex());
+            return String.format("%s/steps/%d%s", prefix, file.getStepIndex(), extension);
         }
+    }
+
+    private String getFileExtension(String contentType) {
+        if (contentType == null) return ".jpg";
+        return switch (contentType.toLowerCase()) {
+            case "image/webp" -> ".webp";
+            case "image/png" -> ".png";
+            case "image/jpeg" -> ".jpg";
+            default -> ".jpg";
+        };
     }
 }

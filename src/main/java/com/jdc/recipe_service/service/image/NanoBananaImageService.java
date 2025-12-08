@@ -95,7 +95,7 @@ public class NanoBananaImageService {
                 .map(base64 -> {
                     byte[] bytes = Base64.getDecoder().decode(base64);
                     String s3Key = String.format("images/recipes/%d/%d/main.jpg", userId, recipeId);
-                    s3Util.upload(bytes, s3Key);
+                    s3Util.upload(bytes, s3Key, "image/jpeg");
                     return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, s3Key);
                 })
                 .collect(Collectors.toList());

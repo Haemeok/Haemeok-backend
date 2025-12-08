@@ -50,7 +50,13 @@ public class RecipeImageService {
             String extension = getFileExtension(fileInfo.getContentType());
 
             String fileKey = "images/recipes/" + recipe.getId() + "/" + slot + extension;
-            String presignedUrl = s3Util.createPresignedUrl(fileKey);
+
+            String contentType = fileInfo.getContentType();
+            if (contentType == null || contentType.isEmpty()) {
+                contentType = "image/jpeg";
+            }
+
+            String presignedUrl = s3Util.createPresignedUrl(fileKey, contentType);
 
             uploads.add(PresignedUrlResponseItem.builder()
                     .fileKey(fileKey)

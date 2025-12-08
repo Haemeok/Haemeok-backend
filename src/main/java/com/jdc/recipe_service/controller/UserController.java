@@ -58,7 +58,9 @@ public class UserController {
     @Operation(summary = "프로필 이미지 Presigned URL 발급", description = "S3에 업로드할 수 있도록 Presigned URL을 발급받습니다.")
     public ResponseEntity<PresignedUrlResponseItem> presignProfileImage(
             @PathVariable Long userId,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) String contentType
+    ) {
         if (userDetails == null) {
             throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
         }
@@ -66,7 +68,7 @@ public class UserController {
             throw new CustomException(ErrorCode.USER_ACCESS_DENIED);
         }
 
-        PresignedUrlResponseItem presign = userService.generateProfileImagePresign(userId);
+        PresignedUrlResponseItem presign = userService.generateProfileImagePresign(userId,contentType);
         return ResponseEntity.ok(presign);
     }
 

@@ -117,10 +117,8 @@ public class GeminiImageService {
         byte[] bytes = Base64.getDecoder().decode(base64);
 
         String originalKey = String.format("original/images/recipes/%d/%d/main.jpg", userId, recipeId);
-
         String finalWebpKey = String.format("images/recipes/%d/%d/main.webp", userId, recipeId);
-
-        s3Util.upload(bytes, originalKey);
+        s3Util.upload(bytes, originalKey, "image/jpeg");
 
         log.info("📤 원본 업로드 완료 (-> Lambda 변환 대기): {}", originalKey);
         log.info("🔗 DB 저장 예정 URL: {}", finalWebpKey);
