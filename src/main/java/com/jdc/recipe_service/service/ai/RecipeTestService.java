@@ -101,6 +101,7 @@ public class RecipeTestService {
             **[Composition & Styling]**
             - **Angle:** {{ANGLE}}.
             - **Lighting:** {{LIGHTING}}.
+            - **Cutlery (Auto-Inference):** **Analyze the dish type.** If it is Asian/Korean (Soup, Rice, Noodle), place chopsticks or a spoon naturally. If Western (Pasta, Steak), place a fork/knife. If Finger Food (Pizza, Wrapping), do NOT place cutlery. **Randomly decide (50/50 chance) whether to show cutlery or keep it empty for a minimal look.**
             - **Background:** {{BACKGROUND}}. **Simple cutlery (spoon, chopsticks) placed neatly next to the plate is allowed.** NO clutter, NO side dishes, NO extra bowls.
             
             **[Visual Details (AI Inference)]**
