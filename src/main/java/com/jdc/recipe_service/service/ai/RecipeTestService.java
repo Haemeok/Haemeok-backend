@@ -101,8 +101,10 @@ public class RecipeTestService {
             **[Composition & Styling]**
             - **Angle:** {{ANGLE}}.
             - **Lighting:** {{LIGHTING}}.
-            - **Cutlery (Auto-Inference):** **Analyze the dish type.** If it is Asian/Korean (Soup, Rice, Noodle), place chopsticks or a spoon naturally. If Western (Pasta, Steak), place a fork/knife. If Finger Food (Pizza, Wrapping), do NOT place cutlery. **Randomly decide (50/50 chance) whether to show cutlery or keep it empty for a minimal look.**
             - **Background:** {{BACKGROUND}}. **Simple cutlery (spoon, chopsticks) placed neatly next to the plate is allowed.** NO clutter, NO side dishes, NO extra bowls.
+            
+            **[Cutlery Rule]**
+            {{CUTLERY_RULE}}
             
             **[Visual Details (AI Inference)]**
             - **Plating & Vessel:** **Select the most appropriate tableware that perfectly matches the cuisine type and the title.** (e.g., Use a rustic clay pot for Korean stews, a wide elegant plate for pasta/steak, a wooden board for bakery). **Served on a SINGLE plate.**
@@ -339,6 +341,14 @@ public class RecipeTestService {
         String randomLighting = LIGHTING_OPTIONS.get(ThreadLocalRandom.current().nextInt(LIGHTING_OPTIONS.size()));
         String randomAngle = ANGLE_OPTIONS.get(ThreadLocalRandom.current().nextInt(ANGLE_OPTIONS.size()));
         String randomBackground = BACKGROUND_OPTIONS.get(ThreadLocalRandom.current().nextInt(BACKGROUND_OPTIONS.size()));
+        boolean showCutlery = ThreadLocalRandom.current().nextBoolean(); // True or False
+
+        String cutleryRule;
+        if (showCutlery) {
+            cutleryRule = "**Analyze the dish type.** If Asian/Korean, place wooden chopsticks and a spoon. If Western, place a fork and knife. If Finger Food(Pizza), NO cutlery.";
+        } else {
+            cutleryRule = "**NO CUTLERY.** Do NOT place any spoon, fork, chopsticks, or knife. Keep the composition clean and minimal. Focus strictly on the food.";
+        }
 
         String finalImagePrompt = DEFAULT_PROMPT_TEMPLATE
                 .replace("{{TITLE}}", dto.getTitle())
@@ -348,6 +358,7 @@ public class RecipeTestService {
                 .replace("{{ANGLE}}", randomAngle)
                 .replace("{{LIGHTING}}", randomLighting)
                 .replace("{{BACKGROUND}}", randomBackground)
+                .replace("{{CUTLERY_RULE}}", cutleryRule)
                 .replace("{{DESCRIPTION}}", dto.getDescription());
 
         log.info(">>>> [SMART PROMPT GEN] Recipe ID: {}, Prompt: \n{}", recipe.getId(), finalImagePrompt);
