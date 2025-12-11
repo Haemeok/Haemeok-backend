@@ -32,7 +32,7 @@ public class GeminiImageService {
     private static final String GCP_PROJECT_ID = "gen-lang-client-0326396795";
     private static final String GCP_REGION = "global";
 
-    private static final String GEMINI_MODEL_ID = "gemini-3-pro-image-preview";
+    private static final String GEMINI_MODEL_ID = "gemini-2.5-flash-image";
 
     private static final String VERTEX_GEMINI_URL =
             "https://aiplatform.googleapis.com/v1/projects/" + GCP_PROJECT_ID + "/locations/global/publishers/google/models/" + GEMINI_MODEL_ID + ":generateContent?key={key}";
