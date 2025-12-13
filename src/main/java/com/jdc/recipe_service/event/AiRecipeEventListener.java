@@ -5,7 +5,6 @@ import com.jdc.recipe_service.domain.type.NotificationRelatedType;
 import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.image.AsyncImageService;
-import com.jdc.recipe_service.service.image.AsyncImageServiceV2;
 import com.jdc.recipe_service.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +17,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 @Slf4j
 public class AiRecipeEventListener {
-    private final AsyncImageServiceV2 asyncImageService;
+    private final AsyncImageService asyncImageService;
     private final NotificationService notificationService;
     private final RecipeIndexingService recipeIndexingService;
 
