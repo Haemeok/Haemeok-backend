@@ -1,31 +1,31 @@
 package com.jdc.recipe_service.service.image;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
+import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeImage;
+import com.jdc.recipe_service.domain.entity.RecipeIngredient;
+import com.jdc.recipe_service.domain.entity.RecipeStep;
+import com.jdc.recipe_service.domain.repository.RecipeImageRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.ImageStatus;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.RecipeSearchService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
-import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
-
-import static java.util.Map.entry;
 
 @Service
 @RequiredArgsConstructor
@@ -33,228 +33,164 @@ import static java.util.Map.entry;
 public class AsyncImageService {
 
     private final RecipeRepository recipeRepository;
-    private final S3Util s3Util;
-    private final GptImageService gptImageService;
+    private final RecipeImageRepository recipeImageRepository;
     private final RecipeIndexingService recipeIndexingService;
     private final RecipeSearchService recipeSearchService;
     private final DeferredResultHolder deferredResultHolder;
+    private final GeminiImageService geminiImageService;
 
-    private static final Map<DishType, List<String>> STYLE_PROMPTS = Map.ofEntries(
-            entry(DishType.SOUP_STEW, List.of(
-                    "A bubbling Korean stew in a rustic earthenware pot, styled on a wooden table with a small linen napkin and chopsticks",
-                    "A hearty Korean stew in a minimalist white bowl with steam rising",
-                    "A vibrant Korean stew in a black stone bowl, garnished with floating green onions and sesame seeds"
-            )),
-            entry(DishType.RICE_NOODLE, List.of(
-                    "A vibrant bowl of Korean rice noodles on a textured stone slab with a small bowl of dipping sauce",
-                    "A minimalist rice noodle dish in a clean white ceramic bowl",
-                    "A colorful rice noodle plate with fresh herbs and chilies"
-            )),
-            entry(DishType.STEAMED_BRAISED, List.of(
-                    "A steaming Korean braised dish in a deep bowl, artfully placed on a slate slab with a sprig of fresh herbs",
-                    "A succulent braised stew in a white ceramic bowl, garnished with sesame seeds",
-                    "A rich Korean braised dish in a rustic clay pot with steam rising"
-            )),
-            entry(DishType.FRYING, List.of(
-                    "A colorful stir-fry on a ceramic plate with glossy sauce",
-                    "A vibrant vegetable stir-fry on a modern plate, rim-lit to highlight textures",
-                    "A sizzling stir-fry in a cast-iron pan, with fresh veggies under soft overhead light"
-            )),
-            entry(DishType.FRIED_PAN, List.of(
-                    "A golden Korean pancake on a white plate with a small dipping dish",
-                    "A crispy scallion pancake on a ceramic plate with garnish of spring onions and chili threads",
-                    "A fluffy Korean pancake on a slate platter with a side of soy dipping sauce"
-            )),
-            entry(DishType.GRILL, List.of(
-                    "Juicy grilled meat on a black slate platter with emphasized char marks and texture",
-                    "A succulent barbecue cut on a wooden board with parsley garnish",
-                    "Grilled skewers arranged on a rustic plate with charred edges"
-            )),
-            entry(DishType.SALAD, List.of(
-                    "A fresh Korean salad on a marble surface with scattered cherry tomatoes and drifted spinach leaves",
-                    "A colorful mixed salad in a glass bowl with a small jar of dressing",
-                    "A deconstructed salad on a white plate with microgreens and a drizzle of vinaigrette"
-            )),
-            entry(DishType.PICKLE, List.of(
-                    "Colorful pickled vegetables in a small ceramic bowl with soft diffused daylight",
-                    "Assorted Korean pickles artfully arranged on a wooden board",
-                    "A selection of pickled side dishes on a slate platter with vibrant colors"
-            )),
-            entry(DishType.OVEN, List.of(
-                    "A baked Korean dish in a ceramic baking dish placed on a linen cloth",
-                    "A golden roasted casserole in a white baking tray",
-                    "A cheesy baked dish in a cast-iron skillet with melted topping"
-            )),
-            entry(DishType.RAW, List.of(
-                    "Sashimi-style raw dish on a white plate with a side of soy sauce",
-                    "Thinly sliced raw fish arranged on a bamboo board with wasabi and ginger garnish",
-                    "A fresh raw seafood platter on a slate surface with decorative greenery"
-            )),
-            entry(DishType.DESSERT, List.of(
-                    "An elegant Korean dessert on a ceramic plate accentuated by soft natural window light",
-                    "A delicate sweet treat on a glass plate with powdered sugar and mint leaf garnish",
-                    "A plated dessert on a marble slab with fruit coulis and edible flowers"
-            ))
+    private static final List<String> LIGHTING_OPTIONS = List.of(
+            "Natural morning sunlight streaming through a kitchen window (Bright & Fresh)",
+            "Warm cozy indoor kitchen lighting at dinner time (Homey & Inviting)",
+            "Slightly direct overhead kitchen light (Realistic & Vivid)",
+            "Soft afternoon daylight from the side (Natural & Airy)"
     );
 
-    private static final List<String> LIGHTING_STYLES = List.of(
-            "dramatic side window light",
-            "bright and airy high-key lighting",
-            "moody and cinematic low-key lighting",
-            "soft diffused overhead light"
+    private static final List<String> ANGLE_OPTIONS = List.of(
+            "High-angle POV shot (Point of View) looking down at the table as if ready to eat",
+            "Casual top-down flat lay shot for Instagram",
+            "Slightly tilted close-up shot focusing on the delicious texture",
+            "Hand-held camera angle, slightly imperfect but authentic composition"
     );
 
-    private static final List<String> CAMERA_ANGLES = List.of(
-            "a top-down flat-lay angle",
-            "a 45-degree angle",
-            "a dynamic eye-level angle",
-            "a close-up macro angle"
+    private static final List<String> BACKGROUND_OPTIONS = List.of(
+            "Clean white marble table with soft natural texture (Modern & Chic)",
+            "Warm light beige linen tablecloth (Cozy & Homey)",
+            "Rustic dark wooden table with rich grain (Vintage & Mood)",
+            "Bright white wooden table surface (Clean & Minimalist)"
     );
 
-    private static final List<String> PLATING_SURFACES = List.of(
-            "a rustic wooden board",
-            "a dark slate platter",
-            "a simple white ceramic plate",
-            "a textured stone slab"
-    );
-
-    private static final List<String> BACKGROUNDS = List.of(
-            "set on a marble countertop",
-            "placed on a dark rustic table",
-            "in a bright, sunlit kitchen setting",
-            "with a clean, minimalist background"
-    );
-
-    private static final List<String> CAMERA_LENSES = List.of(
-            "with an 85mm lens",
-            "with a 50mm prime lens",
-            "with a macro lens for intricate detail"
-    );
-
-    private static final List<String> PHOTO_AESTHETICS = List.of(
-            "hyper-detailed, award-winning food photography",
-            "magazine quality, professional food photography",
-            "cinematic, photorealistic food shot"
-    );
-
-    @Value("${app.s3.bucket-name}")
-    private String bucketName;
-
-    @Value("${cloud.aws.region.static}")
-    private String region;
-
-    public String generateImageUrl(String key) {
-        return key == null ? null :
-                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
-    }
+    private static final String DEFAULT_PROMPT_TEMPLATE = """
+            **[Subject]**
+            A realistic, high-quality food photo of "{{TITLE}}", taken with an iPhone 15 Pro Max.
+            Category: {{DISH_TYPE}}.
+            
+            **[Cooking Analysis for Visualization]**
+            **Based on the following cooking steps, infer the final look of the dish:**
+            {{STEPS}}
+            
+            **[Visual Contents]**
+            - **Key Ingredients:** {{INGREDIENTS}}.
+            - **Overall Vibe:** Neat and appetizing plating, bright and fresh atmosphere. Focus strictly on the main food.
+            
+            **[Smart Filtering & Preparation Rules]**
+            1. **Filter & Color:** Do NOT visualize water/salt/sugar/MSG separately. Use sauces (Soy, Chili, etc.) to determine color tone.
+            2. **Cooked State:** All ingredients must appear fully cooked and integrated.
+            3. **Ingredient Identity:** Main ingredients must retain their natural texture.
+            
+            **[Composition & Styling]**
+            - **Angle:** {{ANGLE}}.
+            - **Lighting:** {{LIGHTING}}.
+            - **Background:** {{BACKGROUND}}. **Simple cutlery (spoon, chopsticks) placed neatly next to the plate is allowed.** NO clutter, NO side dishes, NO extra bowls.
+            
+            **[Cutlery Rule]**
+            {{CUTLERY_RULE}}
+            
+            **[Visual Details (AI Inference)]**
+            - **Plating & Vessel:** **Select the most appropriate tableware that perfectly matches the cuisine type and the title.** (e.g., Use a rustic clay pot for Korean stews, a wide elegant plate for pasta/steak, a wooden board for bakery). **Served on a SINGLE plate.**
+            - **Texture:** Render the food texture realistically based on the cooking method. Enhance the glistening details of oils, sauces, or moisture to make it look freshly cooked and steaming hot.
+            
+            **[Technical Quality]**
+            - Shot on iPhone 15 Pro Max, social media aesthetic, Instagram food porn style, sharp focus on food, natural depth of field, vivid colors.
+            
+            **[Negative Prompts]**
+            --no people, --no human body, --no hands, --no arms, --no chopsticks held by hand, 
+            --no alcohol, --no soju glass, --no beverage, 
+            --no side dishes, --no banchan, --no small plates, --no bowls, --no soup, 
+            --no messy piles, --no unappetizing mess, --no crumbs, 
+            --no raw powder, --no distorted blurry food, --no cropped plate, --no plastic look, 
+            --no text, --no watermark.
+            """;
 
     @Async
     @Transactional
     public CompletableFuture<String> generateAndUploadAiImageAsync(Long recipeId) {
-        log.info("▶ [AsyncImageService] 시작, recipeId={}", recipeId);
+        log.info("▶ [AsyncImageServiceV2] Gemini 이미지 생성 시작, recipeId={}", recipeId);
 
         try {
-            Recipe recipe = recipeRepository.findById(recipeId)
+            Recipe recipe = recipeRepository.findWithAllRelationsById(recipeId)
                     .orElseThrow(() -> new RuntimeException("Recipe not found. ID=" + recipeId));
 
-            String recipeTitle = recipe.getTitle();
-            if (recipeTitle == null || recipeTitle.isBlank()) {
-                throw new IllegalStateException("Recipe title cannot be blank for image generation.");
-            }
-
-            DishType type = recipe.getDishType();
-            String mainIng = recipe.getIngredients().stream()
-                    .limit(3)
+            String allIngredients = recipe.getIngredients().stream()
                     .map(ri -> {
-                        var ing = ri.getIngredient();
-                        String name = ing != null ? ing.getEnglishName() : ri.getCustomName();
-                        return (name == null || name.isBlank())
-                                ? (ing != null ? ing.getName() : ri.getCustomName())
-                                : name;
+                        String name = ri.getIngredient() != null ? ri.getIngredient().getName() : ri.getCustomName();
+                        if (name.contains("매생이")) return "fine silky green seaweed (Maesaengi)";
+                        if (name.contains("순대")) return "Korean blood sausage (Sundae)";
+                        if (name.contains("떡")) return "chewy rice cakes";
+                        return name;
                     })
-                    .filter(n -> n != null && !n.isBlank())
                     .collect(Collectors.joining(", "));
 
-            String dishDesc = String.format(
-                    "A high-resolution image of \"%s\", a Korean dish featuring %s",
-                    recipeTitle, mainIng
-            );
+            if (allIngredients.isBlank()) allIngredients = recipe.getTitle();
 
-            if (mainIng.isBlank()) {
-                dishDesc = String.format("A high-resolution image of \"%s\", a Korean dish", recipeTitle);
-            }
+            String allSteps = recipe.getSteps().stream()
+                    .sorted(Comparator.comparingInt(RecipeStep::getStepNumber))
+                    .map(step -> String.format("- Step %d (%s): %s", step.getStepNumber(), step.getAction(), step.getInstruction()))
+                    .collect(Collectors.joining("\n"));
 
-            List<String> styles = STYLE_PROMPTS.getOrDefault(
-                    type,
-                    List.of("Styled simply on a plate with minimal props")
-            );
-            String baseStyle = styles.get(ThreadLocalRandom.current().nextInt(styles.size()));
+            String randomLighting = LIGHTING_OPTIONS.get(ThreadLocalRandom.current().nextInt(LIGHTING_OPTIONS.size()));
+            String randomAngle = ANGLE_OPTIONS.get(ThreadLocalRandom.current().nextInt(ANGLE_OPTIONS.size()));
+            String randomBackground = BACKGROUND_OPTIONS.get(ThreadLocalRandom.current().nextInt(BACKGROUND_OPTIONS.size()));
 
-            String background = BACKGROUNDS.get(ThreadLocalRandom.current().nextInt(BACKGROUNDS.size()));
-            String sceneDescription;
-
-            boolean hasPlatingInfo = baseStyle.matches("(?i).*\\b(bowl|plate|pot|platter|board|dish|pan|skillet)\\b.*");
-
-            if (hasPlatingInfo) {
-                sceneDescription = background;
+            boolean showCutlery = ThreadLocalRandom.current().nextBoolean();
+            String cutleryRule;
+            if (showCutlery) {
+                cutleryRule = "**Analyze the dish type.** If Asian/Korean, place wooden chopsticks and a spoon. If Western, place a fork and knife. If Finger Food(Pizza), NO cutlery.";
             } else {
-                String platingSurface = PLATING_SURFACES.get(ThreadLocalRandom.current().nextInt(PLATING_SURFACES.size()));
-                sceneDescription = String.format("Plated on %s, %s", platingSurface, background);
+                cutleryRule = "**NO CUTLERY.** Do NOT place any spoon, fork, chopsticks, or knife. Keep the composition clean and minimal. Focus strictly on the food.";
             }
 
-            String randomAngle = CAMERA_ANGLES.get(ThreadLocalRandom.current().nextInt(CAMERA_ANGLES.size()));
-            String randomLighting = LIGHTING_STYLES.get(ThreadLocalRandom.current().nextInt(LIGHTING_STYLES.size()));
-            String randomLens = CAMERA_LENSES.get(ThreadLocalRandom.current().nextInt(CAMERA_LENSES.size()));
-            String randomAesthetic = PHOTO_AESTHETICS.get(ThreadLocalRandom.current().nextInt(PHOTO_AESTHETICS.size()));
+            String finalImagePrompt = DEFAULT_PROMPT_TEMPLATE
+                    .replace("{{TITLE}}", recipe.getTitle())
+                    .replace("{{DISH_TYPE}}", recipe.getDishType().getDisplayName())
+                    .replace("{{INGREDIENTS}}", allIngredients)
+                    .replace("{{STEPS}}", allSteps)
+                    .replace("{{ANGLE}}", randomAngle)
+                    .replace("{{LIGHTING}}", randomLighting)
+                    .replace("{{BACKGROUND}}", randomBackground)
+                    .replace("{{CUTLERY_RULE}}", cutleryRule)
+                    .replace("{{DESCRIPTION}}", recipe.getDescription() != null ? recipe.getDescription() : "");
 
-            String photographicStyle = String.format(
-                    "%s, shot with %s at %s, under %s. Use shallow depth of field (f/1.8) and slight film grain",
-                    randomAesthetic, randomLens, randomAngle, randomLighting
-            );
+            log.info(">>>> [ASYNC GEMINI PROMPT] Recipe ID: {}, Prompt Length: {}", recipe.getId(), finalImagePrompt.length());
 
-            String negativePrompt = "Avoid text, logos, watermarks, signatures, disembodied hands, human fingers, ugly compositions, bad lighting, and cluttered backgrounds. The main dish must be in sharp focus.";
+            List<String> imageUrls = geminiImageService.generateImageUrls(finalImagePrompt, recipe.getUser().getId(), recipe.getId());
 
-            String imagePrompt = String.join(". ",
-                    dishDesc,
-                    baseStyle,
-                    sceneDescription,
-                    photographicStyle,
-                    negativePrompt + "."
-            );
-
-            log.info("Generated Image Prompt: {}", imagePrompt);
-
-            List<String> dataUris = gptImageService.generateImageUrls(imagePrompt, 1, "1024x1024");
-            if (dataUris.isEmpty()) {
-                throw new RuntimeException("AI image generation returned no data.");
+            if (imageUrls.isEmpty()) {
+                throw new RuntimeException("Gemini image generation returned no data.");
             }
 
-            String dataUri = dataUris.get(0);
-            String b64 = dataUri.substring(dataUri.indexOf(',') + 1);
-            byte[] imageBytes = Base64.getDecoder().decode(b64);
-
-            Long userId = recipe.getUser().getId();
-            String s3Key = String.format("images/recipes/%d/%d/main.jpg", userId, recipeId);
-            s3Util.upload(imageBytes, s3Key, "image/jpeg");
-            String imageUrl = generateImageUrl(s3Key);
+            String fullUrl = imageUrls.get(0);
+            String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
 
             recipe.updateImageKey(s3Key);
             recipe.updateImageStatus(RecipeImageStatus.READY);
             recipe.updateIsPrivate(false);
             recipeRepository.save(recipe);
 
+            RecipeImage recipeImage = RecipeImage.builder()
+                    .recipe(recipe)
+                    .fileKey(s3Key)
+                    .slot("main")
+                    .status(ImageStatus.ACTIVE)
+                    .build();
+            recipeImageRepository.save(recipeImage);
+
             recipeIndexingService.updateRecipe(recipe);
+
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, null);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
 
-            return CompletableFuture.completedFuture(imageUrl);
+            log.info("✅ [AsyncImageServiceV2] Gemini 이미지 생성 및 저장 완료. URL: {}", fullUrl);
+            return CompletableFuture.completedFuture(fullUrl);
 
         } catch (Exception e) {
-            log.error("❌ [AsyncImageService] 예외 발생, recipeId={}", recipeId, e);
-            recipeRepository.findById(recipeId).ifPresent(recipe -> {
-                recipe.updateImageStatus(RecipeImageStatus.FAILED);
-                recipeRepository.save(recipe);
+            log.error("❌ [AsyncImageServiceV2] 이미지 생성 실패, recipeId={}", recipeId, e);
+
+            recipeRepository.findById(recipeId).ifPresent(r -> {
+                r.updateImageStatus(RecipeImageStatus.FAILED);
+                recipeRepository.save(r);
             });
+
             var errorResponse = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
             deferredResultHolder.completeAll(recipeId, errorResponse);
             return CompletableFuture.failedFuture(e);
