@@ -19,4 +19,13 @@ public class AiRecipeRequestDto {
     private List<String> tags;
     private Integer spiceLevel;
     private String allergy;
+
+    private Integer targetBudget;
+    private String targetCategory;
+
+    private String targetCalories;
+    private String targetCarbs;
+    private String targetProtein;
+    private String targetFat;
+    private String targetStyle;
 }
