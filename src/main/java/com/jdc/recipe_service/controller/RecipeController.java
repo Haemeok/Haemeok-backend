@@ -33,32 +33,21 @@ public class RecipeController {
     private final RecipeAnalysisService recipeAnalysisService;
 
     @PostMapping
-    @Operation(summary = "레시피 생성 + 이미지 Presigned URL 발급", description = "레시피 생성 요청과 함께 이미지 업로드용 Presigned URL을 발급합니다. source 값에 따라 AI 생성 또는 유저 입력을 구분합니다.")
-    public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
-            @Parameter(description = "레시피 생성 출처 (예: AI, USER)") @RequestParam(value = "source", required = false) String source,
-            @Parameter(description = "AI 레시피 생성 시 사용할 로봇 타입 (예: CLASSIC, FUNNY 등)") @RequestParam(value = "robotType", required = false) RobotType robotTypeParam,
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "레시피 생성 요청 DTO (이미지 키 포함)") @RequestBody @Valid RecipeWithImageUploadRequest request,
+    @Operation(summary = "레시피 직접 등록 + 이미지 Presigned URL 발급", description = "사용자가 직접 입력한 레시피 정보를 저장하고, 이미지를 업로드할 Presigned URL을 발급합니다.")    public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "레시피 생성 요청 DTO (이미지 키 포함)")
+            @RequestBody @Valid RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        RecipeSourceType sourceType = RecipeSourceType.fromNullable(source);
+        PresignedUrlResponse response = recipeService.createRecipeAndGenerateUrls(
+                request,
+                userDetails.getUser().getId(),
+                RecipeSourceType.USER
+        );
 
-        Long userId = userDetails.getUser().getId();
-        PresignedUrlResponse response;
-
-        if (sourceType == RecipeSourceType.AI) {
-            response = recipeService.createRecipeWithAiLogic(
-                    sourceType,
-                    robotTypeParam,
-                    request,
-                    userId
-            );
-        } else {
-            response = recipeService.createUserRecipeAndGenerateUrls(request, userId, sourceType);
-        }
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
