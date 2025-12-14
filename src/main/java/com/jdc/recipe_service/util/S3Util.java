@@ -11,7 +11,10 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -105,5 +108,22 @@ public class S3Util {
                 .contentLength((long) data.length)
                 .build();
         s3Client.putObject(putReq, RequestBody.fromBytes(data));
+    }
+
+    public Set<String> listKeysInFolder(String folderPrefix) {
+        if (folderPrefix == null || folderPrefix.isBlank()) {
+            return Collections.emptySet();
+        }
+
+        String prefix = folderPrefix.endsWith("/") ? folderPrefix : folderPrefix + "/";
+
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix(prefix)
+                .build();
+
+        return s3Client.listObjectsV2(request).contents().stream()
+                .map(S3Object::key)
+                .collect(Collectors.toSet());
     }
 }
