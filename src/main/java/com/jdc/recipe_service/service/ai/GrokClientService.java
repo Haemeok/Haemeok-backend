@@ -21,8 +21,6 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -42,20 +40,80 @@ public class GrokClientService {
     @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
     @CircuitBreaker(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
     @TimeLimiter(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
-    public CompletableFuture<RecipeCreateRequestDto> generateRecipeJson(String prompt) {
-        log.info("Grok API 호출 시작: model={}", grokRecipeModelName);
-        log.info(">>>> [USER PROMPT START] <<<<\n{}", prompt);
+    public CompletableFuture<RecipeCreateRequestDto> generateRecipeJson(String systemContent, String userContent) {
+        log.info("Grok API 레시피 생성 호출");
 
+        return callGrokApi(systemContent, userContent, 3000, 0.3)
+                .flatMap(jsonString -> {
+                    try {
+                        String normalizedJson = normalizeFields(jsonString);
+
+                        JsonNode rootNode = objectMapper.readTree(normalizedJson);
+                        JsonNode targetNode = rootNode;
+
+                        if (rootNode.has("service_response")) {
+                            targetNode = rootNode.get("service_response");
+                            log.debug("감지됨: wrapper 구조 (service_response 추출)");
+                        }
+
+                        RecipeCreateRequestDto recipe = objectMapper.treeToValue(targetNode, RecipeCreateRequestDto.class);
+
+                        validateRecipeDto(recipe);
+                        return Mono.just(recipe);
+                    } catch (Exception e) {
+                        log.error("DTO 파싱 실패. JSON: {}", jsonString);
+                        return Mono.error(new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "JSON 파싱 실패: " + e.getMessage()));
+                    }
+                })
+                .toFuture();
+    }
+
+    @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerateRaw")
+    @CircuitBreaker(name = "aiGenerate", fallbackMethod = "fallbackGenerateRaw")
+    @TimeLimiter(name = "aiGenerate", fallbackMethod = "fallbackGenerateRaw")
+    public CompletableFuture<String> generateRaw(String systemContent, String userContent) {
+        log.info("Grok API Raw 호출");
+        return callGrokApi(systemContent, userContent, 3000, 0.3)
+                .map(jsonString -> {
+                    try {
+                        JsonNode rootNode = objectMapper.readTree(jsonString);
+                        if (rootNode.has("service_response")) {
+                            return rootNode.get("service_response").toString();
+                        }
+                        return jsonString;
+                    } catch (Exception e) {
+                        log.warn("Raw JSON 껍데기 제거 중 에러 (무시하고 원본 반환): {}", e.getMessage());
+                        return jsonString;
+                    }
+                })
+                .toFuture();
+    }
+
+    public CompletableFuture<RecipeAnalysisResponseDto> analyzeRecipe(String userPrompt) {
+        log.info("Grok 레시피 분석 호출");
+
+        String systemInstruction = "너는 JSON 응답만 출력하는 분석가야.";
+
+        return callGrokApi(systemInstruction, userPrompt, 500, 0.1)
+                .flatMap(jsonString -> {
+                    try {
+                        RecipeAnalysisResponseDto response = objectMapper.readValue(jsonString, RecipeAnalysisResponseDto.class);
+                        return Mono.just(response);
+                    } catch (Exception e) {
+                        return Mono.error(new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "분석 결과 파싱 실패"));
+                    }
+                })
+                .toFuture();
+    }
+
+    private Mono<String> callGrokApi(String systemContent, String userContent, int maxTokens, double temperature) {
         Map<String, Object> requestBody = Map.of(
                 "model", grokRecipeModelName,
-                "temperature", 0.3,
-                "max_tokens", 3000,
+                "temperature", temperature,
+                "max_tokens", maxTokens,
                 "messages", List.of(
-                        Map.of(
-                                "role", "system",
-                                "content", "너는 한국요리 전문가야. 응답은 오직 JSON 객체 형태여야 하며, 추가 텍스트 금지. 요청 조건 재료만 100% 사용. 모든 필드 한글 표기."
-                        ),
-                        Map.of("role", "user", "content", prompt)
+                        Map.of("role", "system", "content", systemContent),
+                        Map.of("role", "user", "content", userContent)
                 ),
                 "response_format", Map.of("type", "json_object")
         );
@@ -69,10 +127,7 @@ public class GrokClientService {
                         response -> response.bodyToMono(String.class)
                                 .flatMap(body -> {
                                     log.error("Grok API 오류: Status={}, Body={}", response.statusCode(), body);
-                                    return Mono.error(new CustomException(
-                                            ErrorCode.AI_RECIPE_GENERATION_FAILED,
-                                            "Grok API 호출 실패: " + response.statusCode() + " - " + body
-                                    ));
+                                    return Mono.error(new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Grok API 호출 실패"));
                                 })
                 )
                 .bodyToMono(String.class)
@@ -80,87 +135,52 @@ public class GrokClientService {
                 .doOnError(WebClientResponseException.class, e ->
                         log.error("WebClient 오류: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString())
                 )
-                .flatMap(this::parseGrokResponse)
-                .toFuture();
+                .flatMap(this::extractContentString);
     }
 
-    public CompletableFuture<RecipeAnalysisResponseDto> analyzeRecipe(String prompt) {
-        log.info("Grok 레시피 분석 호출 시작");
 
-        Map<String, Object> requestBody = Map.of(
-                "model", grokRecipeModelName,
-                "temperature", 0.1,
-                "max_tokens", 500,
-                "messages", List.of(
-                        Map.of("role", "system", "content", "너는 JSON 응답만 출력하는 분석가야."),
-                        Map.of("role", "user", "content", prompt)
-                ),
-                "response_format", Map.of("type", "json_object")
-        );
-
-        return client.post()
-                .uri("/chat/completions")
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(String.class)
-                .map(this::parseAnalysisResponse)
-                .toFuture();
-    }
-
-    private Mono<RecipeCreateRequestDto> parseGrokResponse(String jsonResponse) {
+    private Mono<String> extractContentString(String rawJsonResponse) {
         return Mono.fromCallable(() -> {
-            if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
+            if (rawJsonResponse == null || rawJsonResponse.trim().isEmpty()) {
                 throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Grok API 응답이 비어 있습니다.");
             }
-
-            String cleanedJson = null;
-
             try {
-                Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<Map<String, Object>>() {
-                });
+                Map<String, Object> responseMap = objectMapper.readValue(rawJsonResponse, new TypeReference<>() {});
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
 
                 if (choices == null || choices.isEmpty()) {
-                    log.error("choices 배열이 비어있음. 전체 응답: {}", jsonResponse);
                     throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Grok API 응답에 choices가 없습니다.");
                 }
 
-                Map<String, Object> firstChoice = choices.get(0);
-                Map<String, Object> message = (Map<String, Object>) firstChoice.get("message");
-
-                if (message == null || message.get("content") == null) {
-                    throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Grok API 응답 message가 없습니다.");
-                }
-
+                Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
                 String content = message.get("content").toString();
-                log.debug("응답 content 길이: {}, 앞 200자: {}", content.length(), content.substring(0, Math.min(200, content.length())));
 
-                cleanedJson = cleanJsonResponse(content);
-                cleanedJson = normalizeFields(cleanedJson);
+                log.debug("응답 content 앞 200자: {}", content.substring(0, Math.min(200, content.length())));
 
-                log.info(">>>> [AI GENERATED RECIPE JSON START] <<<<\n{}", cleanedJson);
-                log.info(">>>> [AI GENERATED RECIPE JSON END] <<<<");
-
-                RecipeCreateRequestDto recipe = objectMapper.readValue(cleanedJson, RecipeCreateRequestDto.class);
-                validateRecipeDto(recipe);
-                log.info("레시피 파싱 성공: title={}", recipe.getTitle());
-                return recipe;
+                return content.replaceAll("(?s)```json\\s*", "")
+                        .replaceAll("(?s)```\\s*", "")
+                        .trim();
 
             } catch (CustomException e) {
                 throw e;
             } catch (Exception e) {
-                log.error("JSON 파싱 실패: {}", e.getMessage(), e);
-                log.error("🚨 Conversion 오류 유발 JSON (전체): \n{}", cleanedJson);
-                throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "Grok 응답 JSON 파싱 실패: " + e.getMessage(), e);
+                log.error("JSON 추출 실패", e);
+                throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "Grok 응답 처리 중 오류");
             }
         });
     }
 
-    private String cleanJsonResponse(String content) {
-        return content.replaceAll("(?s)```json\\s*", "")
-                .replaceAll("(?s)```\\s*", "")
-                .trim();
+
+    private CompletableFuture<RecipeCreateRequestDto> fallbackGenerate(String system, String user, Throwable ex) {
+        log.error("Grok Fallback (DTO): {}", ex.getMessage());
+        return CompletableFuture.failedFuture(new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI 생성 실패 (Fallback)"));
     }
+
+    private CompletableFuture<String> fallbackGenerateRaw(String system, String user, Throwable ex) {
+        log.error("Grok Fallback (Raw): {}", ex.getMessage());
+        return CompletableFuture.failedFuture(new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI Raw 생성 실패 (Fallback)"));
+    }
+
 
     private String normalizeFields(String json) {
         return json
@@ -211,31 +231,5 @@ public class GrokClientService {
             throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "시장 가격 음수");
 
         log.debug("레시피 DTO 검증 완료: title={}", recipe.getTitle());
-    }
-
-    private CompletableFuture<RecipeCreateRequestDto> fallbackGenerate(String prompt, Throwable ex) {
-        log.error("Grok fallback 실행: {}", ex.getMessage(), ex);
-        return CompletableFuture.failedFuture(
-                new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED,
-                        "Grok 레시피 생성 실패 (재시도/서킷/타임아웃): " + ex.getMessage(),
-                        ex)
-        );
-    }
-
-    private RecipeAnalysisResponseDto parseAnalysisResponse(String jsonResponse) {
-        try {
-            Map<String, Object> responseMap = objectMapper.readValue(jsonResponse, new TypeReference<>() {
-            });
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
-            Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-            String content = message.get("content").toString();
-
-            String cleanedJson = content.replaceAll("(?s)```json\\s*", "").replaceAll("(?s)```\\s*", "").trim();
-
-            return objectMapper.readValue(cleanedJson, RecipeAnalysisResponseDto.class);
-        } catch (Exception e) {
-            log.error("분석 결과 파싱 실패", e);
-            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, "분석 결과 파싱 실패");
-        }
     }
 }
