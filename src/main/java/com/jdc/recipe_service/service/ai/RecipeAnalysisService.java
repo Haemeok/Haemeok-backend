@@ -10,7 +10,7 @@ import com.jdc.recipe_service.domain.type.NotificationRelatedType;
 import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.service.NotificationService;
 import com.jdc.recipe_service.service.RecipeService;
-import com.jdc.recipe_service.util.PromptBuilderV3;
+import com.jdc.recipe_service.util.prompt.RecipeAnalysisPromptBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -27,7 +27,7 @@ public class RecipeAnalysisService {
     private final RecipeRepository recipeRepository;
     private final RecipeTrashLogRepository trashLogRepository;
     private final GrokClientService grokClientService;
-    private final PromptBuilderV3 promptBuilder;
+    private final RecipeAnalysisPromptBuilder promptBuilder;
     private final NotificationService notificationService;
 
     @Autowired

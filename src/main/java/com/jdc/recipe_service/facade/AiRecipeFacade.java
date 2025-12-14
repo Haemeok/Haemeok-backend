@@ -7,6 +7,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
+import com.jdc.recipe_service.domain.type.AiRecipeConcept;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
@@ -16,8 +17,10 @@ import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.SurveyService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.util.ActionImageService;
-import com.jdc.recipe_service.util.PromptBuilderV3;
 import com.jdc.recipe_service.util.UnitService;
+import com.jdc.recipe_service.util.prompt.CostEffectivePromptBuilder;
+import com.jdc.recipe_service.util.prompt.IngredientFocusPromptBuilder;
+import com.jdc.recipe_service.util.prompt.NutritionPromptBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -37,17 +41,19 @@ public class AiRecipeFacade {
     private final RecipeService recipeService;
     private final DailyQuotaService dailyQuotaService;
     private final SurveyService surveyService;
-    private final PromptBuilderV3 promptBuilder;
     private final ActionImageService actionImageService;
     private final UnitService unitService;
 
-    private static final int MAX_TRIES = 2;
-    private static final long RETRY_DELAY_MS = 500;
+    private final IngredientFocusPromptBuilder ingredientBuilder;
+    private final CostEffectivePromptBuilder costBuilder;
+    private final NutritionPromptBuilder nutritionBuilder;
+    //private final FineDiningPromptBuilder fineDiningBuilder;
+
 
     /**
      * 트랜잭션 없이 AI 호출 수행 후, 저장 시점에만 트랜잭션 참여
      */
-    public PresignedUrlResponse generateAndSave(RecipeWithImageUploadRequest request, RobotType robotType, Long userId) {
+    public PresignedUrlResponse generateAndSave(RecipeWithImageUploadRequest request, AiRecipeConcept concept, Long userId) {
 
         if (request.getAiRequest() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "AI 요청 정보가 없습니다.");
@@ -62,15 +68,35 @@ public class AiRecipeFacade {
             UserSurveyDto survey = surveyService.getSurvey(userId);
             applySurveyInfoToAiRequest(aiReq, survey);
 
-            String prompt = promptBuilder.buildPrompt(aiReq, robotType);
+            RecipeCreateRequestDto generatedDto;
 
-            RecipeCreateRequestDto generatedDto = callAiWithRetry(prompt);
+            switch (concept) {
+                case INGREDIENT_FOCUS -> {
+                    String systemPrompt = ingredientBuilder.buildPrompt(aiReq);
+                    String userTrigger = "위 정보를 바탕으로 레시피 JSON을 생성해줘.";
+                    generatedDto = grokClientService.generateRecipeJson(systemPrompt, userTrigger).join();
+                }
+                case COST_EFFECTIVE -> {
+                    String systemPrompt = costBuilder.buildPrompt(aiReq);
+                    String userTrigger = "위 조건에 맞춰 JSON 결과만 출력해.";
+                    generatedDto = grokClientService.generateRecipeJson(systemPrompt, userTrigger).join();
+                }
+                case NUTRITION_BALANCE -> {
+                    generatedDto = processNutritionLogic(aiReq);
+                }
+                /*case FINE_DINING -> {
+                    String systemPrompt = fineDiningBuilder.buildPrompt(aiReq);
+                    String userTrigger = "위 정보를 바탕으로 최고급 레시피 JSON을 생성해줘.";
+                    generatedDto = grokClientService.generateRecipeJson(systemPrompt, userTrigger).join();
+                }*/
+                default -> throw new IllegalArgumentException("Unknown Concept");
+            }
 
             generatedDto.setIngredients(correctIngredientUnits(generatedDto.getIngredients()));
 
             for (RecipeStepRequestDto step : generatedDto.getSteps()) {
                 if (step.getAction() != null) {
-                    String key = actionImageService.generateImageKey(robotType, step.getAction());
+                    String key = actionImageService.generateImageKey(concept, step.getAction());
                     step.updateImageKey(key);
                 }
             }
@@ -89,30 +115,14 @@ public class AiRecipeFacade {
         }
     }
 
-    private RecipeCreateRequestDto callAiWithRetry(String prompt) {
-        RecipeCreateRequestDto generatedDto = null;
-        for (int attempt = 1; attempt <= MAX_TRIES; attempt++) {
-            try {
-                generatedDto = grokClientService.generateRecipeJson(prompt).join();
-                break;
-            } catch (RuntimeException e) {
-                if (attempt == MAX_TRIES) {
-                    throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI 생성 실패: " + e.getMessage(), e);
-                }
-                try {
-                    Thread.sleep(RETRY_DELAY_MS);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "인터럽트 발생", ie);
-                }
-            }
-        }
+    private RecipeCreateRequestDto processNutritionLogic(AiRecipeRequestDto aiReq) {
+        String step1System = nutritionBuilder.buildStep1Prompt(aiReq);
+        String step1Trigger = "위 조건에 맞춰 JSON 결과만 출력해.";
+        String step1Json = grokClientService.generateRaw(step1System, step1Trigger).join();
 
-        if (generatedDto == null) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI 응답 Null");
-        if (CollectionUtils.isEmpty(generatedDto.getSteps())) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Step 생성 실패");
-        if (CollectionUtils.isEmpty(generatedDto.getTags())) throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Tag 생성 실패");
-
-        return generatedDto;
+        String step2System = nutritionBuilder.buildStep2Prompt(step1Json);
+        String step2Trigger = "위 재료와 양념을 조합하여 완벽한 레시피를 JSON으로 만들어줘.";
+        return grokClientService.generateRecipeJson(step2System, step2Trigger).join();
     }
 
     private void applySurveyInfoToAiRequest(AiRecipeRequestDto aiReq, UserSurveyDto survey) {
@@ -125,6 +135,9 @@ public class AiRecipeFacade {
     }
 
     private List<RecipeIngredientRequestDto> correctIngredientUnits(List<RecipeIngredientRequestDto> ingredients) {
+        if (ingredients == null) {
+            return new ArrayList<>();
+        }
         return ingredients.stream()
                 .map(ing -> {
                     String finalUnit = unitService.getDefaultUnit(ing.getName())
