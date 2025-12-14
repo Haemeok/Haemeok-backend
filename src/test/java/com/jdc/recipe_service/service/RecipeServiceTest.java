@@ -111,7 +111,7 @@ class RecipeServiceTest {
     }
 
     @Test
-    @DisplayName("createUserRecipeAndGenerateUrls: 정상 입력 시 PresignedUrlResponse 반환")
+    @DisplayName("createRecipeAndGenerateUrls: 정상 입력 시 PresignedUrlResponse 반환")
     void createRecipe_success() throws Exception {
         when(userRepository.findById(author.getId()))
                 .thenReturn(Optional.of(author));
@@ -145,7 +145,7 @@ class RecipeServiceTest {
                 .files(nonEmptyFiles)
                 .build();
 
-        PresignedUrlResponse response = recipeService.createUserRecipeAndGenerateUrls(
+        PresignedUrlResponse response = recipeService.createRecipeAndGenerateUrls(
                 requestWithFile, author.getId(), RecipeSourceType.USER);
 
         assertNotNull(response);
@@ -166,7 +166,7 @@ class RecipeServiceTest {
     }
 
     @Test
-    @DisplayName("createUserRecipeAndGenerateUrls: main 타입 파일 없이 요청 시 USER_RECIPE_IMAGE_REQUIRED 예외")
+    @DisplayName("createRecipeAndGenerateUrls: main 타입 파일 없이 요청 시 USER_RECIPE_IMAGE_REQUIRED 예외")
     void createRecipe_noMainFile_throwsImageRequired() {
         when(userRepository.findById(author.getId()))
                 .thenReturn(Optional.of(author));
@@ -179,7 +179,7 @@ class RecipeServiceTest {
                 .build();
 
         CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.createUserRecipeAndGenerateUrls(requestWithoutFile, author.getId(), RecipeSourceType.USER);
+            recipeService.createRecipeAndGenerateUrls(requestWithoutFile, author.getId(), RecipeSourceType.USER);
         });
         assertEquals(ErrorCode.USER_RECIPE_IMAGE_REQUIRED, ex.getErrorCode());
 
@@ -188,7 +188,7 @@ class RecipeServiceTest {
     }
 
     @Test
-    @DisplayName("createUserRecipeAndGenerateUrls: 사용자 없는 경우 USER_NOT_FOUND 예외")
+    @DisplayName("createRecipeAndGenerateUrls: 사용자 없는 경우 USER_NOT_FOUND 예외")
     void createRecipe_userNotFound_throwsException() {
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
@@ -198,7 +198,7 @@ class RecipeServiceTest {
                 .build();
 
         CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.createUserRecipeAndGenerateUrls(request, 999L, RecipeSourceType.USER);
+            recipeService.createRecipeAndGenerateUrls(request, 999L, RecipeSourceType.USER);
         });
         assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
 
