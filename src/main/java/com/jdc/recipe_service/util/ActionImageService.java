@@ -1,11 +1,11 @@
 
 package com.jdc.recipe_service.util;
 
-        import com.jdc.recipe_service.domain.type.RobotType;
-        import lombok.extern.slf4j.Slf4j;
-        import org.springframework.stereotype.Component;
+import com.jdc.recipe_service.domain.type.AiRecipeConcept;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
-        import java.util.Set;
+import java.util.Set;
 
 @Component
 @Slf4j
@@ -25,17 +25,12 @@ public class ActionImageService {
     public boolean isSupportedAction(String action) {
         return action != null && SUPPORTED_ACTIONS.contains(action);
     }
-
-    /**
-     * @param robotType  CLASSIC, CREATIVE, HEALTHY, INDULGENT
-     * @param action     ex) "썰기"
-     */
-    public String generateImageKey(RobotType robotType, String action) {
+    public String generateImageKey(AiRecipeConcept concept, String action) {
         if (!isSupportedAction(action)) {
             log.warn("지원하지 않는 조리 액션입니다: {}", action);
             return null;
         }
-        String typeFolder = robotType.name().toLowerCase();
+        String typeFolder = getFolderByConcept(concept);
         return String.format("%s/%s/%s.webp",
                 BASE_PATH,
                 typeFolder,
@@ -48,5 +43,14 @@ public class ActionImageService {
             return null;
         }
         return String.format("%s/%s", BASE_URL, imageKey);
+    }
+
+    private String getFolderByConcept(AiRecipeConcept concept) {
+        return switch (concept) {
+            case INGREDIENT_FOCUS -> "classic";
+            case COST_EFFECTIVE -> "creative";
+            case NUTRITION_BALANCE -> "healthy";
+            case FINE_DINING -> "indulgent";
+        };
     }
 }
