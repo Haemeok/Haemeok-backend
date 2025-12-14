@@ -6,7 +6,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "action_logs", indexes = {
-        @Index(name = "idx_action_log_date", columnList = "createdDate")
+        @Index(name = "idx_action_log_date", columnList = "created_at")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
