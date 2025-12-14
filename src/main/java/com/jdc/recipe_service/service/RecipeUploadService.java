@@ -30,7 +30,7 @@ public class RecipeUploadService {
                 contentType = "image/jpeg";
             }
 
-            String fileKey = generateFileKey(userId, recipeId, file, contentType);
+            String fileKey = generateFileKey(recipeId, file, contentType);
 
             PutObjectRequest objectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
@@ -50,8 +50,8 @@ public class RecipeUploadService {
         return new UpdatePresignedUrlResponse(uploads);
     }
 
-    private String generateFileKey(Long userId, Long recipeId, FileInfoRequest file, String contentType) {
-        String prefix = String.format("images/recipes/%d/%d", userId, recipeId);
+    private String generateFileKey(Long recipeId, FileInfoRequest file, String contentType) {
+        String prefix = String.format("images/recipes/%d", recipeId);
 
         String extension = getFileExtension(contentType);
 
