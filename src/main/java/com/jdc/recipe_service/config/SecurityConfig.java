@@ -61,6 +61,7 @@ public class SecurityConfig {
                             .requestMatchers("/actuator/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
                             .requestMatchers("/api/test/ai-recipe/**").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
                             // 2) 공개 GET (인증 없이 모두 허용)
                             .requestMatchers(HttpMethod.GET,
                                     "/api/ingredients",
@@ -195,7 +196,6 @@ public class SecurityConfig {
                                 "/api/test/ai-recipe/**"
                         ).permitAll()
 
-
                         // 2) GET 중 인증 필요
                         .requestMatchers(HttpMethod.GET,
                                 "/api/me",
@@ -232,10 +232,9 @@ public class SecurityConfig {
                                 "/api/recipes/budget"
                         ).permitAll()
 
-                        // [추가된 부분] POST /v2/recipes/status를 공개 허용
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/v2/recipes/status"
-                        ).permitAll()
+                        // [추가된 부분] POST
+                        .requestMatchers(HttpMethod.POST, "/api/v2/recipes/status").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
 
                         // 4) 인증 필요 POST
                         .requestMatchers(HttpMethod.POST,
