@@ -221,9 +221,15 @@ public class Recipe extends BaseTimeEntity {
     }
 
     public void increaseLikeCount() {
+        if (this.likeCount == null) {
+            this.likeCount = 0L;
+        }
         this.likeCount++;
     }
     public void decreaseLikeCount() {
+        if (this.likeCount == null) {
+            this.likeCount = 0L;
+        }
         if (this.likeCount > 0) {
             this.likeCount--;
         }

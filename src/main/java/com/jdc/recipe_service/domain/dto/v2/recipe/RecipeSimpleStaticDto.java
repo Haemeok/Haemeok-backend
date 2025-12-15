@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -50,8 +51,10 @@ public class RecipeSimpleStaticDto {
     private long ratingCount;
 
     @QueryProjection
-    public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage, LocalDateTime createdAt, Integer cookingTime,
-    long likeCount, double avgRating, long ratingCount) {
+    public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
+                                 LocalDateTime createdAt, Integer cookingTime, long likeCount,
+                                 BigDecimal avgRating,
+                                 long ratingCount) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -61,7 +64,26 @@ public class RecipeSimpleStaticDto {
         this.createdAt = createdAt;
         this.cookingTime = cookingTime;
         this.likeCount = likeCount;
-        this.avgRating = avgRating;
+        this.avgRating = avgRating != null ? avgRating.doubleValue() : 0.0;
         this.ratingCount = ratingCount;
+    }
+
+    public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
+                                 LocalDateTime createdAt, Integer cookingTime,
+                                 Long likeCount,
+                                 Double avgRating,
+                                 Long ratingCount)
+    {
+        this.id = id;
+        this.title = title;
+        this.imageUrl = imageUrl;
+        this.authorId = authorId;
+        this.authorName = authorName;
+        this.profileImage = profileImage;
+        this.createdAt = createdAt;
+        this.cookingTime = cookingTime;
+        this.likeCount = likeCount != null ? likeCount : 0L;
+        this.avgRating = avgRating != null ? avgRating : 0.0;
+        this.ratingCount = ratingCount != null ? ratingCount : 0L;
     }
 }
