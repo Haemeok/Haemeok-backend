@@ -6,6 +6,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class ActionLogService {
@@ -26,5 +33,26 @@ public class ActionLogService {
         }
 
         actionLogRepository.save(logBuilder.build());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getDashboardData() {
+        Map<String, Object> data = new HashMap<>();
+
+        LocalDateTime startOfDay = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDateTime();
+
+        long todayVisitors = actionLogRepository.countTodayUniqueVisitors(startOfDay);
+        long todayClicks = actionLogRepository.countTodayTotalClicks(startOfDay);
+
+        List<Object[]> allStats = actionLogRepository.getStatSummary();
+
+        data.put("todayVisitors", todayVisitors);
+        data.put("todayClicks", todayClicks);
+        data.put("allStats", allStats);
+
+        return data;
     }
 }
