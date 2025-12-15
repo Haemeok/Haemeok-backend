@@ -57,6 +57,7 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
                             .requestMatchers("/api/test/ai-recipe/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/logs/stats").permitAll()
                             // 2) 공개 GET (인증 없이 모두 허용)
                             .requestMatchers(HttpMethod.GET,
                                     "/api/ingredients",
@@ -231,6 +232,7 @@ public class SecurityConfig {
                         // [추가된 부분] POST
                         .requestMatchers(HttpMethod.POST, "/api/v2/recipes/status").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/logs/stats").permitAll()
 
                         // 4) 인증 필요 POST
                         .requestMatchers(HttpMethod.POST,
@@ -286,7 +288,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/recipes/*/analyze").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/recipes/*/nutrition").hasRole("ADMIN")
                         .requestMatchers("/api/test/recipes/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/logs/stats").hasRole("ADMIN")
 
                         // 9) 나머지 전부 차단
                         .anyRequest().denyAll()
