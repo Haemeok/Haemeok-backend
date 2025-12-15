@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -58,8 +59,10 @@ public class RecipeSimpleStaticDtoV2 {
     private Integer marketPrice;
 
     @QueryProjection
-    public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage, LocalDateTime createdAt, Integer cookingTime,
-                                   long likeCount, double avgRating, long ratingCount, Integer ingredientCost, Integer marketPrice) {
+    public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
+                                   LocalDateTime createdAt, Integer cookingTime, long likeCount,
+                                   BigDecimal avgRating,
+                                   long ratingCount, Integer ingredientCost, Integer marketPrice) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -69,8 +72,29 @@ public class RecipeSimpleStaticDtoV2 {
         this.createdAt = createdAt;
         this.cookingTime = cookingTime;
         this.likeCount = likeCount;
-        this.avgRating = avgRating;
+        this.avgRating = avgRating != null ? avgRating.doubleValue() : 0.0;
         this.ratingCount = ratingCount;
+        this.ingredientCost = ingredientCost;
+        this.marketPrice = marketPrice;
+    }
+
+    public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
+                                   LocalDateTime createdAt, Integer cookingTime,
+                                   Long likeCount,
+                                   Double avgRating,
+                                   Long ratingCount,
+                                   Integer ingredientCost, Integer marketPrice) {
+        this.id = id;
+        this.title = title;
+        this.imageUrl = imageUrl;
+        this.authorId = authorId;
+        this.authorName = authorName;
+        this.profileImage = profileImage;
+        this.createdAt = createdAt;
+        this.cookingTime = cookingTime;
+        this.likeCount = likeCount != null ? likeCount : 0L;
+        this.avgRating = avgRating != null ? avgRating : 0.0;
+        this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
     }
