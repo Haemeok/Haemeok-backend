@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.log.StatsResponseDto;
 import com.jdc.recipe_service.domain.entity.ActionLog;
 import com.jdc.recipe_service.domain.repository.ActionLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,8 +37,7 @@ public class ActionLogService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> getDashboardData() {
-        Map<String, Object> data = new HashMap<>();
+    public StatsResponseDto getPublicStats() {
 
         LocalDateTime startOfDay = LocalDate.now(ZoneId.of("Asia/Seoul"))
                 .atStartOfDay(ZoneId.of("Asia/Seoul"))
@@ -46,13 +46,9 @@ public class ActionLogService {
 
         long todayVisitors = actionLogRepository.countTodayUniqueVisitors(startOfDay);
         long todayClicks = actionLogRepository.countTodayTotalClicks(startOfDay);
+        long totalVisitors = actionLogRepository.countTotalUniqueVisitors();
+        long totalClicks = actionLogRepository.countTotalClicks();
 
-        List<Object[]> allStats = actionLogRepository.getStatSummary();
-
-        data.put("todayVisitors", todayVisitors);
-        data.put("todayClicks", todayClicks);
-        data.put("allStats", allStats);
-
-        return data;
+        return new StatsResponseDto(todayVisitors, todayClicks, totalVisitors, totalClicks);
     }
 }

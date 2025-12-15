@@ -6,18 +6,20 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public interface ActionLogRepository extends JpaRepository<ActionLog, Long> {
-    @Query("SELECT a.actionType, COUNT(DISTINCT a.guestUuid), COUNT(a) " +
-            "FROM ActionLog a " +
-            "GROUP BY a.actionType " +
-            "ORDER BY COUNT(a) DESC")
-    List<Object[]> getStatSummary();
-
     @Query("SELECT COUNT(DISTINCT a.guestUuid) FROM ActionLog a WHERE a.createdAt >= :startOfDay")
     long countTodayUniqueVisitors(@Param("startOfDay") LocalDateTime startOfDay);
 
+    // 2. 오늘 총 클릭수
     @Query("SELECT COUNT(a) FROM ActionLog a WHERE a.createdAt >= :startOfDay")
     long countTodayTotalClicks(@Param("startOfDay") LocalDateTime startOfDay);
+
+    // 3. [추가] 전체 누적 순 방문자
+    @Query("SELECT COUNT(DISTINCT a.guestUuid) FROM ActionLog a")
+    long countTotalUniqueVisitors();
+
+    // 4. [추가] 전체 누적 클릭수
+    @Query("SELECT COUNT(a) FROM ActionLog a")
+    long countTotalClicks();
 }
