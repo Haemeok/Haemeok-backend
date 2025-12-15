@@ -101,21 +101,17 @@ public class RecipeSearchControllerV2 {
     @GetMapping("/search")
     @Operation(summary = "조건 검색 (v1 스타일)", description = "제목, 디시타입, 태그명을 조합하여 레시피를 검색합니다.")
     public ResponseEntity<Page<RecipeSimpleStaticDto>> search(
-            @RequestParam(required = false) String q,
-            @RequestParam(required = false) String dishType,
-            @RequestParam(required = false) List<String> tags,
-            @RequestParam(required = false) AiRecipeFilter aiFilter,
-            @RequestParam(required = false) Integer maxCost,
+            @Parameter(description = "검색 조건 (제목, 디시타입, 태그, 영양성분, 가격 등)")
+            @ModelAttribute RecipeSearchCondition cond,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
 
-        if (aiFilter == null) {
-            aiFilter = AiRecipeFilter.USER_ONLY;
+        if (cond.getAiFilter() == null) {
+            cond.setAiFilter(AiRecipeFilter.USER_ONLY);
         }
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, aiFilter, maxCost);
         Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }

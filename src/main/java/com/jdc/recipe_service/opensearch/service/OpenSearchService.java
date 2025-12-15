@@ -26,6 +26,7 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -72,6 +73,24 @@ public class OpenSearchService {
 
             if (cond.getMaxCost() != null) {
                 bool.filter(QueryBuilders.rangeQuery("totalIngredientCost").lte(cond.getMaxCost()));
+            }
+            if (cond.getMaxCalories() != null) {
+                bool.filter(QueryBuilders.rangeQuery("totalCalories").lte(cond.getMaxCalories()));
+            }
+            if (cond.getMaxProtein() != null) {
+                bool.filter(QueryBuilders.rangeQuery("protein").lte(cond.getMaxProtein()));
+            }
+            if (cond.getMaxCarb() != null) {
+                bool.filter(QueryBuilders.rangeQuery("carbohydrate").lte(cond.getMaxCarb()));
+            }
+            if (cond.getMaxFat() != null) {
+                bool.filter(QueryBuilders.rangeQuery("fat").lte(cond.getMaxFat()));
+            }
+            if (cond.getMaxSugar() != null) {
+                bool.filter(QueryBuilders.rangeQuery("sugar").lte(cond.getMaxSugar()));
+            }
+            if (cond.getMaxSodium() != null) {
+                bool.filter(QueryBuilders.rangeQuery("sodium").lte(cond.getMaxSodium()));
             }
 
             if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
@@ -152,6 +171,13 @@ public class OpenSearchService {
                 bool.must(titleQuery);
             }
 
+            if (cond.getMaxCalories() != null) bool.filter(QueryBuilders.rangeQuery("totalCalories").lte(cond.getMaxCalories()));
+            if (cond.getMaxProtein() != null) bool.filter(QueryBuilders.rangeQuery("protein").lte(cond.getMaxProtein()));
+            if (cond.getMaxCarb() != null) bool.filter(QueryBuilders.rangeQuery("carbohydrate").lte(cond.getMaxCarb()));
+            if (cond.getMaxFat() != null) bool.filter(QueryBuilders.rangeQuery("fat").lte(cond.getMaxFat()));
+            if (cond.getMaxSugar() != null) bool.filter(QueryBuilders.rangeQuery("sugar").lte(cond.getMaxSugar()));
+            if (cond.getMaxSodium() != null) bool.filter(QueryBuilders.rangeQuery("sodium").lte(cond.getMaxSodium()));
+
             if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
                 bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
             }
@@ -201,7 +227,7 @@ public class OpenSearchService {
                                 r.getCreatedAt(),
                                 r.getCookingTime() == null ? 0 : r.getCookingTime(),
                                 0L,
-                                0.0,
+                                BigDecimal.ZERO,
                                 0L
                         );
                     })

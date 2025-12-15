@@ -24,4 +24,12 @@ public class RecipeDocument {
     private List<Long> ingredientIds;
     private List<String> ingredientNames;
     private Integer ingredientCount;
+
+    private Integer totalIngredientCost;
+    private Float totalCalories;
+    private Float protein;
+    private Float carbohydrate;
+    private Float fat;
+    private Float sugar;
+    private Float sodium;
 }
