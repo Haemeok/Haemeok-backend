@@ -143,7 +143,14 @@ public class RecipeIndexingService {
                     "isAiGenerated":{ "type":"boolean" },
                     "isPrivate":   { "type":"boolean" },
                     "ingredientIds":  { "type": "long" },
-                    "ingredientCount":{ "type": "integer" }
+                    "ingredientCount":{ "type": "integer" },
+                    "totalIngredientCost": { "type": "integer" },
+                    "totalCalories": { "type": "float" },
+                    "protein":       { "type": "float" },
+                    "carbohydrate":  { "type": "float" },
+                    "fat":           { "type": "float" },
+                    "sugar":         { "type": "float" },
+                    "sodium":        { "type": "float" }
                   }
                 }
                 """, XContentType.JSON);
@@ -223,6 +230,15 @@ public class RecipeIndexingService {
                 .filter(name -> name != null && !name.isBlank())
                 .toList();
 
+        Integer cost = recipe.getTotalIngredientCost() != null ? recipe.getTotalIngredientCost() : 0;
+
+        Float calories = recipe.getTotalCalories() != null ? recipe.getTotalCalories().floatValue() : 0.0f;
+        Float protein  = recipe.getProtein() != null ? recipe.getProtein().floatValue() : 0.0f;
+        Float carb     = recipe.getCarbohydrate() != null ? recipe.getCarbohydrate().floatValue() : 0.0f;
+        Float fat      = recipe.getFat() != null ? recipe.getFat().floatValue() : 0.0f;
+        Float sugar    = recipe.getSugar() != null ? recipe.getSugar().floatValue() : 0.0f;
+        Float sodium   = recipe.getSodium() != null ? recipe.getSodium().floatValue() : 0.0f;
+
         return RecipeDocument.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
@@ -236,6 +252,13 @@ public class RecipeIndexingService {
                 .ingredientIds(ids)
                 .ingredientNames(names)
                 .ingredientCount(ids.size())
+                .totalIngredientCost(cost)
+                .totalCalories(calories)
+                .protein(protein)
+                .carbohydrate(carb)
+                .fat(fat)
+                .sugar(sugar)
+                .sodium(sodium)
                 .build();
     }
 

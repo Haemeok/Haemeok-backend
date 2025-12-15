@@ -39,8 +39,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -87,30 +85,6 @@ public class RecipeSearchService {
     }
 
     @Transactional(readOnly = true)
-    public Page<RecipeSimpleDto> getAllRecipesSimple(Long currentUserId, Pageable pageable) {
-        Page<RecipeSimpleDto> page = recipeRepository.findAllSimpleWithRatingAndCookingInfo(pageable);
-
-        if (currentUserId == null) {
-            return page;
-        }
-
-        List<RecipeSimpleDto> content = page.getContent();
-
-        List<Long> recipeIds = content.stream()
-                .map(RecipeSimpleDto::getId)
-                .toList();
-
-        Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                .stream()
-                .map(like -> like.getRecipe().getId())
-                .collect(Collectors.toSet());
-
-        content.forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
-
-        return new PageImpl<>(content, pageable, page.getTotalElements());
-    }
-
-    @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
         Sort.Order likeSort = pageable.getSort().getOrderFor("likeCount");
@@ -143,11 +117,7 @@ public class RecipeSearchService {
 
 
         Page<RecipeSimpleDto> page = recipeRepository.searchAndSortByDynamicField(
-                cond.getTitle(),
-                cond.getDishTypeEnum(),
-                cond.getTagEnums(),
-                cond.getAiFilter(),
-                cond.getMaxCost(),
+                cond,
                 property,
                 direction,
                 pageable,
@@ -167,7 +137,7 @@ public class RecipeSearchService {
 
         Integer maxCost = condition.getMaxCost();
 
-        Page<RecipeSimpleDto> page = recipeRepository.search(title, dishType, tagTypes, aiFilter, maxCost, pageable, userId);
+        Page<RecipeSimpleDto> page = recipeRepository.search(condition, pageable, userId);
 
         if (userId != null) {
             List<Long> recipeIds = page.getContent().stream()
@@ -185,79 +155,6 @@ public class RecipeSearchService {
         return page;
     }
 
-
-    @Transactional(readOnly = true)
-    public Page<RecipeSimpleDto> getByTagWithLikeInfo(
-            String tagName, Long currentUserId, Pageable pageable) {
-
-        TagType tag;
-        try {
-            tag = TagType.fromCode(tagName);
-        } catch (IllegalArgumentException e) {
-            throw new CustomException(ErrorCode.INVALID_TAG_NAME);
-        }
-
-        Page<RecipeSimpleDto> page = recipeRepository.findByTagWithLikeCount(tag, Pageable.unpaged());
-        List<RecipeSimpleDto> recipes = new ArrayList<>(page.getContent());
-
-        if (currentUserId != null) {
-            List<Long> recipeIds = recipes.stream().map(RecipeSimpleDto::getId).toList();
-            Set<Long> likedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                    .stream()
-                    .map(rl -> rl.getRecipe().getId())
-                    .collect(Collectors.toSet());
-
-            recipes.forEach(dto -> {
-                dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
-                if (likedRecipeIds.contains(dto.getId())) {
-                    dto.setLikedByCurrentUser(true);
-                }
-            });
-        }
-
-        sortRecipes(recipes, pageable);
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), recipes.size());
-        List<RecipeSimpleDto> pageContent = start > recipes.size() ? List.of() : recipes.subList(start, end);
-
-        return new PageImpl<>(pageContent, pageable, recipes.size());
-    }
-
-    @Transactional(readOnly = true)
-    public Page<RecipeSimpleDto> getByDishTypeWithLikeInfo(
-            String dishTypeCode, Long currentUserId, Pageable pageable) {
-
-        DishType dishType = DishType.fromCode(dishTypeCode);
-
-        Page<RecipeSimpleDto> page = recipeRepository.findByDishTypeWithLikeCount(dishType, Pageable.unpaged());
-        List<RecipeSimpleDto> recipes = new ArrayList<>(page.getContent());
-
-        if (currentUserId != null) {
-            List<Long> recipeIds = recipes.stream().map(RecipeSimpleDto::getId).toList();
-            Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                    .stream()
-                    .map(like -> like.getRecipe().getId())
-                    .collect(Collectors.toSet());
-
-            recipes.forEach(dto -> {
-                dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
-                if (likedIds.contains(dto.getId())) {
-                    dto.setLikedByCurrentUser(true);
-                }
-            });
-        }
-
-        sortRecipes(recipes, pageable);
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), recipes.size());
-        List<RecipeSimpleDto> pageContent = start > recipes.size() ? List.of() : recipes.subList(start, end);
-
-        return new PageImpl<>(pageContent, pageable, recipes.size());
-    }
-
-
     @Transactional(readOnly = true)
     public RecipeDetailDto getRecipeDetail(Long recipeId, Long currentUserId) {
 
@@ -271,7 +168,7 @@ public class RecipeSearchService {
             throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
         }
 
-        long likeCount = basic.getLikeCount();
+        long likeCount = basic.getLikeCount() != null ? basic.getLikeCount() : 0L;
         boolean likedByUser = currentUserId != null &&
                 recipeLikeRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
         boolean favoritedByUser = currentUserId != null &&

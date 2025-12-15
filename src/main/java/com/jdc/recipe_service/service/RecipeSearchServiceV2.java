@@ -207,10 +207,7 @@ public class RecipeSearchServiceV2 {
         }
 
         return recipeQueryRepositoryV2.searchStatic(
-                condition.getTitle(),
-                condition.getDishTypeEnum(),
-                condition.getTagEnums(),
-                condition.getAiFilter(),
+                condition,
                 pageable,
                 userId
         );
@@ -260,7 +257,27 @@ public class RecipeSearchServiceV2 {
         BooleanExpression title = StringUtils.hasText(cond.getTitle()) ? recipe.title.containsIgnoreCase(cond.getTitle()) : null;
         BooleanExpression dishType = (cond.getDishTypeEnum() != null) ? recipe.dishType.eq(cond.getDishTypeEnum()) : null;
         BooleanExpression tags = (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) ? tag.tag.in(cond.getTagEnums()) : null;
-        return privacy.and(ai).and(title).and(dishType).and(tags);
+
+        BooleanExpression cost = (cond.getMaxCost() != null) ? recipe.totalIngredientCost.loe(cond.getMaxCost()) : null;
+        BooleanExpression calories = (cond.getMaxCalories() != null) ? recipe.totalCalories.loe(BigDecimal.valueOf(cond.getMaxCalories())) : null;
+        BooleanExpression protein = (cond.getMaxProtein() != null) ? recipe.protein.loe(BigDecimal.valueOf(cond.getMaxProtein())) : null;
+        BooleanExpression carb = (cond.getMaxCarb() != null) ? recipe.carbohydrate.loe(BigDecimal.valueOf(cond.getMaxCarb())) : null;
+        BooleanExpression fat = (cond.getMaxFat() != null) ? recipe.fat.loe(BigDecimal.valueOf(cond.getMaxFat())) : null;
+        BooleanExpression sugar = (cond.getMaxSugar() != null) ? recipe.sugar.loe(BigDecimal.valueOf(cond.getMaxSugar())) : null;
+        BooleanExpression sodium = (cond.getMaxSodium() != null) ? recipe.sodium.loe(BigDecimal.valueOf(cond.getMaxSodium())) : null;
+
+        return privacy
+                .and(ai)
+                .and(title)
+                .and(dishType)
+                .and(tags)
+                .and(cost)
+                .and(calories)
+                .and(protein)
+                .and(carb)
+                .and(fat)
+                .and(sugar)
+                .and(sodium);
     }
 
     /**

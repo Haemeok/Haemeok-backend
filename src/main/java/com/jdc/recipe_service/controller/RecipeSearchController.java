@@ -70,73 +70,11 @@ public class RecipeSearchController {
         return deferredResult;
     }
 
-    @GetMapping("/simple")
-    @Operation(summary = "전체 레시피 목록 조회", description = "전체 레시피를 간단한 형태로 조회합니다.")
-    public ResponseEntity<Page<RecipeSimpleDto>> getAllSimple(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(hidden = true)
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable
-    ) {
-        Long userId = userDetails != null
-                ? userDetails.getUser().getId()
-                : null;
-
-        Page<RecipeSimpleDto> result =
-                recipeSearchService.getAllRecipesSimple(userId, pageable);
-
-        return ResponseEntity.ok(result);
-    }
-
-    @GetMapping("/by-tag")
-    @Operation(summary = "태그 기반 레시피 조회", description = "입력된 태그 이름을 기반으로 레시피를 조회합니다.")
-    public ResponseEntity<Page<RecipeSimpleDto>> getByTag(
-            @Parameter(description = "조회할 태그 이름 목록") @RequestParam List<String> tags,
-            @Parameter(hidden = true)
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable,
-            @AuthenticationPrincipal CustomUserDetails userDetails
-    ) {
-        Long userId = userDetails != null
-                ? userDetails.getUser().getId()
-                : null;
-
-        return ResponseEntity.ok(
-                recipeSearchService.getByTagWithLikeInfo(
-                        tags.get(0), userId, pageable
-                )
-        );
-    }
-
-    @GetMapping("/by-dish-type")
-    @Operation(summary = "디시타입 기반 레시피 조회", description = "입력된 디시타입을 기준으로 레시피 목록을 반환합니다.")
-    public ResponseEntity<Page<RecipeSimpleDto>> byDish(
-            @Parameter(description = "디시타입 이름 (예: 볶음, 찜/조림 등)")
-            @RequestParam String dishType,
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(hidden = true)
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable
-    ) {
-        Long userId = userDetails != null
-                ? userDetails.getUser().getId()
-                : null;
-
-        return ResponseEntity.ok(
-                recipeSearchService.getByDishTypeWithLikeInfo(
-                        dishType, userId, pageable
-                )
-        );
-    }
-
     @GetMapping("/search")
     @Operation(summary = "조건 검색", description = "제목, 디시타입, 태그명을 조합하여 레시피를 검색합니다.")
     public ResponseEntity<Page<RecipeSimpleDto>> search(
-            @Parameter(description = "검색어 (제목, 설명, 재료명 포함)") @RequestParam(required = false) String q,
-            @Parameter(description = "디시타입 (예: 볶음, 찜/조림 등)") @RequestParam(required = false) String dishType,
-            @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tags,
-            @Parameter(description = "AI 필터 (USER_ONLY, AI_ONLY, ALL) - 미입력 시 USER_ONLY") @RequestParam(required = false) AiRecipeFilter aiFilter,
-            @Parameter(description = "최대 허용 원가 (원)") @RequestParam(required = false) Integer maxCost,
+            @Parameter(description = "검색 조건 (제목, 디시타입, 태그, AI필터, 가격, 영양성분 등)")
+            @ModelAttribute RecipeSearchCondition cond,
             @Parameter(hidden = true) @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -144,11 +82,9 @@ public class RecipeSearchController {
                 ? userDetails.getUser().getId()
                 : null;
 
-        if (aiFilter == null) {
-            aiFilter = AiRecipeFilter.USER_ONLY;
+        if (cond.getAiFilter() == null) {
+            cond.setAiFilter(AiRecipeFilter.USER_ONLY);
         }
-
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, aiFilter, maxCost);
 
         return ResponseEntity.ok(
                 recipeSearchService.searchRecipes(cond, pageable, userId)

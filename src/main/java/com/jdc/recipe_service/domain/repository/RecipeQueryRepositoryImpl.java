@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.repository;
 
+import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.QRecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.*;
@@ -44,12 +45,12 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     }
 
     @Override
-    public Page<RecipeSimpleDto> search(String title, DishType dishType, List<TagType> tagTypes, AiRecipeFilter aiFilter, Integer maxCost, Pageable pageable, Long currentUserId) {
-        QRecipe recipe   = QRecipe.recipe;
-        QRecipeTag tag    = QRecipeTag.recipeTag;
+    public Page<RecipeSimpleDto> search(RecipeSearchCondition cond, Pageable pageable, Long currentUserId) {
+        QRecipe recipe = QRecipe.recipe;
+        QRecipeTag tag = QRecipeTag.recipeTag;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-        BooleanExpression aiCondition = filterAiGenerated(aiFilter);
+        BooleanExpression aiCondition = filterAiGenerated(cond.getAiFilter());
 
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleDto(
@@ -70,11 +71,17 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .leftJoin(recipe.tags, tag)
                 .where(
                         privacyCondition,
-                        titleContains(title),
-                        dishTypeEq(dishType),
-                        tagIn(tagTypes),
+                        titleContains(cond.getTitle()),
+                        dishTypeEq(cond.getDishTypeEnum()),
+                        tagIn(cond.getTagEnums()),
                         aiCondition,
-                        maxCostLoe(maxCost)
+                        maxCostLoe(cond.getMaxCost()),
+                        maxCaloriesLoe(cond.getMaxCalories()),
+                        maxProteinLoe(cond.getMaxProtein()),
+                        maxCarbLoe(cond.getMaxCarb()),
+                        maxFatLoe(cond.getMaxFat()),
+                        maxSugarLoe(cond.getMaxSugar()),
+                        maxSodiumLoe(cond.getMaxSodium())
                 )
                 .groupBy(
                         recipe.id,
@@ -116,51 +123,18 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .leftJoin(recipe.tags, tag)
                 .where(
                         privacyCondition,
-                        titleContains(title),
-                        dishTypeEq(dishType),
-                        tagIn(tagTypes),
+                        titleContains(cond.getTitle()),
+                        dishTypeEq(cond.getDishTypeEnum()),
+                        tagIn(cond.getTagEnums()),
                         aiCondition,
-                        maxCostLoe(maxCost)
+                        maxCostLoe(cond.getMaxCost()),
+                        maxCaloriesLoe(cond.getMaxCalories()),
+                        maxProteinLoe(cond.getMaxProtein()),
+                        maxCarbLoe(cond.getMaxCarb()),
+                        maxFatLoe(cond.getMaxFat()),
+                        maxSugarLoe(cond.getMaxSugar()),
+                        maxSodiumLoe(cond.getMaxSodium())
                 )
-                .fetchOne();
-
-        return new PageImpl<>(content, pageable, total != null ? total : 0);
-    }
-
-
-    @Override
-    public Page<RecipeSimpleDto> findAllSimpleWithRatingAndCookingInfo(Pageable pageable) {
-        QRecipe recipe = QRecipe.recipe;
-
-        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-
-        List<RecipeSimpleDto> content = queryFactory
-                .select(new QRecipeSimpleDto(
-                        recipe.id,
-                        recipe.title,
-                        recipe.imageKey,
-                        recipe.user.id,
-                        recipe.user.nickname,
-                        recipe.user.profileImage,
-                        recipe.createdAt,
-                        recipe.likeCount,
-                        com.querydsl.core.types.dsl.Expressions.constant(false),
-                        recipe.cookingTime,
-                        recipe.avgRating,
-                        recipe.ratingCount.coalesce(0L)
-                ))
-                .from(recipe)
-                .where(privacyCondition)
-                .offset(pageable.getOffset())
-                .limit(pageable.getPageSize())
-                .fetch();
-
-        content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
-
-        Long total = queryFactory
-                .select(recipe.count())
-                .from(recipe)
-                .where(privacyCondition)
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);
@@ -168,15 +142,17 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
     @Override
     public Page<RecipeSimpleDto> searchAndSortByDynamicField(
-            String title, DishType dishType, List<TagType> tags,
-            AiRecipeFilter aiFilter, Integer maxCost, String property,
-            Sort.Direction direction, Pageable pageable, Long userId) {
+            RecipeSearchCondition condition,
+            String property,
+            Sort.Direction direction,
+            Pageable pageable,
+            Long userId) {
 
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-        BooleanExpression aiCondition = filterAiGenerated(aiFilter);
+        BooleanExpression aiCondition = filterAiGenerated(condition.getAiFilter());
 
         Order dir = direction.isAscending() ? Order.ASC : Order.DESC;
         OrderSpecifier<?> dynamicOrder;
@@ -208,11 +184,18 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .leftJoin(recipe.tags, tag)
                 .where(
                         privacyCondition,
-                        titleContains(title),
-                        dishTypeEq(dishType),
-                        tagIn(tags),
+                        titleContains(condition.getTitle()),
+                        dishTypeEq(condition.getDishTypeEnum()),
+                        tagIn(condition.getTagEnums()),
                         aiCondition,
-                        maxCostLoe(maxCost)
+                        maxCostLoe(condition.getMaxCost()),
+
+                        maxCaloriesLoe(condition.getMaxCalories()),
+                        maxProteinLoe(condition.getMaxProtein()),
+                        maxCarbLoe(condition.getMaxCarb()),
+                        maxFatLoe(condition.getMaxFat()),
+                        maxSugarLoe(condition.getMaxSugar()),
+                        maxSodiumLoe(condition.getMaxSodium())
                 )
                 .groupBy(
                         recipe.id,
@@ -243,11 +226,18 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .leftJoin(recipe.tags, tag)
                 .where(
                         privacyCondition,
-                        titleContains(title),
-                        dishTypeEq(dishType),
-                        tagIn(tags),
+                        titleContains(condition.getTitle()),
+                        dishTypeEq(condition.getDishTypeEnum()),
+                        tagIn(condition.getTagEnums()),
                         aiCondition,
-                        maxCostLoe(maxCost)
+                        maxCostLoe(condition.getMaxCost()),
+
+                        maxCaloriesLoe(condition.getMaxCalories()),
+                        maxProteinLoe(condition.getMaxProtein()),
+                        maxCarbLoe(condition.getMaxCarb()),
+                        maxFatLoe(condition.getMaxFat()),
+                        maxSugarLoe(condition.getMaxSugar()),
+                        maxSodiumLoe(condition.getMaxSodium())
                 )
                 .fetchOne();
 
@@ -375,6 +365,25 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
     private BooleanExpression maxCostLoe(Integer maxCost) {
         return (maxCost != null) ? QRecipe.recipe.totalIngredientCost.loe(maxCost) : null;
+    }
+
+    private BooleanExpression maxCaloriesLoe(Integer value) {
+        return value != null ? QRecipe.recipe.totalCalories.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxProteinLoe(Integer value) {
+        return value != null ? QRecipe.recipe.protein.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxCarbLoe(Integer value) {
+        return value != null ? QRecipe.recipe.carbohydrate.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxFatLoe(Integer value) {
+        return value != null ? QRecipe.recipe.fat.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxSugarLoe(Integer value) {
+        return value != null ? QRecipe.recipe.sugar.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxSodiumLoe(Integer value) {
+        return value != null ? QRecipe.recipe.sodium.loe(BigDecimal.valueOf(value)) : null;
     }
 
     private BooleanExpression filterAiGenerated(AiRecipeFilter filter) {

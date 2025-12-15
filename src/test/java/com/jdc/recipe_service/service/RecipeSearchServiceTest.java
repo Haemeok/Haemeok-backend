@@ -402,10 +402,8 @@ class RecipeSearchServiceTest {
     }
 
     @Test
-    @DisplayName("searchRecipes: Querydsl 사용 시, maxCost 및 정렬 조건 전달")
+    @DisplayName("searchRecipes: Querydsl 사용 시, RecipeSearchCondition 객체가 Repository로 올바르게 전달되는지 확인")
     void searchRecipes_Querydsl_WithMaxCostAndSorting() {
-        // Given
-        // Querydsl 사용하도록 설정
         when(searchProperties.getEngine()).thenReturn("querydsl");
 
         String q = "파스타";
@@ -413,25 +411,22 @@ class RecipeSearchServiceTest {
         Pageable pageable = PageRequest.of(0, 10, Sort.by("totalIngredientCost").ascending());
         Long userId = 1L;
 
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, null, null, null, maxCost);
+        RecipeSearchCondition cond = new RecipeSearchCondition();
+        cond.setQ(q);
+        cond.setMaxCost(maxCost);
 
-        // Mocking: recipeRepository.search 메서드가 Page를 반환하도록 설정
         Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
-        when(recipeRepository.search(any(), any(), any(), any(), any(), any(), any())).thenReturn(mockPage);
+        when(recipeRepository.search(any(RecipeSearchCondition.class), eq(pageable), eq(userId)))
+                .thenReturn(mockPage);
 
-        // When
         recipeSearchService.searchRecipes(cond, pageable, userId);
 
-        // Then
-        // recipeRepository.search 메서드가 올바른 인자들로 호출되었는지 검증
         verify(recipeRepository, times(1)).search(
-                eq(q),
-                any(), // dishType
-                any(), // tagTypes
-                any(), // isAiGenerated
-                eq(maxCost),
+                eq(cond),
                 eq(pageable),
                 eq(userId)
         );
+
+        assertEquals("파스타", cond.getTitle());
     }
 }

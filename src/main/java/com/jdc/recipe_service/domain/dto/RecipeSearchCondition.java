@@ -19,7 +19,14 @@ public class RecipeSearchCondition {
     private String dishType;
     private List<String> tags;
     private AiRecipeFilter aiFilter;
+
     private Integer maxCost;
+    private Integer maxCalories;
+    private Integer maxProtein;
+    private Integer maxCarb;
+    private Integer maxFat;
+    private Integer maxSugar;
+    private Integer maxSodium;
 
     public DishType getDishTypeEnum() {
         if (dishType == null || dishType.isBlank()) return null;
@@ -35,5 +42,9 @@ public class RecipeSearchCondition {
 
     public AiRecipeFilter getAiFilter() {
         return this.aiFilter == null ? AiRecipeFilter.USER_ONLY : this.aiFilter;
+    }
+
+    public void setQ(String q) {
+        this.title = q;
     }
 }

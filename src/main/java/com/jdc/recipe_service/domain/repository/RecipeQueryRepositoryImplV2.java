@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.repository;
 
+import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.QRecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.QRecipe;
@@ -20,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 
@@ -41,12 +43,12 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
     }
 
     @Override
-    public Page<RecipeSimpleStaticDto> searchStatic(String title, DishType dishType, List<TagType> tagTypes, AiRecipeFilter aiFilter, Pageable pageable, Long currentUserId) {
+    public Page<RecipeSimpleStaticDto> searchStatic(RecipeSearchCondition cond, Pageable pageable, Long currentUserId) {
         QRecipe recipe   = QRecipe.recipe;
         QRecipeTag tag    = QRecipeTag.recipeTag;
 
         BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-        BooleanExpression aiCondition = filterAiGenerated(aiFilter);
+        BooleanExpression aiCondition = filterAiGenerated(cond.getAiFilter());
 
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleStaticDto(
@@ -59,17 +61,24 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.createdAt,
                         recipe.cookingTime,
                         Expressions.constant(0L),
-                        Expressions.constant(0.0),
+                        Expressions.constant(BigDecimal.ZERO),
                         Expressions.constant(0L)
                 ))
                 .from(recipe)
                 .leftJoin(recipe.tags, tag)
                 .where(
                         privacyCondition,
-                        titleContains(title),
-                        dishTypeEq(dishType),
-                        tagIn(tagTypes),
-                        aiCondition
+                        titleContains(cond.getTitle()),
+                        dishTypeEq(cond.getDishTypeEnum()),
+                        tagIn(cond.getTagEnums()),
+                        aiCondition,
+                        maxCostLoe(cond.getMaxCost()),
+                        maxCaloriesLoe(cond.getMaxCalories()),
+                        maxProteinLoe(cond.getMaxProtein()),
+                        maxCarbLoe(cond.getMaxCarb()),
+                        maxFatLoe(cond.getMaxFat()),
+                        maxSugarLoe(cond.getMaxSugar()),
+                        maxSodiumLoe(cond.getMaxSodium())
                 )
                 .distinct()
                 .orderBy(getOrderSpecifiers(pageable))
@@ -88,57 +97,22 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                 .leftJoin(recipe.tags, tag)
                 .where(
                         privacyCondition,
-                        titleContains(title),
-                        dishTypeEq(dishType),
-                        tagIn(tagTypes),
-                        aiCondition
+                        titleContains(cond.getTitle()),
+                        dishTypeEq(cond.getDishTypeEnum()),
+                        tagIn(cond.getTagEnums()),
+                        aiCondition,
+                        maxCostLoe(cond.getMaxCost()),
+                        maxCaloriesLoe(cond.getMaxCalories()),
+                        maxProteinLoe(cond.getMaxProtein()),
+                        maxCarbLoe(cond.getMaxCarb()),
+                        maxFatLoe(cond.getMaxFat()),
+                        maxSugarLoe(cond.getMaxSugar()),
+                        maxSodiumLoe(cond.getMaxSodium())
                 )
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
-
-
-    @Override
-    public Page<RecipeSimpleStaticDto> findAllSimpleStatic(Pageable pageable) {
-        QRecipe recipe = QRecipe.recipe;
-
-        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
-
-        List<RecipeSimpleStaticDto> content = queryFactory
-                .select(new QRecipeSimpleStaticDto(
-                        recipe.id,
-                        recipe.title,
-                        recipe.imageKey,
-                        recipe.user.id,
-                        recipe.user.nickname,
-                        recipe.user.profileImage,
-                        recipe.createdAt,
-                        recipe.cookingTime,
-                        Expressions.constant(0L),
-                        Expressions.constant(0.0),
-                        Expressions.constant(0L)
-                ))
-                .from(recipe)
-                .where(privacyCondition)
-                .orderBy(getOrderSpecifiers(pageable))
-                .offset(pageable.getOffset())
-                .limit(pageable.getPageSize())
-                .fetch();
-
-        if (!content.isEmpty()) {
-            content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
-        }
-
-        Long total = queryFactory
-                .select(recipe.count())
-                .from(recipe)
-                .where(privacyCondition)
-                .fetchOne();
-
-        return new PageImpl<>(content, pageable, total != null ? total : 0);
-    }
-
 
     private OrderSpecifier<?>[] getOrderSpecifiers(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
@@ -179,6 +153,28 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
             return null;
         }
         return QRecipe.recipe.isAiGenerated.isFalse();
+    }
+
+    private BooleanExpression maxCostLoe(Integer maxCost) {
+        return (maxCost != null) ? QRecipe.recipe.totalIngredientCost.loe(maxCost) : null;
+    }
+    private BooleanExpression maxCaloriesLoe(Integer value) {
+        return value != null ? QRecipe.recipe.totalCalories.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxProteinLoe(Integer value) {
+        return value != null ? QRecipe.recipe.protein.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxCarbLoe(Integer value) {
+        return value != null ? QRecipe.recipe.carbohydrate.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxFatLoe(Integer value) {
+        return value != null ? QRecipe.recipe.fat.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxSugarLoe(Integer value) {
+        return value != null ? QRecipe.recipe.sugar.loe(BigDecimal.valueOf(value)) : null;
+    }
+    private BooleanExpression maxSodiumLoe(Integer value) {
+        return value != null ? QRecipe.recipe.sodium.loe(BigDecimal.valueOf(value)) : null;
     }
 
 }

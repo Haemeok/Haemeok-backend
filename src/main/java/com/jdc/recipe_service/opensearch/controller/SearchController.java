@@ -36,11 +36,8 @@ public class SearchController {
     @GetMapping("/recipes")
     @Operation(summary = "레시피 검색", description = "제목, 디시타입, 태그명 기반으로 OpenSearch에서 레시피를 검색합니다. 정렬 기준: createdAt, likeCount")
     public ResponseEntity<Page<RecipeSimpleDto>> searchRecipes(
-            @Parameter(description = "검색어 (제목, 설명, 재료 포함)") @RequestParam(required = false) String q,
-            @Parameter(description = "디시타입 필터") @RequestParam(required = false) String dishType,
-            @Parameter(description = "태그 이름 목록") @RequestParam(required = false) List<String> tags,
-            @Parameter(description = "AI 필터 (USER_ONLY, AI_ONLY, ALL) - 미입력 시 USER_ONLY") @RequestParam(required = false) AiRecipeFilter aiFilter,
-            @Parameter(description = "최대 허용 원가 (원)") @RequestParam(required = false) Integer maxCost,
+            @Parameter(description = "검색 조건 (제목, 디시타입, 태그, 영양성분 등)")
+            @ModelAttribute RecipeSearchCondition cond,
             @Parameter(
                     name = "sort",
                     description = "정렬 기준 (예: createdAt,DESC 또는 likeCount,DESC)",
@@ -51,7 +48,10 @@ public class SearchController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        RecipeSearchCondition cond = new RecipeSearchCondition(q, dishType, tags, aiFilter, maxCost);
+        if (cond.getAiFilter() == null) {
+            cond.setAiFilter(AiRecipeFilter.USER_ONLY);
+        }
+
         Page<RecipeSimpleDto> page = searchService.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);
     }
