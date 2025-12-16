@@ -72,13 +72,13 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums()),
                         aiCondition,
-                        maxCostLoe(cond.getMaxCost()),
-                        maxCaloriesLoe(cond.getMaxCalories()),
-                        maxProteinLoe(cond.getMaxProtein()),
-                        maxCarbLoe(cond.getMaxCarb()),
-                        maxFatLoe(cond.getMaxFat()),
-                        maxSugarLoe(cond.getMaxSugar()),
-                        maxSodiumLoe(cond.getMaxSodium())
+                        costBetween(cond.getMinCost(), cond.getMaxCost()),
+                        caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
+                        proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
+                        carbBetween(cond.getMinCarb(), cond.getMaxCarb()),
+                        fatBetween(cond.getMinFat(), cond.getMaxFat()),
+                        sugarBetween(cond.getMinSugar(), cond.getMaxSugar()),
+                        sodiumBetween(cond.getMinSodium(), cond.getMaxSodium())
                 )
                 .distinct()
                 .orderBy(getOrderSpecifiers(pageable))
@@ -101,13 +101,13 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums()),
                         aiCondition,
-                        maxCostLoe(cond.getMaxCost()),
-                        maxCaloriesLoe(cond.getMaxCalories()),
-                        maxProteinLoe(cond.getMaxProtein()),
-                        maxCarbLoe(cond.getMaxCarb()),
-                        maxFatLoe(cond.getMaxFat()),
-                        maxSugarLoe(cond.getMaxSugar()),
-                        maxSodiumLoe(cond.getMaxSodium())
+                        costBetween(cond.getMinCost(), cond.getMaxCost()),
+                        caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
+                        proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
+                        carbBetween(cond.getMinCarb(), cond.getMaxCarb()),
+                        fatBetween(cond.getMinFat(), cond.getMaxFat()),
+                        sugarBetween(cond.getMinSugar(), cond.getMaxSugar()),
+                        sodiumBetween(cond.getMinSodium(), cond.getMaxSodium())
                 )
                 .fetchOne();
 
@@ -155,26 +155,41 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
         return QRecipe.recipe.isAiGenerated.isFalse();
     }
 
-    private BooleanExpression maxCostLoe(Integer maxCost) {
-        return (maxCost != null) ? QRecipe.recipe.totalIngredientCost.loe(maxCost) : null;
-    }
-    private BooleanExpression maxCaloriesLoe(Integer value) {
-        return value != null ? QRecipe.recipe.totalCalories.loe(BigDecimal.valueOf(value)) : null;
-    }
-    private BooleanExpression maxProteinLoe(Integer value) {
-        return value != null ? QRecipe.recipe.protein.loe(BigDecimal.valueOf(value)) : null;
-    }
-    private BooleanExpression maxCarbLoe(Integer value) {
-        return value != null ? QRecipe.recipe.carbohydrate.loe(BigDecimal.valueOf(value)) : null;
-    }
-    private BooleanExpression maxFatLoe(Integer value) {
-        return value != null ? QRecipe.recipe.fat.loe(BigDecimal.valueOf(value)) : null;
-    }
-    private BooleanExpression maxSugarLoe(Integer value) {
-        return value != null ? QRecipe.recipe.sugar.loe(BigDecimal.valueOf(value)) : null;
-    }
-    private BooleanExpression maxSodiumLoe(Integer value) {
-        return value != null ? QRecipe.recipe.sodium.loe(BigDecimal.valueOf(value)) : null;
+    private BooleanExpression costBetween(Integer min, Integer max) {
+        if (min == null && max == null) return null;
+        int minVal = (min != null) ? min : 0;
+        if (max == null) {
+            return QRecipe.recipe.totalIngredientCost.goe(minVal);
+        }
+        return QRecipe.recipe.totalIngredientCost.between(minVal, max);
     }
 
+    private BooleanExpression caloriesBetween(Integer min, Integer max) {
+        return numberBetween(QRecipe.recipe.totalCalories, min, max);
+    }
+    private BooleanExpression proteinBetween(Integer min, Integer max) {
+        return numberBetween(QRecipe.recipe.protein, min, max);
+    }
+    private BooleanExpression carbBetween(Integer min, Integer max) {
+        return numberBetween(QRecipe.recipe.carbohydrate, min, max);
+    }
+    private BooleanExpression fatBetween(Integer min, Integer max) {
+        return numberBetween(QRecipe.recipe.fat, min, max);
+    }
+    private BooleanExpression sugarBetween(Integer min, Integer max) {
+        return numberBetween(QRecipe.recipe.sugar, min, max);
+    }
+    private BooleanExpression sodiumBetween(Integer min, Integer max) {
+        return numberBetween(QRecipe.recipe.sodium, min, max);
+    }
+
+    private BooleanExpression numberBetween(com.querydsl.core.types.dsl.NumberPath<BigDecimal> path, Integer min, Integer max) {
+        if (min == null && max == null) return null;
+        int minVal = (min != null) ? min : 0;
+
+        if (max == null) {
+            return path.goe(BigDecimal.valueOf(minVal));
+        }
+        return path.between(BigDecimal.valueOf(minVal), BigDecimal.valueOf(max));
+    }
 }

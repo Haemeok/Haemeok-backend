@@ -158,7 +158,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("maxCost") Integer maxCost,
             Pageable pageable);
 
-
+    @SuppressWarnings("JpaQlInspection")
     @QueryHints({
             @QueryHint(name = "jakarta.persistence.cache.retrieveMode", value = "BYPASS")
     })
@@ -181,7 +181,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("startDate") LocalDateTime startDate,
             Pageable pageable);
 
-
+    @SuppressWarnings("JpaQlInspection")
     @Query("""
         SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2(
             r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
