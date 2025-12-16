@@ -18,6 +18,7 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
@@ -55,64 +56,7 @@ public class OpenSearchService {
             Long uid) {
 
         try {
-            BoolQueryBuilder bool = QueryBuilders.boolQuery();
-
-            bool.filter(QueryBuilders.termQuery("isPrivate", false));
-
-
-            if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
-                String title = cond.getTitle().trim();
-                keywordService.record(title);
-
-                var titleQuery = QueryBuilders.boolQuery()
-                        .should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title))
-                        .should(QueryBuilders.matchQuery("title.infix", title));
-
-                bool.must(titleQuery);
-            }
-
-            if (cond.getMaxCost() != null) {
-                bool.filter(QueryBuilders.rangeQuery("totalIngredientCost").lte(cond.getMaxCost()));
-            }
-            if (cond.getMaxCalories() != null) {
-                bool.filter(QueryBuilders.rangeQuery("totalCalories").lte(cond.getMaxCalories()));
-            }
-            if (cond.getMaxProtein() != null) {
-                bool.filter(QueryBuilders.rangeQuery("protein").lte(cond.getMaxProtein()));
-            }
-            if (cond.getMaxCarb() != null) {
-                bool.filter(QueryBuilders.rangeQuery("carbohydrate").lte(cond.getMaxCarb()));
-            }
-            if (cond.getMaxFat() != null) {
-                bool.filter(QueryBuilders.rangeQuery("fat").lte(cond.getMaxFat()));
-            }
-            if (cond.getMaxSugar() != null) {
-                bool.filter(QueryBuilders.rangeQuery("sugar").lte(cond.getMaxSugar()));
-            }
-            if (cond.getMaxSodium() != null) {
-                bool.filter(QueryBuilders.rangeQuery("sodium").lte(cond.getMaxSodium()));
-            }
-
-            if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
-                bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
-            }
-
-            if (cond.getTags() != null && !cond.getTags().isEmpty()) {
-                for (String tag : cond.getTags()) {
-                    bool.filter(QueryBuilders.termQuery("tags", tag));
-                }
-            }
-
-            AiRecipeFilter filter = cond.getAiFilter();
-            if (filter == AiRecipeFilter.USER_ONLY) {
-                bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
-            } else if (filter == AiRecipeFilter.AI_ONLY) {
-                bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
-            }
-
-            if (bool.must().isEmpty() && bool.filter().isEmpty()) {
-                bool.must(QueryBuilders.matchAllQuery());
-            }
+            BoolQueryBuilder bool = buildCommonQuery(cond);
 
             var src = new SearchSourceBuilder()
                     .query(bool)
@@ -158,46 +102,7 @@ public class OpenSearchService {
 
     public Page<RecipeSimpleStaticDto> searchRecipesV2(RecipeSearchCondition cond, Pageable pg, Long uid) {
         try {
-            BoolQueryBuilder bool = QueryBuilders.boolQuery();
-
-            bool.filter(QueryBuilders.termQuery("isPrivate", false));
-
-            if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
-                String title = cond.getTitle().trim();
-                keywordService.record(title);
-                var titleQuery = QueryBuilders.boolQuery()
-                        .should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title))
-                        .should(QueryBuilders.matchQuery("title.infix", title));
-                bool.must(titleQuery);
-            }
-
-            if (cond.getMaxCalories() != null) bool.filter(QueryBuilders.rangeQuery("totalCalories").lte(cond.getMaxCalories()));
-            if (cond.getMaxProtein() != null) bool.filter(QueryBuilders.rangeQuery("protein").lte(cond.getMaxProtein()));
-            if (cond.getMaxCarb() != null) bool.filter(QueryBuilders.rangeQuery("carbohydrate").lte(cond.getMaxCarb()));
-            if (cond.getMaxFat() != null) bool.filter(QueryBuilders.rangeQuery("fat").lte(cond.getMaxFat()));
-            if (cond.getMaxSugar() != null) bool.filter(QueryBuilders.rangeQuery("sugar").lte(cond.getMaxSugar()));
-            if (cond.getMaxSodium() != null) bool.filter(QueryBuilders.rangeQuery("sodium").lte(cond.getMaxSodium()));
-
-            if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
-                bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
-            }
-
-            if (cond.getTags() != null && !cond.getTags().isEmpty()) {
-                for (String tag : cond.getTags()) {
-                    bool.filter(QueryBuilders.termQuery("tags", tag));
-                }
-            }
-
-            AiRecipeFilter filter = cond.getAiFilter();
-            if (filter == AiRecipeFilter.USER_ONLY) {
-                bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
-            } else if (filter == AiRecipeFilter.AI_ONLY) {
-                bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
-            }
-
-            if (bool.must().isEmpty() && bool.filter().isEmpty()) {
-                bool.must(QueryBuilders.matchAllQuery());
-            }
+            BoolQueryBuilder bool = buildCommonQuery(cond);
 
             SearchSourceBuilder src = new SearchSourceBuilder().query(bool).from((int) pg.getOffset()).size(pg.getPageSize());
             pg.getSort().forEach(o -> src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC));
@@ -240,8 +145,10 @@ public class OpenSearchService {
         }
     }
 
-    private BoolQueryBuilder buildOpenSearchQuery(RecipeSearchCondition cond) {
+    private BoolQueryBuilder buildCommonQuery(RecipeSearchCondition cond) {
         BoolQueryBuilder bool = QueryBuilders.boolQuery();
+
+        bool.filter(QueryBuilders.termQuery("isPrivate", false));
 
         if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
             String title = cond.getTitle().trim();
@@ -251,23 +158,56 @@ public class OpenSearchService {
                     .should(QueryBuilders.matchQuery("title.infix", title));
             bool.must(titleQuery);
         }
+
+        applyRangeFilter(bool, "totalIngredientCost", cond.getMinCost(), cond.getMaxCost());
+        applyRangeFilter(bool, "totalCalories", cond.getMinCalories(), cond.getMaxCalories());
+        applyRangeFilter(bool, "protein", cond.getMinProtein(), cond.getMaxProtein());
+        applyRangeFilter(bool, "carbohydrate", cond.getMinCarb(), cond.getMaxCarb());
+        applyRangeFilter(bool, "fat", cond.getMinFat(), cond.getMaxFat());
+        applyRangeFilter(bool, "sugar", cond.getMinSugar(), cond.getMaxSugar());
+        applyRangeFilter(bool, "sodium", cond.getMinSodium(), cond.getMaxSodium());
+
         if (cond.getDishType() != null && !cond.getDishType().isBlank()) {
             bool.filter(QueryBuilders.termQuery("dishType", cond.getDishType()));
         }
+
         if (cond.getTags() != null && !cond.getTags().isEmpty()) {
             for (String tag : cond.getTags()) {
                 bool.filter(QueryBuilders.termQuery("tags", tag));
             }
         }
+
         AiRecipeFilter filter = cond.getAiFilter();
         if (filter == AiRecipeFilter.USER_ONLY) {
             bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
         } else if (filter == AiRecipeFilter.AI_ONLY) {
             bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
         }
+
         if (bool.must().isEmpty() && bool.filter().isEmpty()) {
             bool.must(QueryBuilders.matchAllQuery());
         }
+
         return bool;
+    }
+
+    private void applyRangeFilter(BoolQueryBuilder bool, String fieldName, Integer min, Integer max) {
+        if (min == null && max == null) {
+            return;
+        }
+
+        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(fieldName);
+
+        if (min != null) {
+            rangeQuery.gte(min);
+        } else {
+            rangeQuery.gte(0);
+        }
+
+        if (max != null) {
+            rangeQuery.lte(max);
+        }
+
+        bool.filter(rangeQuery);
     }
 }
