@@ -306,7 +306,9 @@ public class SecurityConfig {
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "https://www.recipio.kr",
-                "https://recipio.kr"
+                "https://recipio.kr",
+                "https://*.vercel.app",
+                "https://haemeok.vercel.app"
         ));
         cfg.setAllowedMethods(Arrays.asList("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(Arrays.asList("*"));
