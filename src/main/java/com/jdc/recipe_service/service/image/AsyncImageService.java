@@ -102,55 +102,95 @@ public class AsyncImageService {
             --no text, --no watermark.
             """;
 
+    private static final String FINE_DINING_PROMPT_TEMPLATE = """
+            High-end fine dining food photography. Close-up shot, Michelin star style plating.
+        
+            **[Dish Info]**
+            Title: {{TITLE}}
+            Concept Description: {{DESCRIPTION}}
+        
+            **[Plating Details]**
+            Vessel Type: {{VESSEL}}
+            Plating Instructions: {{GUIDE}}
+            Visual Key Points: {{VISUAL_KEYS}}
+        
+            **[Camera & Lighting]**
+            Viewpoint: {{VIEWPOINT}}
+            Lighting: {{LIGHTING}}
+        
+            **[Technical Specs]**
+            Shot on 100mm macro lens, f/2.8 aperture, shallow depth of field, 8k resolution, ultra-realistic, highly detailed texture.
+            --no cutlery, no text, no messy background, no distorted food
+            """;
+
     @Async
     @Transactional
     public CompletableFuture<String> generateAndUploadAiImageAsync(Long recipeId) {
         log.info("▶ [AsyncImageServiceV2] Gemini 이미지 생성 시작, recipeId={}", recipeId);
 
         try {
-            Recipe recipe = recipeRepository.findWithAllRelationsById(recipeId)
+            Recipe recipe = recipeRepository.findDetailWithFineDiningById(recipeId)
                     .orElseThrow(() -> new RuntimeException("Recipe not found. ID=" + recipeId));
 
-            String allIngredients = recipe.getIngredients().stream()
-                    .map(ri -> {
-                        String name = ri.getIngredient() != null ? ri.getIngredient().getName() : ri.getCustomName();
-                        if (name.contains("매생이")) return "fine silky green seaweed (Maesaengi)";
-                        if (name.contains("순대")) return "Korean blood sausage (Sundae)";
-                        if (name.contains("떡")) return "chewy rice cakes";
-                        return name;
-                    })
-                    .collect(Collectors.joining(", "));
+            String finalImagePrompt;
+            if (recipe.getFineDiningDetails() != null) {
+                log.info("⭐ [FINE_DINING] 전용 프롬프트 엔진 가동 - Recipe ID: {}", recipeId);
+                var details = recipe.getFineDiningDetails();
 
-            if (allIngredients.isBlank()) allIngredients = recipe.getTitle();
+                String visualKeysStr = (details.getVisualKeys() != null)
+                        ? String.join(", ", details.getVisualKeys())
+                        : "";
 
-            String allSteps = recipe.getSteps().stream()
-                    .sorted(Comparator.comparingInt(RecipeStep::getStepNumber))
-                    .map(step -> String.format("- Step %d (%s): %s", step.getStepNumber(), step.getAction(), step.getInstruction()))
-                    .collect(Collectors.joining("\n"));
+                finalImagePrompt = FINE_DINING_PROMPT_TEMPLATE
+                        .replace("{{TITLE}}", recipe.getTitle())
+                        .replace("{{DESCRIPTION}}", recipe.getDescription() != null ? recipe.getDescription() : "")
+                        .replace("{{VESSEL}}", details.getPlatingVessel() != null ? details.getPlatingVessel() : "Elegant plate")
+                        .replace("{{GUIDE}}", details.getPlatingGuide() != null ? details.getPlatingGuide() : "")
+                        .replace("{{VISUAL_KEYS}}", visualKeysStr)
+                        .replace("{{VIEWPOINT}}", details.getViewpoint() != null ? details.getViewpoint() : "45-degree angle")
+                        .replace("{{LIGHTING}}", details.getLighting() != null ? details.getLighting() : "Professional studio lighting");
 
-            String randomLighting = LIGHTING_OPTIONS.get(ThreadLocalRandom.current().nextInt(LIGHTING_OPTIONS.size()));
-            String randomAngle = ANGLE_OPTIONS.get(ThreadLocalRandom.current().nextInt(ANGLE_OPTIONS.size()));
-            String randomBackground = BACKGROUND_OPTIONS.get(ThreadLocalRandom.current().nextInt(BACKGROUND_OPTIONS.size()));
-
-            boolean showCutlery = ThreadLocalRandom.current().nextBoolean();
-            String cutleryRule;
-            if (showCutlery) {
-                cutleryRule = "**Analyze the dish type.** If Asian/Korean, place wooden chopsticks and a spoon. If Western, place a fork and knife. If Finger Food(Pizza), NO cutlery.";
             } else {
-                cutleryRule = "**NO CUTLERY.** Do NOT place any spoon, fork, chopsticks, or knife. Keep the composition clean and minimal. Focus strictly on the food.";
+                String allIngredients = recipe.getIngredients().stream()
+                        .map(ri -> {
+                            String name = ri.getIngredient() != null ? ri.getIngredient().getName() : ri.getCustomName();
+                            if (name.contains("매생이")) return "fine silky green seaweed (Maesaengi)";
+                            if (name.contains("순대")) return "Korean blood sausage (Sundae)";
+                            if (name.contains("떡")) return "chewy rice cakes";
+                            return name;
+                        })
+                        .collect(Collectors.joining(", "));
+
+                if (allIngredients.isBlank()) allIngredients = recipe.getTitle();
+
+                String allSteps = recipe.getSteps().stream()
+                        .sorted(Comparator.comparingInt(RecipeStep::getStepNumber))
+                        .map(step -> String.format("- Step %d (%s): %s", step.getStepNumber(), step.getAction(), step.getInstruction()))
+                        .collect(Collectors.joining("\n"));
+
+                String randomLighting = LIGHTING_OPTIONS.get(ThreadLocalRandom.current().nextInt(LIGHTING_OPTIONS.size()));
+                String randomAngle = ANGLE_OPTIONS.get(ThreadLocalRandom.current().nextInt(ANGLE_OPTIONS.size()));
+                String randomBackground = BACKGROUND_OPTIONS.get(ThreadLocalRandom.current().nextInt(BACKGROUND_OPTIONS.size()));
+
+                boolean showCutlery = ThreadLocalRandom.current().nextBoolean();
+                String cutleryRule;
+                if (showCutlery) {
+                    cutleryRule = "**Analyze the dish type.** If Asian/Korean, place wooden chopsticks and a spoon. If Western, place a fork and knife. If Finger Food(Pizza), NO cutlery.";
+                } else {
+                    cutleryRule = "**NO CUTLERY.** Do NOT place any spoon, fork, chopsticks, or knife. Keep the composition clean and minimal. Focus strictly on the food.";
+                }
+
+                finalImagePrompt = DEFAULT_PROMPT_TEMPLATE
+                        .replace("{{TITLE}}", recipe.getTitle())
+                        .replace("{{DISH_TYPE}}", recipe.getDishType().getDisplayName())
+                        .replace("{{INGREDIENTS}}", allIngredients)
+                        .replace("{{STEPS}}", allSteps)
+                        .replace("{{ANGLE}}", randomAngle)
+                        .replace("{{LIGHTING}}", randomLighting)
+                        .replace("{{BACKGROUND}}", randomBackground)
+                        .replace("{{CUTLERY_RULE}}", cutleryRule)
+                        .replace("{{DESCRIPTION}}", recipe.getDescription() != null ? recipe.getDescription() : "");
             }
-
-            String finalImagePrompt = DEFAULT_PROMPT_TEMPLATE
-                    .replace("{{TITLE}}", recipe.getTitle())
-                    .replace("{{DISH_TYPE}}", recipe.getDishType().getDisplayName())
-                    .replace("{{INGREDIENTS}}", allIngredients)
-                    .replace("{{STEPS}}", allSteps)
-                    .replace("{{ANGLE}}", randomAngle)
-                    .replace("{{LIGHTING}}", randomLighting)
-                    .replace("{{BACKGROUND}}", randomBackground)
-                    .replace("{{CUTLERY_RULE}}", cutleryRule)
-                    .replace("{{DESCRIPTION}}", recipe.getDescription() != null ? recipe.getDescription() : "");
-
             log.info(">>>> [ASYNC GEMINI PROMPT] Recipe ID: {}, Prompt Length: {}", recipe.getId(), finalImagePrompt.length());
 
             List<String> imageUrls = geminiImageService.generateImageUrls(finalImagePrompt, recipe.getUser().getId(), recipe.getId());
@@ -161,11 +201,7 @@ public class AsyncImageService {
 
             String fullUrl = imageUrls.get(0);
             String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
-
-            recipe.updateImageKey(s3Key);
-            recipe.updateImageStatus(RecipeImageStatus.READY);
-            recipe.updateIsPrivate(false);
-            recipeRepository.save(recipe);
+            recipeRepository.updateImageInfo(recipeId, s3Key, RecipeImageStatus.READY, false);
 
             RecipeImage recipeImage = RecipeImage.builder()
                     .recipe(recipe)
@@ -175,7 +211,10 @@ public class AsyncImageService {
                     .build();
             recipeImageRepository.save(recipeImage);
 
-            recipeIndexingService.updateRecipe(recipe);
+            Recipe updatedRecipe = recipeRepository.findDetailWithFineDiningById(recipeId)
+                    .orElseThrow(() -> new RuntimeException("Recipe not found after update"));
+
+            recipeIndexingService.updateRecipe(updatedRecipe);
 
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, null);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
@@ -186,10 +225,7 @@ public class AsyncImageService {
         } catch (Exception e) {
             log.error("❌ [AsyncImageServiceV2] 이미지 생성 실패, recipeId={}", recipeId, e);
 
-            recipeRepository.findById(recipeId).ifPresent(r -> {
-                r.updateImageStatus(RecipeImageStatus.FAILED);
-                recipeRepository.save(r);
-            });
+            recipeRepository.updateImageInfo(recipeId, null, RecipeImageStatus.FAILED, true);
 
             var errorResponse = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
             deferredResultHolder.completeAll(recipeId, errorResponse);
