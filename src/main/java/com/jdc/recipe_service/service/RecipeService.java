@@ -103,6 +103,29 @@ public class RecipeService {
         recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTags());
 
+        if (dto.getComponents() != null && !dto.getComponents().isEmpty()) {
+            List<SimpleComponentDto> filteredComponents = dto.getComponents().stream()
+                    .map(c -> new SimpleComponentDto(
+                            c.getRole(),
+                            c.getName(),
+                            c.getDescription(),
+                            c.getProcess()
+                    ))
+                    .toList();
+
+            FineDiningDetails details = FineDiningDetails.builder()
+                    .components(filteredComponents)
+                    .platingVessel(dto.getPlating() != null ? dto.getPlating().getVessel() : null)
+                    .platingGuide(dto.getPlating() != null ? dto.getPlating().getGuide() : null)
+                    .visualKeys(dto.getPlating().getVisualKeys())
+                    .viewpoint(dto.getPlating().getViewpoint())
+                    .lighting(dto.getPlating().getLighting())
+                    .build();
+
+            details.setRecipe(recipe);
+            recipe.setFineDiningDetails(details);
+        }
+
         em.flush();
         em.clear();
 

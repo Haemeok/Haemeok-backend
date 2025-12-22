@@ -9,16 +9,17 @@ import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.type.AiRecipeConcept;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
-import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.DailyQuotaService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.SurveyService;
+import com.jdc.recipe_service.service.ai.GeminiClientService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.util.ActionImageService;
 import com.jdc.recipe_service.util.UnitService;
 import com.jdc.recipe_service.util.prompt.CostEffectivePromptBuilder;
+import com.jdc.recipe_service.util.prompt.FineDiningPromptBuilder;
 import com.jdc.recipe_service.util.prompt.IngredientFocusPromptBuilder;
 import com.jdc.recipe_service.util.prompt.NutritionPromptBuilder;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 public class AiRecipeFacade {
 
     private final GrokClientService grokClientService;
+    private final GeminiClientService geminiClientService;
     private final RecipeService recipeService;
     private final DailyQuotaService dailyQuotaService;
     private final SurveyService surveyService;
@@ -47,7 +49,7 @@ public class AiRecipeFacade {
     private final IngredientFocusPromptBuilder ingredientBuilder;
     private final CostEffectivePromptBuilder costBuilder;
     private final NutritionPromptBuilder nutritionBuilder;
-    //private final FineDiningPromptBuilder fineDiningBuilder;
+    private final FineDiningPromptBuilder fineDiningBuilder;
 
 
     /**
@@ -84,11 +86,13 @@ public class AiRecipeFacade {
                 case NUTRITION_BALANCE -> {
                     generatedDto = processNutritionLogic(aiReq);
                 }
-                /*case FINE_DINING -> {
-                    String systemPrompt = fineDiningBuilder.buildPrompt(aiReq);
-                    String userTrigger = "위 정보를 바탕으로 최고급 레시피 JSON을 생성해줘.";
-                    generatedDto = grokClientService.generateRecipeJson(systemPrompt, userTrigger).join();
-                }*/
+                case FINE_DINING -> {
+                    FineDiningPromptBuilder.FineDiningPrompt promptResult = fineDiningBuilder.buildPrompt(aiReq);
+                    generatedDto = geminiClientService.generateRecipeJson(
+                            promptResult.getSystemInstruction(),
+                            promptResult.getUserMessage()
+                    ).join();
+                }
                 default -> throw new IllegalArgumentException("Unknown Concept");
             }
 
