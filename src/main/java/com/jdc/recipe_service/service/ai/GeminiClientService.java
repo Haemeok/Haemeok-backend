@@ -22,11 +22,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class GeminiClientService {
 
-    @Qualifier("grokWebClient")
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
 
@@ -40,6 +38,10 @@ public class GeminiClientService {
             "https://aiplatform.googleapis.com/v1/projects/" + GCP_PROJECT_ID +
                     "/locations/global/publishers/google/models/" + GEMINI_MODEL_ID + ":generateContent";
 
+    public GeminiClientService(ObjectMapper objectMapper) {
+        this.webClient = WebClient.builder().build();
+        this.objectMapper = objectMapper;
+    }
     @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
     @CircuitBreaker(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
     @TimeLimiter(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
