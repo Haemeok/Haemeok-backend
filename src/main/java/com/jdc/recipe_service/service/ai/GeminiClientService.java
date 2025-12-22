@@ -92,7 +92,7 @@ public class GeminiClientService {
                 "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", userContent)))),
                 "generationConfig", Map.of(
                         "responseMimeType", "application/json",
-                        "temperature", 0.75,
+                        "temperature", 0.7,
                         "maxOutputTokens", 10000,
                         "thinking_config", Map.of("thinking_level", "HIGH")
                 )
@@ -100,6 +100,7 @@ public class GeminiClientService {
 
         return webClient.post()
                 .uri(GEMINI_API_URL + "?key=" + geminiApiKey)
+                .headers(headers -> headers.remove("Authorization"))
                 .bodyValue(requestBody)
                 .retrieve()
                 .onStatus(status -> status.isError(), response ->
