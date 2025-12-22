@@ -37,7 +37,6 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "fineDiningDetails",
             "ingredients",
             "ingredients.ingredient",
-            "steps",
             "tags.tag"
     })
     @Query("""
