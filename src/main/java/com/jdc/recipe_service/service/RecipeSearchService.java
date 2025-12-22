@@ -160,7 +160,7 @@ public class RecipeSearchService {
 
         log.info("V1 Detail access for RecipeId: {}, CurrentUserId: {}", recipeId, currentUserId);
 
-        Recipe basic = recipeRepository.findWithUserById(recipeId)
+        Recipe basic = recipeRepository.findDetailWithFineDiningById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         if (basic.getIsPrivate()
@@ -218,6 +218,26 @@ public class RecipeSearchService {
 
         List<String> tools = new ArrayList<>(basic.getCookingTools());
 
+        RecipeDetailDto.FineDiningInfo fineDiningInfo = null;
+
+        if (basic.getFineDiningDetails() != null) {
+            var details = basic.getFineDiningDetails();
+
+            fineDiningInfo = RecipeDetailDto.FineDiningInfo.builder()
+                    .components(details.getComponents().stream()
+                            .map(c -> RecipeDetailDto.FineDiningComponentDto.builder()
+                                    .role(c.getRole())
+                                    .name(c.getName())
+                                    .description(c.getDescription())
+                                    .build())
+                            .toList())
+                    .plating(RecipeDetailDto.FineDiningPlatingDto.builder()
+                            .vessel(details.getPlatingVessel())
+                            .guide(details.getPlatingGuide())
+                            .build())
+                    .build();
+        }
+
         return RecipeDetailDto.builder()
                 .id(recipeId)
                 .title(basic.getTitle())
@@ -249,6 +269,7 @@ public class RecipeSearchService {
                 .savings(savings)
                 .cookingTips(basic.getCookingTips())
                 .nutrition(nutrition)
+                .fineDiningInfo(fineDiningInfo)
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();

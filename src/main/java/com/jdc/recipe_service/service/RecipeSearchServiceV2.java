@@ -90,7 +90,7 @@ public class RecipeSearchServiceV2 {
 
         log.info("Detail access for RecipeId: {}, CurrentUserId: {}", recipeId, currentUserId);
 
-        Recipe basic = recipeRepository.findWithUserById(recipeId)
+        Recipe basic = recipeRepository.findDetailWithFineDiningById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         if (basic.getIsPrivate() && (currentUserId == null || !basic.getUser().getId().equals(currentUserId))) {
@@ -152,6 +152,26 @@ public class RecipeSearchServiceV2 {
 
         List<CommentStaticDto> comments = commentService.getCommentsStaticForRecipeDetail(recipeId);
 
+        RecipeDetailStaticDto.FineDiningInfo fineDiningInfo = null;
+
+        if (basic.getFineDiningDetails() != null) {
+            var details = basic.getFineDiningDetails();
+
+            fineDiningInfo = RecipeDetailStaticDto.FineDiningInfo.builder()
+                    .components(details.getComponents().stream()
+                            .map(c -> RecipeDetailStaticDto.FineDiningComponentDto.builder()
+                                    .role(c.getRole())
+                                    .name(c.getName())
+                                    .description(c.getDescription())
+                                    .build())
+                            .toList())
+                    .plating(RecipeDetailStaticDto.FineDiningPlatingDto.builder()
+                            .vessel(details.getPlatingVessel())
+                            .guide(details.getPlatingGuide())
+                            .build())
+                    .build();
+        }
+
         return RecipeDetailStaticDto.builder()
                 .id(recipeId)
                 .title(basic.getTitle())
@@ -179,6 +199,7 @@ public class RecipeSearchServiceV2 {
                 .savings(savings)
                 .cookingTips(basic.getCookingTips())
                 .nutrition(nutrition)
+                .fineDiningInfo(fineDiningInfo)
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();

@@ -117,6 +117,9 @@ public class Recipe extends BaseTimeEntity {
     @BatchSize(size = 100)
     private List<RecipeLike> likes;
 
+    @OneToOne(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private FineDiningDetails fineDiningDetails;
+
     @Column(columnDefinition = "TEXT")
     private String cookingTips;
 
@@ -233,5 +236,9 @@ public class Recipe extends BaseTimeEntity {
         if (this.likeCount > 0) {
             this.likeCount--;
         }
+    }
+
+    public void setFineDiningDetails(FineDiningDetails fineDiningDetails) {
+        this.fineDiningDetails = fineDiningDetails;
     }
 }
