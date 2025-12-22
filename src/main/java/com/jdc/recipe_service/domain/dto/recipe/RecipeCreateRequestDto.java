@@ -44,4 +44,27 @@ public class RecipeCreateRequestDto {
     private List<RecipeStepRequestDto> steps;
     private List<String> tags;
 
+    private List<ComponentResponseDto> components;
+    private PlatingResponseDto plating;
+
+    @Getter @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ComponentResponseDto {
+        private String role;
+        private String name;
+        private String description;
+        private List<String> process;
+    }
+
+    @Getter @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PlatingResponseDto {
+        private String vessel;
+        private String guide;
+        private List<String> visualKeys;
+        private String viewpoint;
+        private String lighting;
+    }
 }

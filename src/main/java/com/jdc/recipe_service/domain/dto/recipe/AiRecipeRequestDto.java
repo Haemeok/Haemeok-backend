@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
+import com.jdc.recipe_service.domain.type.DiningTier;
 import lombok.*;
 
 import java.util.List;
@@ -28,4 +29,7 @@ public class AiRecipeRequestDto {
     private String targetProtein;
     private String targetFat;
     private String targetStyle;
+
+    private List<Long> ingredientIds;
+    private DiningTier diningTier;
 }

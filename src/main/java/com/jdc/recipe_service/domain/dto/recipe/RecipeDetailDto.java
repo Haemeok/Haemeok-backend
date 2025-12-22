@@ -129,4 +129,27 @@ public class RecipeDetailDto {
     @Schema(description = "업데이트일시 (UTC)")
     private LocalDateTime updatedAt;
 
+    @Schema(description = "파인다이닝 전용 상세 정보 (일반 레시피일 경우 null)")
+    private FineDiningInfo fineDiningInfo;
+
+    @Getter @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FineDiningInfo {
+        @Schema(description = "미식 컴포넌트 목록")
+        private List<FineDiningComponentDto> components;
+        @Schema(description = "플레이팅 가이드 정보")
+        private FineDiningPlatingDto plating;
+    }
+
+    @Getter @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FineDiningComponentDto {
+        private String role;
+        private String name;
+        private String description;
+    }
+
+    @Getter @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FineDiningPlatingDto {
+        private String vessel;
+        private String guide;
+    }
 }
