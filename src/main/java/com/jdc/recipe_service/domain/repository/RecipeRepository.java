@@ -5,15 +5,13 @@ import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.repository.QueryHints;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -33,6 +31,20 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 WHERE r.id = :recipeId
             """)
     Optional<Recipe> findWithUserById(@Param("recipeId") Long recipeId);
+
+    @EntityGraph(attributePaths = {
+            "user",
+            "fineDiningDetails",
+            "ingredients",
+            "ingredients.ingredient",
+            "steps",
+            "tags.tag"
+    })
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.id = :recipeId
+        """)
+    Optional<Recipe> findDetailWithFineDiningById(@Param("recipeId") Long recipeId);
 
     @Query("""
                 SELECT r FROM Recipe r
@@ -260,4 +272,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM Recipe r WHERE r.id = :id")
     void deleteByIdDirectly(@Param("id") Long id);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Recipe r SET r.imageKey = :imageKey, r.imageStatus = :status, r.isPrivate = :isPrivate WHERE r.id = :id")
+    void updateImageInfo(@Param("id") Long id, @Param("imageKey") String imageKey,
+                         @Param("status") RecipeImageStatus status, @Param("isPrivate") Boolean isPrivate);
 }
