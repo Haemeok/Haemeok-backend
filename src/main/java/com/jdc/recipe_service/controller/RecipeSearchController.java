@@ -3,6 +3,7 @@ package com.jdc.recipe_service.controller;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
@@ -125,15 +126,11 @@ public class RecipeSearchController {
 
     @GetMapping("/{id}/recommendations")
     @Operation(summary = "상세 페이지 하단 추천 레시피 조회")
-    public ResponseEntity<List<RecipeSimpleDto>> getRecommendations(
+    public ResponseEntity<List<RecipeSimpleStaticDto>> getRecommendations(
             @PathVariable("id") Long recipeId,
-            @RequestParam(defaultValue = "10") int size,
-            @AuthenticationPrincipal CustomUserDetails userDetails
+            @RequestParam(defaultValue = "10") int size
     ) {
-        Long currentUserId = userDetails != null ? userDetails.getUser().getId() : null;
-
-        List<RecipeSimpleDto> recommendations = recipeRecommendationService.getRecommendations(recipeId, size, currentUserId);
-
+        List<RecipeSimpleStaticDto> recommendations = recipeRecommendationService.getRecommendations(recipeId, size);
         return ResponseEntity.ok(recommendations);
     }
 }
