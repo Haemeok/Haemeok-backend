@@ -1,10 +1,10 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.entity.RecipeTag;
-import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 public class RecipeRecommendationService {
 
     private final RecipeRepository recipeRepository;
-    private final RecipeLikeRepository recipeLikeRepository;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -75,9 +74,8 @@ public class RecipeRecommendationService {
 
     /**
      * 상세 페이지 하단 추천 리스트 반환 (유저 좋아요 정보 포함)
-     * @param currentUserId 로그인한 유저 ID (비로그인이면 null)
      */
-    public List<RecipeSimpleDto> getRecommendations(Long currentRecipeId, int limitSize, Long currentUserId) {
+    public List<RecipeSimpleStaticDto> getRecommendations(Long currentRecipeId, int limitSize) {
 
         Recipe currentRecipe = recipeRepository.findWithAllRelationsById(currentRecipeId)
                 .orElseThrow(() -> new IllegalArgumentException("Recipe not found"));
@@ -96,31 +94,12 @@ public class RecipeRecommendationService {
 
         Collections.shuffle(topCandidates);
 
-        List<RecipeSimpleDto> result = topCandidates.stream()
+        List<RecipeSimpleStaticDto> result = topCandidates.stream()
                 .limit(limitSize)
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
 
-        if (currentUserId != null && !result.isEmpty()) {
-            markLikedByUser(result, currentUserId);
-        }
-
         return result;
-    }
-
-    private void markLikedByUser(List<RecipeSimpleDto> dtos, Long userId) {
-        List<Long> recipeIds = dtos.stream().map(RecipeSimpleDto::getId).toList();
-
-        Set<Long> myLikedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(userId, recipeIds)
-                .stream()
-                .map(like -> like.getRecipe().getId())
-                .collect(Collectors.toSet());
-
-        dtos.forEach(dto -> {
-            if (myLikedRecipeIds.contains(dto.getId())) {
-                dto.setLikedByCurrentUser(true);
-            }
-        });
     }
 
     /**
@@ -177,8 +156,8 @@ public class RecipeRecommendationService {
                 .collect(Collectors.toSet());
     }
 
-    private RecipeSimpleDto convertToDto(Recipe recipe) {
-        return new RecipeSimpleDto(
+    private RecipeSimpleStaticDto convertToDto(Recipe recipe) {
+        return new RecipeSimpleStaticDto(
                 recipe.getId(),
                 recipe.getTitle(),
                 generateImageUrl(recipe.getImageKey()),
@@ -186,9 +165,8 @@ public class RecipeRecommendationService {
                 recipe.getUser().getNickname(),
                 recipe.getUser().getProfileImage(),
                 recipe.getCreatedAt(),
-                recipe.getLikeCount(),
-                false,
                 recipe.getCookingTime(),
+                (long) (recipe.getLikeCount() != null ? recipe.getLikeCount() : 0),
                 recipe.getAvgRating() != null ? recipe.getAvgRating() : BigDecimal.ZERO,
                 recipe.getRatingCount()
         );
