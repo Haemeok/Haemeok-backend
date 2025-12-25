@@ -52,8 +52,10 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             """)
     Optional<Recipe> findWithStepsById(@Param("recipeId") Long recipeId);
 
+    @EntityGraph(attributePaths = {"fineDiningDetails"})
     Page<Recipe> findByUserId(Long userId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"fineDiningDetails"})
     Page<Recipe> findByUserIdAndIsPrivateFalse(Long userId, Pageable pageable);
 
     Optional<Recipe> findById(Long id);
