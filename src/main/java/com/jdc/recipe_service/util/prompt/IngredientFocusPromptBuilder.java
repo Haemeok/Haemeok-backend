@@ -38,16 +38,21 @@ public class IngredientFocusPromptBuilder {
                         ? survey.getTags()
                         : Collections.emptySet();
 
-        List<String> names = request.getIngredients();
-        List<String> known = ingredientRepo.findAllByNameIn(names)
-                .stream()
-                .map(Ingredient::getName)
-                .collect(Collectors.toList());
-        List<String> unknown = names.stream()
-                .filter(n -> !known.contains(n))
-                .collect(Collectors.toList());
-        String knownList = known.isEmpty() ? "없음" : String.join(", ", known);
-        String unknownList = unknown.isEmpty() ? "없음" : String.join(", ", unknown);
+        List<Long> ids = request.getIngredientIds();
+
+        List<String> names;
+        if (ids == null || ids.isEmpty()) {
+            names = Collections.emptyList();
+        } else {
+            List<Ingredient> dbIngredients = ingredientRepo.findAllById(ids);
+
+            names = dbIngredients.stream()
+                    .map(Ingredient::getName)
+                    .collect(Collectors.toList());
+        }
+
+        String knownList = names.isEmpty() ? "없음" : String.join(", ", names);
+        String unknownList = "없음";
 
         String allowedUnits = unitService.unitsAsString();
         String unitMapping = unitService.mappingAsString();
@@ -109,9 +114,10 @@ public class IngredientFocusPromptBuilder {
                 - 인분/시간 포함 가능 (예: '2인분 25분 매콤 김치찌개')
                 
                 --- "dishType" 필드 (요리 유형 규칙) ---
-                - `dishType`은 반드시 요청된 값("%s")을 **그대로 사용**하거나 (요청에 없을 시) 아래 목록에서 하나만 선택하세요:
-                  볶음, 국/찌개/탕, 구이, 무침/샐러드, 튀김/부침, 찜/조림, 오븐요리, 생식/회, 절임/피클류, 밥/면/파스타, 디저트/간식류
-                - **절대 빈 문자열("")이나 공백으로 출력되어서는 안 됩니다.**
+                - `dishType`이 요청에 없거나 값이 "전체"라면, **생성된 레시피의 결과물에 부합하는 카테고리를** 아래 목록에서 하나만 선택하세요:
+                  [볶음, 국/찌개/탕, 구이, 무침/샐러드, 튀김/부침, 찜/조림, 오븐요리, 생식/회, 절임/피클류, 밥/면/파스타, 디저트/간식류]
+                - 그 외의 경우에는 `dishType` 값을 요청된 값("%s") 그대로 사용하세요.
+                - **결과값은 절대 빈 문자열("")이나 공백이어서는 안 되며, 반드시 위 목록 중 하나이거나 요청된 값이어야 합니다.**
                 
                 --- "description" 필드 ---
                 - 음식에 대한 설명과 후기를 첨부하세요.

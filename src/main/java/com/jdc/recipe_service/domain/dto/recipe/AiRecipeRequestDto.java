@@ -12,7 +12,6 @@ import java.util.List;
 public class AiRecipeRequestDto {
     private Long userId;
 
-    private List<String> ingredients;
     private String dishType;
     private Integer cookingTime;
     private Double servings;
