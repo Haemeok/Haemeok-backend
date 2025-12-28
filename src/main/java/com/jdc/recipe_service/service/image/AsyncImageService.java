@@ -127,7 +127,7 @@ public class AsyncImageService {
 
     @Async
     public CompletableFuture<String> generateAndUploadAiImageAsync(Long recipeId) {
-        log.info("▶ [AsyncImageServiceV1] Gemini 이미지 생성 시작, recipeId={}", recipeId);
+        log.info("▶ [AsyncImageService_FIXED] Gemini 이미지 생성 시작, recipeId={}", recipeId);
 
         try {
             RecipePromptData promptData = transactionTemplate.execute(status -> {
