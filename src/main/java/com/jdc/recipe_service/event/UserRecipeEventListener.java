@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.event;
 
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -14,6 +15,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class UserRecipeEventListener {
 
     private final RecipeIndexingService recipeIndexingService;
+    private final RecipeAnalysisService recipeAnalysisService;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -21,5 +23,6 @@ public class UserRecipeEventListener {
         log.info("유저 레시피 등록 이벤트 수신: ID {}", event.getRecipeId());
 
         recipeIndexingService.indexRecipeSafelyWithRetry(event.getRecipeId());
+        recipeAnalysisService.analyzeRecipeAsync(event.getRecipeId());
     }
 }
