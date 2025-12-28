@@ -14,11 +14,8 @@ import java.util.List;
 @Repository
 public interface RecipeStepRepository extends JpaRepository<RecipeStep, Long> {
 
-    @EntityGraph(attributePaths = {"stepIngredients", "stepIngredients.ingredient"})
-    List<RecipeStep> findByRecipeIdOrderByStepNumber(Long recipeId);
-
-    @EntityGraph(attributePaths = {"stepIngredients", "stepIngredients.ingredient"})
-    List<RecipeStep> findWithIngredientsByRecipeIdOrderByStepNumber(Long recipeId);
+    @Query("SELECT rs FROM RecipeStep rs WHERE rs.recipe.id = :recipeId ORDER BY rs.stepNumber")
+    List<RecipeStep> findByRecipeIdOrderByStepNumber(@Param("recipeId") Long recipeId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RecipeStep rs WHERE rs.recipe.id = :recipeId")

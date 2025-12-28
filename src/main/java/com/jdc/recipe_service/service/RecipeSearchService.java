@@ -11,6 +11,8 @@ import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeLike;
+import com.jdc.recipe_service.domain.entity.RecipeStep;
+import com.jdc.recipe_service.domain.entity.RecipeStepIngredient;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.PopularityPeriod;
@@ -31,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -40,10 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -57,6 +55,7 @@ public class RecipeSearchService {
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepRepository recipeStepRepository;
     private final RecipeTagRepository recipeTagRepository;
+    private final RecipeStepIngredientRepository recipeStepIngredientRepository;
 
     private final RecipeRatingService recipeRatingService;
     private final CommentService commentService;
@@ -191,12 +190,19 @@ public class RecipeSearchService {
                 recipeIngredientRepository.findByRecipeId(recipeId)
         );
 
-        List<RecipeStepDto> steps = recipeStepRepository
-                .findWithIngredientsByRecipeIdOrderByStepNumber(recipeId)
+        List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
+
+        List<Long> stepIds = steps.stream().map(RecipeStep::getId).toList();
+        Map<Long, List<RecipeStepIngredient>> ingredientsMap = recipeStepIngredientRepository
+                .findByStepIdIn(stepIds)
                 .stream()
+                .collect(Collectors.groupingBy(rsi -> rsi.getStep().getId()));
+
+        List<RecipeStepDto> stepsDto = steps.stream()
                 .map(step -> {
-                    var used = StepIngredientMapper.toDtoList(step.getStepIngredients());
-                    var url  = generateImageUrl(step.getImageKey());
+                    List<RecipeStepIngredient> stepIngs = ingredientsMap.getOrDefault(step.getId(), List.of());
+                    var used = StepIngredientMapper.toDtoList(stepIngs);
+                    var url = generateImageUrl(step.getImageKey());
                     return RecipeStepMapper.toDto(step, used, url, step.getImageKey());
                 })
                 .toList();
@@ -261,7 +267,7 @@ public class RecipeSearchService {
                 .tags(tags)
                 .ingredients(ingredients)
                 .totalCalories(basic.getTotalCalories() != null ? basic.getTotalCalories().doubleValue() : null)
-                .steps(steps)
+                .steps(stepsDto)
                 .comments(comments)
                 .commentCount(commentCount)
                 .totalIngredientCost(totalCost)

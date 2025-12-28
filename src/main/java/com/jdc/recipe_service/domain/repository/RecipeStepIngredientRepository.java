@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Repository
 public interface RecipeStepIngredientRepository extends JpaRepository<RecipeStepIngredient, Long> {
 
@@ -24,4 +26,7 @@ public interface RecipeStepIngredientRepository extends JpaRepository<RecipeStep
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RecipeStepIngredient rsi WHERE rsi.step.id IN (SELECT s.id FROM RecipeStep s WHERE s.recipe.id = :recipeId)")
     void deleteAllByRecipeId(@Param("recipeId") Long recipeId);
+
+    @Query("SELECT rsi FROM RecipeStepIngredient rsi LEFT JOIN FETCH rsi.ingredient WHERE rsi.step.id IN :stepIds")
+    List<RecipeStepIngredient> findByStepIdIn(@Param("stepIds") List<Long> stepIds);
 }

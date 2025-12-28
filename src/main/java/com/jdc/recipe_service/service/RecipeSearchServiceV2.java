@@ -10,9 +10,7 @@ import com.jdc.recipe_service.domain.dto.v2.rating.RecipeRatingInfoStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
-import com.jdc.recipe_service.domain.entity.QRecipe;
-import com.jdc.recipe_service.domain.entity.QRecipeTag;
-import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -65,6 +63,8 @@ public class RecipeSearchServiceV2 {
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepRepository recipeStepRepository;
     private final RecipeTagRepository recipeTagRepository;
+    private final RecipeStepIngredientRepository recipeStepIngredientRepository;
+
     private final CommentService commentService;
 
     @Value("${app.s3.bucket-name}")
@@ -115,12 +115,19 @@ public class RecipeSearchServiceV2 {
                 .setScale(2, RoundingMode.DOWN)
                 .doubleValue();
 
-        List<RecipeStepDto> steps = recipeStepRepository
-                .findWithIngredientsByRecipeIdOrderByStepNumber(recipeId)
+        List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
+
+        List<Long> stepIds = steps.stream().map(RecipeStep::getId).toList();
+        Map<Long, List<RecipeStepIngredient>> ingredientsMap = recipeStepIngredientRepository
+                .findByStepIdIn(stepIds)
                 .stream()
+                .collect(Collectors.groupingBy(rsi -> rsi.getStep().getId()));
+
+        List<RecipeStepDto> stepDtos = steps.stream()
                 .map(step -> {
-                    var used = StepIngredientMapper.toDtoList(step.getStepIngredients());
-                    var url  = generateImageUrl(step.getImageKey());
+                    List<RecipeStepIngredient> stepIngs = ingredientsMap.getOrDefault(step.getId(), List.of());
+                    var used = StepIngredientMapper.toDtoList(stepIngs);
+                    var url = generateImageUrl(step.getImageKey());
                     return RecipeStepMapper.toDto(step, used, url, step.getImageKey());
                 })
                 .toList();
@@ -190,7 +197,7 @@ public class RecipeSearchServiceV2 {
                 .ratingInfo(ratingInfo)
                 .tags(tags)
                 .ingredients(ingredients)
-                .steps(steps)
+                .steps(stepDtos)
                 .comments(comments)
                 .commentCount(commentCounts.getOrDefault(recipeId, 0L))
                 .totalIngredientCost(totalCost)
