@@ -170,7 +170,7 @@ class RecipeSearchServiceTest {
                     .action(null)
                     .build();
             stepEntity.getStepIngredients().clear();
-            when(recipeStepRepository.findWithIngredientsByRecipeIdOrderByStepNumber(existingId))
+            when(recipeStepRepository.findByRecipeIdOrderByStepNumber(existingId))
                     .thenReturn(List.of(stepEntity));
 
             // generateImageUrl(...) 오버라이드: "step-img-key" 요청 시 stepImageUrl 리턴
@@ -304,7 +304,7 @@ class RecipeSearchServiceTest {
                         verify(recipeTagRepository, times(1)).findByRecipeId(existingId);
                         verify(recipeIngredientRepository, times(1)).findByRecipeId(existingId);
                         verify(recipeStepRepository, times(1))
-                                .findWithIngredientsByRecipeIdOrderByStepNumber(existingId);
+                                .findByRecipeIdOrderByStepNumber(existingId);
                         verify(spyService, times(1)).generateImageUrl("step-img-key");
                         verify(commentService, times(1)).getTop3CommentsWithLikes(existingId, userId);
                         verify(recipeCommentRepository, times(1)).countByRecipeId(existingId);
