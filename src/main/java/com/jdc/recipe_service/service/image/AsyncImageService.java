@@ -174,8 +174,8 @@ public class AsyncImageService {
                 recipeIndexingService.updateRecipe(recipe);
             });
 
-            RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, promptData.userId);
-            deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
+            //RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, promptData.userId);
+            //deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
 
             log.info("✅ [AsyncImageServiceV1] Gemini 이미지 생성 및 저장 완료. URL: {}", fullUrl);
             return CompletableFuture.completedFuture(fullUrl);
@@ -195,8 +195,8 @@ public class AsyncImageService {
                 log.error("실패 상태 업데이트 중 추가 오류 발생", ex);
             }
 
-            var errorResponse = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-            deferredResultHolder.completeAll(recipeId, errorResponse);
+            //var errorResponse = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            //deferredResultHolder.completeAll(recipeId, errorResponse);
             return CompletableFuture.failedFuture(e);
         }
     }
