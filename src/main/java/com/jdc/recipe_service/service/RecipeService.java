@@ -145,19 +145,11 @@ public class RecipeService {
         final Long recipeId = recipe.getId();
         final Long targetUserId = recipe.getUser().getId();
 
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        if (sourceType == RecipeSourceType.AI) {
-                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
-                        }
-                        else {
-                            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
-                        }
-                        recipeAnalysisService.analyzeRecipeAsync(recipeId);
-                    }
-                });
+        if (sourceType == RecipeSourceType.AI) {
+            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
+        } else {
+            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
+        }
 
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
