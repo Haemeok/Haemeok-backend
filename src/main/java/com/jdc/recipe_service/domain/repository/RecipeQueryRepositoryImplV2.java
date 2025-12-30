@@ -11,7 +11,6 @@ import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,12 +59,13 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.user.profileImage,
                         recipe.createdAt,
                         recipe.cookingTime,
-                        Expressions.constant(0L),
-                        Expressions.constant(BigDecimal.ZERO),
-                        Expressions.constant(0L)
+                        recipe.likeCount.coalesce(0L),
+                        recipe.avgRating.coalesce(BigDecimal.ZERO),
+                        recipe.ratingCount.coalesce(0L)
                 ))
                 .from(recipe)
                 .leftJoin(recipe.tags, tag)
+                .leftJoin(recipe.user, com.jdc.recipe_service.domain.entity.QUser.user)
                 .where(
                         privacyCondition,
                         titleContains(cond.getTitle()),

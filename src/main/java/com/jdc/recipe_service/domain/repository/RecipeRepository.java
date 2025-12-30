@@ -4,9 +4,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
-import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
@@ -128,48 +126,6 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                         a -> a[1] != null ? (Long) a[1] : 0L
                 ));
     }
-
-    @Query("""
-                SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
-                    r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
-                    COUNT(DISTINCT rl.id), false,
-                    r.cookingTime,
-                    COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
-                    COUNT(DISTINCT rr.id)
-                )
-                FROM Recipe r
-                JOIN r.user u
-                LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
-                LEFT JOIN RecipeRating rr ON rr.recipe = r
-                WHERE r.isPrivate = false
-                GROUP BY r
-                ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
-            """)
-    Page<RecipeSimpleDto> findPopularRecipesSince(
-            @Param("startDate") LocalDateTime startDate,
-            Pageable pageable);
-
-
-    @Query("""
-            SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(
-                r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt,
-                r.likeCount, false,
-                r.cookingTime,
-                COALESCE(ROUND(AVG(rr.rating), 2), 0.0d),
-                COUNT(DISTINCT rr.id)
-            )
-            FROM Recipe r
-            JOIN r.user u
-            LEFT JOIN RecipeLike rl ON rl.recipe = r
-            LEFT JOIN RecipeRating rr ON rr.recipe = r
-            WHERE r.isPrivate = false
-            AND r.totalIngredientCost <= :maxCost
-            GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.likeCount
-            ORDER BY r.totalIngredientCost ASC, COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
-            """)
-    Page<RecipeSimpleDto> findBudgetRecipes(
-            @Param("maxCost") Integer maxCost,
-            Pageable pageable);
 
     @SuppressWarnings("JpaQlInspection")
     @QueryHints({

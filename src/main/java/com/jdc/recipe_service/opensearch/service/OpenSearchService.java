@@ -115,27 +115,15 @@ public class OpenSearchService {
                 return Page.empty(pg);
             }
 
-            List<Recipe> recipes = recipeRepository.findAllById(ids);
-            Map<Long, Recipe> recipeMap = recipes.stream().collect(Collectors.toMap(Recipe::getId, Function.identity()));
+            List<RecipeSimpleStaticDto> dtos = recipeRepository.findAllSimpleStaticByIds(ids);
+
+            Map<Long, RecipeSimpleStaticDto> dtoMap = dtos.stream()
+                    .collect(Collectors.toMap(RecipeSimpleStaticDto::getId, Function.identity()));
 
             List<RecipeSimpleStaticDto> list = ids.stream()
-                    .filter(recipeMap::containsKey)
-                    .map(id -> {
-                        Recipe r = recipeMap.get(id);
-                        return new RecipeSimpleStaticDto(
-                                r.getId(),
-                                r.getTitle(),
-                                r.getImageKey() == null ? null : String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, r.getImageKey()),
-                                r.getUser().getId(),
-                                r.getUser().getNickname(),
-                                r.getUser().getProfileImage(),
-                                r.getCreatedAt(),
-                                r.getCookingTime() == null ? 0 : r.getCookingTime(),
-                                0L,
-                                BigDecimal.ZERO,
-                                0L
-                        );
-                    })
+                    .filter(dtoMap::containsKey)
+                    .map(dtoMap::get)
+                    .peek(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())))
                     .collect(Collectors.toList());
 
             return new PageImpl<>(list, pg, hits.getTotalHits().value);
@@ -209,5 +197,17 @@ public class OpenSearchService {
         }
 
         bool.filter(rangeQuery);
+    }
+
+    private String generateImageUrl(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+
+        if (key.startsWith("http")) {
+            return key;
+        }
+
+        return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 }
