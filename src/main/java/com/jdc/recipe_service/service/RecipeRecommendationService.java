@@ -5,7 +5,9 @@ import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.entity.RecipeTag;
+import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
+import com.jdc.recipe_service.domain.repository.RecipeTagRepository;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.TagType;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,8 @@ import java.util.stream.Collectors;
 public class RecipeRecommendationService {
 
     private final RecipeRepository recipeRepository;
+    private final RecipeIngredientRepository recipeIngredientRepository;
+    private final RecipeTagRepository recipeTagRepository;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -81,6 +85,21 @@ public class RecipeRecommendationService {
                 .orElseThrow(() -> new IllegalArgumentException("Recipe not found"));
 
         List<Recipe> candidates = recipeRepository.findCandidatesForRecommendation(PageRequest.of(0, 100));
+
+        if (candidates.isEmpty()) return Collections.emptyList();
+
+        List<Long> candidateIds = candidates.stream().map(Recipe::getId).toList();
+
+        Map<Long, List<RecipeTag>> tagsMap = recipeTagRepository.findByRecipeIdIn(candidateIds)
+                .stream().collect(Collectors.groupingBy(rt -> rt.getRecipe().getId()));
+
+        Map<Long, List<RecipeIngredient>> ingredientsMap = recipeIngredientRepository.findByRecipeIdIn(candidateIds)
+                .stream().collect(Collectors.groupingBy(ri -> ri.getRecipe().getId()));
+
+        candidates.forEach(recipe -> {
+            recipe.setTags(new HashSet<>(tagsMap.getOrDefault(recipe.getId(), Collections.emptyList())));
+            recipe.setIngredients(ingredientsMap.getOrDefault(recipe.getId(), Collections.emptyList()));
+        });
 
         int shufflePoolSize = limitSize * 2;
 
