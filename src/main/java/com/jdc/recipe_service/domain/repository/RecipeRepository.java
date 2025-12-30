@@ -217,7 +217,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("status") String status
     );
 
-    @EntityGraph(attributePaths = {"fineDiningDetails"})
+    @EntityGraph(attributePaths = {"fineDiningDetails", "user"})
     @Query("""
             SELECT r FROM Recipe r
             WHERE r.isPrivate = false

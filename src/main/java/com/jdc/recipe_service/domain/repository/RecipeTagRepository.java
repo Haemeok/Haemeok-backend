@@ -17,7 +17,7 @@ public interface RecipeTagRepository extends JpaRepository<RecipeTag, Long> {
     @EntityGraph(attributePaths = {"tag"})
     List<RecipeTag> findByRecipeId(Long recipeId);
 
-    @Query("SELECT t FROM RecipeTag t JOIN FETCH t.tag WHERE t.recipe.id IN :recipeIds")
+    @EntityGraph(attributePaths = {"tag"})
     List<RecipeTag> findByRecipeIdIn(@Param("recipeIds") List<Long> recipeIds);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

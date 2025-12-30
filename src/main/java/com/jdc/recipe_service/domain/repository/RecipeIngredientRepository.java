@@ -16,8 +16,8 @@ public interface RecipeIngredientRepository extends JpaRepository<RecipeIngredie
     @EntityGraph(attributePaths = {"ingredient"})
     List<RecipeIngredient> findByRecipeId(Long recipeId);
 
-    @Query("SELECT ri FROM RecipeIngredient ri JOIN FETCH ri.ingredient WHERE ri.recipe.id IN :recipeIds")
-    List<RecipeIngredient> findByRecipeIdIn(@Param("recipeIds") List<Long> recipeIds);
+    @EntityGraph(attributePaths = {"ingredient"})
+    List<RecipeIngredient> findByRecipeIdIn(List<Long> recipeIds);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RecipeIngredient ri WHERE ri.recipe.id = :recipeId")
