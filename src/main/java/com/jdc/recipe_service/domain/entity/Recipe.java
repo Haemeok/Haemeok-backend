@@ -241,4 +241,12 @@ public class Recipe extends BaseTimeEntity {
     public void setFineDiningDetails(FineDiningDetails fineDiningDetails) {
         this.fineDiningDetails = fineDiningDetails;
     }
+
+    public void setTags(Set<RecipeTag> tags) {
+        this.tags = tags;
+    }
+
+    public void setIngredients(List<RecipeIngredient> ingredients) {
+        this.ingredients = ingredients;
+    }
 }
