@@ -49,7 +49,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
 
-        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
+        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
         BooleanExpression aiCondition = filterAiGenerated(cond.getAiFilter());
 
         var contentQuery = queryFactory
@@ -67,13 +67,18 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.avgRating,
                         recipe.ratingCount.coalesce(0L)
                 ))
-                .from(recipe)
-                .leftJoin(recipe.tags, tag)
+                .from(recipe);
+
+        if (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) {
+            contentQuery.leftJoin(recipe.tags, tag);
+        }
+
+        List<RecipeSimpleDto> content = contentQuery
                 .where(
                         privacyCondition,
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
-                        tagIn(cond.getTagEnums()),
+                        tagIn(cond.getTagEnums(), tag),
                         aiCondition,
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
@@ -98,31 +103,40 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 )
                 .orderBy(getOrderSpecifiers(pageable))
                 .offset(pageable.getOffset())
-                .limit(pageable.getPageSize());
-
-        List<RecipeSimpleDto> content = contentQuery.fetch();
+                .limit(pageable.getPageSize())
+                .fetch();
 
         if (!content.isEmpty()) {
             content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
+
             if (currentUserId != null) {
                 List<Long> recipeIds = content.stream()
                         .map(RecipeSimpleDto::getId)
                         .toList();
+
                 Set<Long> likedIds = recipeLikeRepository
                         .findRecipeIdsByUserIdAndRecipeIdIn(currentUserId, recipeIds);
-                content.forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
+
+                content.forEach(dto ->
+                        dto.setLikedByCurrentUser(likedIds.contains(dto.getId()))
+                );
             }
         }
 
-        Long total = queryFactory
+        var countQuery = queryFactory
                 .select(recipe.countDistinct())
-                .from(recipe)
-                .leftJoin(recipe.tags, tag)
+                .from(recipe);
+
+        if (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) {
+            countQuery.leftJoin(recipe.tags, tag);
+        }
+
+        Long total = countQuery
                 .where(
                         privacyCondition,
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
-                        tagIn(cond.getTagEnums()),
+                        tagIn(cond.getTagEnums(), tag),
                         aiCondition,
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
@@ -136,6 +150,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
+
 
     @Override
     public Page<RecipeSimpleDto> findPopularRecipesSince(LocalDateTime startDate, Pageable pageable) {
@@ -158,8 +173,9 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.ratingCount.coalesce(0L)
                 ))
                 .from(recipe)
-                .leftJoin(recipe.user, QUser.user)
-                .leftJoin(recipeLike).on(recipeLike.recipe.eq(recipe).and(recipeLike.createdAt.goe(startDate)))
+                .leftJoin(recipeLike)
+                .on(recipeLike.recipe.eq(recipe)
+                        .and(recipeLike.createdAt.goe(startDate)))
                 .where(recipe.isPrivate.isFalse())
                 .groupBy(
                         recipe.id,
@@ -174,7 +190,11 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.avgRating,
                         recipe.ratingCount
                 )
-                .orderBy(recipeLike.count().desc(), recipe.avgRating.desc(), recipe.createdAt.desc())
+                .orderBy(
+                        recipeLike.count().desc(),
+                        recipe.avgRating.desc(),
+                        recipe.createdAt.desc()
+                )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -215,7 +235,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.ratingCount.coalesce(0L)
                 ))
                 .from(recipe)
-                .leftJoin(recipe.user, QUser.user)
                 .where(condition)
                 .orderBy(recipe.totalIngredientCost.asc())
                 .offset(pageable.getOffset())
@@ -244,7 +263,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
 
-        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
+        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
         BooleanExpression aiCondition = filterAiGenerated(cond.getAiFilter());
 
         Order dir = direction.isAscending() ? Order.ASC : Order.DESC;
@@ -255,7 +274,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         } else if ("avgRating".equals(property)) {
             dynamicOrder = new OrderSpecifier<>(dir, recipe.avgRating);
         } else {
-            dynamicOrder = new OrderSpecifier<>(Order.DESC, recipe.createdAt);
+            dynamicOrder = recipe.createdAt.desc();
         }
 
         var contentQuery = queryFactory
@@ -270,16 +289,21 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.likeCount,
                         Expressions.constant(false),
                         recipe.cookingTime,
-                        recipe.avgRating.coalesce(BigDecimal.valueOf(0.0d)),
+                        recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L)
                 ))
-                .from(recipe)
-                .leftJoin(recipe.tags, tag)
+                .from(recipe);
+
+        if (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) {
+            contentQuery.leftJoin(recipe.tags, tag);
+        }
+
+        List<RecipeSimpleDto> content = contentQuery
                 .where(
                         privacyCondition,
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
-                        tagIn(cond.getTagEnums()),
+                        tagIn(cond.getTagEnums(), tag),
                         aiCondition,
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
@@ -302,25 +326,31 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.ratingCount,
                         recipe.likeCount
                 )
-                .orderBy(dynamicOrder, new OrderSpecifier<>(Order.DESC, recipe.createdAt))
+                .orderBy(dynamicOrder, recipe.createdAt.desc())
                 .offset(pageable.getOffset())
-                .limit(pageable.getPageSize());
-
-        List<RecipeSimpleDto> content = contentQuery.fetch();
+                .limit(pageable.getPageSize())
+                .fetch();
 
         if (!content.isEmpty()) {
-            content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
+            content.forEach(dto ->
+                    dto.setImageUrl(generateImageUrl(dto.getImageUrl()))
+            );
         }
 
-        Long total = queryFactory
+        var countQuery = queryFactory
                 .select(recipe.countDistinct())
-                .from(recipe)
-                .leftJoin(recipe.tags, tag)
+                .from(recipe);
+
+        if (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) {
+            countQuery.leftJoin(recipe.tags, tag);
+        }
+
+        Long total = countQuery
                 .where(
                         privacyCondition,
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
-                        tagIn(cond.getTagEnums()),
+                        tagIn(cond.getTagEnums(), tag),
                         aiCondition,
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
@@ -334,6 +364,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
+
 
     @Override
     public Page<Recipe> findByFridgeFallback(
@@ -420,6 +451,10 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     private OrderSpecifier<?>[] getOrderSpecifiers(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
 
+        if (pageable.getSort().isEmpty()) {
+            return new OrderSpecifier[]{recipe.createdAt.desc()};
+        }
+
         return pageable.getSort().stream()
                 .map(o -> {
                     Order dir = o.getDirection().isAscending() ? Order.ASC : Order.DESC;
@@ -444,9 +479,9 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         return (dishType != null) ? QRecipe.recipe.dishType.eq(dishType) : null;
     }
 
-    private BooleanExpression tagIn(List<TagType> tagTypes) {
+    private BooleanExpression tagIn(List<TagType> tagTypes, QRecipeTag tag) {
         return (tagTypes != null && !tagTypes.isEmpty())
-                ? QRecipeTag.recipeTag.tag.in(tagTypes)
+                ? tag.tag.in(tagTypes)
                 : null;
     }
 
