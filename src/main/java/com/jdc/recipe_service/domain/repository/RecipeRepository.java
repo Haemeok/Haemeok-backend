@@ -205,10 +205,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
             "r.likeCount, FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount) " +
             "FROM Recipe r " +
-            "LEFT JOIN RecipeLike l ON l.recipe.id = r.id " +
-            "WHERE r.id IN :ids " +
-            "GROUP BY r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime, r.avgRating, r.ratingCount, r.likeCount")
-    List<RecipeSimpleDto> findAllSimpleDtoWithCountsByIdIn(List<Long> ids);
+            "WHERE r.id IN :ids")
+    List<RecipeSimpleDto> findAllSimpleDtoWithCountsByIdIn(@Param("ids") List<Long> ids);
 
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
     @Query("UPDATE Recipe r SET r.cookingTips = :tips, r.marketPrice = :price, r.aiAnalysisStatus = :status WHERE r.id = :id")
@@ -219,7 +217,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("status") String status
     );
 
-    @EntityGraph(attributePaths = {"fineDiningDetails"})
+    @EntityGraph(attributePaths = {"fineDiningDetails", "tags", "tags.tag", "ingredients", "ingredients.ingredient"})
     @Query("""
             SELECT r FROM Recipe r
             WHERE r.isPrivate = false
