@@ -23,9 +23,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
@@ -109,10 +109,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         .map(RecipeSimpleDto::getId)
                         .toList();
                 Set<Long> likedIds = recipeLikeRepository
-                        .findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                        .stream()
-                        .map(liked -> liked.getRecipe().getId())
-                        .collect(Collectors.toSet());
+                        .findRecipeIdsByUserIdAndRecipeIdIn(currentUserId, recipeIds);
                 content.forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
             }
         }
@@ -135,6 +132,102 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         sugarBetween(cond.getMinSugar(), cond.getMaxSugar()),
                         sodiumBetween(cond.getMinSodium(), cond.getMaxSodium())
                 )
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0);
+    }
+
+    @Override
+    public Page<RecipeSimpleDto> findPopularRecipesSince(LocalDateTime startDate, Pageable pageable) {
+        QRecipe recipe = QRecipe.recipe;
+        QRecipeLike recipeLike = QRecipeLike.recipeLike;
+
+        List<RecipeSimpleDto> content = queryFactory
+                .select(new QRecipeSimpleDto(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.likeCount,
+                        Expressions.constant(false),
+                        recipe.cookingTime,
+                        recipe.avgRating.coalesce(BigDecimal.ZERO),
+                        recipe.ratingCount.coalesce(0L)
+                ))
+                .from(recipe)
+                .leftJoin(recipe.user, QUser.user)
+                .leftJoin(recipeLike).on(recipeLike.recipe.eq(recipe).and(recipeLike.createdAt.goe(startDate)))
+                .where(recipe.isPrivate.isFalse())
+                .groupBy(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.likeCount,
+                        recipe.cookingTime,
+                        recipe.avgRating,
+                        recipe.ratingCount
+                )
+                .orderBy(recipeLike.count().desc(), recipe.avgRating.desc(), recipe.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
+
+        Long total = queryFactory
+                .select(recipe.count())
+                .from(recipe)
+                .where(recipe.isPrivate.isFalse())
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0);
+    }
+
+    @Override
+    public Page<RecipeSimpleDto> findBudgetRecipes(Integer maxCost, Pageable pageable) {
+        QRecipe recipe = QRecipe.recipe;
+
+        BooleanExpression condition = recipe.isPrivate.isFalse();
+        if (maxCost != null) {
+            condition = condition.and(recipe.totalIngredientCost.loe(maxCost));
+        }
+
+        List<RecipeSimpleDto> content = queryFactory
+                .select(new QRecipeSimpleDto(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.likeCount,
+                        Expressions.constant(false),
+                        recipe.cookingTime,
+                        recipe.avgRating.coalesce(BigDecimal.ZERO),
+                        recipe.ratingCount.coalesce(0L)
+                ))
+                .from(recipe)
+                .leftJoin(recipe.user, QUser.user)
+                .where(condition)
+                .orderBy(recipe.totalIngredientCost.asc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
+
+        Long total = queryFactory
+                .select(recipe.count())
+                .from(recipe)
+                .where(condition)
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);

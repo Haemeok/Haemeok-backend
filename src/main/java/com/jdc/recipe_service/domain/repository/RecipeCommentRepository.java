@@ -18,11 +18,9 @@ public interface RecipeCommentRepository extends JpaRepository<RecipeComment, Lo
     Optional<RecipeComment> findByIdAndRecipeId(Long id, Long recipeId);
 
     @Query("""
-        SELECT DISTINCT c 
+        SELECT c
         FROM RecipeComment c
         LEFT JOIN FETCH c.user
-        LEFT JOIN FETCH c.replies r
-        LEFT JOIN FETCH r.user
         WHERE c.recipe.id = :recipeId
           AND c.parentComment IS NULL
         ORDER BY c.createdAt DESC
@@ -30,11 +28,9 @@ public interface RecipeCommentRepository extends JpaRepository<RecipeComment, Lo
     List<RecipeComment> findAllWithRepliesAndUsers(@Param("recipeId") Long recipeId, Pageable pageable);
 
     @Query("""
-        SELECT DISTINCT c 
+        SELECT c
         FROM RecipeComment c
         LEFT JOIN FETCH c.user
-        LEFT JOIN FETCH c.replies r
-        LEFT JOIN FETCH r.user
         WHERE c.recipe.id = :recipeId
           AND c.parentComment IS NULL
         ORDER BY c.createdAt DESC

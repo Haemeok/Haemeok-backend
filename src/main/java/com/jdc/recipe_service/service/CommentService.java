@@ -191,72 +191,54 @@ public class CommentService {
         List<RecipeComment> comments = recipeCommentRepository
                 .findAllWithRepliesAndUsers(recipeId, repoPg);
 
+        long totalCount = recipeCommentRepository.countByRecipeId(recipeId);
+
         if (comments.isEmpty()) {
-            return new PageImpl<>(List.of(), pageable, 0);
+            return new PageImpl<>(List.of(), pageable, totalCount);
         }
 
-        List<Long> allIds = comments.stream()
-                .flatMap(c -> {
-                    Long parentId = c.getId();
-                    Stream<Long> replyIds = Optional.ofNullable(c.getReplies())
-                            .orElse(List.of())
-                            .stream().map(RecipeComment::getId);
-                    return Stream.concat(Stream.of(parentId), replyIds);
-                })
+        List<Long> commentIds = comments.stream()
+                .map(RecipeComment::getId)
                 .toList();
 
         Map<Long, Integer> likeCountMap = commentLikeRepository
-                .countLikesByCommentIds(allIds).stream()
+                .countLikesByCommentIds(commentIds).stream()
                 .collect(Collectors.toMap(
                         CommentLikeCountProjection::getCommentId,
                         CommentLikeCountProjection::getLikeCount
                 ));
 
-        Set<Long> likedByUser = new HashSet<>(
-                commentLikeRepository.findLikedCommentIdsByUser(currentUserId, allIds)
+        Set<Long> likedByUser = (currentUserId == null) ? Collections.emptySet() : new HashSet<>(
+                commentLikeRepository.findLikedCommentIdsByUser(currentUserId, commentIds)
         );
 
         List<CommentDto> dtos = comments.stream()
                 .map(comment -> {
-                    int parentLikeCount = likeCountMap.getOrDefault(comment.getId(), 0);
-                    boolean parentLiked = likedByUser.contains(comment.getId());
-                    int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of())
-                            .size();
+                    int likeCount = likeCountMap.getOrDefault(comment.getId(), 0);
+                    boolean isLiked = likedByUser.contains(comment.getId());
 
-                    List<ReplyDto> replies = Optional.ofNullable(comment.getReplies())
-                            .orElse(List.of())
-                            .stream()
-                            .map(r -> {
-                                int rc = likeCountMap.getOrDefault(r.getId(), 0);
-                                boolean rl = likedByUser.contains(r.getId());
-                                return CommentMapper.toReplyDto(r, rl, rc);
-                            })
-                            .toList();
+                    int replyCount = Optional.ofNullable(comment.getReplies()).orElse(List.of()).size();
 
-                    return CommentMapper.toDto(comment, parentLiked, parentLikeCount)
+
+                    return CommentMapper.toDto(comment, isLiked, likeCount)
                             .toBuilder()
                             .replyCount(replyCount)
                             .build();
                 })
-                .toList();
+                .collect(Collectors.toList());
 
-        List<CommentDto> sorted = new ArrayList<>(dtos);
         if (pageable.getSort().isSorted()) {
             Sort.Order order = pageable.getSort().iterator().next();
-            Comparator<CommentDto> comp = "likeCount".equals(order.getProperty())
-                    ? Comparator.comparing(CommentDto::getLikeCount)
-                    : Comparator.comparing(CommentDto::getCreatedAt);
-            if (!order.isAscending()) {
-                comp = comp.reversed();
+            if ("likeCount".equals(order.getProperty())) {
+                Comparator<CommentDto> comp = Comparator.comparing(CommentDto::getLikeCount);
+                if (!order.isAscending()) {
+                    comp = comp.reversed();
+                }
+                dtos.sort(comp);
             }
-            sorted.sort(comp);
         }
 
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), sorted.size());
-        List<CommentDto> pageContent = start >= sorted.size() ? List.of() : sorted.subList(start, end);
-
-        return new PageImpl<>(pageContent, pageable, sorted.size());
+        return new PageImpl<>(dtos, pageable, totalCount);
     }
 
     public Page<ReplyDto> getRepliesWithLikes(Long parentId, Long currentUserId, Pageable pageable) {

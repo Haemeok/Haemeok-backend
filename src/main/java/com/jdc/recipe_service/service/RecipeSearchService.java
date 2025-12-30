@@ -10,20 +10,16 @@ import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.entity.RecipeLike;
 import com.jdc.recipe_service.domain.entity.RecipeStep;
 import com.jdc.recipe_service.domain.entity.RecipeStepIngredient;
 import com.jdc.recipe_service.domain.repository.*;
-import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.PopularityPeriod;
-import com.jdc.recipe_service.domain.type.TagType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import com.jdc.recipe_service.mapper.UserMapper;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
 import com.jdc.recipe_service.util.SearchProperties;
 import lombok.RequiredArgsConstructor;
@@ -129,29 +125,7 @@ public class RecipeSearchService {
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchWithQuerydsl(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
-        String title = condition.getTitle();
-        DishType dishType = condition.getDishTypeEnum();
-        List<TagType> tagTypes = condition.getTagEnums();
-        AiRecipeFilter aiFilter = condition.getAiFilter();
-
-        Integer maxCost = condition.getMaxCost();
-
-        Page<RecipeSimpleDto> page = recipeRepository.search(condition, pageable, userId);
-
-        if (userId != null) {
-            List<Long> recipeIds = page.getContent().stream()
-                    .map(RecipeSimpleDto::getId)
-                    .toList();
-
-            Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(userId, recipeIds)
-                    .stream()
-                    .map(like -> like.getRecipe().getId())
-                    .collect(Collectors.toSet());
-
-            page.getContent().forEach(dto -> dto.setLikedByCurrentUser(likedIds.contains(dto.getId())));
-        }
-
-        return page;
+        return recipeRepository.search(condition, pageable, userId);
     }
 
     @Transactional(readOnly = true)
@@ -292,6 +266,11 @@ public class RecipeSearchService {
 
         Page<RecipeSimpleDto> page = recipeRepository.findPopularRecipesSince(startDate, pageable);
 
+        if (page.isEmpty()) {
+            RecipeSearchCondition cond = new RecipeSearchCondition();
+            page = recipeRepository.search(cond, pageable, currentUserId);
+        }
+
         return addLikeInfoToPage(page, currentUserId);
     }
 
@@ -327,11 +306,7 @@ public class RecipeSearchService {
                 .map(RecipeSimpleDto::getId)
                 .toList();
 
-        Set<Long> likedIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(currentUserId, recipeIds)
-                .stream()
-                .map(RecipeLike::getRecipe)
-                .map(Recipe::getId)
-                .collect(Collectors.toSet());
+        Set<Long> likedIds = recipeLikeRepository.findRecipeIdsByUserIdAndRecipeIdIn(currentUserId, recipeIds);
 
         page.getContent().forEach(dto -> {
             dto.setLikedByCurrentUser(likedIds.contains(dto.getId()));
