@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponseItem;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
@@ -31,7 +32,7 @@ public class UserController {
 
     @GetMapping("/{userId}")
     @Operation(summary = "공개 사용자 프로필 조회", description = "특정 사용자의 공개 프로필 정보를 반환합니다.")
-    public ResponseEntity<UserDto> getUserProfile(@PathVariable Long userId) {
+    public ResponseEntity<UserDto> getUserProfile(@DecodeId Long userId) {
         UserDto dto = userService.getPublicProfile(userId);
         return ResponseEntity.ok(dto);
     }
@@ -39,7 +40,7 @@ public class UserController {
     @GetMapping("/{userId}/recipes")
     @Operation(summary = "사용자가 작성한 레시피 목록 조회", description = "특정 사용자가 작성한 레시피 목록을 페이징하여 조회합니다.")
     public ResponseEntity<Page<MyRecipeSummaryDto>> getUserRecipes(
-            @PathVariable Long userId,
+            @DecodeId Long userId,
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
@@ -57,7 +58,7 @@ public class UserController {
     @GetMapping("/{userId}/profile-image/presign")
     @Operation(summary = "프로필 이미지 Presigned URL 발급", description = "S3에 업로드할 수 있도록 Presigned URL을 발급받습니다.")
     public ResponseEntity<PresignedUrlResponseItem> presignProfileImage(
-            @PathVariable Long userId,
+            @DecodeId Long userId,
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String contentType
     ) {
@@ -75,7 +76,7 @@ public class UserController {
     @PatchMapping("/{userId}")
     @Operation(summary = "사용자 정보 수정", description = "사용자의 닉네임, 소개글, 이미지 키 등을 수정합니다.")
     public ResponseEntity<UserResponseDTO> patchUser(
-            @PathVariable Long userId,
+            @DecodeId Long userId,
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody UserPatchDTO dto) {
 

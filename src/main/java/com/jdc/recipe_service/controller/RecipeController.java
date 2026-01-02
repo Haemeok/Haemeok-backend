@@ -1,10 +1,10 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
-import com.jdc.recipe_service.domain.type.RobotType;
 import com.jdc.recipe_service.domain.type.Role;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -54,7 +54,7 @@ public class RecipeController {
     @PutMapping("/{recipeId}")
     @Operation(summary = "레시피 수정", description = "기존 레시피를 수정하고 이미지가 변경된 경우 Presigned URL을 다시 발급합니다.")
     public ResponseEntity<PresignedUrlResponse> updateRecipe(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "수정할 레시피 정보")
             @RequestBody @Valid RecipeUpdateWithImageRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -75,7 +75,7 @@ public class RecipeController {
     @DeleteMapping("/{recipeId}")
     @Operation(summary = "레시피 삭제", description = "지정한 레시피를 삭제합니다. 작성자 본인만 삭제할 수 있습니다.")
     public ResponseEntity<String> deleteRecipe(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -89,7 +89,7 @@ public class RecipeController {
     @PostMapping("/{recipeId}/private")
     @Operation(summary = "레시피 공개/비공개 전환", description = "레시피의 공개 여부를 토글합니다. 공개 → 비공개 또는 비공개 → 공개로 전환됩니다.")
     public ResponseEntity<?> togglePrivacy(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
@@ -108,7 +108,7 @@ public class RecipeController {
     @PostMapping("/{recipeId}/analyze")
     @Operation(summary = "레시피 AI 분석 수동 요청 (관리자 전용)", description = "특정 레시피의 가격 책정, 팁 생성, 유해성 검사를 실행합니다.")
     public ResponseEntity<String> analyzeRecipeManually(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -127,7 +127,7 @@ public class RecipeController {
     @PostMapping("/{recipeId}/nutrition")
     @Operation(summary = "레시피 영양소 재계산 (관리자 전용)", description = "재료 정보를 바탕으로 탄단지/당/나트륨/칼로리를 다시 계산하여 DB에 반영합니다.")
     public ResponseEntity<String> recalculateNutrition(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {

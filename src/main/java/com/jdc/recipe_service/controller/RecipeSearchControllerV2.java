@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.v2.recipe.*;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -43,7 +44,7 @@ public class RecipeSearchControllerV2 {
     @GetMapping("/{id}")
     @Operation(summary = "레시피 상세 조회 (정적)", description = "레시피 ID를 기반으로 정적 상세 정보를 조회합니다.")
     public DeferredResult<ResponseEntity<RecipeDetailStaticDto>> getRecipeDetail(
-            @PathVariable("id") Long recipeId,
+            @DecodeId("id") Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long currentUserId = userDetails != null ? userDetails.getUser().getId() : null;
@@ -64,7 +65,7 @@ public class RecipeSearchControllerV2 {
     @GetMapping("/{id}/status")
     @Operation(summary = "레시피 상세 상태 정보 조회 (동적)", description = "레시피 ID를 기반으로 사용자 특정 동적 정보(좋아요/즐겨찾기 여부, 나의 평점, 댓글 상태 등)를 조회합니다.")
     public ResponseEntity<RecipeDetailStatusDto> getDetailStatus(
-            @PathVariable("id") Long recipeId,
+            @DecodeId("id") Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;

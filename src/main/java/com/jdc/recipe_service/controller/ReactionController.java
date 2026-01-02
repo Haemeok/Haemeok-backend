@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.user.ReactionRequestDto;
 import com.jdc.recipe_service.service.ReactionService;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,7 @@ public class ReactionController {
     @PostMapping("/{recipeId}/reactions")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> addReactions(
-            @PathVariable Long recipeId,
+            @DecodeId Long recipeId,
             @RequestBody ReactionRequestDto requestDto
     ) {
         reactionService.addReactions(recipeId, requestDto);
