@@ -1,6 +1,8 @@
 package com.jdc.recipe_service.domain.dto.v2.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeNutritionDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
@@ -29,6 +31,7 @@ import java.util.List;
 public class RecipeDetailStaticDto {
 
     @Schema(description = "레시피 ID")
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
 
     @Schema(description = "레시피 제목")

@@ -2,6 +2,8 @@ package com.jdc.recipe_service.domain.dto.comment;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.jdc.recipe_service.domain.dto.user.CommentUserDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,6 +18,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ReplyDto {
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
     private String content;
 

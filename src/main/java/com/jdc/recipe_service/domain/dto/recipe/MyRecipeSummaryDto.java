@@ -1,6 +1,8 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,6 +19,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class MyRecipeSummaryDto {
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
     private String title;
     private String imageUrl;

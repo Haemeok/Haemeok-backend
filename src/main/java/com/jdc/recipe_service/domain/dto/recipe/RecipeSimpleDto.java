@@ -1,6 +1,8 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.querydsl.core.annotations.QueryProjection;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AccessLevel;
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 public class RecipeSimpleDto {
 
     @Schema(description = "레시피 ID")
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
 
     @Schema(description = "레시피 제목")
@@ -29,6 +32,7 @@ public class RecipeSimpleDto {
     private String imageUrl;
 
     @Schema(description = "작성자 ID")
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long authorId;
 
     @Schema(description = "작성자 닉네임")
