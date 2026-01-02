@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.service.UserService;
@@ -42,7 +43,7 @@ public class AdminUserController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "특정 사용자 조회", description = "관리자가 특정 사용자 계정 정보를 조회합니다.")
-    public ResponseEntity<UserResponseDTO> getUser(@PathVariable Long id) {
+    public ResponseEntity<UserResponseDTO> getUser(@DecodeId Long id) {
         UserResponseDTO response = userService.getUser(id);
         return ResponseEntity.ok(response);
     }
@@ -50,7 +51,7 @@ public class AdminUserController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "사용자 삭제", description = "관리자가 특정 사용자 계정을 하드 삭제합니다.")
-    public ResponseEntity<String> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<String> deleteUser(@DecodeId Long id) {
         userService.deleteUser(id);
         return ResponseEntity.ok("사용자가 삭제되었습니다.");
     }

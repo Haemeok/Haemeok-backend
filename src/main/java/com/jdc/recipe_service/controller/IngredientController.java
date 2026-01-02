@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.ingredient.*;
 import com.jdc.recipe_service.domain.type.IngredientType;
 import com.jdc.recipe_service.exception.CustomException;
@@ -73,7 +74,7 @@ public class IngredientController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "재료 수정", description = "기존 재료 정보를 수정합니다. (관리자만 가능)")
     public ResponseEntity<IngredientResponseDto> update(
-            @Parameter(description = "수정할 재료의 ID") @PathVariable Long id,
+            @Parameter(description = "수정할 재료의 ID") @DecodeId Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "수정할 재료 정보")
             @RequestBody @Valid IngredientRequestDto dto) {
         return ResponseEntity.ok(service.update(id, dto));
@@ -84,7 +85,7 @@ public class IngredientController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "재료 삭제", description = "지정한 재료를 삭제합니다. (관리자만 가능)")
     public ResponseEntity<Void> delete(
-            @Parameter(description = "삭제할 재료의 ID") @PathVariable Long id) {
+            @Parameter(description = "삭제할 재료의 ID") @DecodeId Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

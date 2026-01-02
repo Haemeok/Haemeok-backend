@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -27,7 +28,7 @@ public class RecipeLikeAndFavoriteController {
     @PostMapping("/{id}/like")
     @Operation(summary = "레시피 좋아요 토글", description = "레시피에 좋아요를 등록하거나 취소합니다. 이미 좋아요 상태면 취소되고, 아니라면 등록됩니다.")
     public ResponseEntity<?> toggleLike(
-            @Parameter(description = "레시피 ID") @PathVariable Long id,
+            @Parameter(description = "레시피 ID") @DecodeId Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
@@ -44,7 +45,7 @@ public class RecipeLikeAndFavoriteController {
     @PostMapping("/{id}/favorite")
     @Operation(summary = "레시피 즐겨찾기 토글", description = "레시피를 즐겨찾기에 등록하거나 해제합니다. 이미 즐겨찾기 상태면 해제되고, 아니라면 등록됩니다.")
     public ResponseEntity<?> toggleFavorite(
-            @Parameter(description = "레시피 ID") @PathVariable Long id,
+            @Parameter(description = "레시피 ID") @DecodeId Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {

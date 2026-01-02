@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.fridge.*;
 import com.jdc.recipe_service.domain.type.IngredientType;
 import com.jdc.recipe_service.exception.CustomException;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/me/fridge")
@@ -29,6 +32,7 @@ import java.util.List;
 public class RefrigeratorItemController {
 
     private final RefrigeratorItemService service;
+    private final Hashids hashids;
 
     @GetMapping("/items")
     @Operation(summary = "내 냉장고 재료 조회", description = "카테고리별 또는 전체 냉장고 재료를 페이징하여 조회합니다.")
@@ -61,12 +65,18 @@ public class RefrigeratorItemController {
             summary = "내 냉장고 재료 ID 목록 조회",
             description = "현재 냉장고에 있는 재료의 ingredientId(Long)만 단순 리스트로 반환합니다."
     )
-    public ResponseEntity<List<Long>> getMyIngredientIds(
+    public ResponseEntity<List<String>> getMyIngredientIds(
             @Parameter(hidden = true)
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails.getUser().getId();
-        return ResponseEntity.ok(service.getMyIngredientIds(userId));
+        List<Long> ids = service.getMyIngredientIds(userId);
+
+        List<String> encodedIds = ids.stream()
+                .map(hashids::encode)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(encodedIds);
     }
 
     @PostMapping("/items")
@@ -85,7 +95,7 @@ public class RefrigeratorItemController {
     public ResponseEntity<?> removeItem(
             @Parameter(hidden = true)
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long ingredientId) {
+            @DecodeId Long ingredientId) {
         Long userId = userDetails.getUser().getId();
         service.removeItem(userId, ingredientId);
         return ResponseEntity.ok(Collections.emptyMap());

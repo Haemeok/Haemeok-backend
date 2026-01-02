@@ -17,6 +17,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +33,7 @@ public class RecipeRatingService {
     private final UserRepository userRepository;
     private final RecipeCommentRepository recipeCommentRepository;
     private final NotificationService notificationService;
+    private final Hashids hashids;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -76,6 +78,7 @@ public class RecipeRatingService {
             recipeCommentRepository.save(comment);
             Long targetUserId = recipe.getUser().getId();
             if (!targetUserId.equals(userId)) {
+                String encodedId = hashids.encode(recipeId);
                 notificationService.createNotification(
                         NotificationCreateDto.builder()
                                 .userId(targetUserId)
@@ -85,7 +88,7 @@ public class RecipeRatingService {
                                 .type(NotificationType.NEW_RECIPE_RATING)
                                 .relatedType(NotificationRelatedType.RECIPE)
                                 .relatedId(recipeId)
-                                .relatedUrl("/recipes/" + recipeId + "/comments")
+                                .relatedUrl("/recipes/" + encodedId + "/comments")
                                 .build()
                 );
             }

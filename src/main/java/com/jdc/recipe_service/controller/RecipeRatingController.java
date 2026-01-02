@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeRatingRequestDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -26,7 +27,7 @@ public class RecipeRatingController {
     @PostMapping("/{id}")
     @Operation(summary = "레시피 평점 등록/수정", description = "사용자가 레시피에 평점을 등록하거나 기존 평점을 수정합니다.")
     public ResponseEntity<?> rateRecipe(
-            @Parameter(description = "레시피 ID") @PathVariable Long id,
+            @Parameter(description = "레시피 ID") @DecodeId Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "평점 요청 DTO") @RequestBody RecipeRatingRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
@@ -43,7 +44,7 @@ public class RecipeRatingController {
     @GetMapping("/{id}/me")
     @Operation(summary = "내 평점 조회", description = "현재 로그인한 사용자가 지정한 레시피에 준 평점을 조회합니다.")
     public ResponseEntity<?> getMyRating(
-            @Parameter(description = "레시피 ID") @PathVariable Long id,
+            @Parameter(description = "레시피 ID") @DecodeId Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {
@@ -57,7 +58,7 @@ public class RecipeRatingController {
     @DeleteMapping("/{id}")
     @Operation(summary = "평점 삭제", description = "사용자가 지정한 레시피에 등록한 평점을 삭제합니다.")
     public ResponseEntity<?> deleteRating(
-            @Parameter(description = "레시피 ID") @PathVariable Long id,
+            @Parameter(description = "레시피 ID") @DecodeId Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {

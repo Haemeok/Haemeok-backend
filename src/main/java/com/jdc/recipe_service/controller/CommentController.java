@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.comment.CommentRequestDto;
 import com.jdc.recipe_service.domain.dto.comment.CommentWithRepliesDto;
@@ -33,7 +34,7 @@ public class CommentController {
     @PostMapping
     @Operation(summary = "댓글 작성", description = "레시피에 새로운 댓글을 작성합니다.")
     public ResponseEntity<CommentDto> createComment(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "댓글 내용") @Valid @RequestBody CommentRequestDto requestDto,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -48,8 +49,8 @@ public class CommentController {
     @PostMapping("/{parentId}/replies")
     @Operation(summary = "대댓글 작성", description = "기존 댓글에 대한 답글(대댓글)을 작성합니다.")
     public ResponseEntity<ReplyDto> createReply(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
-            @Parameter(description = "부모 댓글 ID") @PathVariable Long parentId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
+            @Parameter(description = "부모 댓글 ID") @DecodeId Long parentId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "대댓글 내용") @Valid @RequestBody CommentRequestDto requestDto,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -64,7 +65,7 @@ public class CommentController {
     @GetMapping
     @Operation(summary = "댓글 목록 조회", description = "레시피에 작성된 상위 댓글 목록을 페이징하여 조회합니다. 정렬 기준: createdAt, likeCount")
     public ResponseEntity<Page<CommentDto>> getAllCommentsWithLikes(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @Parameter(
                     name = "sort",
                     description = "정렬 기준 (예: createdAt,DESC 또는 likeCount,DESC)",
@@ -83,8 +84,8 @@ public class CommentController {
     @GetMapping("/{commentId}/replies")
     @Operation(summary = "대댓글 목록 조회", description = "특정 댓글의 대댓글 목록을 페이징하여 조회합니다. 정렬 기준: createdAt, likeCount")
     public ResponseEntity<CommentWithRepliesDto> getCommentWithReplies(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
-            @Parameter(description = "댓글 ID") @PathVariable Long commentId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
+            @Parameter(description = "댓글 ID") @DecodeId Long commentId,
             @Parameter(
                     name = "sort",
                     description = "정렬 기준 (예: createdAt,ASC 또는 likeCount,DESC)",
@@ -106,7 +107,7 @@ public class CommentController {
     @DeleteMapping("/{commentId}")
     @Operation(summary = "댓글 삭제", description = "지정한 댓글을 삭제합니다. 본인만 삭제할 수 있습니다.")
     public ResponseEntity<String> deleteComment(
-            @Parameter(description = "댓글 ID") @PathVariable Long commentId,
+            @Parameter(description = "댓글 ID") @DecodeId Long commentId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {

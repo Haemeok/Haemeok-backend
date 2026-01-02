@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeImageKeyUpdateRequest;
 import com.jdc.recipe_service.domain.dto.url.FinalizeResponse;
 import com.jdc.recipe_service.domain.dto.url.UpdatePresignedUrlRequest;
@@ -29,7 +30,7 @@ public class RecipeImageUploadController {
     @PutMapping("/{recipeId}/images")
     @Operation(summary = "레시피 이미지 키 업데이트", description = "업로드된 이미지의 S3 키 정보를 레시피에 반영합니다.")
     public ResponseEntity<Void> updateRecipeImageKeys(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "이미지 키 리스트 (main, steps 등 포함)") @RequestBody RecipeImageKeyUpdateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
@@ -40,7 +41,7 @@ public class RecipeImageUploadController {
     @PostMapping("/{recipeId}/presigned-urls")
     @Operation(summary = "레시피 이미지 Presigned URL 발급", description = "레시피 수정 시 필요한 이미지 업로드용 Presigned URL을 발급합니다.")
     public ResponseEntity<UpdatePresignedUrlResponse> getPresignedUrlsForUpdate(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "업로드할 파일 목록") @RequestBody UpdatePresignedUrlRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -52,7 +53,7 @@ public class RecipeImageUploadController {
     @PostMapping("/{recipeId}/finalize")
     @Operation(summary = "레시피 이미지 업로드 완료 처리", description = "레시피 이미지 업로드가 완료되었음을 백엔드에 알려 색인 및 상태 갱신 처리를 수행합니다. 관리자 계정 여부도 판단합니다.")
     public ResponseEntity<FinalizeResponse> finalizeRecipeImages(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {

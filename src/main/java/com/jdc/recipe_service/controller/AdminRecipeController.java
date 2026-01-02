@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/recipes")
@@ -30,15 +33,16 @@ import java.util.Map;
 public class AdminRecipeController {
 
     private final AdminRecipeService recipeService;
+    private final Hashids hashids;
 
     @PostMapping
     @Operation(summary = "크롤링 레시피 단건 등록", description = "관리자가 단일 크롤링 레시피를 저장합니다.")
-    public ResponseEntity<Map<String, Long>> createCrawledRecipe(
+    public ResponseEntity<Map<String, String>> createCrawledRecipe(
             @RequestBody(description = "크롤링 레시피 생성 요청 DTO") @Valid RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUser().getId();
         Long recipeId = recipeService.createRecipe(dto, userId);
-        return ResponseEntity.ok(Map.of("recipeId", recipeId));
+        return ResponseEntity.ok(Map.of("recipeId", hashids.encode(recipeId)));
     }
 
     @PostMapping("/bulk")
@@ -50,10 +54,14 @@ public class AdminRecipeController {
         Long userId = userDetails.getUser().getId();
         List<Long> createdIds = recipeService.createRecipesInBulk(recipes, userId);
 
+        List<String> encodedIds = createdIds.stream()
+                .map(hashids::encode)
+                .collect(Collectors.toList());
+
         return ResponseEntity.ok(Map.of(
                 "status", "success",
                 "createdCount", createdIds.size(),
-                "recipeIds", createdIds
+                "recipeIds", encodedIds
         ));
     }
 
@@ -69,20 +77,19 @@ public class AdminRecipeController {
 
     @PutMapping("/{recipeId}")
     @Operation(summary = "크롤링 레시피 수정", description = "관리자가 기존의 크롤링 레시피를 수정합니다.")
-    public ResponseEntity<Map<String, Long>> updateCrawledRecipe(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+    public ResponseEntity<Map<String, String>> updateCrawledRecipe(
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @RequestBody(description = "수정할 레시피 정보") RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = userDetails.getUser().getId();
         Long updatedId = recipeService.updateRecipe(recipeId, userId, dto);
-        return ResponseEntity.ok(Map.of("recipeId", updatedId));
-    }
+        return ResponseEntity.ok(Map.of("recipeId", hashids.encode(updatedId)));    }
 
     @DeleteMapping("/{recipeId}")
     @Operation(summary = "크롤링 레시피 삭제", description = "관리자가 특정 크롤링 레시피를 삭제합니다.")
     public ResponseEntity<String> deleteCrawledRecipe(
-            @Parameter(description = "레시피 ID") @PathVariable Long recipeId,
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         if (userDetails == null) {

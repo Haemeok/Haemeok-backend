@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.notification.NotificationDto;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.NotificationService;
@@ -50,7 +51,7 @@ public class NotificationController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long id,
+            @DecodeId Long id,
             @AuthenticationPrincipal CustomUserDetails user
     ) {
         service.deleteNotification(id, user.getId());
@@ -58,7 +59,7 @@ public class NotificationController {
     }
     @PatchMapping("/{id}/read")
     public ResponseEntity<Void> markRead(
-            @PathVariable("id") Long id,
+            @DecodeId Long id,
             @AuthenticationPrincipal CustomUserDetails user
     ) {
         service.markAsRead(id, user.getId());

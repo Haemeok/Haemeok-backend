@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
@@ -43,7 +44,7 @@ public class RecipeSearchController {
     @GetMapping("/{id}")
     @Operation(summary = "레시피 상세 조회", description = "레시피 ID를 기반으로 상세 정보를 조회합니다.")
     public DeferredResult<ResponseEntity<RecipeDetailDto>> getRecipeDetail(
-            @PathVariable("id") Long recipeId,
+            @DecodeId("id") Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long currentUserId = userDetails != null
@@ -127,7 +128,7 @@ public class RecipeSearchController {
     @GetMapping("/{id}/recommendations")
     @Operation(summary = "상세 페이지 하단 추천 레시피 조회")
     public ResponseEntity<List<RecipeSimpleStaticDto>> getRecommendations(
-            @PathVariable("id") Long recipeId,
+            @DecodeId("id") Long recipeId,
             @RequestParam(defaultValue = "10") int size
     ) {
         List<RecipeSimpleStaticDto> recommendations = recipeRecommendationService.getRecommendations(recipeId, size);

@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -25,7 +26,7 @@ public class CommentLikeController {
     @PostMapping("/{commentId}/like")
     @Operation(summary = "댓글 좋아요 토글", description = "댓글에 좋아요를 누르거나 취소합니다. 결과로 liked 상태와 현재 좋아요 수를 반환합니다.")
     public ResponseEntity<?> toggleLike(
-            @Parameter(description = "댓글 ID") @PathVariable Long commentId,
+            @Parameter(description = "댓글 ID") @DecodeId Long commentId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
