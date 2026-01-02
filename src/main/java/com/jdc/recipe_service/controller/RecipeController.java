@@ -33,7 +33,8 @@ public class RecipeController {
     private final RecipeAnalysisService recipeAnalysisService;
 
     @PostMapping
-    @Operation(summary = "레시피 직접 등록 + 이미지 Presigned URL 발급", description = "사용자가 직접 입력한 레시피 정보를 저장하고, 이미지를 업로드할 Presigned URL을 발급합니다.")    public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
+    @Operation(summary = "레시피 직접 등록 + 이미지 Presigned URL 발급", description = "사용자가 직접 입력한 레시피 정보를 저장하고, 이미지를 업로드할 Presigned URL을 발급합니다.")
+    public ResponseEntity<PresignedUrlResponse> createRecipeWithImages(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "레시피 생성 요청 DTO (이미지 키 포함)")
             @RequestBody @Valid RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
