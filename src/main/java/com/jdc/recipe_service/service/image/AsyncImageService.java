@@ -125,9 +125,8 @@ public class AsyncImageService {
 
     private record RecipePromptData(Long userId, String prompt) {}
 
-    @Async
-    public CompletableFuture<String> generateAndUploadAiImageAsync(Long recipeId) {
-        log.info("▶ [AsyncImageService_FIXED] Gemini 이미지 생성 시작, recipeId={}", recipeId);
+    public String generateAndUploadAiImage(Long recipeId) {
+        log.info("▶ [AsyncImageService] Gemini 이미지 생성 시작, recipeId={}", recipeId);
 
         try {
             RecipePromptData promptData = transactionTemplate.execute(status -> {
@@ -135,21 +134,17 @@ public class AsyncImageService {
                         .orElseThrow(() -> new RuntimeException("Recipe not found. ID=" + recipeId));
 
                 String finalImagePrompt = buildPromptFromRecipe(recipe);
-
                 return new RecipePromptData(recipe.getUser().getId(), finalImagePrompt);
             });
 
-            if (promptData == null) {
-                throw new RuntimeException("Failed to generate prompt data");
-            }
+            if (promptData == null) throw new RuntimeException("프롬프트 데이터 생성 실패");
 
-            log.info(">>>> [ASYNC GEMINI PROMPT] Recipe ID: {}, Prompt Length: {}", recipeId, promptData.prompt.length());
-
+            log.info(">>>> [GEMINI PROMPT] Recipe ID: {}, Prompt Length: {}", recipeId, promptData.prompt.length());
 
             List<String> imageUrls = geminiImageService.generateImageUrls(promptData.prompt, promptData.userId, recipeId);
 
             if (imageUrls.isEmpty()) {
-                throw new RuntimeException("Gemini image generation returned no data.");
+                throw new RuntimeException("Gemini 응답에 이미지 URL이 없습니다.");
             }
 
             String fullUrl = imageUrls.get(0);
@@ -170,18 +165,22 @@ public class AsyncImageService {
                         .status(ImageStatus.ACTIVE)
                         .build();
                 recipeImageRepository.save(recipeImage);
-
-                recipeIndexingService.updateRecipe(recipe);
             });
+
+            try {
+                recipeIndexingService.updateRecipe(recipeId);
+            } catch (Exception e) {
+                log.warn("이미지 생성 후 인덱싱 업데이트 실패 (DB는 성공함): {}", e.getMessage());
+            }
 
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, promptData.userId);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
 
-            log.info("✅ [AsyncImageServiceV1] Gemini 이미지 생성 및 저장 완료. URL: {}", fullUrl);
-            return CompletableFuture.completedFuture(fullUrl);
+            log.info("✅ [AsyncImageService] 이미지 생성 및 저장 완료. URL: {}", fullUrl);
+            return fullUrl;
 
         } catch (Exception e) {
-            log.error("❌ [AsyncImageServiceV1] 이미지 생성 실패, recipeId={}", recipeId, e);
+            log.error("❌ [AsyncImageService] 이미지 생성 실패, recipeId={}", recipeId, e);
 
             try {
                 transactionTemplate.executeWithoutResult(status -> {
@@ -197,7 +196,8 @@ public class AsyncImageService {
 
             var errorResponse = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
             deferredResultHolder.completeAll(recipeId, errorResponse);
-            return CompletableFuture.failedFuture(e);
+
+            throw new RuntimeException(e);
         }
     }
 
