@@ -20,6 +20,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -37,8 +38,8 @@ public class CommentService {
     private final RecipeCommentRepository recipeCommentRepository;
     private final CommentLikeRepository commentLikeRepository;
     private final RecipeRepository recipeRepository;
-    private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final Hashids hashids;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -142,14 +143,14 @@ public class CommentService {
                 .comment(dto.getContent())
                 .build();
         recipeCommentRepository.save(comment);
-
+        String encodedId = hashids.encode(recipeId);
         notifyIfNeeded(
                 user,
                 recipe.getUser().getId(),
                 NotificationType.NEW_COMMENT,
                 NotificationRelatedType.RECIPE,
                 recipeId,
-                "/recipes/" + recipeId + "/comments",
+                "/recipes/" + encodedId + "/comments",
                 recipe.getImageKey()
         );
 
@@ -173,13 +174,16 @@ public class CommentService {
 
         recipeCommentRepository.save(reply);
 
+        String encodedRecipeId = hashids.encode(recipeId);
+        String encodedParentId = hashids.encode(parentId);
+
         notifyIfNeeded(
                 user,
                 parent.getUser().getId(),
                 NotificationType.NEW_REPLY,
                 NotificationRelatedType.COMMENT,
                 parentId,
-                "/recipes/" + recipeId + "/comments/" + parentId,
+                "/recipes/" + encodedRecipeId + "/comments/" + encodedParentId,
                 recipe.getImageKey()
         );
 

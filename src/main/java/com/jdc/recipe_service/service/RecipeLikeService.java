@@ -12,6 +12,7 @@ import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ public class RecipeLikeService {
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final Hashids hashids;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -62,6 +64,7 @@ public class RecipeLikeService {
 
         Long targetUserId = recipe.getUser().getId();
         if (!targetUserId.equals(userId)) {
+            String encodedId = hashids.encode(recipeId);
             notificationService.createNotification(
                     NotificationCreateDto.builder()
                             .userId(targetUserId)
@@ -71,7 +74,7 @@ public class RecipeLikeService {
                             .type(NotificationType.NEW_RECIPE_LIKE)
                             .relatedType(NotificationRelatedType.RECIPE)
                             .relatedId(recipeId)
-                            .relatedUrl("/recipes/" + recipeId)
+                            .relatedUrl("/recipes/" + encodedId)
                             .build()
             );
         }
