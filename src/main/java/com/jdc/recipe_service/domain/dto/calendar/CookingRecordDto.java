@@ -1,13 +1,17 @@
 package com.jdc.recipe_service.domain.dto.calendar;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 
 @Getter
 public class CookingRecordDto {
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long recipeId;
     private String recipeTitle;
     private Integer ingredientCost;

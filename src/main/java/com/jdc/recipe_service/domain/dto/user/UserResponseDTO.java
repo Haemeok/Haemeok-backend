@@ -1,7 +1,8 @@
 package com.jdc.recipe_service.domain.dto.user;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.jdc.recipe_service.domain.entity.User;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UserResponseDTO {
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
     private String nickname;
     private String profileImage;

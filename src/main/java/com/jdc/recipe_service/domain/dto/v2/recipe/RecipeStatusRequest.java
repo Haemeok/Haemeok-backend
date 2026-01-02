@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.domain.dto.v2.recipe;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.jdc.recipe_service.config.HashIdConfig;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
@@ -12,5 +14,6 @@ import java.util.List;
 @AllArgsConstructor
 public class RecipeStatusRequest {
 
+    @JsonDeserialize(contentUsing = HashIdConfig.HashIdDeserializer.class)
     private List<Long> recipeIds;
 }

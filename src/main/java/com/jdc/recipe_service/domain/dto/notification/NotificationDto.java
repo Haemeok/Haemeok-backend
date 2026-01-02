@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.domain.dto.notification;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.jdc.recipe_service.domain.entity.Notification;
 import com.jdc.recipe_service.domain.type.NotificationRelatedType;
 import com.jdc.recipe_service.domain.type.NotificationType;
@@ -13,13 +15,17 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class NotificationDto {
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long userId;
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long actorId;
     private String actorNickname;
     private String imageUrl;
     private NotificationType type;
     private NotificationRelatedType relatedType;
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long relatedId;
     private String relatedUrl;
     private String message;

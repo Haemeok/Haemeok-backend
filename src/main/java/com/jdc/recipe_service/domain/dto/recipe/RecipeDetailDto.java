@@ -1,6 +1,8 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.jdc.recipe_service.domain.dto.comment.CommentDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
@@ -11,7 +13,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -27,6 +28,7 @@ import java.util.List;
 public class RecipeDetailDto {
 
     @Schema(description = "레시피 ID")
+    @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
 
     @Schema(description = "레시피 제목")
