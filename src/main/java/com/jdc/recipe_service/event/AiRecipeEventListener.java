@@ -8,6 +8,7 @@ import com.jdc.recipe_service.service.image.AsyncImageService;
 import com.jdc.recipe_service.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hashids.Hashids;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -20,6 +21,7 @@ public class AiRecipeEventListener {
     private final AsyncImageService asyncImageService;
     private final NotificationService notificationService;
     private final RecipeIndexingService recipeIndexingService;
+    private final Hashids hashids;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -33,6 +35,7 @@ public class AiRecipeEventListener {
 
         asyncImageService.generateAndUploadAiImageAsync(event.getRecipeId())
                 .thenAccept(imageUrl -> {
+                    String encodedId = hashids.encode(event.getRecipeId());
                     notificationService.createNotification(
                             NotificationCreateDto.builder()
                                     .userId(event.getUserId())
@@ -42,7 +45,7 @@ public class AiRecipeEventListener {
                                     .type(NotificationType.AI_RECIPE_DONE)
                                     .relatedType(NotificationRelatedType.RECIPE)
                                     .relatedId(event.getRecipeId())
-                                    .relatedUrl("/recipes/" + event.getRecipeId())
+                                    .relatedUrl("/recipes/" + encodedId)
                                     .build()
                     );
                 })
