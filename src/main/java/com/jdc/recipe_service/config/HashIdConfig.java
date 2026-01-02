@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import jakarta.annotation.PostConstruct;
 import org.hashids.Hashids;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -40,12 +39,9 @@ public class HashIdConfig implements WebMvcConfigurer {
 
     @Bean
     public Hashids hashids() {
-        return new Hashids(salt, minLength);
-    }
-
-    @PostConstruct
-    public void init() {
-        staticHashids = this.hashids();
+        Hashids instance = new Hashids(salt, minLength);
+        staticHashids = instance;
+        return instance;
     }
 
     @Override
