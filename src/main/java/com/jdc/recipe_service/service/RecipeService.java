@@ -146,7 +146,15 @@ public class RecipeService {
         final Long targetUserId = recipe.getUser().getId();
 
         if (sourceType == RecipeSourceType.AI) {
-            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            log.info("AI 레시피 DB 커밋 완료. 이미지 생성 이벤트 발행: ID={}", recipeId);
+                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
+                        }
+                    }
+            );
         } else {
             publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
         }
