@@ -36,7 +36,7 @@ public class Recipe extends BaseTimeEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(length = 50, nullable = false)
+    @Column(length = 255, nullable = false)
     private String title;
 
     @Column(columnDefinition = "TEXT")
