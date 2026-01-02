@@ -113,13 +113,14 @@ public class RecipeService {
                     ))
                     .toList();
 
+            var plating = dto.getPlating();
             FineDiningDetails details = FineDiningDetails.builder()
                     .components(filteredComponents)
-                    .platingVessel(dto.getPlating() != null ? dto.getPlating().getVessel() : null)
-                    .platingGuide(dto.getPlating() != null ? dto.getPlating().getGuide() : null)
-                    .visualKeys(dto.getPlating().getVisualKeys())
-                    .viewpoint(dto.getPlating().getViewpoint())
-                    .lighting(dto.getPlating().getLighting())
+                    .platingVessel(plating != null ? plating.getVessel() : null)
+                    .platingGuide(plating != null ? plating.getGuide() : null)
+                    .visualKeys(plating != null ? plating.getVisualKeys() : null)
+                    .viewpoint(plating != null ? plating.getViewpoint() : null)
+                    .lighting(plating != null ? plating.getLighting() : null)
                     .build();
 
             details.setRecipe(recipe);
