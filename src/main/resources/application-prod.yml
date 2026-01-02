@@ -63,6 +63,9 @@ app:
     upload-base-path: ${APP_S3_UPLOAD_BASE_PATH}
     presigned-url-expiration-minutes: ${APP_S3_PRESIGNED_URL_EXPIRATION_MINUTES}
 
+  hashids:
+    salt: ${APP_HASHIDS_SALT}
+    min-length: ${APP_HASHIDS_MIN_LENGTH}
 
 cloud:
   aws:

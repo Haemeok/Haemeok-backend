@@ -41,7 +41,9 @@
         { "name": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}" },
         { "name": "ANTHROPIC_API_KEY", "value": "${ANTHROPIC_API_KEY}" },
         { "name": "GEMINI_API_KEY", "value": "${GEMINI_API_KEY}" },
-        { "name": "GROK_API_KEY", "value": "${GROK_API_KEY}" }
+        { "name": "GROK_API_KEY", "value": "${GROK_API_KEY}" },
+        { "name": "APP_HASHIDS_SALT", "value": "${APP_HASHIDS_SALT}" },
+        { "name": "APP_HASHIDS_MIN_LENGTH", "value": "${APP_HASHIDS_MIN_LENGTH}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
