@@ -33,25 +33,25 @@ public class AiRecipeEventListener {
             log.error("AI 레시피 생성 후 OpenSearch 인덱싱 시도 실패 (리스너 레벨)", e);
         }
 
-        asyncImageService.generateAndUploadAiImageAsync(event.getRecipeId())
-                .thenAccept(imageUrl -> {
-                    String encodedId = hashids.encode(event.getRecipeId());
-                    notificationService.createNotification(
-                            NotificationCreateDto.builder()
-                                    .userId(event.getUserId())
-                                    .actorId(null)
-                                    .actorNickname(null)
-                                    .imageUrl(imageUrl)
-                                    .type(NotificationType.AI_RECIPE_DONE)
-                                    .relatedType(NotificationRelatedType.RECIPE)
-                                    .relatedId(event.getRecipeId())
-                                    .relatedUrl("/recipes/" + encodedId)
-                                    .build()
-                    );
-                })
-                .exceptionally(ex -> {
-                    log.error("AI 레시피 생성 후 알림 처리 실패", ex);
-                    return null;
-                });
+        try {
+            String imageUrl = asyncImageService.generateAndUploadAiImage(event.getRecipeId());
+
+            String encodedId = hashids.encode(event.getRecipeId());
+            notificationService.createNotification(
+                    NotificationCreateDto.builder()
+                            .userId(event.getUserId())
+                            .actorId(null)
+                            .actorNickname(null)
+                            .imageUrl(imageUrl)
+                            .type(NotificationType.AI_RECIPE_DONE)
+                            .relatedType(NotificationRelatedType.RECIPE)
+                            .relatedId(event.getRecipeId())
+                            .relatedUrl("/recipes/" + encodedId)
+                            .build()
+            );
+
+        } catch (Exception ex) {
+            log.error("AI 레시피 이미지 생성 실패로 인해 알림 발송 중단", ex);
+        }
     }
 }
