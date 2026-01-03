@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.RejectedExecutionException;
 
 @RestControllerAdvice(annotations = {RestController.class})
 @Hidden
@@ -139,5 +140,10 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, headers, e.getStatus());
     }
 
+    @ExceptionHandler(RejectedExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleRejected(RejectedExecutionException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ErrorResponse("TOO_MANY_REQUESTS", e.getMessage()));
+    }
 
 }
