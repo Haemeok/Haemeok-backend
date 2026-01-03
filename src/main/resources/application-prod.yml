@@ -109,8 +109,9 @@ gemini:
 logging:
   level:
     com.jdc.recipe_service: DEBUG
+    com.jdc.recipe_service.service.RecipeSearchService: INFO
     org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.type.descriptor.sql.BasicBinder: INFO
     org.springframework.web.reactive.function.client: DEBUG
     root: INFO
 
