@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
-import com.jdc.recipe_service.util.UnitService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
@@ -25,8 +25,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +36,6 @@ public class GrokClientService {
     @Qualifier("grokWebClient")
     private final WebClient client;
     private final ObjectMapper objectMapper;
-    private final UnitService unitService;
     private final IngredientRepository ingredientRepository;
 
     @Value("${ai.model.grok.recipe:grok-4-fast-reasoning}")
@@ -70,7 +69,14 @@ public class GrokClientService {
                     .map(ing -> ing.getName().trim())
                     .toList();
 
-            Set<String> existingNames = ingredientRepository.findAllNamesByNameIn(allNames);
+            List<Ingredient> dbIngredients = ingredientRepository.findAllByNameIn(allNames);
+
+            Map<String, String> dbUnitMap = dbIngredients.stream()
+                    .collect(Collectors.toMap(
+                            Ingredient::getName,
+                            Ingredient::getUnit,
+                            (existing, replacement) -> existing
+                    ));
 
             String rawJson = objectMapper.writeValueAsString(rawRecipe);
             StringBuilder ingredientReport = new StringBuilder();
@@ -78,10 +84,9 @@ public class GrokClientService {
             for (var ing : rawRecipe.getIngredients()) {
                 String name = ing.getName().trim();
 
-                boolean exists = existingNames.contains(name);
+                String dbUnit = dbUnitMap.get(name);
 
-                if (exists) {
-                    String dbUnit = unitService.getDefaultUnit(name).orElse("g");
+                if (dbUnit != null) {
                     ingredientReport.append(String.format(
                             "- [DB보유] '%s': 표준 단위 '%s'로 환산. custom 필드 삭제 대상.\n",
                             name, dbUnit
