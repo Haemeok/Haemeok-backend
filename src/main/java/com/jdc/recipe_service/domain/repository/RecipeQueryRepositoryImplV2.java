@@ -72,6 +72,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums()),
                         aiCondition,
+                        youtubeFilter(cond.getIsYoutubeRecipe()),
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
                         proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
@@ -101,6 +102,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums()),
                         aiCondition,
+                        youtubeFilter(cond.getIsYoutubeRecipe()),
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
                         proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
@@ -191,5 +193,12 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
             return path.goe(BigDecimal.valueOf(minVal));
         }
         return path.between(BigDecimal.valueOf(minVal), BigDecimal.valueOf(max));
+    }
+
+    private BooleanExpression youtubeFilter(Boolean isYoutubeRecipe) {
+        if (isYoutubeRecipe == null) return null;
+        return isYoutubeRecipe ?
+                QRecipe.recipe.youtubeUrl.isNotNull().and(QRecipe.recipe.youtubeUrl.ne("")) :
+                QRecipe.recipe.youtubeUrl.isNull().or(QRecipe.recipe.youtubeUrl.eq(""));
     }
 }

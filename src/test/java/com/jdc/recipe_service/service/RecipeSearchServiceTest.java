@@ -191,6 +191,7 @@ class RecipeSearchServiceTest {
                         stepImageUrl,
                         "step-img-key",
                         null,
+                        null,
                         List.of(usedIngrDto)
                 );
                 try (MockedStatic<RecipeStepMapper> stepMapper = Mockito.mockStatic(RecipeStepMapper.class)) {
