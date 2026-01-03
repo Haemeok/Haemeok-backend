@@ -13,6 +13,7 @@ public class RecipeStepRequestDto {
     private String instruction;
     private String imageKey;
     private String action;
+    private String timeline;
 
     private List<RecipeStepIngredientRequestDto> ingredients;
 

@@ -40,6 +40,8 @@ public class RecipeStep {
     @Column(length = 50)
     private String action;
 
+    private String timeline;
+
     @OneToMany(mappedBy = "step", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 10)
     @Fetch(FetchMode.SUBSELECT)

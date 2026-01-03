@@ -17,6 +17,9 @@ import java.util.List;
 @NoArgsConstructor
 public class RecipeCreateRequestDto {
 
+    private Boolean isRecipe;
+    private String nonRecipeReason;
+
     @NotBlank(message = "레시피 제목은 필수입니다.")
     private String title;
 
