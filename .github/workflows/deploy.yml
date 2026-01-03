@@ -72,7 +72,6 @@ jobs:
           REPLICATE_TOKEN: ${{ secrets.REPLICATE_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
           APP_HASHIDS_SALT: ${{ secrets.APP_HASHIDS_SALT }}
