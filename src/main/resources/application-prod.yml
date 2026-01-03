@@ -8,10 +8,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   security:
     oauth2:
@@ -67,6 +67,20 @@ app:
     salt: ${APP_HASHIDS_SALT}
     min-length: ${APP_HASHIDS_MIN_LENGTH}
 
+  ytdlp:
+    path: yt-dlp
+    cacheDir: /tmp/yt-dlp-cache
+    tmpBaseDir: /tmp
+    timeoutSeconds: 300
+    enableRemoteComponents: true
+    jsRuntimes: deno
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+    subtitleLangs: "ko-orig,ko"
+    maxComments: 1
+
+    proxy: ${YTDLP_PROXY_URL:}
+
+
 cloud:
   aws:
     region:
@@ -89,10 +103,14 @@ anthropic:
 
 gemini:
   api-key: ${GEMINI_API_KEY}
+  studio:
+    api-key: ${GEMINI_STUDIO_API_KEY}
 
 logging:
   level:
-    com.jdc.recipe_service.service.AsyncImageService: WARN
+    com.jdc.recipe_service: INFO
+    org.hibernate.SQL: INFO
+    root: INFO
 
 resilience4j:
   retry:
@@ -110,4 +128,4 @@ resilience4j:
   timelimiter:
     instances:
       aiGenerate:
-        timeout-duration: 120s
+        timeout-duration: 300s

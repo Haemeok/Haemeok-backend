@@ -242,6 +242,7 @@ public class SecurityConfig {
                                 "/api/comments/*/like",
                                 "/api/recipes",
                                 "/api/recipes/ai",
+                                "/api/recipes/extract",
                                 "/api/recipes/*/presigned-urls",
                                 "/api/recipes/*/like",
                                 "/api/recipes/*/favorite",

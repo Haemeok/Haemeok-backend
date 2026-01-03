@@ -77,6 +77,8 @@ jobs:
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
           APP_HASHIDS_SALT: ${{ secrets.APP_HASHIDS_SALT }}
           APP_HASHIDS_MIN_LENGTH: ${{ secrets.APP_HASHIDS_MIN_LENGTH }}
+          YTDLP_PROXY_URL: ${{ secrets.YTDLP_PROXY_URL }}
+          GEMINI_STUDIO_API_KEY: ${{ secrets.GEMINI_STUDIO_API_KEY }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
