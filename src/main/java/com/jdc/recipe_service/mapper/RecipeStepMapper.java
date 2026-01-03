@@ -17,6 +17,7 @@ public class RecipeStepMapper {
                 .instruction(dto.getInstruction())
                 .imageKey(dto.getImageKey())
                 .action(dto.getAction())
+                .timeline(dto.getTimeline())
                 .build();
     }
 
@@ -27,6 +28,7 @@ public class RecipeStepMapper {
                 .stepImageUrl(imageUrl)
                 .stepImageKey(imageKey)
                 .action(step.getAction())
+                .timeline(step.getTimeline())
                 .ingredients(ingredients)
                 .build();
     }

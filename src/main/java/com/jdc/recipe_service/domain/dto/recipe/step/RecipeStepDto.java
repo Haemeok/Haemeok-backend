@@ -17,6 +17,7 @@ public class RecipeStepDto {
     private String stepImageUrl;
     private String stepImageKey;
     private String action;
+    private String timeline;
 
     private List<RecipeStepIngredientDto> ingredients;
 }
