@@ -21,6 +21,8 @@ public class RecipeSearchCondition {
     private List<String> tags;
     private AiRecipeFilter aiFilter;
 
+    private Boolean isYoutubeRecipe;
+
     @Schema(description = "최소 재료비 (원)", example = "0")
     private Integer minCost;
     @Schema(description = "최대 재료비 (원)", example = "10000")

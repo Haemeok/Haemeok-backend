@@ -19,6 +19,7 @@ public class RecipeDocument {
     private String createdAt;
     private int cookingTime;
     private String imageUrl;
+    private String youtubeUrl;
     private Boolean  isAiGenerated;
     private Boolean  isPrivate;
     private List<Long> ingredientIds;

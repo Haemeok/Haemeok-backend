@@ -172,6 +172,20 @@ public class OpenSearchService {
             bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
         }
 
+        if (cond.getIsYoutubeRecipe() != null) {
+            if (cond.getIsYoutubeRecipe()) {
+                BoolQueryBuilder youtubeFilter = QueryBuilders.boolQuery()
+                        .must(QueryBuilders.existsQuery("youtubeUrl"))
+                        .mustNot(QueryBuilders.termQuery("youtubeUrl", ""));
+                bool.filter(youtubeFilter);
+            } else {
+                BoolQueryBuilder noYoutubeFilter = QueryBuilders.boolQuery()
+                        .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("youtubeUrl")))
+                        .should(QueryBuilders.termQuery("youtubeUrl", ""));
+                bool.filter(noYoutubeFilter);
+            }
+        }
+
         if (bool.must().isEmpty() && bool.filter().isEmpty()) {
             bool.must(QueryBuilders.matchAllQuery());
         }
