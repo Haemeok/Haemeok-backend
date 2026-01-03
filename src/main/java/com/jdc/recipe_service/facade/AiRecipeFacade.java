@@ -8,6 +8,7 @@ import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.type.AiRecipeConcept;
+import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -61,7 +62,7 @@ public class AiRecipeFacade {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "AI 요청 정보가 없습니다.");
         }
 
-        dailyQuotaService.consumeForUserOrThrow(userId);
+        dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.AI_GENERATION);
 
         try {
             AiRecipeRequestDto aiReq = request.getAiRequest();
@@ -114,7 +115,7 @@ public class AiRecipeFacade {
             return recipeService.createRecipeAndGenerateUrls(processingRequest, userId, RecipeSourceType.AI);
 
         } catch (Exception e) {
-            dailyQuotaService.refundIfPolicyAllows(userId);
+            dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.AI_GENERATION);
             throw e;
         }
     }
