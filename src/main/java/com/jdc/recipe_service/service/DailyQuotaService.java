@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.config.QuotaProperties;
 import com.jdc.recipe_service.domain.repository.DailyQuotaDao;
+import com.jdc.recipe_service.domain.type.QuotaType;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,24 +19,25 @@ public class DailyQuotaService {
     private final DailyQuotaDao dao;
     private final QuotaProperties props;
 
-    public void consumeForUserOrThrow(Long userId) {
+    public void consumeForUserOrThrow(Long userId, QuotaType type) {
         if (isAdmin()) return;
-        if (!dao.tryConsume(userId)) {
+
+        if (!dao.tryConsume(userId, type)) {
             long retryAfter = secondsUntilMidnight();
             throw new DailyQuotaExceededException(retryAfter);
         }
     }
 
-    public void refundIfPolicyAllows(Long userId) {
+    public void refundIfPolicyAllows(Long userId, QuotaType type) {
         if (isAdmin()) return;
-        dao.refundOnce(userId);
+        dao.refundOnce(userId, type);
     }
 
-    public int getRemainingQuota(Long userId) {
+    public int getRemainingQuota(Long userId, QuotaType type) {
         if (isAdmin()) {
             return Integer.MAX_VALUE;
         }
-        return dao.remainingToday(userId);
+        return dao.remainingToday(userId, type);
     }
 
     private boolean isAdmin() {

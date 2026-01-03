@@ -37,8 +37,10 @@ public class UserResponseDTO {
     private boolean hasFirstRecord;
 
     private int remainingAiQuota;
+    private int remainingYoutubeQuota;
 
-    public void updateAiQuota(int quota) {
-        this.remainingAiQuota = quota;
+    public void updateQuotas(int aiQuota, int youtubeQuota) {
+        this.remainingAiQuota = aiQuota;
+        this.remainingYoutubeQuota = youtubeQuota;
     }
 }

@@ -14,6 +14,7 @@ import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.UserMapper;
@@ -139,8 +140,9 @@ public class UserService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         UserResponseDTO dto = UserMapper.toDto(user);
 
-        int remainingQuota = dailyQuotaService.getRemainingQuota(id);
-        dto.updateAiQuota(remainingQuota);
+        int aiQuota = dailyQuotaService.getRemainingQuota(id, QuotaType.AI_GENERATION);
+        int youtubeQuota = dailyQuotaService.getRemainingQuota(id, QuotaType.YOUTUBE_EXTRACTION);
+        dto.updateQuotas(aiQuota, youtubeQuota); // DTO에 값 주입
         return dto;
     }
 
