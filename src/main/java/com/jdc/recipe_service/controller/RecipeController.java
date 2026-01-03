@@ -9,6 +9,7 @@ import com.jdc.recipe_service.domain.type.Role;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.RecipeExtractionService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +23,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/recipes")
@@ -31,6 +33,7 @@ public class RecipeController {
 
     private final RecipeService recipeService;
     private final RecipeAnalysisService recipeAnalysisService;
+    private final RecipeExtractionService recipeExtractionService;
 
     @PostMapping
     @Operation(summary = "레시피 직접 등록 + 이미지 Presigned URL 발급", description = "사용자가 직접 입력한 레시피 정보를 저장하고, 이미지를 업로드할 Presigned URL을 발급합니다.")
@@ -142,5 +145,19 @@ public class RecipeController {
         recipeService.recalculateNutrition(recipeId);
 
         return ResponseEntity.ok("영양소 정보가 성공적으로 재계산되어 DB에 반영되었습니다.");
+    }
+
+    @PostMapping("/extract")
+    @Operation(summary = "유튜브 링크로 레시피 AI 추출", description = "유튜브 영상 URL을 분석하여 레시피를 자동 생성하고 저장합니다. (비동기 처리)")
+    public CompletableFuture<ResponseEntity<PresignedUrlResponse>> extractRecipeFromYoutube(
+            @Parameter(description = "유튜브 영상 URL", required = true) @RequestParam String url,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        return recipeExtractionService.extractAndCreateRecipe(url, userDetails.getUser().getId())
+                .thenApply(ResponseEntity::ok);
     }
 }

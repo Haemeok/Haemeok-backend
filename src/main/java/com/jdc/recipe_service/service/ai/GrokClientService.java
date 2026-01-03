@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.util.UnitService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
@@ -23,6 +25,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -33,9 +36,109 @@ public class GrokClientService {
     @Qualifier("grokWebClient")
     private final WebClient client;
     private final ObjectMapper objectMapper;
+    private final UnitService unitService;
+    private final IngredientRepository ingredientRepository;
 
     @Value("${ai.model.grok.recipe:grok-4-fast-reasoning}")
     private String grokRecipeModelName;
+
+    @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
+    @CircuitBreaker(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
+    @TimeLimiter(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
+    public CompletableFuture<RecipeCreateRequestDto> generateRecipeStep1(String systemContent, String fullContext) {
+        log.info("Grok 1단계: 자연스러운 레시피 생성 호출");
+
+        String userContent = """
+                다음은 요리 영상의 제목, 설명, 댓글, 자막입니다.
+                이를 분석해서 맛있고 자연스러운 레시피를 만들어줘.
+                
+                입력:
+                %s
+                """.formatted(fullContext);
+
+        return generateRecipeJson(systemContent, userContent);
+    }
+
+    @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
+    @CircuitBreaker(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
+    @TimeLimiter(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
+    public CompletableFuture<RecipeCreateRequestDto> refineRecipeToStandard(String systemContent, RecipeCreateRequestDto rawRecipe) {
+        log.info("🤖 Grok 2단계: 재료 규격화 및 커스텀 데이터 생성 시작");
+
+        try {
+            List<String> allNames = rawRecipe.getIngredients().stream()
+                    .map(ing -> ing.getName().trim())
+                    .toList();
+
+            Set<String> existingNames = ingredientRepository.findAllNamesByNameIn(allNames);
+
+            String rawJson = objectMapper.writeValueAsString(rawRecipe);
+            StringBuilder ingredientReport = new StringBuilder();
+
+            for (var ing : rawRecipe.getIngredients()) {
+                String name = ing.getName().trim();
+
+                boolean exists = existingNames.contains(name);
+
+                if (exists) {
+                    String dbUnit = unitService.getDefaultUnit(name).orElse("g");
+                    ingredientReport.append(String.format(
+                            "- [DB보유] '%s': 표준 단위 '%s'로 환산. custom 필드 삭제 대상.\n",
+                            name, dbUnit
+                    ));
+                } else {
+                    ingredientReport.append(String.format(
+                            "- [미보유/신규] '%s': 현재 수량(%s %s) 기준. 아래 7개 상세 영양 정보 필수.\n",
+                            name, ing.getQuantity(), ing.getCustomUnit()
+                    ));
+                }
+            }
+
+            String userContent = """
+                    너는 '데이터 규격화 전문가'다.
+                    1단계 JSON을 입력받아, 아래 **[재료 분석 보고서]**를 기준으로 **[필드 강제 규칙]**을 100%% 준수하여 재료(ingredients) 필드를 완벽하게 수정해라.
+                    
+                    [🚨 재료 분석 보고서 (Java 시스템 분석 결과)]
+                    %s
+                    
+                    [🚨 CRITICAL WARNING: 숫자 필드 NULL/공백 절대 금지]
+                    - **모든 숫자 필드** `quantity`, `customPrice`, `customCalories`, `customCarbohydrate`, `customProtein`, `customFat`, `customSugar`, `customSodium`, `marketPrice`, `cookingTime`는 **0.00 이상의 유효한 숫자만** 허용됩니다.
+                    - **`servings`(인분)는 반드시 '정수(Integer)'로 반올림하여 출력하세요.**
+                    - **절대로 빈 문자열("") 또는 null 값을 사용하지 마세요.**
+                    
+                    [🚨 ingredients 필드 강제 규칙 - 반드시 준수]
+                    1. **[미보유/신규] 재료의 경우**:
+                       DB에 없는 재료이므로 **반드시** 아래 7개 필드를 모두 포함해야 합니다:
+                       - `customPrice`: **해당 재료의 Quantity(총량)에 대한 전체 원가** (정수, 원).
+                       - `customCalories`: **해당 재료의 Quantity(총량)에 대한 전체 칼로리** (소수점 포함 숫자, kcal)
+                       - `customCarbohydrate`: **해당 재료의 Quantity(총량)에 대한 전체 탄수화물** (소수점 포함 숫자, g)
+                       - `customProtein`: **해당 재료의 Quantity(총량)에 대한 전체 단백질** (소수점 포함 숫자, g)
+                       - `customFat`: **해당 재료의 Quantity(총량)에 대한 전체 지방** (소수점 포함 숫자, g)
+                       - `customSugar`: **해당 재료의 Quantity(총량)에 대한 전체 당류** (소수점 포함 숫자, g)
+                       - `customSodium`: **해당 재료의 Quantity(총량)에 대한 전체 나트륨** (소수점 포함 숫자, mg)
+                       - **이 필드 중 하나라도 누락되면 출력 전체가 무효 처리됩니다.**
+                    
+                    2. **[DB보유] 재료의 경우**:
+                       - `customPrice`, `customCalories`, `customCarbohydrate`, `customProtein`, `customFat`, `customSugar`, `customSodium` 필드는 **절대 포함 금지** (반드시 제거하거나 null 처리).
+                       - 단위(`unit`)는 보고서에 적힌 '표준 단위'로 수정하세요.
+
+                    3. **공통 수량 규칙**:
+                       - "반 개", "한 줌" 같은 텍스트는 "0.5", "30" 같은 **숫자**로 무조건 변환하세요.
+                       - 모든 재료의 quantity는 요청된 인분 수에 맞추어 자동으로 조절되어야 합니다.
+                    
+                    [입력 JSON]
+                    %s
+                    
+                    다른 필드(steps, description 등)는 원본을 유지하고, 오직 수정된 JSON만 출력해라.
+                    """.formatted(ingredientReport.toString(), rawJson);
+
+            return generateRecipeJson(systemContent, userContent);
+
+        } catch (Exception e) {
+            log.error("2단계 정제 중 에러: {}", e.getMessage());
+            return CompletableFuture.completedFuture(rawRecipe);
+        }
+    }
 
     @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
     @CircuitBreaker(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
@@ -59,6 +162,22 @@ public class GrokClientService {
                         RecipeCreateRequestDto recipe = objectMapper.treeToValue(targetNode, RecipeCreateRequestDto.class);
 
                         validateRecipeDto(recipe);
+
+                        log.info("=== Grok 레시피 생성 성공 ===");
+                        log.info("Title: {}", recipe.getTitle());
+                        log.info("DishType: {}", recipe.getDishType());
+                        log.info("Servings: {}", recipe.getServings());
+                        log.info("CookingTime: {}분", recipe.getCookingTime());
+                        log.info("Ingredients: {}개, Steps: {}단계",
+                                recipe.getIngredients() == null ? 0 : recipe.getIngredients().size(),
+                                recipe.getSteps() == null ? 0 : recipe.getSteps().size());
+
+                        if (log.isDebugEnabled() && recipe.getIngredients() != null) {
+                            recipe.getIngredients().forEach(ing -> {
+                                log.debug("  → {} | {} {}", ing.getName(), ing.getQuantity(), ing.getCustomUnit());
+                            });
+                        }
+
                         return Mono.just(recipe);
                     } catch (Exception e) {
                         log.error("DTO 파싱 실패. JSON: {}", jsonString);
@@ -179,6 +298,11 @@ public class GrokClientService {
     private CompletableFuture<String> fallbackGenerateRaw(String system, String user, Throwable ex) {
         log.error("Grok Fallback (Raw): {}", ex.getMessage());
         return CompletableFuture.failedFuture(new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "AI Raw 생성 실패 (Fallback)"));
+    }
+
+    public CompletableFuture<RecipeCreateRequestDto> fallbackGenerate(String systemContent, RecipeCreateRequestDto rawRecipe, Throwable t) {
+        log.error("Grok 2단계 정제 실패 (Fallback): {}", t.getMessage());
+        return CompletableFuture.completedFuture(rawRecipe);
     }
 
 
