@@ -1,7 +1,7 @@
 package com.jdc.recipe_service.domain.repository;
 
 import com.jdc.recipe_service.config.QuotaProperties;
-import com.jdc.recipe_service.domain.type.QuotaType; // ✅ 추가
+import com.jdc.recipe_service.domain.type.QuotaType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
