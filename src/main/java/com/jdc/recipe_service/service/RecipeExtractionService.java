@@ -285,8 +285,12 @@ public class RecipeExtractionService {
                         if (recipeDto == null) {
                             useUrlFallback = true;
                         } else {
-                            recipeDto.setIsRecipe(true);
-                            recipeDto.setNonRecipeReason(null);
+                            if (!Boolean.TRUE.equals(recipeDto.getIsRecipe())) {
+                                log.warn("⚠️ refine가 isRecipe를 변경함(위반). fallback 전환. isRecipe={}, reason={}",
+                                        recipeDto.getIsRecipe(), recipeDto.getNonRecipeReason());
+                                useUrlFallback = true;
+                                recipeDto = null;
+                            }
                         }
                     }
                 } catch (CustomException ce) {
