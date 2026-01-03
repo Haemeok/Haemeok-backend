@@ -33,8 +33,8 @@ public class UnitService {
                     .map(line -> line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1))
                     .filter(parts -> parts.length > 1)
                     .collect(Collectors.toMap(
-                            parts -> parts[0].trim().replace("\"", ""), // 이름
-                            parts -> parts[1].trim().replace("\"", ""), // 단위
+                            parts -> parts[0].trim().replace("\"", ""),
+                            parts -> parts[1].trim().replace("\"", ""),
                             (u1, u2) -> u1
                     ));
 

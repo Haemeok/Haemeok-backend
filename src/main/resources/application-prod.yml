@@ -98,9 +98,6 @@ ai:
     grok:
       recipe: grok-4-fast-reasoning
 
-anthropic:
-  api-key: ${ANTHROPIC_API_KEY}
-
 gemini:
   api-key: ${GEMINI_API_KEY}
   studio:
