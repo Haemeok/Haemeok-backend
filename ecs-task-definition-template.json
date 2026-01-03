@@ -43,7 +43,10 @@
         { "name": "GEMINI_API_KEY", "value": "${GEMINI_API_KEY}" },
         { "name": "GROK_API_KEY", "value": "${GROK_API_KEY}" },
         { "name": "APP_HASHIDS_SALT", "value": "${APP_HASHIDS_SALT}" },
-        { "name": "APP_HASHIDS_MIN_LENGTH", "value": "${APP_HASHIDS_MIN_LENGTH}" }
+        { "name": "APP_HASHIDS_MIN_LENGTH", "value": "${APP_HASHIDS_MIN_LENGTH}" },
+        { "name": "APP_YTDLP_TMP_BASE_DIR", "value": "/tmp" },
+        { "name": "YTDLP_PROXY_URL", "value": "${YTDLP_PROXY_URL}" },
+        { "name": "GEMINI_STUDIO_API_KEY", "value": "${GEMINI_STUDIO_API_KEY}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
