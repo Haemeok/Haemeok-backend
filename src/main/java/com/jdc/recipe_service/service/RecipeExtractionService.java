@@ -257,14 +257,40 @@ public class RecipeExtractionService {
                 try {
                     RecipeCreateRequestDto rawRecipe = grokClientService.generateRecipeStep1(getExtractionPrompt(), fullContext).join();
 
-                    log.info("🔨 [텍스트 모드] 2차 가공(가격/영양소 계산) 시작");
-                    String refineSystemPrompt = "너는 JSON 데이터 검증 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라.";
-                    recipeDto = grokClientService.refineRecipeToStandard(refineSystemPrompt, rawRecipe).join();
+                    if (rawRecipe == null) {
+                        useUrlFallback = true;
+                    } else {
+                        Boolean isRecipe = rawRecipe.getIsRecipe();
 
-                    if (Boolean.FALSE.equals(recipeDto.getIsRecipe())) {
-                        log.info("🚫 텍스트 분석 결과: 레시피 아님 판정.");
-                        recipeDto = null;
+                        if (Boolean.FALSE.equals(isRecipe)) {
+                            log.warn("🚫 Grok 확정 판정: 레시피 아님. 사유: {}", rawRecipe.getNonRecipeReason());
+                            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
+                                    "레시피 영상이 아닙니다: " + rawRecipe.getNonRecipeReason());
+                        }
+
+                        if (!Boolean.TRUE.equals(isRecipe)) {
+                            log.info("⚠️ Grok 판단 모호(null). Gemini 분석으로 전환합니다.");
+                            useUrlFallback = true;
+                        }
                     }
+
+                    if (!useUrlFallback) {
+                        log.info("🔨 [텍스트 모드] 2차 가공(가격/영양소 계산) 시작");
+                        String refineSystemPrompt =
+                                "너는 JSON 데이터 검증 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라. " +
+                                        "입력 JSON의 isRecipe, nonRecipeReason 값은 절대 변경하지 마라.";
+
+                        recipeDto = grokClientService.refineRecipeToStandard(refineSystemPrompt, rawRecipe).join();
+
+                        if (recipeDto == null) {
+                            useUrlFallback = true;
+                        } else {
+                            recipeDto.setIsRecipe(true);
+                            recipeDto.setNonRecipeReason(null);
+                        }
+                    }
+                } catch (CustomException ce) {
+                    throw ce;
                 } catch (Exception e) {
                     log.warn("⚠️ 텍스트 분석 실패. URL 분석으로 전환합니다. 이유: {}", safeMsg(e));
                     useUrlFallback = true;
@@ -281,12 +307,27 @@ public class RecipeExtractionService {
                         .generateRecipeFromYoutubeUrl(getExtractionPrompt(), title, canonicalUrl)
                         .join();
 
+                if (geminiRecipe == null) {
+                    throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "레시피 생성에 실패했습니다.");
+                }
+                if (!Boolean.TRUE.equals(geminiRecipe.getIsRecipe())) {
+                    throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
+                            "레시피 영상이 아닙니다: " + geminiRecipe.getNonRecipeReason());
+                }
+
                 if (geminiRecipe != null) {
                     log.info("🔨 [멀티모달 모드] 2차 가공(가격/영양소 계산) 시작");
-                    String refineSystemPrompt = "너는 JSON 데이터 검증 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라.";
+                    String refineSystemPrompt =
+                            "너는 JSON 데이터 검증 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라. " +
+                                    "입력 JSON의 isRecipe, nonRecipeReason 값은 절대 변경하지 마라.";
                     recipeDto = grokClientService
                             .refineRecipeToStandard(refineSystemPrompt, geminiRecipe)
                             .join();
+
+                    if (recipeDto != null) {
+                        recipeDto.setIsRecipe(true);
+                        recipeDto.setNonRecipeReason(null);
+                    }
                 }
             }
 
@@ -313,13 +354,13 @@ public class RecipeExtractionService {
             return CompletableFuture.completedFuture(response);
 
         } catch (CustomException e) {
-            log.warn("❌ 추출 실패(CustomException). 쿼터 환불: userId={}", userId);
-            dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
+            if (e.getErrorCode() == ErrorCode.INVALID_INPUT_VALUE) {
+                log.warn("🚫 레시피 아님 판정으로 쿼터 환불 없이 종료: userId={}", userId);
+            } else {
+                log.warn("❌ 추출 실패(System/AI Error). 쿼터 환불: userId={}", userId);
+                dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
+            }
             throw e;
-        } catch (Exception e) {
-            log.error("❌ 추출 실패(SystemError). 쿼터 환불: userId={}, error={}", userId, safeMsg(e));
-            dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
-            throw new RuntimeException("레시피 추출 중 시스템 오류가 발생했습니다.");
         }
     }
 
