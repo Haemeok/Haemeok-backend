@@ -8,10 +8,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: false
+    show-sql: true
     properties:
       hibernate:
-        format_sql: false
+        format_sql: true
 
   security:
     oauth2:
@@ -108,8 +108,10 @@ gemini:
 
 logging:
   level:
-    com.jdc.recipe_service: INFO
-    org.hibernate.SQL: INFO
+    com.jdc.recipe_service: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.web.reactive.function.client: DEBUG
     root: INFO
 
 resilience4j:
