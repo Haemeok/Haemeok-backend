@@ -2,7 +2,6 @@ package com.jdc.recipe_service.opensearch.controller;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.dto.IngredientSearchDto;
 import com.jdc.recipe_service.opensearch.service.IngredientSearchService;
 import com.jdc.recipe_service.opensearch.service.OpenSearchSuggestionService;
@@ -48,9 +47,6 @@ public class SearchController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-        if (cond.getAiFilter() == null) {
-            cond.setAiFilter(AiRecipeFilter.USER_ONLY);
-        }
 
         Page<RecipeSimpleDto> page = searchService.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);

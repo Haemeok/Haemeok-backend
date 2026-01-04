@@ -73,7 +73,7 @@ public class RecipeService {
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
 
-        if (sourceType == RecipeSourceType.AI) {
+        if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
             recipe.updateIsPrivate(true);
             recipe.updateImageStatus(RecipeImageStatus.PENDING);
         } else {
@@ -146,7 +146,7 @@ public class RecipeService {
         final Long recipeId = recipe.getId();
         final Long targetUserId = recipe.getUser().getId();
 
-        if (sourceType == RecipeSourceType.AI) {
+        if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
             TransactionSynchronizationManager.registerSynchronization(
                     new TransactionSynchronization() {
                         @Override

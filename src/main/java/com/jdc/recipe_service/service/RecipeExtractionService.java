@@ -372,7 +372,7 @@ public class RecipeExtractionService {
         return transactionTemplate.execute(status -> {
             RecipeWithImageUploadRequest request = new RecipeWithImageUploadRequest();
             request.setRecipe(recipeDto);
-            return recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.AI);
+            return recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.YOUTUBE);
         });
     }
 
