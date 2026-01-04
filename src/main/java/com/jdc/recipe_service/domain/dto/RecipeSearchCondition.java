@@ -1,14 +1,15 @@
 package com.jdc.recipe_service.domain.dto;
 
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.RecipeType;
 import com.jdc.recipe_service.domain.type.TagType;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -19,9 +20,8 @@ public class RecipeSearchCondition {
     private String title;
     private String dishType;
     private List<String> tags;
-    private AiRecipeFilter aiFilter;
 
-    private Boolean isYoutubeRecipe;
+    private List<RecipeType> types = new ArrayList<>(List.of(RecipeType.USER));
 
     @Schema(description = "최소 재료비 (원)", example = "0")
     private Integer minCost;
@@ -68,10 +68,6 @@ public class RecipeSearchCondition {
         return tags.stream()
                 .map(TagType::fromCode)
                 .toList();
-    }
-
-    public AiRecipeFilter getAiFilter() {
-        return this.aiFilter == null ? AiRecipeFilter.USER_ONLY : this.aiFilter;
     }
 
     public void setQ(String q) {

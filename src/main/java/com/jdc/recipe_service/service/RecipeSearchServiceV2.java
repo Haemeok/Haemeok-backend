@@ -12,15 +12,16 @@ import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
+import com.jdc.recipe_service.domain.type.RecipeType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
 import com.jdc.recipe_service.mapper.RecipeStepMapper;
 import com.jdc.recipe_service.mapper.StepIngredientMapper;
 import com.jdc.recipe_service.mapper.UserMapper;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
 import com.jdc.recipe_service.util.SearchProperties;
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -282,13 +283,7 @@ public class RecipeSearchServiceV2 {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
         BooleanExpression privacy = recipe.isPrivate.eq(false);
-        AiRecipeFilter filter = cond.getAiFilter();
-        BooleanExpression ai = null;
-        if (filter == AiRecipeFilter.USER_ONLY) {
-            ai = recipe.isAiGenerated.isFalse();
-        } else if (filter == AiRecipeFilter.AI_ONLY) {
-            ai = recipe.isAiGenerated.isTrue();
-        }
+        BooleanBuilder typeFilter = filterByTypes(cond.getTypes());
         BooleanExpression title = StringUtils.hasText(cond.getTitle()) ? recipe.title.containsIgnoreCase(cond.getTitle()) : null;
         BooleanExpression dishType = (cond.getDishTypeEnum() != null) ? recipe.dishType.eq(cond.getDishTypeEnum()) : null;
         BooleanExpression tags = (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) ? tag.tag.in(cond.getTagEnums()) : null;
@@ -302,7 +297,7 @@ public class RecipeSearchServiceV2 {
         BooleanExpression sodium = (cond.getMaxSodium() != null) ? recipe.sodium.loe(BigDecimal.valueOf(cond.getMaxSodium())) : null;
 
         return privacy
-                .and(ai)
+                .and(typeFilter)
                 .and(title)
                 .and(dishType)
                 .and(tags)
@@ -381,5 +376,33 @@ public class RecipeSearchServiceV2 {
             return cond.getTitle() != null && !cond.getTitle().isBlank();
         }
         return false;
+    }
+
+    private BooleanBuilder filterByTypes(List<RecipeType> types) {
+        if (types == null || types.isEmpty()) {
+            return null;
+        }
+        if (types.size() == RecipeType.values().length) {
+            return null;
+        }
+
+        BooleanBuilder builder = new BooleanBuilder();
+        QRecipe recipe = QRecipe.recipe;
+
+        for (RecipeType type : types) {
+            switch (type) {
+                case AI:
+                    builder.or(recipe.isAiGenerated.isTrue());
+                    break;
+                case YOUTUBE:
+                    builder.or(recipe.youtubeUrl.isNotNull().and(recipe.youtubeUrl.ne("")));
+                    break;
+                case USER:
+                    builder.or(recipe.isAiGenerated.isFalse()
+                            .and(recipe.youtubeUrl.isNull().or(recipe.youtubeUrl.eq(""))));
+                    break;
+            }
+        }
+        return builder;
     }
 }

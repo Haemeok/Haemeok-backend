@@ -7,9 +7,9 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
+import com.jdc.recipe_service.domain.type.RecipeType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.dto.FridgeRecipeDto;
 import com.jdc.recipe_service.opensearch.dto.RecipeDocument;
 import lombok.RequiredArgsConstructor;
@@ -56,7 +56,7 @@ public class FridgeRecipeSearchService {
     @Transactional(readOnly = true)
     public Page<FridgeRecipeDto> searchByFridge(Long userId,
                                                 Pageable pageable,
-                                                AiRecipeFilter aiFilter) {
+                                                List<RecipeType> types) {
 
         List<Long> fridgeIds = fridgeRepo.findAllByUserId(userId).stream()
                 .map(fi -> fi.getIngredient().getId())
@@ -67,10 +67,10 @@ public class FridgeRecipeSearchService {
         }
 
         try {
-            return searchWithOpenSearch(userId, pageable, aiFilter, fridgeIds);
+            return searchWithOpenSearch(userId, pageable, types, fridgeIds);
         } catch (Exception e) {
             log.warn("OpenSearch 냉장고 검색 실패, DB Fallback 실행. cause={}", e.getMessage());
-            return searchWithDbFallback(userId, pageable, aiFilter, fridgeIds);
+            return searchWithDbFallback(userId, pageable, types, fridgeIds);
         }
     }
 
@@ -78,18 +78,18 @@ public class FridgeRecipeSearchService {
     public Page<FridgeRecipeDto> searchByFridgeQueryOnly(
             Long userId,
             Pageable pageable,
-            AiRecipeFilter aiFilter
+            List<RecipeType> types
     ) {
         List<Long> fridgeIds = fridgeRepo.findAllByUserId(userId).stream()
                 .map(fi -> fi.getIngredient().getId())
                 .toList();
 
-        return searchWithDbFallback(userId, pageable, aiFilter, fridgeIds);
+        return searchWithDbFallback(userId, pageable, types, fridgeIds);
     }
 
     private Page<FridgeRecipeDto> searchWithOpenSearch(Long userId,
                                                        Pageable pageable,
-                                                       AiRecipeFilter aiFilter,
+                                                       List<RecipeType> types,
                                                        List<Long> fridgeIds) throws IOException {
 
         SearchSourceBuilder ssb = new SearchSourceBuilder()
@@ -99,10 +99,32 @@ public class FridgeRecipeSearchService {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         boolQuery.filter(QueryBuilders.termQuery("isPrivate", false));
 
-        if (aiFilter == AiRecipeFilter.USER_ONLY) {
-            boolQuery.filter(QueryBuilders.termQuery("isAiGenerated", false));
-        } else if (aiFilter == AiRecipeFilter.AI_ONLY) {
-            boolQuery.filter(QueryBuilders.termQuery("isAiGenerated", true));
+        if (types != null && !types.isEmpty() && types.size() != RecipeType.values().length) {
+            BoolQueryBuilder typeQuery = QueryBuilders.boolQuery();
+
+            for (RecipeType type : types) {
+                switch (type) {
+                    case AI:
+                        typeQuery.should(QueryBuilders.termQuery("isAiGenerated", true));
+                        break;
+                    case YOUTUBE:
+                        BoolQueryBuilder youtubeCondition = QueryBuilders.boolQuery()
+                                .must(QueryBuilders.existsQuery("youtubeUrl"))
+                                .mustNot(QueryBuilders.termQuery("youtubeUrl", ""));
+                        typeQuery.should(youtubeCondition);
+                        break;
+                    case USER:
+                        BoolQueryBuilder userCondition = QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery("isAiGenerated", false))
+                                .must(QueryBuilders.boolQuery()
+                                        .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("youtubeUrl")))
+                                        .should(QueryBuilders.termQuery("youtubeUrl", ""))
+                                );
+                        typeQuery.should(userCondition);
+                        break;
+                }
+            }
+            boolQuery.filter(typeQuery);
         }
 
         TermsSetQueryBuilder termsSetQuery =
@@ -196,7 +218,7 @@ public class FridgeRecipeSearchService {
 
     private Page<FridgeRecipeDto> searchWithDbFallback(Long userId,
                                                        Pageable pageable,
-                                                       AiRecipeFilter aiFilter,
+                                                       List<RecipeType> types,
                                                        List<Long> fridgeIds) {
 
         if (fridgeIds.isEmpty()) return Page.empty(pageable);
@@ -210,7 +232,7 @@ public class FridgeRecipeSearchService {
         }
 
         Page<Recipe> recipePage =
-                recipeRepository.findByFridgeFallback(effectiveFridgeIds, aiFilter, pageable);
+                recipeRepository.findByFridgeFallback(effectiveFridgeIds, types, pageable);
 
         List<Recipe> recipes = recipePage.getContent();
         if (recipes.isEmpty()) return Page.empty(pageable);

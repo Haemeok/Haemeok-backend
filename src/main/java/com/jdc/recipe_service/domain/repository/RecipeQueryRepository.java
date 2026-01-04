@@ -3,7 +3,7 @@ package com.jdc.recipe_service.domain.repository;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
+import com.jdc.recipe_service.domain.type.RecipeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -27,7 +27,7 @@ public interface RecipeQueryRepository {
 
     Page<Recipe> findByFridgeFallback(
             List<Long> fridgeIds,
-            AiRecipeFilter aiFilter,
+            List<RecipeType> types,
             Pageable pageable
     );
 }

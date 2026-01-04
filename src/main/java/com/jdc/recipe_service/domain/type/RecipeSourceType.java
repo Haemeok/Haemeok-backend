@@ -5,7 +5,8 @@ import lombok.Getter;
 @Getter
 public enum RecipeSourceType {
     USER,
-    AI;
+    AI,
+    YOUTUBE;
 
     public static RecipeSourceType fromNullable(String source) {
         if (source == null) return USER;

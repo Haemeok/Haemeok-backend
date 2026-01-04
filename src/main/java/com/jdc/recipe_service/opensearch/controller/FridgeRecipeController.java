@@ -1,6 +1,6 @@
 package com.jdc.recipe_service.opensearch.controller;
 
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
+import com.jdc.recipe_service.domain.type.RecipeType;
 import com.jdc.recipe_service.opensearch.dto.FridgeRecipeDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -12,6 +12,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/me/fridge/recipes")
@@ -25,8 +27,8 @@ public class FridgeRecipeController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable,
-            @RequestParam(name = "aiFilter", defaultValue = "USER_ONLY")
-            AiRecipeFilter aiFilter
+            @RequestParam(name = "types", required = false, defaultValue = "USER")
+            List<RecipeType> types
     ) {
         if (userDetails == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
@@ -34,7 +36,7 @@ public class FridgeRecipeController {
 
         Long userId = userDetails.getUser().getId();
         Page<FridgeRecipeDto> result =
-                service.searchByFridge(userId, pageable, aiFilter);
+                service.searchByFridge(userId, pageable, types);
         return ResponseEntity.ok(result);
     }
 
@@ -43,8 +45,8 @@ public class FridgeRecipeController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable,
-            @RequestParam(name = "aiFilter", defaultValue = "USER_ONLY")
-            AiRecipeFilter aiFilter
+            @RequestParam(name = "types", required = false, defaultValue = "USER")
+            List<RecipeType> types
     ) {
         if (userDetails == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
@@ -52,7 +54,7 @@ public class FridgeRecipeController {
 
         Long userId = userDetails.getUser().getId();
         Page<FridgeRecipeDto> result =
-                service.searchByFridgeQueryOnly(userId, pageable, aiFilter);
+                service.searchByFridgeQueryOnly(userId, pageable, types);
         return ResponseEntity.ok(result);
     }
 }

@@ -5,8 +5,9 @@ import com.jdc.recipe_service.domain.dto.recipe.QRecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.RecipeType;
 import com.jdc.recipe_service.domain.type.TagType;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -50,7 +51,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipeTag tag = QRecipeTag.recipeTag;
 
         BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
-        BooleanExpression aiCondition = filterAiGenerated(cond.getAiFilter());
 
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleDto(
@@ -79,8 +79,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums(), tag),
-                        aiCondition,
-                        youtubeFilter(cond.getIsYoutubeRecipe()),
+                        filterByTypes(cond.getTypes()),
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
                         proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
@@ -138,8 +137,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums(), tag),
-                        aiCondition,
-                        youtubeFilter(cond.getIsYoutubeRecipe()),
+                        filterByTypes(cond.getTypes()),
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
                         proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
@@ -266,7 +264,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipeTag tag = QRecipeTag.recipeTag;
 
         BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
-        BooleanExpression aiCondition = filterAiGenerated(cond.getAiFilter());
 
         Order dir = direction.isAscending() ? Order.ASC : Order.DESC;
         OrderSpecifier<?> dynamicOrder;
@@ -306,8 +303,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums(), tag),
-                        aiCondition,
-                        youtubeFilter(cond.getIsYoutubeRecipe()),
+                        filterByTypes(cond.getTypes()),
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
                         proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
@@ -354,8 +350,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums(), tag),
-                        aiCondition,
-                        youtubeFilter(cond.getIsYoutubeRecipe()),
+                        filterByTypes(cond.getTypes()),
                         costBetween(cond.getMinCost(), cond.getMaxCost()),
                         caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
                         proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
@@ -373,7 +368,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     @Override
     public Page<Recipe> findByFridgeFallback(
             List<Long> fridgeIds,
-            AiRecipeFilter aiFilter,
+            List<RecipeType> types,
             Pageable pageable
     ) {
         QRecipe recipe = QRecipe.recipe;
@@ -381,7 +376,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QIngredient ing = QIngredient.ingredient;
         QUser user = QUser.user;
 
-        BooleanExpression aiCondition = buildAiFilter(aiFilter, recipe);
+        BooleanBuilder typeCondition = filterByTypes(types);
         Set<Long> pantryIds = com.jdc.recipe_service.opensearch.service.RecipeIndexingService.PANTRY_IDS;
 
         NumberExpression<Long> totalEssentialCount = ri.count();
@@ -399,7 +394,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
                 .where(
                         recipe.isPrivate.isFalse(),
-                        aiCondition,
+                        typeCondition,
                         ing.id.notIn(pantryIds)
                 )
                 .groupBy(recipe.id)
@@ -418,7 +413,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .join(ri.ingredient, ing)
                 .where(
                         recipe.isPrivate.isFalse(),
-                        aiCondition,
+                        typeCondition,
                         ing.id.notIn(pantryIds)
                 )
                 .groupBy(recipe.id)
@@ -493,22 +488,35 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         return StringUtils.hasText(title) ? QRecipe.recipe.title.containsIgnoreCase(title) : null;
     }
 
-    private BooleanExpression filterAiGenerated(AiRecipeFilter filter) {
-        if (filter == AiRecipeFilter.AI_ONLY) {
-            return QRecipe.recipe.isAiGenerated.isTrue();
-        }
-        if (filter == AiRecipeFilter.ALL) {
+
+    private BooleanBuilder filterByTypes(List<RecipeType> types) {
+        if (types == null || types.isEmpty()) {
             return null;
         }
-        return QRecipe.recipe.isAiGenerated.isFalse();
+        if (types.size() == RecipeType.values().length) {
+            return null;
+        }
+
+        BooleanBuilder builder = new BooleanBuilder();
+        QRecipe recipe = QRecipe.recipe;
+
+        for (RecipeType type : types) {
+            switch (type) {
+                case AI:
+                    builder.or(recipe.isAiGenerated.isTrue());
+                    break;
+                case YOUTUBE:
+                    builder.or(recipe.youtubeUrl.isNotNull().and(recipe.youtubeUrl.ne("")));
+                    break;
+                case USER:
+                    builder.or(recipe.isAiGenerated.isFalse()
+                            .and(recipe.youtubeUrl.isNull().or(recipe.youtubeUrl.eq(""))));
+                    break;
+            }
+        }
+        return builder;
     }
 
-    private BooleanExpression buildAiFilter(AiRecipeFilter filter, QRecipe recipe) {
-        if (filter == null || filter == AiRecipeFilter.ALL) return null;
-        if (filter == AiRecipeFilter.USER_ONLY) return recipe.isAiGenerated.isFalse();
-        if (filter == AiRecipeFilter.AI_ONLY) return recipe.isAiGenerated.isTrue();
-        return null;
-    }
 
     private BooleanExpression costBetween(Integer min, Integer max) {
         if (min == null && max == null) return null;
@@ -546,12 +554,5 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
             return path.goe(BigDecimal.valueOf(minVal));
         }
         return path.between(BigDecimal.valueOf(minVal), BigDecimal.valueOf(max));
-    }
-
-    private BooleanExpression youtubeFilter(Boolean isYoutubeRecipe) {
-        if (isYoutubeRecipe == null) return null;
-        return isYoutubeRecipe ?
-                QRecipe.recipe.youtubeUrl.isNotNull().and(QRecipe.recipe.youtubeUrl.ne("")) :
-                QRecipe.recipe.youtubeUrl.isNull().or(QRecipe.recipe.youtubeUrl.eq(""));
     }
 }

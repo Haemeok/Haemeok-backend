@@ -8,7 +8,6 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeSearchServiceV2;
 import com.jdc.recipe_service.service.RecipeStatusService;
@@ -108,10 +107,6 @@ public class RecipeSearchControllerV2 {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long userId = userDetails != null ? userDetails.getUser().getId() : null;
-
-        if (cond.getAiFilter() == null) {
-            cond.setAiFilter(AiRecipeFilter.USER_ONLY);
-        }
 
         Page<RecipeSimpleStaticDto> page = recipeSearchServiceV2.searchRecipes(cond, pageable, userId);
         return ResponseEntity.ok(page);

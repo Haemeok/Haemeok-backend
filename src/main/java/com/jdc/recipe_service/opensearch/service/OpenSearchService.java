@@ -3,13 +3,10 @@ package com.jdc.recipe_service.opensearch.service;
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
-import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
+import com.jdc.recipe_service.domain.type.RecipeType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
-import com.jdc.recipe_service.opensearch.dto.AiRecipeFilter;
 import com.jdc.recipe_service.opensearch.keyword.KeywordService;
 import lombok.RequiredArgsConstructor;
 import org.opensearch.action.search.SearchRequest;
@@ -27,7 +24,6 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -38,9 +34,7 @@ import java.util.stream.Collectors;
 public class OpenSearchService {
 
     private final RecipeRepository recipeRepository;
-    private final RecipeLikeRepository recipeLikeRepository;
     private final RestHighLevelClient client;
-    private final RefrigeratorItemRepository fridgeRepo;
     private final KeywordService keywordService;
 
     @Value("${app.s3.bucket-name}")
@@ -165,32 +159,51 @@ public class OpenSearchService {
             }
         }
 
-        AiRecipeFilter filter = cond.getAiFilter();
-        if (filter == AiRecipeFilter.USER_ONLY) {
-            bool.filter(QueryBuilders.termQuery("isAiGenerated", false));
-        } else if (filter == AiRecipeFilter.AI_ONLY) {
-            bool.filter(QueryBuilders.termQuery("isAiGenerated", true));
-        }
-
-        if (cond.getIsYoutubeRecipe() != null) {
-            if (cond.getIsYoutubeRecipe()) {
-                BoolQueryBuilder youtubeFilter = QueryBuilders.boolQuery()
-                        .must(QueryBuilders.existsQuery("youtubeUrl"))
-                        .mustNot(QueryBuilders.termQuery("youtubeUrl", ""));
-                bool.filter(youtubeFilter);
-            } else {
-                BoolQueryBuilder noYoutubeFilter = QueryBuilders.boolQuery()
-                        .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("youtubeUrl")))
-                        .should(QueryBuilders.termQuery("youtubeUrl", ""));
-                bool.filter(noYoutubeFilter);
-            }
-        }
+        applyTypeFilter(bool, cond.getTypes());
 
         if (bool.must().isEmpty() && bool.filter().isEmpty()) {
             bool.must(QueryBuilders.matchAllQuery());
         }
 
         return bool;
+    }
+
+    private void applyTypeFilter(BoolQueryBuilder mainBool, List<RecipeType> types) {
+        if (types == null || types.isEmpty()) {
+            return;
+        }
+        if (types.size() == RecipeType.values().length) {
+            return;
+        }
+
+        BoolQueryBuilder typeQuery = QueryBuilders.boolQuery();
+
+        for (RecipeType type : types) {
+            switch (type) {
+                case AI:
+                    typeQuery.should(QueryBuilders.termQuery("isAiGenerated", true));
+                    break;
+
+                case YOUTUBE:
+                    BoolQueryBuilder youtubeCondition = QueryBuilders.boolQuery()
+                            .must(QueryBuilders.existsQuery("youtubeUrl"))
+                            .mustNot(QueryBuilders.termQuery("youtubeUrl", ""));
+                    typeQuery.should(youtubeCondition);
+                    break;
+
+                case USER:
+                    BoolQueryBuilder userCondition = QueryBuilders.boolQuery()
+                            .must(QueryBuilders.termQuery("isAiGenerated", false))
+                            .must(QueryBuilders.boolQuery()
+                                    .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("youtubeUrl")))
+                                    .should(QueryBuilders.termQuery("youtubeUrl", ""))
+                            );
+                    typeQuery.should(userCondition);
+                    break;
+            }
+        }
+
+        mainBool.filter(typeQuery);
     }
 
     private void applyRangeFilter(BoolQueryBuilder bool, String fieldName, Integer min, Integer max) {
