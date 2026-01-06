@@ -187,7 +187,8 @@ public class RecipeRecommendationService {
                 recipe.getCookingTime(),
                 (long) (recipe.getLikeCount() != null ? recipe.getLikeCount() : 0),
                 recipe.getAvgRating() != null ? recipe.getAvgRating() : BigDecimal.ZERO,
-                recipe.getRatingCount()
+                recipe.getRatingCount(),
+                recipe.getYoutubeUrl()
         );
     }
 }

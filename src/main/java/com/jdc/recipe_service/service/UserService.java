@@ -194,7 +194,8 @@ public class UserService {
                             likedIds.contains(recipe.getId()),
                             recipe.getCookingTime(),
                             recipe.getAvgRating(),
-                            recipe.getRatingCount()
+                            recipe.getRatingCount(),
+                            recipe.getYoutubeUrl()
                     );
                     dto.setImageUrl(generateImageUrl(recipe.getImageKey()));
                     return dto;

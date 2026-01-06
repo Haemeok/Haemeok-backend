@@ -194,7 +194,8 @@ public class FridgeRecipeSearchService {
                     likedSet.contains(doc.getId()),
                     doc.getCookingTime(),
                     avgRating,
-                    ratingCount
+                    ratingCount,
+                    r.getYoutubeUrl()
             );
 
             List<String> matched = new ArrayList<>();
@@ -272,7 +273,8 @@ public class FridgeRecipeSearchService {
                     liked.contains(r.getId()),
                     Optional.ofNullable(r.getCookingTime()).orElse(0),
                     avgRating,
-                    ratingCount
+                    ratingCount,
+                    r.getYoutubeUrl()
             );
 
             return new FridgeRecipeDto(simple, matched);

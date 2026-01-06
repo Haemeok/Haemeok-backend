@@ -37,6 +37,7 @@
         INVALID_INGREDIENT_REQUEST(HttpStatus.BAD_REQUEST, "404", "잘못된 재료 요청입니다."),
         CUSTOM_INGREDIENT_INFO_MISSING(HttpStatus.BAD_REQUEST, "405", "새로운 재료는 가격과 단위를 함께 입력해야 합니다."),
         MISSING_INGREDIENT_NAME(HttpStatus.BAD_REQUEST, "406", "재료명(name 또는 customName)이 비어 있을 수 없습니다."),
+        DAILY_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "429", "하루 생성 제한을 초과했습니다."),
 
         // --- Fridge (500) ---
         INVALID_FRIDGE_REQUEST(HttpStatus.BAD_REQUEST, "501", "잘못된 냉장고 요청입니다."),
@@ -67,7 +68,7 @@
         NULL_POINTER(HttpStatus.BAD_REQUEST, "904", "필수 데이터가 누락되었습니다."),
         INVALID_CONTENT_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "905", "지원하지 않는 Content-Type 입니다."),
         DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "906", "데이터 무결성 제약조건 위반입니다."),
-
+        INVALID_URL_FORMAT(HttpStatus.BAD_REQUEST, "907", "지원하지 않는 URL입니다. 유튜브 링크만 입력해 주세요."),
 
         // --- Search (950) ---
         SEARCH_FAILURE(HttpStatus.INTERNAL_SERVER_ERROR, "950", "검색 처리 중 오류가 발생했습니다."),
