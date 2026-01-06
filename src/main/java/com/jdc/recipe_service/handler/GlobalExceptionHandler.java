@@ -33,16 +33,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<ErrorResponse> handleCustomException(CustomException ex) {
         ErrorCode errorCode = ex.getErrorCode();
+
+        String message = ex.getMessage();
+
+        if (message == null || message.isBlank()) {
+            message = errorCode.getMessage();
+        }
+
         return ResponseEntity
                 .status(errorCode.getStatus())
-                .body(ErrorResponse.of(errorCode));
+                .body(new ErrorResponse(errorCode.getCode(), message));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
         log.warn("데이터베이스 무결성 제약조건 위반: {}", ex.getMessage());
         return ResponseEntity
-                .status(HttpStatus.CONFLICT) // 409 Conflict
+                .status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse(ErrorCode.DATA_INTEGRITY_VIOLATION.getCode(), "데이터베이스 제약조건 위반 (예: 중복된 값)"));
     }
 
@@ -128,16 +135,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleDailyQuotaExceeded(
             DailyQuotaService.DailyQuotaExceededException e) {
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("Retry-After", Long.toString(e.getRetryAfterSeconds()));
-
-        Map<String, Object> body = Map.<String, Object>of(
-                "code", "DAILY_QUOTA_EXCEEDED",
-                "message", "하루 생성 제한을 초과했습니다.",
+        Map<String, Object> body = Map.of(
+                "code", ErrorCode.DAILY_QUOTA_EXCEEDED.getCode(),
+                "message", ErrorCode.DAILY_QUOTA_EXCEEDED.getMessage(),
                 "retryAfter", e.getRetryAfterSeconds()
         );
 
-        return new ResponseEntity<>(body, headers, e.getStatus());
+        return new ResponseEntity<>(body, e.getStatus());
     }
 
     @ExceptionHandler(RejectedExecutionException.class)
