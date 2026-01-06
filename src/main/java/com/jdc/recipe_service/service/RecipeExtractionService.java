@@ -4,6 +4,8 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
+import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
@@ -18,6 +20,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
@@ -35,7 +38,16 @@ public class RecipeExtractionService {
     private final RecipeService recipeService;
     private final DailyQuotaService dailyQuotaService;
 
+    private final RecipeRepository recipeRepository;
+    private final RecipeFavoriteService recipeFavoriteService;
+
     private final TransactionTemplate transactionTemplate;
+
+    private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
+
+    private static final Pattern YOUTUBE_URL_PATTERN = Pattern.compile(
+            "(?i)^(https?://)?(www\\.)?(youtube\\.com|youtu\\.be)/.+$"
+    );
 
     private static final Pattern UNIT_PATTERN = Pattern.compile(
             "(?i)(큰술|작은술|spoon|tbs|tsp|cup|\\b[0-9.]+\\s?g\\b|\\b[0-9.]+\\s?ml\\b|\\b[0-9.]+\\s?oz\\b|한\\s?꼬집|약간)"
@@ -53,6 +65,8 @@ public class RecipeExtractionService {
             GeminiMultimodalService geminiMultimodalService,
             RecipeService recipeService,
             DailyQuotaService dailyQuotaService,
+            RecipeRepository recipeRepository,
+            RecipeFavoriteService recipeFavoriteService,
             TransactionTemplate transactionTemplate
     ) {
         this.ytDlpService = ytDlpService;
@@ -60,6 +74,8 @@ public class RecipeExtractionService {
         this.geminiMultimodalService = geminiMultimodalService;
         this.recipeService = recipeService;
         this.dailyQuotaService = dailyQuotaService;
+        this.recipeRepository = recipeRepository;
+        this.recipeFavoriteService = recipeFavoriteService;
         this.transactionTemplate = transactionTemplate;
     }
 
@@ -211,6 +227,21 @@ public class RecipeExtractionService {
     public CompletableFuture<PresignedUrlResponse> extractAndCreateRecipe(String videoUrl, Long userId) {
         log.info("🚀 유튜브 레시피 추출 요청: URL={}", videoUrl);
 
+        if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
+            throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
+        }
+
+        String videoId = extractVideoId(videoUrl);
+
+        if (videoId != null) {
+            String standardizedUrl = convertToCanonical(videoId);
+            Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(standardizedUrl);
+            if (existingRecipe.isPresent()) {
+                log.info("♻️ 이미 존재하는 레시피 발견 (ID 기반). 생성 건너뜀: ID={}", existingRecipe.get().getId());
+                return handleExistingRecipe(existingRecipe.get(), userId);
+            }
+        }
+
         dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION);
 
         String canonicalUrl = videoUrl;
@@ -229,6 +260,16 @@ public class RecipeExtractionService {
             description = cap(nullToEmpty(videoData.description()), MAX_DESC_CHARS);
             comments = cap(nullToEmpty(videoData.comments()), MAX_CMT_CHARS);
             scriptPlain = cap(nullToEmpty(videoData.scriptTimecoded()), MAX_SCRIPT_CHARS);
+
+            Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
+            if (existingRecipeCanonical.isPresent()) {
+                log.info("♻️ 이미 존재하는 레시피 발견 (Canonical URL). 쿼터 환불 및 연결: ID={}", existingRecipeCanonical.get().getId());
+
+                // 중복이므로 쿼터 환불
+                dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
+
+                return handleExistingRecipe(existingRecipeCanonical.get(), userId);
+            }
 
         } catch (Exception e) {
             log.warn("⚠️ yt-dlp 추출 실패 (YouTube 차단/오류). Gemini 영상 분석으로 즉시 전환합니다. Error: {}", safeMsg(e));
@@ -352,9 +393,11 @@ public class RecipeExtractionService {
 
             mergeDuplicateIngredientsByNameAndUnit(recipeDto);
 
-            PresignedUrlResponse response = saveRecipeTransactional(recipeDto, userId);
+            PresignedUrlResponse response = saveRecipeTransactional(recipeDto, OFFICIAL_RECIPE_USER_ID);
 
-            log.info("💾 레시피 저장 완료: ID={}", response.getRecipeId());
+            addFavoriteToUser(userId, response.getRecipeId());
+
+            log.info("💾 신규 생성 및 즐겨찾기 추가 완료: ID={}, UserID={}", response.getRecipeId(), userId);
             return CompletableFuture.completedFuture(response);
 
         } catch (CustomException e) {
@@ -365,17 +408,44 @@ public class RecipeExtractionService {
                 dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
             }
             throw e;
+        } catch (Exception e) {
+            log.warn("❌ 알 수 없는 오류. 쿼터 환불: userId={}", userId);
+            dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED);
         }
+    }
+
+    private CompletableFuture<PresignedUrlResponse> handleExistingRecipe(Recipe recipe, Long requestingUserId) {
+        addFavoriteToUser(requestingUserId, recipe.getId());
+
+        PresignedUrlResponse response = PresignedUrlResponse.builder()
+                .recipeId(recipe.getId())
+                .uploads(Collections.emptyList())
+                .build();
+
+        return CompletableFuture.completedFuture(response);
+    }
+
+    private void addFavoriteToUser(Long userId, Long recipeId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            recipeFavoriteService.addFavoriteIfNotExists(userId, recipeId);
+        });
     }
 
     private PresignedUrlResponse saveRecipeTransactional(RecipeCreateRequestDto recipeDto, Long userId) {
         return transactionTemplate.execute(status -> {
             RecipeWithImageUploadRequest request = new RecipeWithImageUploadRequest();
             request.setRecipe(recipeDto);
-            return recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.YOUTUBE);
+
+            PresignedUrlResponse originalRes = recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.YOUTUBE);
+
+            return PresignedUrlResponse.builder()
+                    .recipeId(originalRes.getRecipeId())
+                    .uploads(originalRes.getUploads())
+                    .created(true)
+                    .build();
         });
     }
-
     private boolean isTextSufficient(String description, String comments, String scriptPlain) {
         if (scriptPlain != null && scriptPlain.length() >= 50) return true;
 
@@ -440,5 +510,21 @@ public class RecipeExtractionService {
     private String safeMsg(Throwable t) {
         if (t == null) return "";
         return t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+    }
+
+    private String extractVideoId(String url) {
+        String pattern = "(?<=watch\\?v=|/videos/|embed\\/|youtu.be\\/|\\/v\\/|\\/e\\/|watch\\?v%3D|watch\\?feature=player_embedded&v=|%2Fvideos%2F|embed%5C%2F|youtu.be%2F|%2Fv%2F|shorts\\/)[^#\\&\\?\\n]*";
+
+        Pattern compiledPattern = Pattern.compile(pattern);
+        Matcher matcher = compiledPattern.matcher(url);
+
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        return null;
+    }
+
+    private String convertToCanonical(String videoId) {
+        return "https://www.youtube.com/watch?v=" + videoId;
     }
 }

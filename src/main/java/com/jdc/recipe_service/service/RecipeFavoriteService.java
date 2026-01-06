@@ -41,6 +41,22 @@ public class RecipeFavoriteService {
     }
 
     @Transactional
+    public void addFavoriteIfNotExists(Long userId, Long recipeId) {
+        boolean exists = favoriteRepository.existsByRecipeIdAndUserId(recipeId, userId);
+
+        if (exists) {
+            return;
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        Recipe recipe = recipeRepository.findById(recipeId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+
+        favoriteRepository.save(RecipeFavorite.builder().user(user).recipe(recipe).build());
+    }
+
+    @Transactional
     public void deleteByRecipeId(Long recipeId) {
         favoriteRepository.deleteByRecipeId(recipeId);
     }

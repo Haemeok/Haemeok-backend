@@ -158,6 +158,12 @@ public class RecipeController {
         }
 
         return recipeExtractionService.extractAndCreateRecipe(url, userDetails.getUser().getId())
-                .thenApply(ResponseEntity::ok);
+                .thenApply(response -> {
+                    if (response.isCreated()) {
+                        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+                    } else {
+                        return ResponseEntity.ok(response);
+                    }
+                });
     }
 }
