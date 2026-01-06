@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.v2.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.querydsl.core.annotations.QueryProjection;
@@ -62,11 +63,15 @@ public class RecipeSimpleStaticDtoV2 {
     @Schema(description = "레시피 시장가")
     private Integer marketPrice;
 
+    @Schema(description = "유튜브 레시피 여부")
+    @JsonProperty("isYoutube")
+    private boolean isYoutube;
+
     @QueryProjection
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                    LocalDateTime createdAt, Integer cookingTime, long likeCount,
-                                   BigDecimal avgRating,
-                                   long ratingCount, Integer ingredientCost, Integer marketPrice) {
+                                   BigDecimal avgRating, long ratingCount, Integer ingredientCost,
+                                   Integer marketPrice, String youtubeUrl) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -80,6 +85,7 @@ public class RecipeSimpleStaticDtoV2 {
         this.ratingCount = ratingCount;
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
+        this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
     }
 
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
@@ -87,7 +93,7 @@ public class RecipeSimpleStaticDtoV2 {
                                    Long likeCount,
                                    Double avgRating,
                                    Long ratingCount,
-                                   Integer ingredientCost, Integer marketPrice) {
+                                   Integer ingredientCost, Integer marketPrice, String youtubeUrl) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -101,5 +107,6 @@ public class RecipeSimpleStaticDtoV2 {
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
+        this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
     }
 }

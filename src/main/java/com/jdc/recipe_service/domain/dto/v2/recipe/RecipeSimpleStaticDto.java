@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.v2.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.querydsl.core.annotations.QueryProjection;
@@ -54,11 +55,14 @@ public class RecipeSimpleStaticDto {
     @Schema(description = "레시피 평점 수")
     private long ratingCount;
 
+    @Schema(description = "유튜브 레시피 여부")
+    @JsonProperty("isYoutube")
+    private boolean isYoutube;
+
     @QueryProjection
     public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                  LocalDateTime createdAt, Integer cookingTime, long likeCount,
-                                 BigDecimal avgRating,
-                                 long ratingCount) {
+                                 BigDecimal avgRating, long ratingCount, String youtubeUrl) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -70,13 +74,12 @@ public class RecipeSimpleStaticDto {
         this.likeCount = likeCount;
         this.avgRating = avgRating != null ? avgRating.doubleValue() : 0.0;
         this.ratingCount = ratingCount;
+        this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
     }
 
     public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                  LocalDateTime createdAt, Integer cookingTime,
-                                 Long likeCount,
-                                 Double avgRating,
-                                 Long ratingCount)
+                                 Long likeCount, Double avgRating, Long ratingCount, String youtubeUrl)
     {
         this.id = id;
         this.title = title;
@@ -89,5 +92,6 @@ public class RecipeSimpleStaticDto {
         this.likeCount = likeCount != null ? likeCount : 0L;
         this.avgRating = avgRating != null ? avgRating : 0.0;
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
+        this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
     }
 }
