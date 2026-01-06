@@ -135,7 +135,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                     r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
                     COUNT(DISTINCT rl.id),      
                     COALESCE(r.avgRating, 0.0), 
-                    COALESCE(r.ratingCount, 0L) 
+                    COALESCE(r.ratingCount, 0L),
+                    r.youtubeUrl
                 )
                 FROM Recipe r
                 JOIN r.user u
@@ -157,7 +158,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             COALESCE(r.avgRating, 0.0),
             COALESCE(r.ratingCount, 0L),
             r.totalIngredientCost,
-            r.marketPrice
+            r.marketPrice,
+            r.youtubeUrl
         )
         FROM Recipe r
         JOIN r.user u
@@ -177,7 +179,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
                 COALESCE(r.likeCount, 0L),
                 COALESCE(r.avgRating, 0.0),
-                COALESCE(r.ratingCount, 0L)
+                COALESCE(r.ratingCount, 0L),
+                r.youtubeUrl
             )
             FROM Recipe r
             JOIN r.user u
@@ -196,7 +199,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
             "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
-            "r.likeCount, FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount) " +
+            "r.likeCount, FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount, r.youtubeUrl) " +
             "FROM Recipe r " +
             "WHERE r.id IN :ids")
     List<RecipeSimpleDto> findAllSimpleDtoWithCountsByIdIn(@Param("ids") List<Long> ids);
@@ -226,4 +229,6 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("UPDATE Recipe r SET r.imageKey = :imageKey, r.imageStatus = :status, r.isPrivate = :isPrivate WHERE r.id = :id")
     void updateImageInfo(@Param("id") Long id, @Param("imageKey") String imageKey,
                          @Param("status") RecipeImageStatus status, @Param("isPrivate") Boolean isPrivate);
+
+    Optional<Recipe> findByYoutubeUrl(String youtubeUrl);
 }

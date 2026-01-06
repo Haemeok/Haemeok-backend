@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.querydsl.core.annotations.QueryProjection;
@@ -65,6 +66,10 @@ public class RecipeSimpleDto {
     @Schema(description = "예상 조리 시간 (분 단위)")
     private Integer cookingTime;
 
+    @Schema(description = "유튜브 레시피 여부")
+    @JsonProperty("isYoutube")
+    private boolean isYoutube;
+
     public void setLikedByCurrentUser(boolean b) {
         likedByCurrentUser = b;
     }
@@ -76,7 +81,7 @@ public class RecipeSimpleDto {
     @QueryProjection
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                            LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser,
-                           Integer cookingTime, BigDecimal avgRating, Long ratingCount) {
+                           Integer cookingTime, BigDecimal avgRating, Long ratingCount, String youtubeUrl) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -89,11 +94,12 @@ public class RecipeSimpleDto {
         this.cookingTime = cookingTime;
         this.avgRating = avgRating;
         this.ratingCount = ratingCount;
+        this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
     }
 
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                            LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser,
-                           Integer cookingTime, double avgRating, Long ratingCount) {
+                           Integer cookingTime, double avgRating, Long ratingCount, String youtubeUrl) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -106,6 +112,7 @@ public class RecipeSimpleDto {
         this.cookingTime = cookingTime;
         this.avgRating = BigDecimal.valueOf(avgRating);
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
+        this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
     }
 
     public Double getAvgRating() {
