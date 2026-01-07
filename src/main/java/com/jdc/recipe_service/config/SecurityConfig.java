@@ -189,8 +189,7 @@ public class SecurityConfig {
                                 "/api/tags/**",
                                 "/", "/oauth2/**", "/login/**", "/error",
                                 "/h2-console/**",
-                                "/api/opensearch/**",
-                                "/api/test/ai-recipe/**"
+                                "/api/opensearch/**"
                         ).permitAll()
 
                         // 2) GET 중 인증 필요
@@ -290,6 +289,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/recipes/*/analyze").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/recipes/*/nutrition").hasRole("ADMIN")
                         .requestMatchers("/api/test/recipes/**").hasRole("ADMIN")
+                        .requestMatchers("/api/test/ai-recipe/**").hasRole("ADMIN")
 
                         // 9) 나머지 전부 차단
                         .anyRequest().denyAll()
