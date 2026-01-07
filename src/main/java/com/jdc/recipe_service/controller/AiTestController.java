@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/test/ai-recipe")
 @RequiredArgsConstructor
@@ -72,5 +74,21 @@ public class AiTestController {
         RecipeAnalysisResponseDto result = recipeService.analyzeRecipeTest(recipeId);
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * [TEST] 다중 레시피 일괄 등록 (테스트 계정 랜덤 배정)
+     * 요청: 레시피 JSON 리스트 (Array)
+     * 파라미터: type=odd (홀수 ID), type=even (짝수 ID)
+     * 로직: 90001~90100 사이의 테스트 계정 중 조건에 맞는 ID를 랜덤 배정하여 등록
+     */
+    @PostMapping("/batch-insert")
+    @Operation(summary = "레시피 일괄 등록 (테스트 계정 랜덤)", description = "JSON 리스트를 받아 다중 레시피를 저장하고, 입력한 프롬프트로 이미지를 생성해 연결합니다.")
+    public ResponseEntity<List<RecipeCreateRequestDto>> batchInsertRecipes(
+            @RequestBody List<RecipeCreateRequestDto> requests,
+            @RequestParam String type) {
+
+        List<RecipeCreateRequestDto> results = recipeService.batchInsertRecipes(requests, type);
+        return ResponseEntity.ok(results);
     }
 }
