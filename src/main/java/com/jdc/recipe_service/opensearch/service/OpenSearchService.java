@@ -55,7 +55,8 @@ public class OpenSearchService {
             var src = new SearchSourceBuilder()
                     .query(bool)
                     .from((int) pg.getOffset())
-                    .size(pg.getPageSize());
+                    .size(pg.getPageSize())
+                    .fetchSource(false);
             pg.getSort().forEach(o ->
                     src.sort(o.getProperty(),
                             o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
@@ -98,7 +99,11 @@ public class OpenSearchService {
         try {
             BoolQueryBuilder bool = buildCommonQuery(cond);
 
-            SearchSourceBuilder src = new SearchSourceBuilder().query(bool).from((int) pg.getOffset()).size(pg.getPageSize());
+            SearchSourceBuilder src = new SearchSourceBuilder()
+                    .query(bool)
+                    .from((int) pg.getOffset())
+                    .size(pg.getPageSize())
+                    .fetchSource(false);
             pg.getSort().forEach(o -> src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC));
 
             SearchResponse resp = client.search(new SearchRequest("recipes").source(src), RequestOptions.DEFAULT);
@@ -135,9 +140,12 @@ public class OpenSearchService {
         if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
             String title = cond.getTitle().trim();
             keywordService.record(title);
-            var titleQuery = QueryBuilders.boolQuery()
-                    .should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title))
-                    .should(QueryBuilders.matchQuery("title.infix", title));
+            BoolQueryBuilder titleQuery = QueryBuilders.boolQuery();
+            titleQuery.should(QueryBuilders.termQuery("title.keyword", title).boost(10.0f));
+            titleQuery.should(QueryBuilders.matchQuery("title", title).boost(5.0f));
+            titleQuery.should(QueryBuilders.matchPhraseQuery("title", title).boost(3.0f));
+            titleQuery.should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title).boost(1.0f));
+            titleQuery.should(QueryBuilders.matchQuery("title.infix", title).boost(1.0f));
             bool.must(titleQuery);
         }
 
