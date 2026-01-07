@@ -87,19 +87,30 @@ public class AsyncImageService {
             {{CUTLERY_RULE}}
             
             **[Visual Details (AI Inference)]**
-            - **Plating & Vessel:** **Select the most appropriate tableware that perfectly matches the cuisine type and the title.** (e.g., Use a rustic clay pot for Korean stews, a wide elegant plate for pasta/steak, a wooden board for bakery). **Served on a SINGLE plate.**
+            - **Plating & Vessel:** **Select the most appropriate tableware that perfectly matches the cuisine type and the title.**
+              **ALL tableware must be completely plain and unbranded:** no maker’s mark, no stamp/seal, no logo, no engraving, no embossed marks, no calligraphy, no patterns. Use solid-color blank surfaces only.
+              **Served on a SINGLE plate/bowl.**
             - **Texture:** Render the food texture realistically based on the cooking method. Enhance the glistening details of oils, sauces, or moisture to make it look freshly cooked and steaming hot.
             
             **[Technical Quality]**
             - Shot on iPhone 15 Pro Max, social media aesthetic, Instagram food porn style, sharp focus on food, natural depth of field, vivid colors.
             
+            **[ABSOLUTE NO-TEXT RULE]**
+            - The image must contain ZERO text of any kind.
+            - No Hangul/Korean, no English, no numbers, no symbols, no captions, no typography.
+            - No logos, no brands, no labels, no packaging, no stamps, no engraved markings on plates/cutlery.
+            - No printed patterns on tablecloth/placemats/napkins that resemble letters.
+            - If any text would appear, remove it completely and leave the surface blank. 
+            
             **[Negative Prompts]**
-            --no people, --no human body, --no hands, --no arms, --no chopsticks held by hand, 
-            --no alcohol, --no soju glass, --no beverage, 
-            --no side dishes, --no banchan, --no small plates, --no bowls, --no soup, 
-            --no messy piles, --no unappetizing mess, --no crumbs, 
-            --no raw powder, --no distorted blurry food, --no cropped plate, --no plastic look, 
-            --no text, --no watermark.
+            --no people, --no hands, --no arms,
+            --no text, --no watermark, --no caption,
+            --no logo, --no brand, --no label, --no packaging,
+            --no maker mark, --no seal, --no stamp, --no engraving, --no embossed, --no calligraphy, --no patterns,
+            --no side dishes, --no banchan, --no extra bowls, --no clutter,
+            --no plastic look, --no blurry, --no distorted, --no cropped plate,
+            --no alcohol, --no beverage, --no soju glass,
+            --no crumbs, --no messy spills, --no food splatter, --no powdery seasoning piles
             """;
 
     private static final String FINE_DINING_PROMPT_TEMPLATE = """
@@ -244,7 +255,7 @@ public class AsyncImageService {
             boolean showCutlery = ThreadLocalRandom.current().nextBoolean();
             String cutleryRule;
             if (showCutlery) {
-                cutleryRule = "**Analyze the dish type.** If Asian/Korean, place wooden chopsticks and a spoon. If Western, place a fork and knife. If Finger Food(Pizza), NO cutlery.";
+                cutleryRule = "**Analyze the dish type.** If Asian/Korean, place wooden chopsticks and a spoon. If Western, place a fork and knife. If Finger Food(Pizza), NO cutlery. Cutlery must be plain and unbranded: no engraving, no logo, no text.";
             } else {
                 cutleryRule = "**NO CUTLERY.** Do NOT place any spoon, fork, chopsticks, or knife. Keep the composition clean and minimal. Focus strictly on the food.";
             }
