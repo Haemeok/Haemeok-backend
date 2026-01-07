@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.controller;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
@@ -166,4 +168,24 @@ public class RecipeController {
                     }
                 });
     }
+
+    @GetMapping("/youtube/check")
+    @Operation(summary = "유튜브 레시피 존재 여부 확인", description = "파라미터로 URL을 받아 DB 존재 여부를 확인합니다.")
+    public ResponseEntity<RecipeIdResponse> checkYoutubeRecipeExistence(
+            @Parameter(description = "유튜브 영상 URL", required = true)
+            @RequestParam("url") String url
+    ) {
+        Long recipeId = recipeExtractionService.checkUrlExistence(url);
+
+        if (recipeId != null) {
+            return ResponseEntity.ok(new RecipeIdResponse(recipeId));
+        } else {
+            return ResponseEntity.ok(null);
+        }
+    }
+
+    public record RecipeIdResponse(
+            @JsonSerialize(using = HashIdConfig.HashIdSerializer.class)
+            Long recipeId
+    ) {}
 }

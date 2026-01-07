@@ -16,6 +16,7 @@ import com.jdc.recipe_service.service.media.YtDlpService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.*;
@@ -413,6 +414,20 @@ public class RecipeExtractionService {
             dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
             throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Long checkUrlExistence(String videoUrl) {
+        if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
+            throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
+        }
+        String videoId = extractVideoId(videoUrl);
+        if (videoId == null) throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
+        String canonicalUrl = convertToCanonical(videoId);
+
+        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(canonicalUrl);
+
+        return existingRecipe.map(Recipe::getId).orElse(null);
     }
 
     private CompletableFuture<PresignedUrlResponse> handleExistingRecipe(Recipe recipe, Long requestingUserId) {
