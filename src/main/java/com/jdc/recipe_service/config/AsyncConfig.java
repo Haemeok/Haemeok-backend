@@ -43,6 +43,18 @@ public class AsyncConfig {
         return exec;
     }
 
+    @Bean(name = "taskExecutor")
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
+        exec.setCorePoolSize(5);
+        exec.setMaxPoolSize(20);
+        exec.setQueueCapacity(50);
+
+        exec.setThreadNamePrefix("Async-General-");
+        exec.initialize();
+        return exec;
+    }
+
 
     static class ContextCopyingDecorator implements TaskDecorator {
         @Override

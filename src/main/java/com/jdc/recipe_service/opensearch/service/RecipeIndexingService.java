@@ -77,93 +77,103 @@ public class RecipeIndexingService {
         var request = new CreateIndexRequest("recipes");
 
         request.settings("""
-                {
-                  "index": {
-                    "number_of_shards": 1,    
-                    "number_of_replicas": 0,  
-                    "refresh_interval": "30s",
-                    "max_ngram_diff": 18
-                            },
-                  "analysis": {
-                    "filter": {
-                      "infix_ngram": {
-                        "type":     "ngram",
-                        "min_gram": 2,
-                        "max_gram": 20
-                      },
-                      "my_synonym": {
-                        "type":     "synonym",
-                        "synonyms": ["감자,포테이토", "김치,kimchi"]
-                      }
-                    },
-                    "tokenizer": {
-                      "edge_ngram_tokenizer": {
-                        "type":       "edge_ngram",
-                        "min_gram":   1,
-                        "max_gram":   20,
-                        "token_chars":["letter","digit"]
-                      }
-                    },
-                    "analyzer": {
-                      "autocomplete_analyzer": {
-                        "tokenizer": "edge_ngram_tokenizer",
-                        "filter":    ["lowercase","my_synonym"]
-                      },
-                      "infix_analyzer": {
-                        "tokenizer": "standard",
-                        "filter":    ["lowercase","infix_ngram"]
-                      }
-                    }
+            {
+              "index": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0,
+                "refresh_interval": "30s",
+                "max_ngram_diff": 18
+              },
+              "analysis": {
+                "tokenizer": {
+                  "nori_user_dict": {
+                    "type": "nori_tokenizer",
+                    "decompound_mode": "mixed" 
+                  },
+                  "edge_ngram_tokenizer": {
+                    "type": "edge_ngram",
+                    "min_gram": 1,
+                    "max_gram": 20,
+                    "token_chars": ["letter", "digit"]
+                  }
+                },
+                "analyzer": {
+                  "korean_analyzer": { 
+                    "type": "custom",
+                    "tokenizer": "nori_user_dict",
+                    "filter": ["lowercase", "my_synonym"] 
+                  },
+                  "autocomplete_analyzer": {
+                    "tokenizer": "edge_ngram_tokenizer",
+                    "filter": ["lowercase", "my_synonym"]
+                  },
+                  "infix_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": ["lowercase", "infix_ngram"]
+                  }
+                },
+                "filter": {
+                  "infix_ngram": {
+                    "type": "ngram",
+                    "min_gram": 2,
+                    "max_gram": 20
+                  },
+                  "my_synonym": {
+                    "type": "synonym",
+                    "synonyms": ["감자,포테이토", "김치,kimchi"]
                   }
                 }
-                """, XContentType.JSON);
+              }
+            }
+            """, XContentType.JSON);
 
         request.mapping("""
-                {
-                  "properties": {
-                    "title": {
-                      "type": "text",
-                      "fields": {
-                        "prefix": {
-                          "type":     "text",
-                          "analyzer": "autocomplete_analyzer"
-                        },
-                        "infix": {
-                          "type":            "text",
-                          "analyzer":        "infix_analyzer",
-                          "search_analyzer": "standard"
-                        }
-                      }
+            {
+              "properties": {
+                "title": {
+                  "type": "text",
+                  "analyzer": "korean_analyzer", 
+                  "fields": {
+                    "keyword": { 
+                      "type": "keyword" 
                     },
-                    "dishType":    { "type":"keyword" },
-                    "tags":        { "type":"keyword" },
-                    "createdAt":   { "type":"date" },
-                    "cookingTime": { "type":"integer" },
-                    "imageUrl":    { "type":"keyword" },
-                    "youtubeUrl":   { "type":"keyword" },
-                    "isAiGenerated":{ "type":"boolean" },
-                    "isPrivate":   { "type":"boolean" },
-                    "ingredientIds":  { "type": "long" },
-                    "ingredientCount":{ "type": "integer" },
-                    "totalIngredientCost": { "type": "integer" },
-                    "totalCalories": { "type": "float" },
-                    "protein":       { "type": "float" },
-                    "carbohydrate":  { "type": "float" },
-                    "fat":           { "type": "float" },
-                    "sugar":         { "type": "float" },
-                    "sodium":        { "type": "float" }
+                    "prefix": {
+                      "type": "text",
+                      "analyzer": "autocomplete_analyzer"
+                    },
+                    "infix": {
+                      "type": "text",
+                      "analyzer": "infix_analyzer",
+                      "search_analyzer": "standard"
+                    }
                   }
-                }
-                """, XContentType.JSON);
+                },
+                "dishType": { "type": "keyword" },
+                "tags": { "type": "keyword" },
+                "createdAt": { "type": "date" },
+                "cookingTime": { "type": "integer" },
+                "imageUrl": { "type": "keyword" },
+                "youtubeUrl": { "type": "keyword" },
+                "isAiGenerated": { "type": "boolean" },
+                "isPrivate": { "type": "boolean" },
+                "ingredientIds": { "type": "long" },
+                "ingredientCount": { "type": "integer" },
+                "totalIngredientCost": { "type": "integer" },
+                "totalCalories": { "type": "float" },
+                "protein": { "type": "float" },
+                "carbohydrate": { "type": "float" },
+                "fat": { "type": "float" },
+                "sugar": { "type": "float" },
+                "sodium": { "type": "float" }
+              }
+            }
+            """, XContentType.JSON);
 
         try {
             CreateIndexResponse res = client.indices().create(request, RequestOptions.DEFAULT);
             return res.isAcknowledged();
         } catch (IOException e) {
-            throw new CustomException(
-                    ErrorCode.SEARCH_FAILURE,
-                    "OpenSearch 인덱스 생성 실패: " + e.getMessage()
-            );
+            throw new CustomException(ErrorCode.SEARCH_FAILURE, "OpenSearch 인덱스 생성 실패: " + e.getMessage());
         }
     }
 
