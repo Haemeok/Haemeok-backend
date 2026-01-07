@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -63,6 +64,7 @@ public class RecipeTestService {
     private final CostEffectivePromptBuilder costBuilder;
     private final NutritionPromptBuilder nutritionBuilder;
     // private final FineDiningPromptBuilder fineDiningBuilder; // 필요 시 주석 해제
+    private final TransactionTemplate transactionTemplate;
 
     private static final int DEFAULT_MARGIN_PERCENT = 30;
 
@@ -339,6 +341,37 @@ public class RecipeTestService {
     }
 
     /**
+     * [TEST] 배치 인서트 로직
+     */
+    public List<RecipeCreateRequestDto> batchInsertRecipes(List<RecipeCreateRequestDto> requests, String type) {
+        List<RecipeCreateRequestDto> results = new ArrayList<>();
+        List<Long> targetUserIds = getTargetUserIds(type);
+
+        if (targetUserIds.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "유효한 테스트 계정 ID 범위가 아닙니다.");
+        }
+
+        for (RecipeCreateRequestDto request : requests) {
+            Long randomUserId = targetUserIds.get(ThreadLocalRandom.current().nextInt(targetUserIds.size()));
+
+            try {
+                RecipeCreateRequestDto savedDto = transactionTemplate.execute(status -> {
+                    log.info(">>>> [Batch Insert] Assigning Recipe '{}' to User ID: {}", request.getTitle(), randomUserId);
+                    return createRealRecipeWithCustomImage(randomUserId, request);
+                });
+
+                if (savedDto != null) {
+                    results.add(savedDto);
+                }
+
+            } catch (Exception e) {
+                log.error(">>>> [Batch Insert Failed] Recipe: {}, Error: {}", request.getTitle(), e.getMessage());
+            }
+        }
+        return results;
+    }
+
+    /**
      * [TEST] 특정 레시피 ID에 대해 분석(가격/팁/욕설)만 수행
      */
     public RecipeAnalysisResponseDto analyzeRecipeTest(Long recipeId) {
@@ -512,5 +545,27 @@ public class RecipeTestService {
 
     private BigDecimal safeBigDecimal(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private List<Long> getTargetUserIds(String type) {
+        List<Long> ids = new ArrayList<>();
+        int start = 90001;
+        int end = 90100;
+
+        boolean isOdd = "odd".equalsIgnoreCase(type);
+        boolean isEven = "even".equalsIgnoreCase(type);
+
+        if (!isOdd && !isEven) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "type 파라미터는 'odd' 또는 'even'이어야 합니다.");
+        }
+
+        for (long i = start; i <= end; i++) {
+            if (isOdd && (i % 2 != 0)) {
+                ids.add(i);
+            } else if (isEven && (i % 2 == 0)) {
+                ids.add(i);
+            }
+        }
+        return ids;
     }
 }
