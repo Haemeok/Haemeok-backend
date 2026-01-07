@@ -226,7 +226,8 @@ public class SecurityConfig {
                                 "/api/search/**",
                                 "/api/v2/recipes/**",
                                 "/api/recipes/popular",
-                                "/api/recipes/budget"
+                                "/api/recipes/budget",
+                                "/api/recipes/youtube/check"
                         ).permitAll()
 
                         // [추가된 부분] POST
