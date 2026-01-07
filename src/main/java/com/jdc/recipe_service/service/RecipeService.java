@@ -95,9 +95,14 @@ public class RecipeService {
         int marketPrice = calculateMarketPrice(dto, totalCost);
         recipe.updateMarketPrice(marketPrice);
 
-        if (sourceType == RecipeSourceType.AI && marketPrice < totalCost) {
+        if ((sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE)
+                && marketPrice < totalCost) {
+
             marketPrice = PricingUtil.applyMargin(totalCost, 30);
             recipe.updateMarketPrice(marketPrice);
+
+            log.info("⚠️ 시장가(MarketPrice)가 원가보다 낮아 강제 조정됨. ID={}, Cost={}, NewPrice={}",
+                    recipe.getId(), totalCost, marketPrice);
         }
 
         recipeStepService.saveAll(recipe, dto.getSteps());

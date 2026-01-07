@@ -197,14 +197,35 @@ public class RecipeExtractionService {
             - **나머지 태그 (홈파티, 야식, 술안주 등):** 레시피의 분위기나 재료에 따라 AI가 자유롭게 판단하여 선택합니다.
             - **배제 규칙:** Servings가 2인분 초과일 경우 '🍽️ 혼밥' 태그를 절대 선택 불가. 지방/칼로리가 높거나 조리 시간이 20분 초과(오븐/찜 포함)일 경우 '⚡ 초스피드 / 간단 요리' 또는 '🥗 다이어트 / 건강식' 태그를 절대 선택 불가.
 
-            --- "marketPrice" 필드 (배달앱 현실가 추정) ---
-            - marketPrice는 한국 배달앱 기준 "메뉴 1개 주문 가격(원)" 정수입니다. (배달비/포장비/수수료/마진 포함)
-            - 임의로 싸게 잡지 말고, 배달 전문점 메뉴판 수준으로 현실적으로 책정하세요.
-            - 하한 규칙:
-              - servings가 1이면 최소 9000원
-              - servings가 2 이상이면 최소 (9000 * servings) 원
-            - 조리 난이도/시간/재료가 풍부할수록 가격을 더 높게 책정하세요.
-            - 100원 단위 올림으로 출력하세요.
+            --- "marketPrice" 필드 (AI 직관 견적 - 최종 최적화) ---
+            - marketPrice는 한국 배달앱(배민/쿠팡이츠)에서 "이 메뉴를 해당 인분수(servings)로 주문"했을 때의 총 결제금액(원)이다. (배달팁 제외)
+            - 복잡한 계산은 하지 말고, "메뉴판 시세" 감각으로 추정하라.
+            
+            [판단할 때 보는 정보]
+            - ingredients가 많아도 "비싼 재료 TOP 3"만 가격 판단에 사용하고, 소금/설탕/물/간장/다진마늘 같은 기본 양념은 가격 판단에서 무시하라.
+            
+            [1] 메뉴 성격 1개만 선택
+            A) SIDE/간식/초간단: 계란요리, 공기밥, 토스트, 라면, 간단 반찬, 소스류
+            B) MEAL/일반식사: 덮밥, 볶음밥, 찌개(1~2인), 파스타, 일반 볶음/구이
+            C) PREMIUM/특식: 소고기, 장어, 전복, 대게, 킹크랩, 랍스터, 곱창, 회
+            
+            [2] 1인분 기준 시세(Base Price)
+            - A: 2,000 ~ 7,500 (공기밥/후라이는 2~3천원대, 라면/떡볶이는 4~7천원대 선택)
+            - B: 9,000 ~ 15,900
+            - C: 17,900 ~ 45,900
+            (범위 안에서 재료/난이도를 보고 적절한 값을 고른다)
+            
+            [3] servings 반영 (선형 곱 금지)
+            - "공유형" (전골/탕/찜/떡볶이 등 한 냄비 요리):
+              - multiplier: 1인=×1.0, 2인=×1.4, 3인=×1.7, 4인+=×2.0
+            - "개별형" (1인 1그릇 요리):
+              - multiplier: 1인=×1.0, 2인=×1.9, 3인=×2.8, 4인+=×(servings*0.9)
+            
+            [4] 안전장치 (Logic Guardrail)
+            1. **극소 메뉴 방어:** title이 공기밥/계란후라이/소스/단무지 등 단순 추가 메뉴라면, servings가 아무리 많아도 '개당 2,500원'을 넘기지 마라.
+            2. **사이드 과금 방지:** A(SIDE) 등급이면서 1인분일 때는 절대 8,000원을 넘기지 마라.
+            3. **전체 범위:** 최소 1,500원 ~ 최대 150,000원.
+            4. **출력:** 100원 단위로 올림(ceil)하여 정수만 출력.
 
             --- "cookingTips" 필드 (팁 규칙) ---
             - **서빙 / 맛 강화 / 재활용 / 보조 재료 대체 팁 3~5개**를 생성하세요.
@@ -266,7 +287,6 @@ public class RecipeExtractionService {
             if (existingRecipeCanonical.isPresent()) {
                 log.info("♻️ 이미 존재하는 레시피 발견 (Canonical URL). 쿼터 환불 및 연결: ID={}", existingRecipeCanonical.get().getId());
 
-                // 중복이므로 쿼터 환불
                 dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
 
                 return handleExistingRecipe(existingRecipeCanonical.get(), userId);
@@ -492,6 +512,8 @@ public class RecipeExtractionService {
                 double q2 = parseQuantitySafe(cur.getQuantity());
                 exist.setQuantity(formatQuantity(q1 + q2));
             } else {
+                double q = parseQuantitySafe(cur.getQuantity());
+                cur.setQuantity(formatQuantity(q));
                 merged.put(key, cur);
             }
         }
@@ -508,7 +530,13 @@ public class RecipeExtractionService {
     }
 
     private String formatQuantity(double value) {
-        return (value == (long) value) ? String.format("%d", (long) value) : String.valueOf(value);
+        double rounded = Math.round(value * 10.0) / 10.0;
+
+        if (rounded == (long) rounded) {
+            return String.format("%d", (long) rounded);
+        }
+
+        return String.valueOf(rounded);
     }
 
     private String nullToEmpty(String s) { return s == null ? "" : s; }
