@@ -15,12 +15,15 @@ import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.service.media.YtDlpService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -45,6 +48,25 @@ public class RecipeExtractionService {
     private final TransactionTemplate transactionTemplate;
 
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
+
+    private final AtomicReference<List<YtDlpService.YoutubeSearchDto>> cachedRecommendations
+            = new AtomicReference<>(Collections.emptyList());
+
+    private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
+
+    private static final List<String> NOISE_KEYWORDS = List.of(
+            "먹방", "mukbang", "asmr", "이팅사운드",
+            "리뷰", "후기", "탐방", "review", "맛집", "맛있게 먹는",
+
+            "브이로그", "vlog", "일상", "grwm", "what i eat",
+            "식단일기", "장보기", "haul", "하울", "언박싱",
+            "소분", "정리", "살림", "청소", "룸투어",
+            "costco", "코스트코", "이마트", "trader joe",
+
+            "예능", "방송", "출연", "개그", "성대모사",
+            "ㅋㅋ", "ㅎㅎ", "ㅠㅠ",
+            "반응", "참교육", "결말", "충격", "근황", "논란"
+    );
 
     private static final Pattern YOUTUBE_URL_PATTERN = Pattern.compile(
             "(?i)^(https?://)?(www\\.)?(youtube\\.com|youtu\\.be)/.+$"
@@ -436,6 +458,108 @@ public class RecipeExtractionService {
         }
     }
 
+    /**
+     * 랜덤 키워드를 사용하여 유튜브 인기 요리 영상 5개를 가져옵니다.
+     * (프론트엔드 '추천 레시피' 섹션용)
+     */
+    /**
+     * 6시간마다 실행.
+     * 개발자 주관(메뉴명)을 배제하고, 광범위 키워드 + 조회수 정렬로 "찐 트렌드"를 발굴함.
+     */
+    @Scheduled(fixedRate = 21600000, initialDelay = 1000)
+    public void refreshRecommendedRecipes() {
+        if (!isRefreshing.compareAndSet(false, true)) {
+            log.info("⏩ [스케줄러] 이미 갱신 작업이 진행 중입니다. 스킵.");
+            return;
+        }
+
+        log.info("🔄 [스케줄러] 인기 레시피 풀(Pool) 갱신 시작...");
+
+        try {
+            List<String> broadKeywords = new ArrayList<>(Arrays.asList(
+                    "#레시피",
+                    "요리 레시피",
+                    "황금레시피",
+                    "집밥 만들기",
+                    "반찬 만들기",
+                    "간단요리",
+                    "초간단 요리",
+                    "자취요리",
+                    "일주일 반찬"
+            ));
+
+            Collections.shuffle(broadKeywords);
+            List<String> selectedKeywords = broadKeywords.subList(0, 2);
+            selectedKeywords.add("#Shorts 레시피");
+
+            log.info("🎯 타겟 키워드: {}", selectedKeywords);
+
+            List<YtDlpService.YoutubeSearchDto> combinedResults = new ArrayList<>();
+
+            for (String keyword : selectedKeywords) {
+                try {
+                    List<YtDlpService.YoutubeSearchDto> results = ytDlpService.searchVideoList(keyword, 40);
+                    combinedResults.addAll(results);
+                } catch (Exception e) {
+                    log.warn("⚠️ 키워드 '{}' 수집 실패", keyword);
+                }
+            }
+
+            if (!combinedResults.isEmpty()) {
+                Map<String, YtDlpService.YoutubeSearchDto> bestById = new LinkedHashMap<>();
+
+                for (YtDlpService.YoutubeSearchDto dto : combinedResults) {
+                    if (dto == null || dto.videoId() == null) continue;
+
+                    if (isNoiseVideo(dto.title())) {
+                        continue;
+                    }
+
+                    bestById.merge(dto.videoId(), dto, (existing, replacement) ->
+                            existing.viewCount() >= replacement.viewCount() ? existing : replacement
+                    );
+                }
+
+                List<YtDlpService.YoutubeSearchDto> rankedResults = bestById.values().stream()
+                        .sorted(Comparator.comparingLong(YtDlpService.YoutubeSearchDto::viewCount).reversed())
+                        .limit(40)
+                        .toList();
+
+                this.cachedRecommendations.set(rankedResults);
+
+                if (!rankedResults.isEmpty()) {
+                    YtDlpService.YoutubeSearchDto top = rankedResults.get(0);
+                    log.info("🏆 [트렌드 1위] {} (조회수: {})", top.title(), top.viewCount());
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("❌ [스케줄러] 갱신 실패", e);
+        } finally {
+            isRefreshing.set(false);
+        }
+    }
+
+    /**
+     * 프론트엔드용 조회
+     */
+    public List<YtDlpService.YoutubeSearchDto> getRecommendedRecipes() {
+        List<YtDlpService.YoutubeSearchDto> currentPool = this.cachedRecommendations.get();
+
+        if (currentPool.isEmpty()) {
+            refreshRecommendedRecipes();
+            currentPool = this.cachedRecommendations.get();
+        }
+
+        if (currentPool.isEmpty()) return Collections.emptyList();
+
+        List<YtDlpService.YoutubeSearchDto> shuffledList = new ArrayList<>(currentPool);
+        Collections.shuffle(shuffledList);
+
+        int limit = Math.min(shuffledList.size(), 20);
+        return shuffledList.subList(0, limit);
+    }
+
     @Transactional(readOnly = true)
     public Long checkUrlExistence(String videoUrl) {
         if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
@@ -569,5 +693,17 @@ public class RecipeExtractionService {
 
     private String convertToCanonical(String videoId) {
         return "https://www.youtube.com/watch?v=" + videoId;
+    }
+
+    private boolean isNoiseVideo(String title) {
+        if (title == null || title.isBlank()) return true;
+        String lowerTitle = title.toLowerCase();
+
+        for (String noise : NOISE_KEYWORDS) {
+            if (lowerTitle.contains(noise)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
