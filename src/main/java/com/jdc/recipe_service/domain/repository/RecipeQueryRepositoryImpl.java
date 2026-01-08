@@ -66,7 +66,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.cookingTime,
                         recipe.avgRating,
                         recipe.ratingCount.coalesce(0L),
-                        recipe.youtubeUrl
+                        recipe.youtubeUrl,
+                        recipe.isAiGenerated
                 ))
                 .from(recipe);
 
@@ -172,7 +173,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.cookingTime,
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
-                        recipe.youtubeUrl
+                        recipe.youtubeUrl,
+                        recipe.isAiGenerated
                 ))
                 .from(recipe)
                 .leftJoin(recipeLike)
@@ -235,7 +237,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.cookingTime,
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
-                        recipe.youtubeUrl
+                        recipe.youtubeUrl,
+                        recipe.isAiGenerated
                 ))
                 .from(recipe)
                 .where(condition)
@@ -293,7 +296,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.cookingTime,
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
-                        recipe.youtubeUrl
+                        recipe.youtubeUrl,
+                        recipe.isAiGenerated
                 ))
                 .from(recipe);
 

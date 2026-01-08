@@ -59,10 +59,14 @@ public class RecipeSimpleStaticDto {
     @JsonProperty("isYoutube")
     private boolean isYoutube;
 
+    @Schema(description = "AI 생성 레시피 여부")
+    @JsonProperty("isAiGenerated")
+    private boolean isAiGenerated;
+
     @QueryProjection
     public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                  LocalDateTime createdAt, Integer cookingTime, long likeCount,
-                                 BigDecimal avgRating, long ratingCount, String youtubeUrl) {
+                                 BigDecimal avgRating, long ratingCount, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -75,11 +79,12 @@ public class RecipeSimpleStaticDto {
         this.avgRating = avgRating != null ? avgRating.doubleValue() : 0.0;
         this.ratingCount = ratingCount;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
+        this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 
     public RecipeSimpleStaticDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                  LocalDateTime createdAt, Integer cookingTime,
-                                 Long likeCount, Double avgRating, Long ratingCount, String youtubeUrl)
+                                 Long likeCount, Double avgRating, Long ratingCount, String youtubeUrl, Boolean isAiGenerated)
     {
         this.id = id;
         this.title = title;
@@ -93,5 +98,6 @@ public class RecipeSimpleStaticDto {
         this.avgRating = avgRating != null ? avgRating : 0.0;
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
+        this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 }

@@ -67,11 +67,15 @@ public class RecipeSimpleStaticDtoV2 {
     @JsonProperty("isYoutube")
     private boolean isYoutube;
 
+    @Schema(description = "AI 생성 레시피 여부")
+    @JsonProperty("isAiGenerated")
+    private boolean isAiGenerated;
+
     @QueryProjection
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                    LocalDateTime createdAt, Integer cookingTime, long likeCount,
                                    BigDecimal avgRating, long ratingCount, Integer ingredientCost,
-                                   Integer marketPrice, String youtubeUrl) {
+                                   Integer marketPrice, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -86,14 +90,13 @@ public class RecipeSimpleStaticDtoV2 {
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
+        this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                    LocalDateTime createdAt, Integer cookingTime,
-                                   Long likeCount,
-                                   Double avgRating,
-                                   Long ratingCount,
-                                   Integer ingredientCost, Integer marketPrice, String youtubeUrl) {
+                                   Long likeCount, Double avgRating, Long ratingCount,
+                                   Integer ingredientCost, Integer marketPrice, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -108,5 +111,6 @@ public class RecipeSimpleStaticDtoV2 {
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
+        this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 }

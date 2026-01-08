@@ -133,10 +133,11 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("""
                 SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
                     r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
-                    COUNT(DISTINCT rl.id),      
+                    COUNT(DISTINCT rl.id),
                     COALESCE(r.avgRating, 0.0), 
                     COALESCE(r.ratingCount, 0L),
-                    r.youtubeUrl
+                    r.youtubeUrl, 
+                    r.isAiGenerated
                 )
                 FROM Recipe r
                 JOIN r.user u
@@ -159,7 +160,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             COALESCE(r.ratingCount, 0L),
             r.totalIngredientCost,
             r.marketPrice,
-            r.youtubeUrl
+            r.youtubeUrl,
+            r.isAiGenerated
         )
         FROM Recipe r
         JOIN r.user u
@@ -180,7 +182,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 COALESCE(r.likeCount, 0L),
                 COALESCE(r.avgRating, 0.0),
                 COALESCE(r.ratingCount, 0L),
-                r.youtubeUrl
+                r.youtubeUrl,
+                r.isAiGenerated
             )
             FROM Recipe r
             JOIN r.user u
@@ -199,7 +202,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
             "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
-            "r.likeCount, FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount, r.youtubeUrl) " +
+            "r.likeCount, FALSE, r.cookingTime, COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount, r.youtubeUrl, r.isAiGenerated)" +
             "FROM Recipe r " +
             "WHERE r.id IN :ids")
     List<RecipeSimpleDto> findAllSimpleDtoWithCountsByIdIn(@Param("ids") List<Long> ids);
