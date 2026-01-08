@@ -18,6 +18,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
@@ -57,10 +58,17 @@ public class OpenSearchService {
                     .from((int) pg.getOffset())
                     .size(pg.getPageSize())
                     .fetchSource(false);
-            pg.getSort().forEach(o ->
-                    src.sort(o.getProperty(),
-                            o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
-            );
+
+            if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
+                src.sort(SortBuilders.scoreSort().order(SortOrder.DESC));
+            }
+
+            if (pg.getSort().isSorted()) {
+                pg.getSort().forEach(o ->
+                        src.sort(o.getProperty(),
+                                o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
+                );
+            }
 
             SearchResponse resp = client.search(
                     new SearchRequest("recipes").source(src),
@@ -104,7 +112,17 @@ public class OpenSearchService {
                     .from((int) pg.getOffset())
                     .size(pg.getPageSize())
                     .fetchSource(false);
-            pg.getSort().forEach(o -> src.sort(o.getProperty(), o.isAscending() ? SortOrder.ASC : SortOrder.DESC));
+
+            if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
+                src.sort(SortBuilders.scoreSort().order(SortOrder.DESC));
+            }
+
+            if (pg.getSort().isSorted()) {
+                pg.getSort().forEach(o ->
+                        src.sort(o.getProperty(),
+                                o.isAscending() ? SortOrder.ASC : SortOrder.DESC)
+                );
+            }
 
             SearchResponse resp = client.search(new SearchRequest("recipes").source(src), RequestOptions.DEFAULT);
             SearchHits hits = resp.getHits();
