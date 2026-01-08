@@ -14,6 +14,7 @@ import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeExtractionService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
+import com.jdc.recipe_service.service.media.YtDlpService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -182,6 +184,12 @@ public class RecipeController {
         } else {
             return ResponseEntity.ok(null);
         }
+    }
+
+    @GetMapping("/youtube/recommend")
+    public ResponseEntity<List<YtDlpService.YoutubeSearchDto>> getRecommendedRecipes() {
+        List<YtDlpService.YoutubeSearchDto> recommendations = recipeExtractionService.getRecommendedRecipes();
+        return ResponseEntity.ok(recommendations);
     }
 
     public record RecipeIdResponse(

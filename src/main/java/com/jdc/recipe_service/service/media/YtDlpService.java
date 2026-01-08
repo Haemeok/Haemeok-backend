@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service.media;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,9 +17,10 @@ import java.util.regex.Pattern;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class YtDlpService {
 
-    private static final ObjectMapper OM = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     private static final Pattern VIDEO_ID_PAT = Pattern.compile(
             "(?:youtu\\.be/|youtube\\.com/(?:watch\\?v=|shorts/|embed/))([a-zA-Z0-9_-]{11})"
@@ -91,7 +93,7 @@ public class YtDlpService {
         for (String client : CLIENT_FALLBACK) {
             try {
                 ExecResult r = execForJson(buildCommentArgs(canonicalUrl, client, maxComments), null);
-                JsonNode root = OM.readTree(r.stdout);
+                JsonNode root = objectMapper.readTree(r.stdout);
 
                 String title = optText(root, "title");
                 String desc = optText(root, "description");
@@ -181,6 +183,114 @@ public class YtDlpService {
 
         } catch (Exception e) {
             throw new RuntimeException("yt-dlp execution failed", e);
+        }
+    }
+
+    /**
+     * 🔍 키워드로 유튜브 영상 목록 검색 (추천용)
+     */
+    public List<YoutubeSearchDto> searchVideoList(String keyword, int limit) {
+        log.info("🔍 유튜브 검색 시작: 키워드={}, 개수={}", keyword, limit);
+
+        List<String> commands = new ArrayList<>();
+        commands.add(ytdlpPath);
+
+        if (proxyUrl != null && !proxyUrl.isBlank()) {
+            commands.add("--proxy");
+            commands.add(proxyUrl.trim());
+        }
+
+        commands.add("ytsearch" + limit + ":" + keyword);
+
+        commands.add("--dateafter");
+        commands.add("now-1month");
+
+        commands.add("--dump-json");
+        commands.add("--no-warnings");
+        commands.add("--ignore-config");
+        commands.add("--skip-download");
+        commands.add("--no-playlist");
+
+        ProcessBuilder pb = new ProcessBuilder(commands);
+        pb.redirectErrorStream(false);
+
+        Process p = null;
+        try {
+            p = pb.start();
+
+            StringBuilder errBuf = new StringBuilder(8192);
+            Process finalP = p;
+            Thread errDrain = new Thread(() -> {
+                try (BufferedReader er = new BufferedReader(
+                        new InputStreamReader(finalP.getErrorStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = er.readLine()) != null) {
+                        if (errBuf.length() < 20000) errBuf.append(line).append('\n');
+                    }
+                } catch (Exception ignore) {}
+            });
+            errDrain.setDaemon(true);
+            errDrain.start();
+
+            List<YoutubeSearchDto> results = new ArrayList<>();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    try {
+                        JsonNode node = objectMapper.readTree(line);
+
+                        String videoId = node.path("id").asText("");
+                        if (videoId.length() != 11) continue;
+
+                        String title = node.path("title").asText("");
+                        if (title.isBlank()) continue;
+
+                        String channel = node.path("uploader").asText("");
+                        long viewCount = node.path("view_count").asLong(0);
+
+                        String thumbnail = "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
+                        results.add(new YoutubeSearchDto(title, videoId, channel, thumbnail, viewCount));
+                    } catch (Exception ignoreJson) {
+                    }
+                }
+            }
+
+            boolean finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!finished) {
+                p.destroyForcibly();
+                try { p.waitFor(2, TimeUnit.SECONDS); } catch (Exception ignore) {}
+                log.warn("⚠️ yt-dlp search timeout: keyword={}", keyword);
+                return Collections.emptyList();
+            }
+
+
+            int code = p.exitValue();
+            if (code != 0) {
+                log.warn("⚠️ yt-dlp search nonzero exit: code={}, keyword={}, err={}",
+                        code, keyword, errBuf.toString());
+                return Collections.emptyList();
+            }
+
+            return results;
+
+        } catch (Exception e) {
+            log.error("유튜브 검색 실패: keyword={}", keyword, e);
+            if (p != null) p.destroyForcibly();
+            return Collections.emptyList();
+        }
+    }
+
+    public record YoutubeSearchDto(
+            String title,
+            String videoId,
+            String channelName,
+            String thumbnailUrl,
+            long viewCount
+    ) {
+        public String getVideoUrl() {
+            return "https://www.youtube.com/watch?v=" + videoId;
         }
     }
 
