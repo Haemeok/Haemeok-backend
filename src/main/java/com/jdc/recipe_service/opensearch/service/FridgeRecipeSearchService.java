@@ -195,7 +195,8 @@ public class FridgeRecipeSearchService {
                     doc.getCookingTime(),
                     avgRating,
                     ratingCount,
-                    r.getYoutubeUrl()
+                    r.getYoutubeUrl(),
+                    r.isAiGenerated()
             );
 
             List<String> matched = new ArrayList<>();
@@ -274,7 +275,8 @@ public class FridgeRecipeSearchService {
                     Optional.ofNullable(r.getCookingTime()).orElse(0),
                     avgRating,
                     ratingCount,
-                    r.getYoutubeUrl()
+                    r.getYoutubeUrl(),
+                    r.isAiGenerated()
             );
 
             return new FridgeRecipeDto(simple, matched);

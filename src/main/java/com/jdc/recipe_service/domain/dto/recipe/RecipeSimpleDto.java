@@ -70,6 +70,10 @@ public class RecipeSimpleDto {
     @JsonProperty("isYoutube")
     private boolean isYoutube;
 
+    @Schema(description = "AI 생성 레시피 여부")
+    @JsonProperty("isAiGenerated")
+    private boolean isAiGenerated;
+
     public void setLikedByCurrentUser(boolean b) {
         likedByCurrentUser = b;
     }
@@ -81,7 +85,7 @@ public class RecipeSimpleDto {
     @QueryProjection
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                            LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser,
-                           Integer cookingTime, BigDecimal avgRating, Long ratingCount, String youtubeUrl) {
+                           Integer cookingTime, BigDecimal avgRating, Long ratingCount, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -95,11 +99,12 @@ public class RecipeSimpleDto {
         this.avgRating = avgRating;
         this.ratingCount = ratingCount;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
+        this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                            LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser,
-                           Integer cookingTime, double avgRating, Long ratingCount, String youtubeUrl) {
+                           Integer cookingTime, double avgRating, Long ratingCount, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -113,6 +118,7 @@ public class RecipeSimpleDto {
         this.avgRating = BigDecimal.valueOf(avgRating);
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
+        this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 
     public Double getAvgRating() {

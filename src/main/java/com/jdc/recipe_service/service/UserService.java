@@ -195,7 +195,8 @@ public class UserService {
                             recipe.getCookingTime(),
                             recipe.getAvgRating(),
                             recipe.getRatingCount(),
-                            recipe.getYoutubeUrl()
+                            recipe.getYoutubeUrl(),
+                            recipe.isAiGenerated()
                     );
                     dto.setImageUrl(generateImageUrl(recipe.getImageKey()));
                     return dto;

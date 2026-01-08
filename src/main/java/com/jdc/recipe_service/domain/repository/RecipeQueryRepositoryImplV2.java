@@ -62,7 +62,8 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.likeCount.coalesce(0L),
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
-                        recipe.youtubeUrl
+                        recipe.youtubeUrl,
+                        recipe.isAiGenerated
                 ))
                 .from(recipe)
                 .leftJoin(recipe.tags, tag)

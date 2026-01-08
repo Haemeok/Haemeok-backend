@@ -34,7 +34,8 @@ public class FridgeRecipeDto extends RecipeSimpleDto {
                 simple.getCookingTime(),
                 simple.getAvgRating(),
                 simple.getRatingCount(),
-                null
+                null,
+                simple.isAiGenerated()
         );
         this.setYoutube(simple.isYoutube());
         this.matchedIngredients = matchedIngredients;
