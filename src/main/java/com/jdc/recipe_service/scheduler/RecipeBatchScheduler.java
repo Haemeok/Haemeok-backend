@@ -9,6 +9,7 @@ import com.jdc.recipe_service.service.ai.RecipeTestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -39,9 +40,10 @@ public class RecipeBatchScheduler {
     private static final String PATH_ODD = SEEDS_PATH + "odd/";
     private static final String PATH_EVEN = SEEDS_PATH + "even/";
 
+    private static final int DAILY_FILE_LIMIT = 5;
+
     /**
-     * 매일 새벽 4시에 실행
-     * odd 폴더와 even 폴더를 각각 확인하여 처리
+     * [스케줄러] 매일 새벽 4시 실행 (기본 5개)
      */
     @Scheduled(cron = "0 0 4 * * *")
     public void processDailyRecipeFiles() {
@@ -51,25 +53,44 @@ public class RecipeBatchScheduler {
 
         if (dayOfMonth % 2 != 0) {
             log.info(">>>> Today is Odd day ({}). Processing ODD folder.", dayOfMonth);
-            processFolder(PATH_ODD, "odd");
+            processFolderWithLimit(PATH_ODD, "odd", DAILY_FILE_LIMIT);
         } else {
             log.info(">>>> Today is Even day ({}). Processing EVEN folder.", dayOfMonth);
-            processFolder(PATH_EVEN, "even");
+            processFolderWithLimit(PATH_EVEN, "even", DAILY_FILE_LIMIT);
         }
 
         log.info(">>>> [Scheduler] Daily Recipe Batch Finished.");
     }
 
-    private static final int DAILY_FILE_LIMIT = 5;
+    /**
+     * [수동 실행] 컨트롤러에서 호출용 (비동기)
+     * limit과 type을 외부에서 받아서 실행함
+     */
+    @Async
+    public void runManualBatch(String type, int limit) {
+        log.info(">>>> [Manual Batch] Started. Type: {}, Limit: {}", type, limit);
+
+        String folderPath;
+        if ("odd".equalsIgnoreCase(type)) {
+            folderPath = PATH_ODD;
+        } else if ("even".equalsIgnoreCase(type)) {
+            folderPath = PATH_EVEN;
+        } else {
+            log.error("Invalid type provided: {}", type);
+            return;
+        }
+
+        processFolderWithLimit(folderPath, type, limit);
+
+        log.info(">>>> [Manual Batch] Finished.");
+    }
 
     /**
-     * 특정 폴더의 파일들을 읽어서 지정된 type으로 처리하는 메서드
-     * @param folderPrefix 조회할 S3 폴더 경로 (예: recipe-data/seeds/odd/)
-     * @param type 적용할 타입 ("odd" or "even")
+     * 내부 로직: 지정된 폴더에서 limit 개수만큼 처리
      */
-    private void processFolder(String folderPrefix, String type) {
+    private void processFolderWithLimit(String folderPrefix, String type, int limit) {
         try {
-            log.info(">>>> [Scheduler] Checking folder: {} (Type: {})", folderPrefix, type);
+            log.info(">>>> [Batch] Checking folder: {} (Type: {}, Limit: {})", folderPrefix, type, limit);
 
             ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                     .bucket(bucket)
@@ -80,15 +101,15 @@ public class RecipeBatchScheduler {
             List<S3Object> objects = listResponse.contents();
 
             if (objects.isEmpty()) {
-                log.info(">>>> [Scheduler] No files found in {}", folderPrefix);
+                log.info(">>>> [Batch] No files found in {}", folderPrefix);
                 return;
             }
 
             int processCount = 0;
 
             for (S3Object s3Object : objects) {
-                if (processCount >= DAILY_FILE_LIMIT) {
-                    log.info("Daily limit reached ({}) for folder {}", DAILY_FILE_LIMIT, folderPrefix);
+                if (processCount >= limit) {
+                    log.info("Batch limit reached ({}) for folder {}", limit, folderPrefix);
                     break;
                 }
 
@@ -102,12 +123,12 @@ public class RecipeBatchScheduler {
                     processSingleFile(key, type);
                     processCount++;
                 } catch (Exception e) {
-                    log.error(">>>> [Scheduler] Failed to process file: {}", key, e);
+                    log.error(">>>> [Batch] Failed to process file: {}", key, e);
                 }
             }
 
         } catch (Exception e) {
-            log.error(">>>> [Scheduler] Error processing folder: {}", folderPrefix, e);
+            log.error(">>>> [Batch] Error processing folder: {}", folderPrefix, e);
         }
     }
 
@@ -115,7 +136,7 @@ public class RecipeBatchScheduler {
      * 개별 파일 처리 및 이동
      */
     private void processSingleFile(String key, String type) {
-        log.info(">>>> [Scheduler] Processing file: {} with type='{}'", key, type);
+        log.info(">>>> [Batch] Processing file: {} with type='{}'", key, type);
 
         GetObjectRequest getRequest = GetObjectRequest.builder()
                 .bucket(bucket)
@@ -133,7 +154,6 @@ public class RecipeBatchScheduler {
 
             if (requests != null && !requests.isEmpty()) {
                 List<RecipeCreateRequestDto> successList = recipeTestService.batchInsertRecipes(requests, type);
-
                 log.info("Successfully inserted {}/{} recipes from {}", successList.size(), requests.size(), key);
             } else {
                 log.warn("Empty recipe list in file: {}", key);
@@ -147,11 +167,10 @@ public class RecipeBatchScheduler {
     }
 
     /**
-     * 파일을 processed 폴더로 이동 (예: recipe-data/seeds/odd/a.json -> recipe-data/processed/odd/a.json)
+     * 파일을 processed 폴더로 이동
      */
     private void moveFileToProcessed(String sourceKey, String type) {
         String fileName = sourceKey.substring(sourceKey.lastIndexOf("/") + 1);
-
         String destinationKey = PROCESSED_PATH + type + "/" + fileName;
 
         String encodedSource = bucket + "/" + sourceKey;
@@ -177,7 +196,6 @@ public class RecipeBatchScheduler {
             s3Client.deleteObject(deleteRequest);
 
             log.info("Moved file to processed: {}", destinationKey);
-
         } catch (Exception e) {
             log.error("Failed to move file {} to {}", sourceKey, destinationKey, e);
             throw new RuntimeException("File move failed", e);
