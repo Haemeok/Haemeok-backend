@@ -1,14 +1,22 @@
 package com.jdc.recipe_service.domain.dto.ingredient;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-public record IngredientSummaryDto(
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class IngredientSummaryDto {
         @JsonSerialize(using = HashIdSerializer.class)
-        Long    id,
-        String  name,
-        String  category,
-        String  imageUrl,
-        String unit,
-        boolean inFridge
-) { }
+        private Long id;
+        private String name;
+        private String category;
+        private String imageUrl;
+        private String unit;
+        private Boolean inFridge;
+}
