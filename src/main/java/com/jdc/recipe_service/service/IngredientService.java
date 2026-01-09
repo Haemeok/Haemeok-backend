@@ -3,11 +3,15 @@ package com.jdc.recipe_service.service;
 import com.jdc.recipe_service.domain.dto.ingredient.*;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.QIngredient;
+import com.jdc.recipe_service.domain.entity.QIngredientKeyword;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.mapper.IngredientMapper;
+import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +36,7 @@ public class IngredientService {
     private final RefrigeratorItemRepository fridgeRepo;
 
     private final QIngredient ing = QIngredient.ingredient;
+    private final QIngredientKeyword ingKeyword = QIngredientKeyword.ingredientKeyword;
 
     /**
      * @param keyword 검색어 (optional)
@@ -42,69 +47,68 @@ public class IngredientService {
     public Page<IngredientSummaryDto> search(
             String keyword,
             String category,
-            Boolean inFridge,
             Long userId,
+            boolean includeFridgeInfo,
             Pageable pageable) {
 
-        // 1) 내 냉장고 재료 ID 집합
-        Set<Long> fridgeIds = (userId != null)
-                ? fridgeRepo.findByUserId(userId, Pageable.unpaged())
-                .stream()
-                .map(i -> i.getIngredient().getId())
-                .collect(Collectors.toSet())
-                : Set.of();
-
-        // 2) 검색 조건 조립
-        BooleanExpression nameCond =
-                (keyword != null && !keyword.isBlank())
-                        ? ing.name.containsIgnoreCase(keyword)
-                        : null;
-        BooleanExpression catCond =
-                (category != null && !category.isBlank())
-                        ? ing.category.equalsIgnoreCase(category)
-                        : null;
-
-        BooleanExpression fridgeCond = null;
-        if (inFridge != null) {
-            if (inFridge) {
-                // 냉장고에 담긴 것만
-                fridgeCond = ing.id.in(fridgeIds);
-            } else {
-                // 냉장고에 담기지 않은 것만
-                fridgeCond = ing.id.notIn(fridgeIds);
-            }
+        Set<Long> fridgeIds;
+        if (userId != null && includeFridgeInfo) {
+            fridgeIds = fridgeRepo.findByUserId(userId, Pageable.unpaged())
+                    .stream()
+                    .map(i -> i.getIngredient().getId())
+                    .collect(Collectors.toSet());
+        } else {
+            fridgeIds = Set.of();
         }
-        // 3) content 조회 쿼리
-        JPAQuery<IngredientSummaryDto> contentQuery = queryFactory
+
+        BooleanExpression searchCond = null;
+        if (keyword != null && !keyword.isBlank()) {
+            searchCond = ing.name.containsIgnoreCase(keyword)
+                    .or(ing.id.in(
+                            JPAExpressions.select(ingKeyword.ingredient.id)
+                                    .from(ingKeyword)
+                                    .where(ingKeyword.keyword.containsIgnoreCase(keyword))
+                    ));
+        }
+
+        BooleanExpression catCond = (category != null && !category.isBlank())
+                ? ing.category.equalsIgnoreCase(category) : null;
+
+        Expression<Boolean> inFridgeExpr = includeFridgeInfo
+                ? ing.id.in(fridgeIds)
+                : Expressions.nullExpression(Boolean.class);
+
+        String s3Prefix = "https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com/images/ingredients/";
+        Expression<String> imageUrlExpr = ing.name
+                .prepend(s3Prefix)
+                .append(".webp");
+
+        List<IngredientSummaryDto> content = queryFactory
                 .select(Projections.constructor(
                         IngredientSummaryDto.class,
                         ing.id,
                         ing.name,
                         ing.category,
-                        ing.imageUrl,
+                        imageUrlExpr,
                         ing.unit,
-                        ing.id.in(fridgeIds)         // inFridge 플래그
+                        inFridgeExpr
                 ))
                 .from(ing)
-                .where(nameCond, catCond,fridgeCond)
+                .where(searchCond, catCond)
+                .distinct()
                 .orderBy(ing.name.asc())
                 .offset(pageable.getOffset())
-                .limit(pageable.getPageSize());
+                .limit(pageable.getPageSize())
+                .fetch();
 
-        List<IngredientSummaryDto> content = contentQuery.fetch();
-
-        // 4) 전체 개수 조회 쿼리
-        JPAQuery<Long> countQuery = queryFactory
-                .select(ing.count())
+        Long total = queryFactory
+                .select(ing.countDistinct())
                 .from(ing)
-                .where(nameCond, catCond,fridgeCond);
+                .where(searchCond, catCond)
+                .fetchOne();
+        if (total == null) total = 0L;
 
-        // 5) Page 조립
-        return PageableExecutionUtils.getPage(
-                content,
-                pageable,
-                countQuery::fetchOne
-        );
+        return new PageImpl<>(content, pageable, total);
     }
 
     /** 생성 (관리자 전용) */
@@ -119,8 +123,7 @@ public class IngredientService {
         Ingredient entity = repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "재료가 없습니다: " + id));
-        // 간단히 모든 필드 덮어쓰기
-        entity.setName(dto.getName());
+            entity.setName(dto.getName());
         entity.setCategory(dto.getCategory());
         entity.setImageUrl(dto.getImageUrl());
         entity.setPrice(dto.getPrice());
