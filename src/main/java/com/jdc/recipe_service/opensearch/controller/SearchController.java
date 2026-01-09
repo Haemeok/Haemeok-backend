@@ -1,12 +1,15 @@
 package com.jdc.recipe_service.opensearch.controller;
 
 import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
+import com.jdc.recipe_service.domain.dto.ingredient.IngredientSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
+import com.jdc.recipe_service.domain.type.IngredientType;
 import com.jdc.recipe_service.opensearch.dto.IngredientSearchDto;
 import com.jdc.recipe_service.opensearch.service.IngredientSearchService;
 import com.jdc.recipe_service.opensearch.service.OpenSearchSuggestionService;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
+import com.jdc.recipe_service.service.IngredientService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,7 +33,7 @@ public class SearchController {
 
     private final OpenSearchService searchService;
     private final OpenSearchSuggestionService suggestionService;
-    private final IngredientSearchService ingredientSearchService;
+    private final IngredientService ingredientService;
 
     @GetMapping("/recipes")
     @Operation(summary = "레시피 검색", description = "제목, 디시타입, 태그명 기반으로 OpenSearch에서 레시피를 검색합니다. 정렬 기준: createdAt, likeCount")
@@ -72,24 +75,27 @@ public class SearchController {
     }
 
     @GetMapping("/ingredients")
-    @Operation(summary = "재료 검색", description = "OpenSearch 인덱스를 이용해 재료명 또는 카테고리로 검색합니다. q, category, sort, dir, page, size 파라미터를 지원합니다.")
-    public ResponseEntity<Page<IngredientSearchDto>> searchIngredients(
-            @Parameter(description = "재료명 검색어 (prefix) 또는 전체 검색어") @RequestParam(required = false) String q,
-            @Parameter(description = "카테고리 필터") @RequestParam(required = false) String category,
-            @Parameter(description = "정렬 필드 (예: name, category)") @RequestParam(defaultValue = "name") String sort,
-            @Parameter(description = "정렬 방향 (asc 또는 desc)") @RequestParam(defaultValue = "asc") String dir,
-            @Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "페이지당 결과 수 (최대 50)") @RequestParam(defaultValue = "20") int size
+    @Operation(summary = "재료 검색 (MySQL)", description = "키워드 매핑 방식을 사용하여 재료를 검색합니다.")
+    public ResponseEntity<Page<IngredientSummaryDto>> searchIngredients(
+            @Parameter(description = "검색어") @RequestParam(required = false) String q,
+            @Parameter(description = "카테고리") @RequestParam(required = false) String category,
+            @Parameter(description = "정렬 (기본 name)") @RequestParam(defaultValue = "name") String sort,
+            @Parameter(description = "페이지") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "크기") @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         final int MAX_PAGE_SIZE = 50;
         int safeSize = Math.min(size, MAX_PAGE_SIZE);
-
-        Pageable pageable = PageRequest.of(
-                page, safeSize,
-                Sort.by(Sort.Direction.fromString(dir), sort)
-        );
-        Page<IngredientSearchDto> result =
-                ingredientSearchService.search(q, category, pageable);
+        Long userId = (userDetails != null) ? userDetails.getUser().getId() : null;
+        String koCategory = null;
+        if (category != null && !category.isBlank()) {
+            try {
+                koCategory = IngredientType.fromCode(category).getKor();
+            } catch (IllegalArgumentException e) {
+            }
+        }
+        Pageable pageable = PageRequest.of(page, safeSize, Sort.by(Sort.Direction.ASC, "name"));
+        Page<IngredientSummaryDto> result = ingredientService.search(q, koCategory, userId, false, pageable);
         return ResponseEntity.ok(result);
     }
 }

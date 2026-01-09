@@ -54,7 +54,7 @@ public class IngredientController {
         }
 
         Page<IngredientSummaryDto> page =
-                service.search(q, koCategory, inFridge, userId, pageable);
+                service.search(q, koCategory, userId, true, pageable);
         return ResponseEntity.ok(page);
     }
 
