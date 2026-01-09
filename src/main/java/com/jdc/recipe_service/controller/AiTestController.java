@@ -7,6 +7,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.type.AiRecipeConcept;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.scheduler.RecipeBatchScheduler;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.ai.RecipeTestService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +25,7 @@ import java.util.List;
 public class AiTestController {
 
     private final RecipeTestService recipeService;
+    private final RecipeBatchScheduler recipeBatchScheduler;
 
     /**
      * [TEST] 텍스트 생성 테스트 (이미지 X, DB 저장 X)
@@ -90,5 +92,23 @@ public class AiTestController {
 
         List<RecipeCreateRequestDto> results = recipeService.batchInsertRecipes(requests, type);
         return ResponseEntity.ok(results);
+    }
+
+    /**
+     * [ADMIN] S3 배치 수동 실행 (대량 등록용)
+     * ex) POST /api/test/ai-recipe/scheduler/manual?type=odd&limit=2000
+     */
+    @PostMapping("/s3-import")
+    @Operation(summary = "S3 배치 수동 실행 (ADMIN)", description = "S3에 있는 파일을 지정된 개수만큼 즉시 처리합니다. (비동기 실행)")
+    public ResponseEntity<String> triggerManualBatch(
+            @Parameter(description = "odd 또는 even") @RequestParam String type,
+            @Parameter(description = "실행할 파일 개수 (예: 2000)") @RequestParam int limit) {
+
+        recipeBatchScheduler.runManualBatch(type, limit);
+
+        return ResponseEntity.ok(String.format(
+                "배치 작업이 백그라운드에서 시작되었습니다. (Type: %s, Limit: %d) 서버 로그를 확인하세요.",
+                type, limit
+        ));
     }
 }
