@@ -130,7 +130,7 @@ public class RecipeSearchService {
         return recipeRepository.search(condition, pageable, userId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public RecipeDetailDto getRecipeDetail(Long recipeId, Long currentUserId) {
 
         log.info("V1 Detail access for RecipeId: {}, CurrentUserId: {}", recipeId, currentUserId);
