@@ -65,8 +65,10 @@ public class RecipeSearchServiceV2 {
     private final RecipeStepRepository recipeStepRepository;
     private final RecipeTagRepository recipeTagRepository;
     private final RecipeStepIngredientRepository recipeStepIngredientRepository;
-
+    private final RecipeFavoriteRepository recipeFavoriteRepository;
     private final CommentService commentService;
+
+    private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -101,8 +103,21 @@ public class RecipeSearchServiceV2 {
         Recipe basic = recipeRepository.findDetailWithFineDiningById(recipeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
-        if (basic.getIsPrivate() && (currentUserId == null || !basic.getUser().getId().equals(currentUserId))) {
-            throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
+        if (Boolean.TRUE.equals(basic.getIsPrivate())) {
+            if (currentUserId == null) {
+                throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
+            }
+
+            boolean isOwner = basic.getUser().getId().equals(currentUserId);
+
+            if (!isOwner) {
+                boolean isSystemOwned = basic.getUser().getId().equals(OFFICIAL_RECIPE_USER_ID);
+                boolean isFavorited = recipeFavoriteRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
+
+                if (!isSystemOwned || !isFavorited) {
+                    throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
+                }
+            }
         }
 
         UserDto authorDto = UserMapper.toSimpleDto(basic.getUser());

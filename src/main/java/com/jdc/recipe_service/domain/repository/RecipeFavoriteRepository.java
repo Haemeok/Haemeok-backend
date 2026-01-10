@@ -29,4 +29,11 @@ public interface RecipeFavoriteRepository extends JpaRepository<RecipeFavorite, 
 
     @Query("SELECT rf.recipe.id FROM RecipeFavorite rf WHERE rf.user.id = :userId AND rf.recipe.id IN :recipeIds")
     Set<Long> findRecipeIdsByUserIdAndRecipeIdIn(@Param("userId") Long userId, @Param("recipeIds") List<Long> recipeIds);
+
+    @Query("SELECT rf FROM RecipeFavorite rf " +
+            "JOIN FETCH rf.recipe r " +
+            "JOIN FETCH r.user " +
+            "WHERE rf.user.id = :userId " +
+            "AND (r.isPrivate = false OR r.imageStatus = 'PENDING')")
+    Page<RecipeFavorite> findMyFavoritesWithPending(@Param("userId") Long userId, Pageable pageable);
 }
