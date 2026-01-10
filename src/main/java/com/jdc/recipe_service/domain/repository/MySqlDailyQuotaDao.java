@@ -23,7 +23,7 @@ public class MySqlDailyQuotaDao implements DailyQuotaDao {
     @Override
     public boolean tryConsume(Long userId, QuotaType type) {
         var today = LocalDate.now(props.zoneId());
-        int limit = props.getPerDay();
+        int limit = getLimitByType(type);
         String typeStr = type.name();
 
         log.info("Try Consume - User: {}, Type: {}, Today: {}, Limit: {}", userId, typeStr, today, limit);
@@ -74,6 +74,8 @@ public class MySqlDailyQuotaDao implements DailyQuotaDao {
         var today = LocalDate.now(props.zoneId());
         String typeStr = type.name();
 
+        int limit = getLimitByType(type);
+
         Integer used = jdbc.query(
                 "SELECT used_count FROM user_daily_ai_usage_counter WHERE user_id=? AND used_on=? AND quota_type=?",
                 ps -> {
@@ -83,6 +85,13 @@ public class MySqlDailyQuotaDao implements DailyQuotaDao {
                 },
                 rs -> rs.next() ? rs.getInt(1) : 0
         );
-        return Math.max(0, props.getPerDay() - used);
+        return Math.max(0, limit - used);
+    }
+
+    private int getLimitByType(QuotaType type) {
+        if (type == QuotaType.YOUTUBE_EXTRACTION) {
+            return props.getYoutubePerDay();
+        }
+        return props.getPerDay();
     }
 }

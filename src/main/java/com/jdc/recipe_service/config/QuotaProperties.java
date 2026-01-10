@@ -11,6 +11,7 @@ import java.time.ZoneId;
 @Getter @Setter
 public class QuotaProperties {
     private int perDay = 1;
+    private int youtubePerDay = 10;
     private String timezone = "Asia/Seoul";
     public ZoneId zoneId() { return ZoneId.of(timezone); }
 }
