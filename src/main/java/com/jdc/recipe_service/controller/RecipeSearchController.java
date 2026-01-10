@@ -5,15 +5,9 @@ import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
-import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.type.RecipeImageStatus;
-import com.jdc.recipe_service.exception.CustomException;
-import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeRecommendationService;
 import com.jdc.recipe_service.service.RecipeSearchService;
-import com.jdc.recipe_service.util.DeferredResultHolder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,7 +19,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
 
@@ -36,13 +29,11 @@ import java.util.List;
 public class RecipeSearchController {
 
     private final RecipeSearchService recipeSearchService;
-    private final RecipeRepository recipeRepository;
-    private final DeferredResultHolder deferredResultHolder;
     private final RecipeRecommendationService recipeRecommendationService;
 
     @GetMapping("/{id}")
     @Operation(summary = "레시피 상세 조회", description = "레시피 ID를 기반으로 상세 정보를 조회합니다.")
-    public DeferredResult<ResponseEntity<RecipeDetailDto>> getRecipeDetail(
+    public ResponseEntity<RecipeDetailDto> getRecipeDetail(
             @DecodeId("id") Long recipeId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -50,25 +41,9 @@ public class RecipeSearchController {
                 ? userDetails.getUser().getId()
                 : null;
 
-        DeferredResult<ResponseEntity<RecipeDetailDto>> deferredResult = new DeferredResult<>();
+        RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, currentUserId);
 
-        Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
-
-        boolean ai = Boolean.TRUE.equals(recipe.isAiGenerated());
-        RecipeImageStatus status = recipe.getImageStatus();
-
-        if (!ai || status == RecipeImageStatus.READY) {
-            RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, currentUserId);
-            deferredResult.setResult(ResponseEntity.ok(fullDto));
-            return deferredResult;
-        }
-
-        deferredResultHolder.add(
-                recipeId,
-                (DeferredResult<ResponseEntity<?>>)(Object) deferredResult
-        );
-        return deferredResult;
+        return ResponseEntity.ok(fullDto);
     }
 
     @GetMapping("/search")
