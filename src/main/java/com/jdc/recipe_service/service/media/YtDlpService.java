@@ -187,7 +187,33 @@ public class YtDlpService {
     }
 
     /**
-     * 🔍 키워드로 유튜브 영상 목록 검색 (추천용)
+     * 📺 특정 채널의 최신 영상 가져오기 (New!)
+     * @param channelUrl 채널의 동영상 탭 URL (예: .../videos)
+     * @param limit 가져올 영상 개수
+     */
+    public List<YoutubeSearchDto> getLatestVideosFromChannel(String channelUrl, int limit) {
+        log.info("📡 채널 수집 시작: URL={}, 개수={}", channelUrl, limit);
+
+        List<String> commands = new ArrayList<>();
+        commands.add(ytdlpPath);
+
+        if (proxyUrl != null && !proxyUrl.isBlank()) {
+            commands.add("--proxy");
+            commands.add(proxyUrl.trim());
+        }
+
+        commands.add(channelUrl);
+
+        commands.add("--playlist-end");
+        commands.add(String.valueOf(limit));
+
+        addCommonListOptions(commands);
+
+        return executeYtDlpListCommand(commands, "채널 수집");
+    }
+
+    /**
+     * 🔍 키워드 검색 (기존 유지 - 필요시 사용)
      */
     public List<YoutubeSearchDto> searchVideoList(String keyword, int limit) {
         log.info("🔍 유튜브 검색 시작: 키워드={}, 개수={}", keyword, limit);
@@ -201,16 +227,23 @@ public class YtDlpService {
         }
 
         commands.add("ytsearch" + limit + ":" + keyword);
-
         commands.add("--dateafter");
         commands.add("now-1month");
 
+        addCommonListOptions(commands);
+
+        return executeYtDlpListCommand(commands, "키워드 검색");
+    }
+
+    private void addCommonListOptions(List<String> commands) {
         commands.add("--dump-json");
         commands.add("--no-warnings");
         commands.add("--ignore-config");
         commands.add("--skip-download");
-        commands.add("--no-playlist");
+        commands.add("--ignore-errors");
+    }
 
+    private List<YoutubeSearchDto> executeYtDlpListCommand(List<String> commands, String jobName) {
         ProcessBuilder pb = new ProcessBuilder(commands);
         pb.redirectErrorStream(false);
 
@@ -251,6 +284,7 @@ public class YtDlpService {
                         long viewCount = node.path("view_count").asLong(0);
 
                         String thumbnail = "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
+
                         results.add(new YoutubeSearchDto(title, videoId, channel, thumbnail, viewCount));
                     } catch (Exception ignoreJson) {
                     }
@@ -261,22 +295,19 @@ public class YtDlpService {
             if (!finished) {
                 p.destroyForcibly();
                 try { p.waitFor(2, TimeUnit.SECONDS); } catch (Exception ignore) {}
-                log.warn("⚠️ yt-dlp search timeout: keyword={}", keyword);
-                return Collections.emptyList();
+                log.warn("⚠️ yt-dlp timeout: [{}]", jobName);
+                return results;
             }
-
 
             int code = p.exitValue();
             if (code != 0) {
-                log.warn("⚠️ yt-dlp search nonzero exit: code={}, keyword={}, err={}",
-                        code, keyword, errBuf.toString());
-                return Collections.emptyList();
+                log.warn("⚠️ yt-dlp nonzero exit: code={}, job={}, err={}", code, jobName, errBuf.toString());
             }
 
             return results;
 
         } catch (Exception e) {
-            log.error("유튜브 검색 실패: keyword={}", keyword, e);
+            log.error("[{}] 실행 실패", jobName, e);
             if (p != null) p.destroyForcibly();
             return Collections.emptyList();
         }
