@@ -162,11 +162,10 @@ public class UserService {
             Pageable pageable) {
 
         Page<RecipeFavorite> favPage =
-                recipeFavoriteRepository.findByUserId(targetUserId, pageable);
+                recipeFavoriteRepository.findMyFavoritesWithPending(targetUserId, pageable);
 
         List<Recipe> recipes = favPage.getContent().stream()
                 .map(RecipeFavorite::getRecipe)
-                .filter(recipe -> !Boolean.TRUE.equals(recipe.getIsPrivate()))
                 .toList();
 
         List<Long> recipeIds = recipes.stream()
