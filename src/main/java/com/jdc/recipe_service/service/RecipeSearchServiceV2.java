@@ -95,7 +95,7 @@ public class RecipeSearchServiceV2 {
      * @param currentUserId 현재 로그인한 사용자 ID (비공개 레시피 접근 제어용)
      * @return RecipeDetailStaticDto (정적 DTO)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public RecipeDetailStaticDto getRecipeDetail(Long recipeId, Long currentUserId) {
 
         log.info("Detail access for RecipeId: {}, CurrentUserId: {}", recipeId, currentUserId);
