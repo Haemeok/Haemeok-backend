@@ -142,16 +142,8 @@ public class RecipeSearchService {
             if (currentUserId == null) {
                 throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
             }
-
-            boolean isOwner = basic.getUser().getId().equals(currentUserId);
-
-            if (!isOwner) {
-                boolean isSystemOwned = basic.getUser().getId().equals(OFFICIAL_RECIPE_USER_ID);
-                boolean isFavorited = recipeFavoriteRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
-
-                if (!isSystemOwned || !isFavorited) {
-                    throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
-                }
+            if (!basic.getUser().getId().equals(currentUserId)) {
+                throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
             }
         }
 

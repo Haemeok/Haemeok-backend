@@ -74,7 +74,7 @@ public class RecipeService {
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
 
         if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
-            recipe.updateIsPrivate(true);
+            recipe.updateIsPrivate(false);
             recipe.updateImageStatus(RecipeImageStatus.PENDING);
         } else {
             boolean hasMain = req.getFiles() != null &&
