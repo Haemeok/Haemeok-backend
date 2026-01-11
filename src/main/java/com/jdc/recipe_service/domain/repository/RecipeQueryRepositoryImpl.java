@@ -5,6 +5,7 @@ import com.jdc.recipe_service.domain.dto.recipe.QRecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.RecipeType;
 import com.jdc.recipe_service.domain.type.TagType;
 import com.querydsl.core.BooleanBuilder;
@@ -52,6 +53,9 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
         BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
 
+        BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
+                .or(recipe.imageStatus.isNull());
+
         var contentQuery = queryFactory
                 .select(new QRecipeSimpleDto(
                         recipe.id,
@@ -78,6 +82,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         List<RecipeSimpleDto> content = contentQuery
                 .where(
                         privacyCondition,
+                        imageReadyCondition,
                         titleContains(cond.getTitle()),
                         dishTypeEq(cond.getDishTypeEnum()),
                         tagIn(cond.getTagEnums(), tag),
