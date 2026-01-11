@@ -15,6 +15,7 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.service.media.YtDlpService;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -114,6 +115,11 @@ public class RecipeExtractionService {
         this.recipeFavoriteService = recipeFavoriteService;
         this.youtubeTargetChannelRepository = youtubeTargetChannelRepository;
         this.transactionTemplate = transactionTemplate;
+    }
+
+    @PostConstruct
+    public void init() {
+        CompletableFuture.runAsync(this::refreshRecommendedRecipes);
     }
 
     private String getExtractionPrompt() {
@@ -486,14 +492,25 @@ public class RecipeExtractionService {
     public List<YtDlpService.YoutubeSearchDto> getRecommendedRecipes() {
         List<YtDlpService.YoutubeSearchDto> currentPool = this.cachedRecommendations.get();
 
-        if (currentPool.isEmpty()) {
-            refreshRecommendedRecipes();
-            currentPool = this.cachedRecommendations.get();
+        if (!currentPool.isEmpty()) {
+            return getRandomizedList(currentPool);
         }
 
-        if (currentPool.isEmpty()) return Collections.emptyList();
+        refreshRecommendedRecipes();
 
-        List<YtDlpService.YoutubeSearchDto> shuffledList = new ArrayList<>(currentPool);
+        currentPool = this.cachedRecommendations.get();
+
+        if (currentPool.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return getRandomizedList(currentPool);
+    }
+
+    private List<YtDlpService.YoutubeSearchDto> getRandomizedList(List<YtDlpService.YoutubeSearchDto> list) {
+        if (list.isEmpty()) return Collections.emptyList();
+
+        List<YtDlpService.YoutubeSearchDto> shuffledList = new ArrayList<>(list);
         Collections.shuffle(shuffledList);
 
         int limit = Math.min(shuffledList.size(), 20);
