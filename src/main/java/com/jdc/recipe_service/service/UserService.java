@@ -202,7 +202,7 @@ public class UserService {
                 })
                 .toList();
 
-        return new PageImpl<>(dtos, pageable, dtos.size());
+        return new PageImpl<>(dtos, pageable, favPage.getTotalElements());
     }
 
 
