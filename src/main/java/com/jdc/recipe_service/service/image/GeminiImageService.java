@@ -38,7 +38,7 @@ public class GeminiImageService {
             "https://aiplatform.googleapis.com/v1/projects/" + GCP_PROJECT_ID + "/locations/global/publishers/google/models/" + GEMINI_MODEL_ID + ":generateContent?key={key}";
 
     public List<String> generateImageUrls(String prompt, Long userId, Long recipeId) {
-        log.info("[GeminiImageService] Vertex AI - Gemini 3 Pro (Final Attempt)");
+        log.info("[GeminiImageService] Vertex AI - Gemini 2.5 flash");
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

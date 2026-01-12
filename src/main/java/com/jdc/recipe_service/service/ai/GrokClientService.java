@@ -38,7 +38,7 @@ public class GrokClientService {
     private final ObjectMapper objectMapper;
     private final IngredientRepository ingredientRepository;
 
-    @Value("${ai.model.grok.recipe:grok-4-fast-reasoning}")
+    @Value("${ai.model.grok.recipe:grok-4-1-fast-reasoning}")
     private String grokRecipeModelName;
 
     @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
@@ -273,6 +273,30 @@ public class GrokClientService {
                 Map<String, Object> responseMap = objectMapper.readValue(rawJsonResponse, new TypeReference<>() {});
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
 
+                Object usageObj = responseMap.get("usage");
+                if (usageObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> usage = (Map<String, Object>) usageObj;
+
+                    Integer promptTokens = usage.get("prompt_tokens") instanceof Number
+                            ? ((Number) usage.get("prompt_tokens")).intValue() : 0;
+
+                    Integer cachedTokens = 0;
+                    Object detailsObj = usage.get("prompt_tokens_details");
+                    if (detailsObj instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> details = (Map<String, Object>) detailsObj;
+                        cachedTokens = details.get("cached_tokens") instanceof Number
+                                ? ((Number) details.get("cached_tokens")).intValue() : 0;
+                    }
+
+                    log.info("Grok API Usage - total_prompt: {}, cached_prompt: {} (hit rate: {}%)",
+                            promptTokens, cachedTokens,
+                            promptTokens > 0 ? Math.round((double) cachedTokens / promptTokens * 100) : 0);
+                } else {
+                    log.warn("Grok API 응답에 usage 객체가 없거나 예상 형식과 다릅니다.");
+                }
+
                 if (choices == null || choices.isEmpty()) {
                     throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "Grok API 응답에 choices가 없습니다.");
                 }
@@ -315,7 +339,7 @@ public class GrokClientService {
     private String normalizeFields(String json) {
         return json
                 .replaceAll(
-                        "\"(customPrice|customCalories|customCarbohydrate|customProtein|customFat|customSugar|customSodium|marketPrice|cookingTime|servings|protein|carbohydrate|fat|sugar|sodium)\"\\s*:\\s*(\"\\s*\"|null)",
+                        "\"(marketPrice|cookingTime|servings|protein|carbohydrate|fat|sugar|sodium)\"\\s*:\\s*(\"\\s*\"|null)",
                         "\"$1\": 0"
                 )
                 .replaceAll("\"quantity\"\\s*:\\s*(\"\\s*\"|null)", "\"quantity\": \"0\"")

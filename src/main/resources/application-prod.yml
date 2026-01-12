@@ -96,7 +96,7 @@ openai:
 ai:
   model:
     grok:
-      recipe: grok-4-fast-reasoning
+      recipe: grok-4-1-fast-reasoning
 
 gemini:
   api-key: ${GEMINI_API_KEY}
