@@ -52,7 +52,9 @@ public class RecipeIngredientService {
             try {
                 quantity = parseQuantity(dto.getQuantity());
             } catch (NumberFormatException e) {
-                throw new CustomException(ErrorCode.INVALID_INGREDIENT_QUANTITY, "재료 '"+dto.getName()+"'의 수량 '"+dto.getQuantity()+"'이(가) 올바르지 않습니다: " + e.getMessage());
+                log.warn("수량 파싱 실패: name={}, quantity='{}'. → '약간'으로 보정", dto.getName(), dto.getQuantity());
+                dto.setQuantity("약간");
+                quantity = 0.0;
             }
 
             Ingredient masterIngredient = ingredientMap.get(nameKey);
