@@ -5,8 +5,10 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.YoutubeRecommendation;
 import com.jdc.recipe_service.domain.entity.YoutubeTargetChannel;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
+import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,22 +52,24 @@ public class RecipeExtractionService {
 
     private final RecipeRepository recipeRepository;
     private final YoutubeTargetChannelRepository youtubeTargetChannelRepository;
+    private final YoutubeRecommendationRepository youtubeRecommendationRepository;
 
     private final TransactionTemplate transactionTemplate;
 
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
+    private static final Set<String> SPECIAL_QTY = Set.of("약간");
 
     private final AtomicReference<List<YtDlpService.YoutubeSearchDto>> cachedRecommendations
             = new AtomicReference<>(Collections.emptyList());
 
     private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
-    
+
     private static final List<String> NOISE_KEYWORDS = List.of(
             // 1. 기존 먹방/브이로그
             "먹방", "mukbang", "asmr", "이팅사운드",
             "리뷰", "후기", "탐방", "review", "맛집", "맛있게 먹는",
             "브이로그", "vlog", "일상", "grwm", "what i eat",
-            "식단일기", "장보기", "haul", "하울", "언박싱",
+            "식단일기", "장보기", "언박싱",
             "소분", "정리", "살림", "청소", "룸투어",
             "costco", "코스트코", "이마트", "trader joe",
 
@@ -103,7 +108,7 @@ public class RecipeExtractionService {
             RecipeService recipeService,
             DailyQuotaService dailyQuotaService,
             RecipeRepository recipeRepository,
-            RecipeFavoriteService recipeFavoriteService, YoutubeTargetChannelRepository youtubeTargetChannelRepository,
+            RecipeFavoriteService recipeFavoriteService, YoutubeTargetChannelRepository youtubeTargetChannelRepository, YoutubeRecommendationRepository youtubeRecommendationRepository,
             TransactionTemplate transactionTemplate
     ) {
         this.ytDlpService = ytDlpService;
@@ -114,18 +119,14 @@ public class RecipeExtractionService {
         this.recipeRepository = recipeRepository;
         this.recipeFavoriteService = recipeFavoriteService;
         this.youtubeTargetChannelRepository = youtubeTargetChannelRepository;
+        this.youtubeRecommendationRepository = youtubeRecommendationRepository;
         this.transactionTemplate = transactionTemplate;
-    }
-
-    @PostConstruct
-    public void init() {
-        CompletableFuture.runAsync(this::refreshRecommendedRecipes);
     }
 
     private String getExtractionPrompt() {
         return """
             [SYSTEM]
-            너는 요리 전문가 AI다. 출력은 반드시 "단 하나의 JSON 객체"만 허용한다.
+            너는 다양한 요리 영상(집밥, 셰프, 초보 레시피 등)을 분석하는 전문 AI다. 출력은 반드시 "단 하나의 JSON 객체"만 허용한다.
             설명/주석/마크다운/코드펜스(```)/여분 텍스트를 절대 출력하지 마라.
             
             ==============================
@@ -146,13 +147,13 @@ public class RecipeExtractionService {
             
             2) 레시피 추출 (isRecipe=true일 때만)
             [근거 우선순위] Script > Description > Title > Comments
-            - 광고/링크/쿠폰/잡담은 근거에서 제외
-            - 댓글은 자막/설명과 일치할 때만 보조로 참고
+            - 광고/링크/쿠폰/인사/웃음/잡담은 전부 무시
+            - 댓글은 자막/설명과 100% 일치할 때만 보조로 참고
+            - **영상에 명확한 근거 없는 정보는 절대 추측/추가/창의적으로 채우지 마라**
             
-            [Universal Culinary Principles & Chef's Insight]
-            - **[핵심]: 단순한 조리 순서 나열을 넘어, 영상 속 셰프가 강조하는 "이유(Why)"와 "철학(Philosophy)"을 반드시 포함하라.**
-            - 셰프가 특정 행동을 하는 이유(맛, 식감, 과학적 원리)를 설명했다면, 이를 누락하지 말고 기록하라.
+            [Universal Culinary Principles]
             - 암묵적 재료: 시각/조리 행위로 "거의 확실"할 때만 포함
+            - 다양한 요리 스타일(이탈리아, 한국, 디저트 등)에 맞춰 유연하게 분석. 영상 톤(캐주얼/전문)을 반영하되, 일반적으로 적용 가능하게.
             
             ==============================
             3) 성공 JSON 스키마 (반드시 이 형태)
@@ -179,9 +180,7 @@ public class RecipeExtractionService {
             
             4) 필드 규칙 (위반 시 전체 실패)
             [dishType]
-            - dishType은 아래 중 정확히 1개만 선택:
-              "볶음", "국/찌개/탕", "구이", "무침/샐러드", "튀김/부침",
-              "찜/조림", "오븐요리", "생식/회", "절임/피클류", "밥/면/파스타", "디저트/간식류"
+            - dishType은 아래 중 정확히 1개만 선택: "볶음", "국/찌개/탕", "구이", "무침/샐러드", "튀김/부침", "찜/조림", "오븐요리", "생식/회", "절임/피클류", "밥/면/파스타", "디저트/간식류"
             - 빈 문자열/공백 금지
             
             [숫자 필드]
@@ -192,11 +191,12 @@ public class RecipeExtractionService {
               - 정수: "2"
               - 소수: "0.5"
               - 분수: "1/2"  (혼합분수 "1 1/2" 금지, 공백 금지)
+              - 단, 추정 불가(영상에서 수량 단서 없음)인 경우에만 quantity="약간" 허용
             - quantity/marketPrice/cookingTime/servings는 null/"" 절대 금지
             
             [timeline]
             - "MM:SS" 문자열 또는 null만 허용
-            - 자막에 [04:12]가 있으면 우선 매핑
+            - 자막에 [04:12] 또는 0:02 형태가 있으면 우선 매핑
             - 시간을 확실히 못 찾으면 억지로 추측하지 말고 null
             
             [ingredients] (DB 매칭을 위한 핵심 규칙)
@@ -205,15 +205,37 @@ public class RecipeExtractionService {
             - **[부재료 포착]:** 파, 깨, 참기름, 후추 등 셰프가 조리 중간에 "향"이나 "마무리"를 위해 소량 첨가하는 재료도 놓치지 말고 포함하라.
             - **[소스 분석]:** 영상에서 별도의 소스(양념장)를 배합하는 과정이 나온다면, 그 배합에 들어가는 재료(간장, 설탕, 식초 등)를 모두 분리하여 적어라.
             
-            [steps] (영상 순서 최우선 규칙)
+            [steps] (영상 순서 최우선, '극도로 상세한' 서술형 작성)
             - stepNumber는 0부터 1씩 증가
-            - **[순서 규칙: 타임라인 오름차순]:** 요리의 논리적 순서보다 **'영상의 편집/진행 순서'**를 최우선으로 따르라.
-              - 사용자가 영상을 보며 따라 할 수 있도록, `step 0` -> `step 1`으로 갈수록 `timeline` 시간도 반드시 커져야 한다. (시간 역전 금지)
-            - **[Instruction 구성]:** 영상 흐름이 끊기지 않도록, 화면에 보이는 동작 위주로 단계를 구성하라.
-            - timeline: 해당 Step의 행동이 영상에서 **실제로 시작되는 시간**을 정확히 매핑하라.
-              - 확실히 못 찾으면 null (추측 금지)
-            - action은 아래 20개 중 1개만:
-              "썰기","다지기","채썰기","손질하기","볶기","튀기기","끓이기","찌기","데치기","구이","조림","무치기","절이기","담그기","섞기","젓기","버무리기","로스팅","캐러멜라이즈","부치기"
+            - **[Hyper-Detailing Instruction Rule - 6대 필수 요소]:**
+              각 단계는 **2~3문장**으로 작성하되, 문장 수를 줄이려고 핵심 정보를 생략하지 마라.
+              6대 요소는 영상/자막에 근거가 있는 것만 포함. 근거 없으면 생략. 절대 지어내지 마라.
+              아래 항목 중 해당되는 것은 빠짐없이 문장에 녹여내라:
+             1. **무엇을 (Specifics):** 재료의 상태나 도구. (Bad: "파를 넣고" -> Good: "파의 흰 대 부분만 송송 썰어 예열된 팬에 넣고")
+             2. **어떻게 (Action):** 구체적 동작. (Bad: "볶는다" -> Good: "기름이 튀지 않게 조심하며 저어가며 볶습니다")
+             3. **불/온도 (Heat):** 강불/중불/약불, 잔열, "연기가 날 정도로 달궈지면", "끓기 시작하면 약불로 줄여"
+             4. **시간/횟수 (Time):** "3분간", "30초 정도", "3번에 나눠서"
+             5. **멈춤 타이밍 (Visual Cue & State):** 시간보다 **'상태'**가 더 중요하다. (예: "양파가 투명해질 때까지", "가장자리가 갈색이 돌면", "소스가 걸쭉해질 때까지")
+             6. **이유/팁 (Why & Insight):** 단순 조리 순서를 넘어, **셰프가 강조하는 이유나 철학**을 반드시 포함하라. (예: "그래야 잡내가 날아갑니다", "지금 간을 해야 재료에 맛이 뱁니다")
+            
+            - **[금지어]:** "적당히", "알맞게", "잘". -> 반드시 "어떤 상태가 될 때까지"라고 풀어서 써라.
+            - **[Flow]:** 같은 단계 안에서는 '행동 → 관찰(상태) → 이유/다음행동' 순으로 자연스럽게 이어 써라.
+            - **[순서 규칙: 타임라인 오름차순]:** 요리의 논리적 순서(재료손질->조리)보다 **'영상의 편집/진행 순서'**를 최우선으로 따르라.
+            - 사용자가 영상을 보며 따라 할 수 있도록, `step 0` -> `step 1`으로 갈수록 `timeline` 시간도 반드시 커져야 한다. (시간 역전 금지)
+            - timeline: 해당 동작이 시작되는 정확한 시간 (MM:SS)
+            - action: "썰기","다지기","볶기","튀기기","끓이기","찌기","데치기","구이","조림","무치기","섞기","부치기" 중 택1
+            
+            [Chef Insight Capture - 누락 금지]
+            - 영상에서 조리의 "이유/원리/선택 기준"을 설명하면 절대 누락하지 마라.
+            - 아래 유형은 반드시 결과에 포함:
+              1) 기술/과정의 이유(왜 이런 순서/불/상태를 고집하는지)
+              2) 재료/제품 선택 기준(면/오일/재료 선택 논리, 가성비/등급/보관 포인트)
+              3) 향/풍미 보강 팁(향을 옮기는 방법, 마무리 포인트)
+            - 배치 규칙:
+              - “행동과 직결된 이유”는 해당 step instruction 안에 1문장으로 포함(Why & Insight).
+              - “제품/재료 선택 팁(가성비/등급/구매 요령)”은 cookingTips에 1~2문장으로 포함.
+            - 제외 규칙:
+              - 인사, 근황, 농담, 협찬 멘트 등 조리와 무관한 대화는 steps/cookingTips 모두에서 제외
             
             [tags] (허용 목록에서 최대 3개)
             "🏠 홈파티","🌼 피크닉","🏕️ 캠핑","🥗 다이어트 / 건강식","👶 아이와 함께","🍽️ 혼밥","🍶 술안주","🥐 브런치","🌙 야식","⚡ 초스피드 / 간단 요리","🎉 기념일 / 명절","🍱 도시락","🔌 에어프라이어","🍲 해장","👨‍🍳 셰프 레시피"
@@ -238,8 +260,175 @@ public class RecipeExtractionService {
             - 100원 단위 올림 정수 출력
             
             [cookingTips]
-            - 3~5개 팁을 "문장"으로만 이어서 작성
+            - 일반적인 요리 상식이 아니라, **이 영상에서 요리사가 강조한 꿀팁** 3~5가지를 문장으로 적어라.
             - 숫자/목록표시/접두어("팁:") 금지
+            """;
+    }
+
+    private String getExtractionPromptV2() {
+        return """
+            당신은 레시피 추출 AI입니다. 오직 유효한 JSON만 출력하세요.
+            
+            ## 최우선 규칙
+            - 단일 JSON 객체만 출력 (마크다운, 코드펜스, 설명 절대 금지)
+            - timeline과 nonRecipeReason만 null 허용
+            - 모든 숫자 필드는 0 이상 (빈 문자열, null 금지)
+            - 영상에 없는 정보는 절대 창작 금지
+            
+            ## 1단계: 레시피 판별
+            조리법이 아니면 즉시 반환:
+            {
+              "isRecipe": false,
+              "nonRecipeReason": "먹방/리뷰/브이로그 - 조리법 없음"
+            }
+            
+            제외 키워드: 먹방, mukbang, ASMR, 리뷰, 브이로그, vlog, 장보기, 언박싱, 예능, 챌린지, 공지, 라이브
+            
+            ## 2단계: 데이터 추출 (isRecipe=true일 때만)
+            
+            ### [CRITICAL] 다중 레시피 처리 규칙
+            영상에 두 가지 이상의 레시피(예: 버전1 vs 버전2, 매운맛 vs 순한맛)가 나올 경우:
+            1. **단일 선택:** 가장 비중 있게 다뤄지거나, 제목과 가장 일치하거나, 일반 사용자가 따라 하기 쉬운 **'메인 레시피 1개'**만 선택하라.
+            2. **혼합 금지:** 선택하지 않은 버전의 재료나 조리법을 절대 섞지 마라. (예: 버전1의 재료와 버전2의 소스를 섞으면 안 됨)
+            3. **정보 보존:** 선택되지 않은 다른 버전의 핵심 차이점(예: "퓨레 방식도 소개함")은 `description`이나 `cookingTips`에 한 줄로 언급하라.
+            
+            근거 우선순위: Script(자막) > Description > Title > Comments
+            
+            ### 출력 구조
+            {
+              "isRecipe": true,
+              "nonRecipeReason": null,
+              "title": "영상의 요리명",
+              "dishType": "11개 중 정확히 1개",
+              "description": "1-2문장: 맛/식감 + 핵심특징",
+              "cookingTime": 0,
+              "cookingTools": ["도구1"],
+              "servings": 1,
+              "ingredients": [...],
+              "steps": [...],
+              "tags": ["태그1","태그2","태그3"],
+              "marketPrice": 1500,
+              "cookingTips": "문장으로 3-5개 팁 (불릿 금지)"
+            }
+            
+            ### 필드별 규칙
+            
+            **dishType** - 정확히 1개만 선택:
+            "볶음", "국/찌개/탕", "구이", "무침/샐러드", "튀김/부침", "찜/조림", "오븐요리", "생식/회", "절임/피클류", "밥/면/파스타", "디저트/간식류"
+            
+            **ingredients** - DB 매칭을 위한 핵심 규칙:
+            1. 단일 명사 원칙: "또는", "/", "대체" 표현 금지
+            2. 실제 사용한 메인 재료 1개만
+            3. quantity 형식: "2", "0.5", "1/2" (혼합분수 금지)
+            4. quantity="약간"은 정말 추정 불가능할 때만
+            5. 소스 분해: 양념장 만드는 장면 있으면 간장/설탕/식초 등 모두 분리
+            6. 부재료 포착: 파/깨/참기름/후추 등 조리 중 추가하는 것 누락 금지
+            
+            예시:
+            [
+              { "name": "돼지고기", "quantity": "300", "unit": "g" },
+              { "name": "간장", "quantity": "2", "unit": "큰술" },
+              { "name": "깨", "quantity": "약간", "unit": "약간" }
+            ]
+            
+            **steps** - 극도로 상세한 지시문 작성:
+            
+            기본 구조:
+            - stepNumber: 0부터 시작
+            - timeline: "MM:SS" 형식 또는 null (확실하지 않으면 null)
+            - timeline은 반드시 오름차순 (시간 역전 금지)
+            - instruction: 2-3문장으로 상세 작성
+            - action: "썰기","다지기","볶기","튀기기","끓이기","찌기","데치기","굽기","조림","무치기","씻기","부치기" 중 1개
+            
+            instruction 작성시 6대 요소 (영상에 근거 있을 때만 포함):
+            1. 무엇을 (Specifics): "양파 1개를 0.5cm 두께로 채썰어"
+            2. 어떻게 (Action): "나무 주걱으로 저어가며 볶습니다"
+            3. 불/온도 (Heat): "중불", "강불로 올려", "연기가 날 정도로"
+            4. 시간/횟수 (Time): "3분간", "30초 정도", "2번 뒤집어"
+            5. 멈춤 타이밍 (Visual Cue): "양파가 투명해질 때까지", "소스가 걸쭉해지면"
+            6. 이유/팁 (Why): "그래야 식감이 살아납니다", "지금 간을 해야 맛이 뱁니다"
+            
+            금지 표현: "적당히", "알맞게", "잘" → 구체적 상태/조건으로 변경
+            
+            Flow 패턴: 행동 → 관찰(상태) → 이유/다음행동
+            
+            예시:
+            {
+              "stepNumber": 0,
+              "instruction": "돼지고기는 한입 크기로 썰어 키친타월로 핏물을 제거합니다. 이렇게 해야 누린내가 나지 않습니다. 준비된 고기에 간장 1큰술, 설탕 0.5큰술을 넣고 10분간 재워둡니다.",
+              "action": "썰기",
+              "timeline": "00:45"
+            }
+            
+            **Chef Insight 포착** - 영상에서 조리 이유/원리 설명시 절대 누락 금지:
+            
+            3가지 유형 (영상에 있을 때만 포함):
+            1. 기술/과정의 이유
+               → step instruction에 1문장 포함
+           
+            2. 재료/도구 선택 기준
+               → cookingTips에 포함
+               (브랜드/등급/품질 언급, 왜 이 재료인지 설명)
+            
+            3. 향/풍미 보강 팁
+               → cookingTips에 포함
+               (부재료 활용, 타이밍, 온도 등)
+            
+            제외: 인사, 근황, 농담, 광고 등 조리 무관 내용
+            
+            **tags** - 조건부 허용 (최대 3개):
+            "🏠 홈파티","🌼 피크닉","🏕️ 캠핑","🥗 다이어트 / 건강식","👶 아이와 함께","🍽️ 혼밥","🍶 술안주","🥐 브런치","🌙 야식","⚡ 초스피드 / 간단 요리","🎉 기념일 / 명절","🍱 도시락","📌 에어프라이어","🍲 해장","👨‍🍳 셰프 레시피"
+            
+            조건:
+            - 🍽️ 혼밥: servings==1일 때만
+            - ⚡ 초스피드: cookingTime<=15일 때만
+            - 📌 에어프라이어: cookingTools에 오븐/에어프라이어 포함시만
+            - 🥗 다이어트: 튀김/가공육 아니고 채소·단백질 위주일 때만
+            - 👨‍🍳 셰프: 제목/설명에 셰프/대가/명장 등 명확 근거 있을 때만
+            
+            [marketPrice] (2026년 대한민국 외식/반찬가게 판매가 기준):
+            - **[중요] 식당/반찬가게의 '소비자 가격'을 예측하라.** (단, 메뉴의 급에 맞는 현실적 가격 책정 필수)
+            
+            **[카테고리별 가격 가이드라인 (1인분/1팩 기준)]**:
+            0. **초간단/사이드/반찬** (계란후라이, 공기밥, 간단 나물 1종, 소스, 피클): **1,000 ~ 4,500원**
+               - (주의: 메인 식사가 안 되는 단순 반찬은 절대 5,000원을 넘기지 마라.)
+            1. **저가형/분식/간식** (김밥, 라면, 떡볶이, 토스트, 샌드위치): 4,500 ~ 8,500원
+            2. **일반 식사/한식** (김치찌개, 덮밥, 볶음밥, 국밥): 9,000 ~ 13,000원
+            3. **양식/일품/브런치** (파스타, 리조또, 샐러드볼): **14,000 ~ 22,000원**
+            4. **메인 요리/안주** (치킨, 족발, 전골, 탕수육): 22,000 ~ 35,000원
+            5. **프리미엄** (스테이크, 장어, 회, 갈비찜): 40,000원 이상
+            
+            **[조정 규칙]**:
+            - **인분 계산:**
+              - 개별 메뉴: 1인분 가격 × servings
+              - 공유 메뉴(전골, 찜): 2인(x1.5), 3인(x2.0) 감경 적용.
+            - 100원 단위 반올림.
+            
+            **cookingTips**:
+            - 일반 상식 아닌, 이 영상에서 셰프가 강조한 팁 3-5가지
+            - 영상에 있을 때만: **steps에 쓴 내용을 제외하고**, 재료팁/대체법/수습법(재료 선택 이유, 기술의 원리, 타이밍 팁) 위주로 작성.
+            - 숫자/목록/접두어 금지
+            - **[필수]** 만약 영상에 다른 버전의 레시피가 소개되었다면, 여기서 "영상에서는 ~하는 방법도 소개하고 있습니다"라고 한 줄로 언급하라.
+            - 자연스러운 문장으로 이어서 작성
+            
+            ## 실행 순서
+            1. 레시피 영상 판별
+            2. isRecipe=false면 즉시 종료
+            3. 근거 우선순위로 데이터 추출
+            4. ingredients: 단일 명사, 소스 분해, 부재료 포함
+            5. steps: 6대 요소 기반 2-3문장 상세 작성, timeline 오름차순
+            6. Chef Insight 누락 금지
+            7. 모든 숫자 필드 0 이상 확인
+            8. 단일 JSON 출력 (코드펜스/설명 제거)
+            
+            ## 절대 금지
+            - ```json ``` 코드펜스
+            - "이 레시피는..." 같은 설명
+            - 근거 없는 추측
+            - 빈 문자열/null (허용 필드 제외)
+            - 중복 재료
+            - "적당히", "알맞게" 모호한 표현
+            - steps의 timeline 시간 역전
             """;
     }
 
@@ -315,7 +504,7 @@ public class RecipeExtractionService {
             if (!useUrlFallback && isTextSufficient(description, comments, scriptPlain)) {
                 log.info("✅ [텍스트 모드] 자막/설명이 충분함. 1차 분석 시도.");
                 try {
-                    RecipeCreateRequestDto rawRecipe = grokClientService.generateRecipeStep1(getExtractionPrompt(), fullContext).join();
+                    RecipeCreateRequestDto rawRecipe = grokClientService.generateRecipeStep1(getExtractionPromptV2(), fullContext).join();
 
                     if (rawRecipe == null) {
                         useUrlFallback = true;
@@ -368,7 +557,7 @@ public class RecipeExtractionService {
                 log.info("🎥 [멀티모달 모드] Gemini 3.0 Flash에게 영상 URL 직접 전송");
 
                 RecipeCreateRequestDto geminiRecipe = geminiMultimodalService
-                        .generateRecipeFromYoutubeUrl(getExtractionPrompt(), title, canonicalUrl)
+                        .generateRecipeFromYoutubeUrl(getExtractionPromptV2(), title, canonicalUrl)
                         .join();
 
                 if (geminiRecipe == null) {
@@ -435,10 +624,11 @@ public class RecipeExtractionService {
     }
 
     @Scheduled(cron = "0 0 4 * * *")
+    @Transactional
     public void refreshRecommendedRecipes() {
         if (!isRefreshing.compareAndSet(false, true)) return;
 
-        log.info("🔄 [스케줄러] 타겟 채널 레시피 갱신 시작...");
+        log.info("🔄 [스케줄러] 타겟 채널 레시피 갱신 및 DB 저장 시작...");
 
         try {
             List<YoutubeTargetChannel> allChannels = youtubeTargetChannelRepository.findAllByIsActiveTrue();
@@ -451,8 +641,6 @@ public class RecipeExtractionService {
             Collections.shuffle(allChannels);
             List<YoutubeTargetChannel> selectedChannels = allChannels.subList(0, Math.min(allChannels.size(), 5));
 
-            log.info("🎯 이번 턴 수집 채널: {}", selectedChannels.stream().map(YoutubeTargetChannel::getChannelName).toList());
-
             List<YtDlpService.YoutubeSearchDto> combinedResults = new ArrayList<>();
 
             for (YoutubeTargetChannel channel : selectedChannels) {
@@ -464,9 +652,7 @@ public class RecipeExtractionService {
                 Map<String, YtDlpService.YoutubeSearchDto> bestById = new LinkedHashMap<>();
                 for (YtDlpService.YoutubeSearchDto dto : combinedResults) {
                     if (dto == null || dto.videoId() == null) continue;
-
                     if (isNoiseVideo(dto.title())) continue;
-
                     bestById.put(dto.videoId(), dto);
                 }
 
@@ -475,10 +661,26 @@ public class RecipeExtractionService {
                         .limit(40)
                         .toList();
 
-                this.cachedRecommendations.set(rankedResults);
-
                 if (!rankedResults.isEmpty()) {
-                    log.info("🏆 [트렌드 1위] {} (조회수: {})", rankedResults.get(0).title(), rankedResults.get(0).viewCount());
+                    youtubeRecommendationRepository.deleteAll();
+                    youtubeRecommendationRepository.flush();
+
+                    List<YoutubeRecommendation> entities = rankedResults.stream()
+                            .map(dto -> YoutubeRecommendation.builder()
+                                    .videoId(dto.videoId())
+                                    .title(dto.title())
+                                    .thumbnail(dto.thumbnailUrl())
+                                    .channelName(dto.channelName())
+                                    .viewCount(dto.viewCount())
+                                    .publishedAt("")
+                                    .collectedAt(LocalDateTime.now())
+                                    .build())
+                            .toList();
+
+                    youtubeRecommendationRepository.saveAll(entities);
+
+                    log.info("✅ 추천 레시피 DB 갱신 완료: {}개 저장됨. (트렌드 1위: {})",
+                            entities.size(), rankedResults.get(0).title());
                 }
             }
 
@@ -490,21 +692,25 @@ public class RecipeExtractionService {
     }
 
     public List<YtDlpService.YoutubeSearchDto> getRecommendedRecipes() {
-        List<YtDlpService.YoutubeSearchDto> currentPool = this.cachedRecommendations.get();
+        List<YoutubeRecommendation> entities = youtubeRecommendationRepository.findAll();
 
-        if (!currentPool.isEmpty()) {
-            return getRandomizedList(currentPool);
+        if (!entities.isEmpty()) {
+            List<YtDlpService.YoutubeSearchDto> dtos = entities.stream()
+                    .map(e -> new YtDlpService.YoutubeSearchDto(
+                            e.getTitle(),
+                            e.getVideoId(),
+                            e.getChannelName(),
+                            e.getThumbnail(),
+                            e.getViewCount()
+                    ))
+                    .toList();
+            return getRandomizedList(dtos);
         }
 
-        refreshRecommendedRecipes();
+        log.info("⚠️ 추천 DB가 비어있습니다. 유튜브 수집을 시작합니다. (빈 목록 반환)");
+        CompletableFuture.runAsync(this::refreshRecommendedRecipes);
 
-        currentPool = this.cachedRecommendations.get();
-
-        if (currentPool.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        return getRandomizedList(currentPool);
+        return Collections.emptyList();
     }
 
     private List<YtDlpService.YoutubeSearchDto> getRandomizedList(List<YtDlpService.YoutubeSearchDto> list) {
@@ -563,16 +769,44 @@ public class RecipeExtractionService {
         });
     }
     private boolean isTextSufficient(String description, String comments, String scriptPlain) {
-        if (scriptPlain != null && scriptPlain.length() >= 50) return true;
+        String combinedText = (nullToEmpty(description) + " "
+                + nullToEmpty(comments) + " "
+                + nullToEmpty(scriptPlain)).toLowerCase();
 
-        String bodyText = (nullToEmpty(description) + " " + nullToEmpty(comments));
-        if (bodyText.length() < 50) return false;
+        if (combinedText.length() < 50) return false;
 
-        boolean hasUnit = UNIT_PATTERN.matcher(bodyText).find();
-        boolean hasIngredientKeyword = INGREDIENT_KEYWORD_PATTERN.matcher(bodyText).find();
-        boolean hasAction = STEP_ACTION_PATTERN.matcher(bodyText).find();
+        boolean hasUnit = UNIT_PATTERN.matcher(combinedText).find();
+        boolean hasIngredient = INGREDIENT_KEYWORD_PATTERN.matcher(combinedText).find();
+        boolean hasAction = STEP_ACTION_PATTERN.matcher(combinedText).find();
 
-        return hasUnit || (hasIngredientKeyword && hasAction);
+        return (hasUnit || hasIngredient) && hasAction;
+    }
+
+    private boolean isSpecialQty(String q) {
+        return q != null && SPECIAL_QTY.contains(q.trim());
+    }
+
+    private Double tryParseNumericQty(String q) {
+        if (q == null) return null;
+        q = q.trim();
+        if (q.isEmpty() || isSpecialQty(q)) return null;
+
+        String clean = q.replaceAll("[^0-9./]", "");
+        if (clean.isBlank()) return null;
+
+        try {
+            if (clean.contains("/")) {
+                String[] parts = clean.split("/");
+                if (parts.length != 2) return null;
+                double num = Double.parseDouble(parts[0]);
+                double den = Double.parseDouble(parts[1]);
+                if (den == 0) return null;
+                return num / den;
+            }
+            return Double.parseDouble(clean);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void mergeDuplicateIngredientsByNameAndUnit(RecipeCreateRequestDto recipeDto) {
@@ -587,17 +821,35 @@ public class RecipeExtractionService {
             String unit = cur.getCustomUnit() == null ? "" : cur.getCustomUnit().trim();
             String key = (name + "|" + unit).toLowerCase();
 
-            if (merged.containsKey(key)) {
-                RecipeIngredientRequestDto exist = merged.get(key);
-                double q1 = parseQuantitySafe(exist.getQuantity());
-                double q2 = parseQuantitySafe(cur.getQuantity());
-                exist.setQuantity(formatQuantity(q1 + q2));
-            } else {
-                double q = parseQuantitySafe(cur.getQuantity());
-                cur.setQuantity(formatQuantity(q));
+            RecipeIngredientRequestDto exist = merged.get(key);
+            if (exist == null) {
+                Double q = tryParseNumericQty(cur.getQuantity());
+                if (q != null) cur.setQuantity(formatQuantity(q));
                 merged.put(key, cur);
+                continue;
+            }
+
+            boolean existSpecial = isSpecialQty(exist.getQuantity());
+            boolean curSpecial   = isSpecialQty(cur.getQuantity());
+
+            Double q1 = tryParseNumericQty(exist.getQuantity());
+            Double q2 = tryParseNumericQty(cur.getQuantity());
+
+            if (q1 != null && q2 != null) {
+                exist.setQuantity(formatQuantity(q1 + q2));
+            } else if (q1 != null) {
+            } else if (q2 != null) {
+                exist.setQuantity(formatQuantity(q2));
+            } else {
+                if (existSpecial || curSpecial) {
+                    exist.setQuantity("약간");
+                    if (exist.getCustomUnit() == null || exist.getCustomUnit().isBlank()) {
+                        exist.setCustomUnit("약간");
+                    }
+                }
             }
         }
+
         recipeDto.setIngredients(new ArrayList<>(merged.values()));
     }
 
