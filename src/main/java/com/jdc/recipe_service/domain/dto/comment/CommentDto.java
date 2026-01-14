@@ -21,11 +21,7 @@ public class CommentDto {
     private Long id;
     private String content;
 
-    @JsonFormat(
-            shape = JsonFormat.Shape.STRING,
-            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            timezone = "UTC"
-    )
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     private LocalDateTime createdAt;
     private CommentUserDto author;
     private int likeCount;

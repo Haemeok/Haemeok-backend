@@ -118,19 +118,11 @@ public class RecipeDetailStaticDto {
     @Schema(description = "레시피 총 영양성분")
     private RecipeNutritionDto nutrition;
 
-    @JsonFormat(
-            shape = JsonFormat.Shape.STRING,
-            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            timezone = "UTC"
-    )
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     @Schema(description = "생성일시 (UTC)")
     private LocalDateTime createdAt;
 
-    @JsonFormat(
-            shape = JsonFormat.Shape.STRING,
-            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            timezone = "UTC"
-    )
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     @Schema(description = "업데이트일시 (UTC)")
     private LocalDateTime updatedAt;
 

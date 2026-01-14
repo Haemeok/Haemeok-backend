@@ -7,7 +7,7 @@ import java.time.LocalDate;
 
 @Getter
 public class CalendarDaySummaryDto {
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'Z'")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     private LocalDate date;
 
     private Long totalSavings;

@@ -17,11 +17,7 @@ public class CookingRecordDto {
     private Integer ingredientCost;
     private Integer marketPrice;
     private Integer savings;
-    @JsonFormat(
-            shape = JsonFormat.Shape.STRING,
-            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            timezone = "UTC"
-    )
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     private LocalDateTime createdAt;
 
     public static CookingRecordDto from(com.jdc.recipe_service.domain.entity.CookingRecord e) {
