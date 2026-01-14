@@ -22,19 +22,20 @@ public class RecipeCreateRequestDto {
 
     @NotBlank(message = "레시피 제목은 필수입니다.")
     private String title;
-
     private String description;
-
     private String cookingTips;
-
     @NotBlank(message = "요리 유형은 필수입니다.")
     private String dishType;
 
     private Integer cookingTime;
     private String imageKey;
-    private String youtubeUrl;
-    private List<String> cookingTools;
 
+    private String youtubeUrl;
+    private String youtubeChannelName;
+    private String youtubeVideoTitle;
+    private String youtubeThumbnailUrl;
+
+    private List<String> cookingTools;
     private Integer servings;
     private Integer totalIngredientCost;
     private Integer marketPrice;

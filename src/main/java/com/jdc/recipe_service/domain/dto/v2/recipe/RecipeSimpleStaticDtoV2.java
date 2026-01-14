@@ -63,6 +63,15 @@ public class RecipeSimpleStaticDtoV2 {
     @Schema(description = "레시피 시장가")
     private Integer marketPrice;
 
+    @Schema(description = "유튜브 채널명")
+    private String youtubeChannelName;
+
+    @Schema(description = "유튜브 원본 영상 제목")
+    private String youtubeVideoTitle;
+
+    @Schema(description = "유튜브 썸네일 URL")
+    private String youtubeThumbnailUrl;
+
     @Schema(description = "유튜브 레시피 여부")
     @JsonProperty("isYoutube")
     private boolean isYoutube;
@@ -73,9 +82,10 @@ public class RecipeSimpleStaticDtoV2 {
 
     @QueryProjection
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
-                                   LocalDateTime createdAt, Integer cookingTime, long likeCount,
-                                   BigDecimal avgRating, long ratingCount, Integer ingredientCost,
-                                   Integer marketPrice, String youtubeUrl, Boolean isAiGenerated) {
+                                   LocalDateTime createdAt, Integer cookingTime, long likeCount, BigDecimal avgRating,
+                                   long ratingCount, Integer ingredientCost, Integer marketPrice,
+                                   String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl,
+                                   String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -89,14 +99,18 @@ public class RecipeSimpleStaticDtoV2 {
         this.ratingCount = ratingCount;
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
+        this.youtubeChannelName = youtubeChannelName;
+        this.youtubeVideoTitle = youtubeVideoTitle;
+        this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
         this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
-                                   LocalDateTime createdAt, Integer cookingTime,
-                                   Long likeCount, Double avgRating, Long ratingCount,
-                                   Integer ingredientCost, Integer marketPrice, String youtubeUrl, Boolean isAiGenerated) {
+                                   LocalDateTime createdAt, Integer cookingTime, Long likeCount,
+                                   Double avgRating, Long ratingCount, Integer ingredientCost, Integer marketPrice,
+                                   String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl,
+                                   String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
         this.imageUrl = imageUrl;
@@ -110,6 +124,9 @@ public class RecipeSimpleStaticDtoV2 {
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
+        this.youtubeChannelName = youtubeChannelName;
+        this.youtubeVideoTitle = youtubeVideoTitle;
+        this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
         this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
