@@ -236,6 +236,9 @@ public class RecipeSearchService {
                 .imageStatus(basic.getImageStatus() != null
                         ? basic.getImageStatus().name() : null)
                 .youtubeUrl(basic.getYoutubeUrl())
+                .youtubeChannelName(basic.getYoutubeChannelName())
+                .youtubeVideoTitle(basic.getYoutubeVideoTitle())
+                .youtubeThumbnailUrl(basic.getYoutubeThumbnailUrl())
                 .cookingTools(tools)
                 .servings(basic.getServings())
                 .isPrivate(basic.getIsPrivate())

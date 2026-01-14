@@ -68,6 +68,9 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.likeCount,
                         Expressions.constant(false),
                         recipe.cookingTime,
+                        recipe.youtubeChannelName,
+                        recipe.youtubeVideoTitle,
+                        recipe.youtubeThumbnailUrl,
                         recipe.avgRating,
                         recipe.ratingCount.coalesce(0L),
                         recipe.youtubeUrl,
@@ -176,6 +179,9 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.likeCount,
                         Expressions.constant(false),
                         recipe.cookingTime,
+                        recipe.youtubeChannelName,
+                        recipe.youtubeVideoTitle,
+                        recipe.youtubeThumbnailUrl,
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
                         recipe.youtubeUrl,
@@ -240,6 +246,9 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.likeCount,
                         Expressions.constant(false),
                         recipe.cookingTime,
+                        recipe.youtubeChannelName,
+                        recipe.youtubeVideoTitle,
+                        recipe.youtubeThumbnailUrl,
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
                         recipe.youtubeUrl,
@@ -299,6 +308,9 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                         recipe.likeCount,
                         Expressions.constant(false),
                         recipe.cookingTime,
+                        recipe.youtubeChannelName,
+                        recipe.youtubeVideoTitle,
+                        recipe.youtubeThumbnailUrl,
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
                         recipe.youtubeUrl,
@@ -404,7 +416,6 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .join(recipe.user, user).fetchJoin()
                 .join(recipe.ingredients, ri)
                 .join(ri.ingredient, ing)
-
                 .where(
                         recipe.isPrivate.isFalse(),
                         typeCondition,
