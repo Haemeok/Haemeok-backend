@@ -58,6 +58,9 @@ public class YtDlpService {
     @Value("${app.ytdlp.proxy:}")
     private String proxyUrl;
 
+    @Value("#{'${youtube.api-keys:}'.split(',')}")
+    private List<String> youtubeApiKeys;
+
     /* =========================================================
      * Public APIs: 오직 텍스트 데이터만 가져옵니다.
      * ========================================================= */
@@ -80,7 +83,9 @@ public class YtDlpService {
                 nullToEmpty(mc.description),
                 nullToEmpty(mc.comments),
                 nullToEmpty(subs.timecodedText),
-                nullToEmpty(subs.plainText)
+                nullToEmpty(subs.plainText),
+                nullToEmpty(mc.channelName),
+                nullToEmpty(mc.thumbnailUrl)
         );
     }
 
@@ -90,32 +95,122 @@ public class YtDlpService {
      * ========================================================= */
 
     private MetaAndComment extractMetaAndCommentsWithFallback(String canonicalUrl) {
+        MetaAndComment bestResult = null;
+
         for (String client : CLIENT_FALLBACK) {
             try {
-                ExecResult r = execForJson(buildCommentArgs(canonicalUrl, client, maxComments), null);
-                JsonNode root = objectMapper.readTree(r.stdout);
+                ExecResult metaRes = execForJson(buildMetaArgs(canonicalUrl, client), null);
+                JsonNode metaRoot = objectMapper.readTree(metaRes.stdout);
 
-                String title = optText(root, "title");
-                String desc = optText(root, "description");
+                String title = optText(metaRoot, "title");
+                String desc = optText(metaRoot, "description");
+                String channel = pickChannelName(metaRoot);
+                String thumbnail = optText(metaRoot, "thumbnail");
+
+                ExecResult cRes = execForJson(buildCommentArgs(canonicalUrl, client, maxComments), null);
+                JsonNode cRoot = objectMapper.readTree(cRes.stdout);
 
                 StringBuilder commentsBuilder = new StringBuilder();
-                JsonNode comments = root.get("comments");
+                JsonNode comments = cRoot.get("comments");
                 if (comments != null && comments.isArray()) {
                     for (JsonNode c : comments) {
                         String text = optText(c, "text");
-                        if (!isBlank(text)) {
-                            commentsBuilder.append("- ").append(text).append("\n");
-                        }
+                        if (!isBlank(text)) commentsBuilder.append("- ").append(text).append("\n");
                     }
                 }
 
-                if (!isBlank(title) || !isBlank(desc)) {
-                    return new MetaAndComment(title, desc, commentsBuilder.toString());
+                MetaAndComment current = new MetaAndComment(
+                        title, desc, commentsBuilder.toString(), channel, thumbnail
+                );
+
+                log.info("[client={}] uploader='{}', channel='{}', uploader_id='{}', channel_id='{}'",
+                        client,
+                        optText(metaRoot, "uploader"),
+                        optText(metaRoot, "channel"),
+                        optText(metaRoot, "uploader_id"),
+                        optText(metaRoot, "channel_id"));
+
+                if ((!isBlank(current.title) || !isBlank(current.description)) && !isBlank(current.channelName)) {
+                    return current;
                 }
+
+                if (bestResult == null || isBetter(current, bestResult)) {
+                    bestResult = current;
+                }
+
             } catch (Exception ignored) {
             }
         }
-        return new MetaAndComment("", "", "");
+        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "");
+    }
+
+    private boolean isBetter(MetaAndComment a, MetaAndComment b) {
+        if (!isBlank(a.channelName) && isBlank(b.channelName)) return true;
+        if (isBlank(a.channelName) && !isBlank(b.channelName)) return false;
+
+        int aText = (isBlank(a.title) ? 0 : 1) + (isBlank(a.description) ? 0 : 1);
+        int bText = (isBlank(b.title) ? 0 : 1) + (isBlank(b.description) ? 0 : 1);
+        if (aText != bText) return aText > bText;
+
+        return !isBlank(a.thumbnailUrl) && isBlank(b.thumbnailUrl);
+    }
+
+
+    private List<String> buildMetaArgs(String url, String client) {
+        List<String> a = buildBaseArgs();
+        a.add("--extractor-args");
+        a.add("youtube:player_client=" + client);
+        a.add("--dump-single-json");
+        a.add("--skip-download");
+        a.add(url);
+        return a;
+    }
+
+    private String pickChannelName(JsonNode root) {
+        String v = optText(root, "channel");
+        if (!v.isBlank()) return v;
+        v = optText(root, "uploader");
+        if (!v.isBlank()) return v;
+        v = optText(root, "channel_name");
+        if (!v.isBlank()) return v;
+        String handle = optText(root, "uploader_id");
+        if (handle.startsWith("@") && handle.length() > 1) {
+            v = handle.substring(1);
+        }
+        String channelId = optText(root, "channel_id");
+        if (!isBlank(channelId) && youtubeApiKeys != null && !youtubeApiKeys.isEmpty()) {
+            for (int i = 0; i < youtubeApiKeys.size(); i++) {
+                String currentKey = youtubeApiKeys.get(i).trim();
+                if (isBlank(currentKey)) continue;
+                try {
+                    String apiUrl = "https://youtube.googleapis.com/youtube/v3/channels?part=snippet&id=" + channelId + "&key=" + currentKey;
+
+                    String response = new String(new java.net.URL(apiUrl).openStream().readAllBytes(), StandardCharsets.UTF_8);
+                    JsonNode apiRoot = objectMapper.readTree(response);
+
+                    if (apiRoot.has("error")) {
+                        String errMsg = apiRoot.path("error").path("message").asText();
+                        log.warn("⚠️ YouTube API Key[{}] 실패: {} -> 다음 키 시도...", i, errMsg);
+                        continue;
+                    }
+
+                    JsonNode items = apiRoot.path("items");
+                    if (items.isArray() && items.size() > 0) {
+                        String realName = optText(items.get(0).path("snippet"), "title");
+                        if (!isBlank(realName)) {
+                            log.info("✅ YouTube API 성공 (Key index: {}): {}", i, realName);
+                            return realName;
+                        }
+                    }
+                    break;
+
+                } catch (Exception e) {
+                    log.warn("⚠️ YouTube API 호출 중 예외 발생 (Key index: {}): {}", i, e.getMessage());
+                }
+            }
+        }
+
+        return isBlank(v) ? optText(root, "uploader_id") : v;
     }
 
     private SubtitleTexts downloadKoreanSubtitlesWithFallback(String url, String videoId) {
@@ -468,7 +563,10 @@ public class YtDlpService {
 
     private String optText(JsonNode root, String field) {
         JsonNode n = root.get(field);
-        return n == null ? "" : n.asText();
+        if (n == null || n.isNull()) {
+            return "";
+        }
+        return n.asText();
     }
 
     private boolean isBlank(String s) {
@@ -503,7 +601,7 @@ public class YtDlpService {
 
     public record NormalizedYoutube(String videoId, String canonicalUrl) {}
 
-    private record MetaAndComment(String title, String description, String comments) {}
+    private record MetaAndComment(String title, String description, String comments, String channelName, String thumbnailUrl) {}
 
     private record SubtitleTexts(String timecodedText, String plainText) {}
 
@@ -526,6 +624,8 @@ public class YtDlpService {
             String description,
             String comments,
             String scriptTimecoded,
-            String scriptPlain
+            String scriptPlain,
+            String channelName,
+            String thumbnailUrl
     ) {}
 }
