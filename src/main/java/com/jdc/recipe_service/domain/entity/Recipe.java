@@ -67,6 +67,15 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "youtube_url", length = 255)
     private String youtubeUrl;
 
+    @Column(name = "youtube_channel_name", length = 100)
+    private String youtubeChannelName;
+
+    @Column(name = "youtube_video_title", length = 255)
+    private String youtubeVideoTitle;
+
+    @Column(name = "youtube_thumbnail_url", length = 500)
+    private String youtubeThumbnailUrl;
+
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "recipe_cooking_tools", joinColumns = @JoinColumn(name = "recipe_id"))
     @Column(name = "tool", length = 50)
@@ -221,6 +230,12 @@ public class Recipe extends BaseTimeEntity {
     public void updateAiInfo(String cookingTips, Integer marketPrice) {
         this.cookingTips = cookingTips;
         this.marketPrice = marketPrice;
+    }
+
+    public void updateYoutubeInfo(String channelName, String videoTitle, String thumbnailUrl) {
+        this.youtubeChannelName = channelName;
+        this.youtubeVideoTitle = videoTitle;
+        this.youtubeThumbnailUrl = thumbnailUrl;
     }
 
     public void increaseLikeCount() {
