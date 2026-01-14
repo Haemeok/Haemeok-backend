@@ -41,7 +41,7 @@ public class RecipeSimpleStaticDtoV2 {
     @Schema(description = "작성자 프로필 이미지")
     private String profileImage;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     @Schema(description = "생성일시 (UTC)")
     private LocalDateTime createdAt;
 

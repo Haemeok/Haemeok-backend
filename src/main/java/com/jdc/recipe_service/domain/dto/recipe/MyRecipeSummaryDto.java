@@ -27,11 +27,7 @@ public class MyRecipeSummaryDto {
     private boolean isAiGenerated;
     private boolean isPrivate;
 
-    @JsonFormat(
-            shape = JsonFormat.Shape.STRING,
-            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            timezone = "UTC"
-    )
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     private LocalDateTime createdAt;
 
     @Builder.Default

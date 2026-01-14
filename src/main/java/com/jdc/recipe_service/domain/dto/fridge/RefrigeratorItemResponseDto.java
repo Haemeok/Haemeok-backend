@@ -14,10 +14,6 @@ public class RefrigeratorItemResponseDto {
     @JsonSerialize(using = HashIdSerializer.class)
     private Long id;
     private IngredientResponseDto ingredient;
-    @JsonFormat(
-            shape = JsonFormat.Shape.STRING,
-            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            timezone = "UTC"
-    )
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     private LocalDateTime createdAt;
 }
