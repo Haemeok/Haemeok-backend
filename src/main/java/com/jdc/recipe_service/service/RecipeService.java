@@ -73,6 +73,14 @@ public class RecipeService {
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
 
+        if (sourceType == RecipeSourceType.YOUTUBE) {
+            recipe.updateYoutubeInfo(
+                    dto.getYoutubeChannelName(),
+                    dto.getYoutubeVideoTitle(),
+                    dto.getYoutubeThumbnailUrl()
+            );
+        }
+
         if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
             recipe.updateIsPrivate(false);
             recipe.updateImageStatus(RecipeImageStatus.PENDING);

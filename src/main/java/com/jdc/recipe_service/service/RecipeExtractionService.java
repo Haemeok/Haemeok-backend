@@ -290,7 +290,9 @@ public class RecipeExtractionService {
             영상에 두 가지 이상의 레시피(예: 버전1 vs 버전2, 매운맛 vs 순한맛)가 나올 경우:
             1. **단일 선택:** 가장 비중 있게 다뤄지거나, 제목과 가장 일치하거나, 일반 사용자가 따라 하기 쉬운 **'메인 레시피 1개'**만 선택하라.
             2. **혼합 금지:** 선택하지 않은 버전의 재료나 조리법을 절대 섞지 마라. (예: 버전1의 재료와 버전2의 소스를 섞으면 안 됨)
-            3. **정보 보존:** 선택되지 않은 다른 버전의 핵심 차이점(예: "퓨레 방식도 소개함")은 `description`이나 `cookingTips`에 한 줄로 언급하라.
+            3. **[중요] 경계 설정(Boundary):**
+               - 메인 레시피의 조리가 끝나고 **새로운 버전(Recipe 2)이나 다른 요리가 시작되는 시점**에서 `steps` 추출을 멈춰라.
+               - 이후에 나오는 내용은 `steps`가 아니라 `cookingTips`에 '참고 정보'로만 적어야 한다.
             
             근거 우선순위: Script(자막) > Description > Title > Comments
             
@@ -459,6 +461,10 @@ public class RecipeExtractionService {
         String comments = "";
         String scriptPlain = "";
 
+        String channelName = "";
+        String originalVideoTitle = "";
+        String thumbnailUrl = "";
+
         boolean useUrlFallback = false;
 
         try {
@@ -469,6 +475,10 @@ public class RecipeExtractionService {
             description = cap(nullToEmpty(videoData.description()), MAX_DESC_CHARS);
             comments = cap(nullToEmpty(videoData.comments()), MAX_CMT_CHARS);
             scriptPlain = cap(nullToEmpty(videoData.scriptTimecoded()), MAX_SCRIPT_CHARS);
+
+            channelName = nullToEmpty(videoData.channelName());
+            originalVideoTitle = nullToEmpty(videoData.title());
+            thumbnailUrl = nullToEmpty(videoData.thumbnailUrl());
 
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
@@ -598,6 +608,10 @@ public class RecipeExtractionService {
                 recipeDto.setTitle(recipeDto.getTitle() != null && !recipeDto.getTitle().isBlank() ? recipeDto.getTitle() : title);
             }
             recipeDto.setYoutubeUrl(canonicalUrl);
+
+            recipeDto.setYoutubeChannelName(channelName);
+            recipeDto.setYoutubeVideoTitle(originalVideoTitle);
+            recipeDto.setYoutubeThumbnailUrl(thumbnailUrl);
 
             mergeDuplicateIngredientsByNameAndUnit(recipeDto);
 
