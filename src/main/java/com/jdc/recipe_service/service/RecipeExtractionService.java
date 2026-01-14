@@ -163,7 +163,7 @@ public class RecipeExtractionService {
               "title": "요리 제목",
               "dishType": "볶음",
               "description": "영상 톤의 1~2문장 소개(맛/식감 1개 + 핵심특징 1개 포함)",
-              "cookingTime": 0,
+              "cookingTime": 15,
               "cookingTools": ["도구1","도구2"],
               "servings": 1,
               "ingredients": [
@@ -303,7 +303,7 @@ public class RecipeExtractionService {
               "title": "영상의 요리명",
               "dishType": "11개 중 정확히 1개",
               "description": "1-2문장: 맛/식감 + 핵심특징",
-              "cookingTime": 0,
+              "cookingTime": 15,
               "cookingTools": ["도구1"],
               "servings": 1,
               "ingredients": [...],
@@ -314,6 +314,10 @@ public class RecipeExtractionService {
             }
             
             ### 필드별 규칙
+            
+            **cookingTime** - [필수 추론]:
+            - **[절대 0 금지]:** 조리 시간이 0분인 요리는 없다.
+            - 영상에 시간이 명시되지 않았다면, **재료의 양과 조리 과정(끓이기, 굽기 등)을 종합적으로 분석하여 현실적인 소요 시간을 스스로 추론하여 기입하라.**
             
             **dishType** - 정확히 1개만 선택:
             "볶음", "국/찌개/탕", "구이", "무침/샐러드", "튀김/부침", "찜/조림", "오븐요리", "생식/회", "절임/피클류", "밥/면/파스타", "디저트/간식류"
