@@ -78,6 +78,7 @@ jobs:
           APP_HASHIDS_MIN_LENGTH: ${{ secrets.APP_HASHIDS_MIN_LENGTH }}
           YTDLP_PROXY_URL: ${{ secrets.YTDLP_PROXY_URL }}
           GEMINI_STUDIO_API_KEY: ${{ secrets.GEMINI_STUDIO_API_KEY }}
+          YOUTUBE_API_KEYS: ${{ secrets.YOUTUBE_API_KEYS }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
