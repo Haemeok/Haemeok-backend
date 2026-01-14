@@ -45,7 +45,8 @@
         { "name": "APP_HASHIDS_MIN_LENGTH", "value": "${APP_HASHIDS_MIN_LENGTH}" },
         { "name": "APP_YTDLP_TMP_BASE_DIR", "value": "/tmp" },
         { "name": "YTDLP_PROXY_URL", "value": "${YTDLP_PROXY_URL}" },
-        { "name": "GEMINI_STUDIO_API_KEY", "value": "${GEMINI_STUDIO_API_KEY}" }
+        { "name": "GEMINI_STUDIO_API_KEY", "value": "${GEMINI_STUDIO_API_KEY}" },
+        { "name": "YOUTUBE_API_KEYS", "value": "${YOUTUBE_API_KEYS}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

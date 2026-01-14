@@ -103,6 +103,9 @@ gemini:
   studio:
     api-key: ${GEMINI_STUDIO_API_KEY}
 
+youtube:
+  api-keys: ${YOUTUBE_API_KEYS}
+
 logging:
   level:
     com.jdc.recipe_service: DEBUG
