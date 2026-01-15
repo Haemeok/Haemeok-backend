@@ -64,6 +64,12 @@ public class RecipeDetailDto {
     @Schema(description = "유튜브 썸네일 URL")
     private String youtubeThumbnailUrl;
 
+    @Schema(description = "유튜브 채널 썸네일 URL")
+    private String youtubeChannelProfileUrl;
+
+    @Schema(description = "유튜브 구독자 수")
+    private Long youtubeSubscriberCount;
+
     @Schema(description = "조리 도구 목록")
     private List<String> cookingTools;
 
