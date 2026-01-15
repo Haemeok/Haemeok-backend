@@ -77,7 +77,9 @@ public class RecipeService {
             recipe.updateYoutubeInfo(
                     dto.getYoutubeChannelName(),
                     dto.getYoutubeVideoTitle(),
-                    dto.getYoutubeThumbnailUrl()
+                    dto.getYoutubeThumbnailUrl(),
+                    dto.getYoutubeChannelProfileUrl(),
+                    dto.getYoutubeSubscriberCount()
             );
         }
 

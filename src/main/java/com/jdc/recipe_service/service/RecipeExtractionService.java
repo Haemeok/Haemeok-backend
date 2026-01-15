@@ -17,7 +17,6 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.service.media.YtDlpService;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,7 +28,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,9 +56,6 @@ public class RecipeExtractionService {
 
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
     private static final Set<String> SPECIAL_QTY = Set.of("약간");
-
-    private final AtomicReference<List<YtDlpService.YoutubeSearchDto>> cachedRecommendations
-            = new AtomicReference<>(Collections.emptyList());
 
     private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
 
@@ -468,6 +463,8 @@ public class RecipeExtractionService {
         String channelName = "";
         String originalVideoTitle = "";
         String thumbnailUrl = "";
+        String channelProfileUrl = "";
+        Long subscriberCount = 0L;
 
         boolean useUrlFallback = false;
 
@@ -483,6 +480,8 @@ public class RecipeExtractionService {
             channelName = nullToEmpty(videoData.channelName());
             originalVideoTitle = nullToEmpty(videoData.title());
             thumbnailUrl = nullToEmpty(videoData.thumbnailUrl());
+            channelProfileUrl = nullToEmpty(videoData.channelProfileUrl());
+            subscriberCount = videoData.youtubeSubscriberCount();
 
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
@@ -616,6 +615,8 @@ public class RecipeExtractionService {
             recipeDto.setYoutubeChannelName(channelName);
             recipeDto.setYoutubeVideoTitle(originalVideoTitle);
             recipeDto.setYoutubeThumbnailUrl(thumbnailUrl);
+            recipeDto.setYoutubeChannelProfileUrl(channelProfileUrl);
+            recipeDto.setYoutubeSubscriberCount(subscriberCount);
 
             mergeDuplicateIngredientsByNameAndUnit(recipeDto);
 

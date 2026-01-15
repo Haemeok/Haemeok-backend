@@ -203,6 +203,8 @@ public class RecipeSearchServiceV2 {
                 .youtubeChannelName(basic.getYoutubeChannelName())
                 .youtubeVideoTitle(basic.getYoutubeVideoTitle())
                 .youtubeThumbnailUrl(basic.getYoutubeThumbnailUrl())
+                .youtubeChannelProfileUrl(basic.getYoutubeChannelProfileUrl())
+                .youtubeSubscriberCount(basic.getYoutubeSubscriberCount())
                 .cookingTools(new ArrayList<>(basic.getCookingTools()))
                 .servings(basic.getServings())
                 .isPrivate(basic.getIsPrivate())
