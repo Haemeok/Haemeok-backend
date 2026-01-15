@@ -71,6 +71,12 @@ public class RecipeSimpleDto {
     @Schema(description = "유튜브 썸네일 URL")
     private String youtubeThumbnailUrl;
 
+    @Schema(description = "유튜브 채널 썸네일 URL")
+    private String youtubeChannelProfileUrl;
+
+    @Schema(description = "유튜브 구독자 수")
+    private Long youtubeSubscriberCount;
+
     @Schema(description = "유튜브 레시피 여부")
     @JsonProperty("isYoutube")
     private boolean isYoutube;
@@ -90,7 +96,7 @@ public class RecipeSimpleDto {
     @QueryProjection
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                            LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser, Integer cookingTime,
-                           String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl,
+                           String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl,String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
                            BigDecimal avgRating, Long ratingCount, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -105,6 +111,8 @@ public class RecipeSimpleDto {
         this.youtubeChannelName = youtubeChannelName;
         this.youtubeVideoTitle = youtubeVideoTitle;
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
+        this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;
+        this.youtubeSubscriberCount = youtubeSubscriberCount;
         this.avgRating = avgRating;
         this.ratingCount = ratingCount;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
@@ -113,7 +121,7 @@ public class RecipeSimpleDto {
 
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                            LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser, Integer cookingTime,
-                           String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl,
+                           String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
                            double avgRating, Long ratingCount, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -128,6 +136,8 @@ public class RecipeSimpleDto {
         this.youtubeChannelName = youtubeChannelName;
         this.youtubeVideoTitle = youtubeVideoTitle;
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
+        this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;
+        this.youtubeSubscriberCount = youtubeSubscriberCount;
         this.avgRating = BigDecimal.valueOf(avgRating);
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();

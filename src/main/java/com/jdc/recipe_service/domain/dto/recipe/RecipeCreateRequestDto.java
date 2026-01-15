@@ -34,6 +34,8 @@ public class RecipeCreateRequestDto {
     private String youtubeChannelName;
     private String youtubeVideoTitle;
     private String youtubeThumbnailUrl;
+    private String youtubeChannelProfileUrl;
+    private Long youtubeSubscriberCount;
 
     private List<String> cookingTools;
     private Integer servings;

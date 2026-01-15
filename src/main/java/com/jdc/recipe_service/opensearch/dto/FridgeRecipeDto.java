@@ -35,6 +35,8 @@ public class FridgeRecipeDto extends RecipeSimpleDto {
                 simple.getYoutubeChannelName(),
                 simple.getYoutubeVideoTitle(),
                 simple.getYoutubeThumbnailUrl(),
+                simple.getYoutubeChannelProfileUrl(),
+                simple.getYoutubeSubscriberCount(),
                 simple.getAvgRating(),
                 simple.getRatingCount(),
                 null,
