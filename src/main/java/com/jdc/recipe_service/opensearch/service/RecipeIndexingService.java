@@ -10,6 +10,8 @@ import com.jdc.recipe_service.opensearch.dto.RecipeDocument;
 import com.jdc.recipe_service.opensearch.indexingfailure.IndexingFailureLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
@@ -19,6 +21,8 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.xcontent.XContentType;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -81,14 +85,14 @@ public class RecipeIndexingService {
               "index": {
                 "number_of_shards": 1,
                 "number_of_replicas": 0,
-                "refresh_interval": "30s",
+                "refresh_interval": "1s",
                 "max_ngram_diff": 18
               },
               "analysis": {
                 "tokenizer": {
                   "nori_user_dict": {
                     "type": "nori_tokenizer",
-                    "decompound_mode": "mixed" 
+                    "decompound_mode": "mixed"
                   },
                   "edge_ngram_tokenizer": {
                     "type": "edge_ngram",
@@ -179,6 +183,43 @@ public class RecipeIndexingService {
 
     public void indexRecipe(Recipe recipe) {
         indexRecipe(recipe.getId());
+    }
+
+    public void indexAllRecipes() {
+        int page = 0;
+        int size = 1000;
+
+        while (true) {
+            Page<Recipe> recipePage = recipeRepository.findAll(PageRequest.of(page, size));
+            if (!recipePage.hasContent()) {
+                break;
+            }
+
+            BulkRequest bulkRequest = new BulkRequest();
+
+            for (Recipe recipe : recipePage.getContent()) {
+                try {
+                    RecipeDocument doc = buildDocument(recipe);
+
+                    bulkRequest.add(new IndexRequest("recipes")
+                            .id(recipe.getId().toString())
+                            .source(objectMapper.writeValueAsString(doc), XContentType.JSON)
+                    );
+                } catch (Exception e) {
+                    log.error("Bulk 색인 중 문서 변환 오류 ID: {}", recipe.getId(), e);
+                }
+            }
+            try {
+                if (bulkRequest.numberOfActions() > 0) {
+                    client.bulk(bulkRequest, RequestOptions.DEFAULT);
+                    log.info("레시피 Bulk 색인 진행 중: {}건 완료", (page * size) + bulkRequest.numberOfActions());
+                }
+            } catch (IOException e) {
+                log.error("레시피 Bulk 색인 실패 (페이지: {})", page, e);
+            }
+            page++;
+        }
+        log.info("모든 레시피 Bulk 색인 완료.");
     }
 
     public void updateRecipe(Recipe recipe) {
@@ -321,7 +362,8 @@ public class RecipeIndexingService {
             try {
                 Map<String, Object> updateFields = Map.of("isPrivate", isPrivate);
                 UpdateRequest req = new UpdateRequest("recipes", recipeId.toString())
-                        .doc(objectMapper.writeValueAsString(updateFields), XContentType.JSON);
+                        .doc(objectMapper.writeValueAsString(updateFields), XContentType.JSON)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                 client.update(req, RequestOptions.DEFAULT);
                 log.info("OpenSearch Privacy Status 업데이트 성공: ID {}, isPrivate: {} (시도 {})", recipeId, isPrivate, attempt);
@@ -386,7 +428,8 @@ public class RecipeIndexingService {
             RecipeDocument doc = buildDocument(recipe);
             IndexRequest req = new IndexRequest("recipes")
                     .id(recipe.getId().toString())
-                    .source(objectMapper.writeValueAsString(doc), XContentType.JSON);
+                    .source(objectMapper.writeValueAsString(doc), XContentType.JSON)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             client.index(req, RequestOptions.DEFAULT);
         } catch (IOException e) {
             throw new CustomException(
@@ -399,7 +442,8 @@ public class RecipeIndexingService {
         try {
             RecipeDocument doc = buildDocument(recipe);
             UpdateRequest req = new UpdateRequest("recipes", recipe.getId().toString())
-                    .doc(objectMapper.writeValueAsString(doc), XContentType.JSON);
+                    .doc(objectMapper.writeValueAsString(doc), XContentType.JSON)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             client.update(req, RequestOptions.DEFAULT);
         } catch (IOException e) {
             throw new CustomException(

@@ -149,8 +149,6 @@ public class RecipeService {
                         ErrorCode.RECIPE_NOT_FOUND, "생성된 레시피를 조회할 수 없습니다.")
                 );
 
-        //recipeIndexingService.indexRecipe(full);
-
         final List<PresignedUrlResponseItem> uploads =
                 (req.getFiles() != null && !req.getFiles().isEmpty())
                         ? recipeImageService.generateAndSavePresignedUrls(recipe, req.getFiles())
@@ -159,19 +157,21 @@ public class RecipeService {
         final Long recipeId = recipe.getId();
         final Long targetUserId = recipe.getUser().getId();
 
-        if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            log.info("AI 레시피 DB 커밋 완료. 이미지 생성 이벤트 발행: ID={}", recipeId);
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        log.info("레시피 생성 커밋 완료. OpenSearch 색인 요청: ID={}", recipeId);
+                        recipeIndexingService.indexRecipeSafelyWithRetry(recipeId);
+
+                        if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
                             publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
+                        } else {
+                            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
                         }
                     }
-            );
-        } else {
-            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
-        }
+                }
+        );
 
         return PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
@@ -253,8 +253,19 @@ public class RecipeService {
         Recipe full = recipeRepository.findWithAllRelationsById(recipe.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
-        //recipeIndexingService.updateRecipe(full);
-        recipeIndexingService.indexRecipeSafelyWithRetry(full.getId());
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        log.info("레시피 수정 커밋 완료. OpenSearch 색인 요청. ID: {}", recipe.getId());
+
+                        recipeIndexingService.indexRecipeSafelyWithRetry(full.getId());
+
+                        if (Boolean.TRUE.equals(dto.getIsIngredientsModified())) {
+                            recipeAnalysisService.analyzeRecipeAsync(recipe.getId());
+                        }
+                    }
+                });
 
         List<FileInfoRequest> files = req.getFiles();
         List<PresignedUrlResponseItem> uploads = Collections.emptyList();
@@ -372,6 +383,15 @@ public class RecipeService {
         }
 
         em.flush();
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        log.info("이미지 확정(Finalize) 완료. OpenSearch 색인 업데이트. ID: {}", recipeId);
+                        recipeIndexingService.indexRecipeSafelyWithRetry(recipeId);
+                    }
+                }
+        );
         return new FinalizeResponse(recipeId, new ArrayList<>(activeImages), missingFiles);
     }
 
