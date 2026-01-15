@@ -191,6 +191,8 @@ public class RecipeRecommendationService {
                 recipe.getYoutubeChannelName(),
                 recipe.getYoutubeVideoTitle(),
                 recipe.getYoutubeThumbnailUrl(),
+                recipe.getYoutubeChannelProfileUrl(),
+                recipe.getYoutubeSubscriberCount(),
                 recipe.getYoutubeUrl(),
                 recipe.isAiGenerated()
         );

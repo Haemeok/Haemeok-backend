@@ -195,6 +195,8 @@ public class UserService {
                             recipe.getYoutubeChannelName(),
                             recipe.getYoutubeVideoTitle(),
                             recipe.getYoutubeThumbnailUrl(),
+                            recipe.getYoutubeChannelProfileUrl(),
+                            recipe.getYoutubeSubscriberCount(),
                             recipe.getAvgRating(),
                             recipe.getRatingCount(),
                             recipe.getYoutubeUrl(),

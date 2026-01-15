@@ -85,7 +85,9 @@ public class YtDlpService {
                 nullToEmpty(subs.timecodedText),
                 nullToEmpty(subs.plainText),
                 nullToEmpty(mc.channelName),
-                nullToEmpty(mc.thumbnailUrl)
+                nullToEmpty(mc.thumbnailUrl),
+                nullToEmpty(mc.channelProfileUrl),
+                mc.subscriberCount
         );
     }
 
@@ -104,8 +106,9 @@ public class YtDlpService {
 
                 String title = optText(metaRoot, "title");
                 String desc = optText(metaRoot, "description");
-                String channel = pickChannelName(metaRoot);
                 String thumbnail = optText(metaRoot, "thumbnail");
+
+                ChannelInfo channelInfo = fetchChannelMetadata(metaRoot);
 
                 ExecResult cRes = execForJson(buildCommentArgs(canonicalUrl, client, maxComments), null);
                 JsonNode cRoot = objectMapper.readTree(cRes.stdout);
@@ -120,7 +123,13 @@ public class YtDlpService {
                 }
 
                 MetaAndComment current = new MetaAndComment(
-                        title, desc, commentsBuilder.toString(), channel, thumbnail
+                        title,
+                        desc,
+                        commentsBuilder.toString(),
+                        channelInfo.name(),
+                        thumbnail,
+                        channelInfo.profileUrl(),
+                        channelInfo.subscriberCount()
                 );
 
                 log.info("[client={}] uploader='{}', channel='{}', uploader_id='{}', channel_id='{}'",
@@ -141,7 +150,7 @@ public class YtDlpService {
             } catch (Exception ignored) {
             }
         }
-        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "");
+        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "",  "",0L);
     }
 
     private boolean isBetter(MetaAndComment a, MetaAndComment b) {
@@ -155,6 +164,75 @@ public class YtDlpService {
         return !isBlank(a.thumbnailUrl) && isBlank(b.thumbnailUrl);
     }
 
+    private ChannelInfo fetchChannelMetadata(JsonNode root) {
+        String originalName = optText(root, "channel");
+        if (isBlank(originalName)) originalName = optText(root, "uploader");
+
+        Long fallbackSubscribers = root.path("channel_follower_count").asLong(0);
+        String channelId = optText(root, "channel_id");
+
+        log.info("🔎 [API 시도] channelId='{}'", channelId);
+
+        if (!isBlank(channelId) && youtubeApiKeys != null && !youtubeApiKeys.isEmpty()) {
+            for (int i = 0; i < youtubeApiKeys.size(); i++) {
+                String currentKey = youtubeApiKeys.get(i).trim();
+                if (isBlank(currentKey)) continue;
+
+                try {
+                    String apiUrl = "https://youtube.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + currentKey;
+
+                    log.info("🌐 [API 요청] {}", apiUrl);
+
+                    String response = new String(new java.net.URL(apiUrl).openStream().readAllBytes(), StandardCharsets.UTF_8);
+                    JsonNode apiRoot = objectMapper.readTree(response);
+
+                    if (apiRoot.has("error")) {
+                        log.warn("⚠️ [API 에러] Key[{}] 실패: {}", i, apiRoot.toPrettyString());
+                        continue;
+                    }
+
+                    JsonNode items = apiRoot.path("items");
+                    if (items.isArray() && items.size() > 0) {
+                        JsonNode item = items.get(0);
+
+                        JsonNode snippet = item.path("snippet");
+                        JsonNode statistics = item.path("statistics");
+
+                        String realName = optText(snippet, "title");
+
+                        JsonNode thumbs = snippet.path("thumbnails");
+                        String profileUrl = optText(thumbs.path("high"), "url");
+                        if (isBlank(profileUrl)) profileUrl = optText(thumbs.path("medium"), "url");
+                        if (isBlank(profileUrl)) profileUrl = optText(thumbs.path("default"), "url");
+
+                        Long subscriberCount = statistics.path("subscriberCount").asLong(0);
+                        if (subscriberCount == 0) subscriberCount = fallbackSubscribers;
+
+                        log.info("✅ [API 성공] 이름='{}', 구독자={}, 프로필='{}'", realName, subscriberCount, profileUrl);
+
+                        if (!isBlank(realName)) {
+                            return new ChannelInfo(realName, profileUrl, subscriberCount, true);
+                        }
+                    } else {
+                        log.warn("⚠️ [API 실패] 검색 결과 없음 (items is empty). Response: {}", shrink(response, 200));
+                    }
+                    break;
+                } catch (Exception e) {
+                    log.warn("⚠️ [API 예외] Key index: {}, Error: {}", i, e.getMessage());
+                }
+            }
+        } else {
+            log.warn("🚫 [API 스킵] channelId 없음 또는 Key 없음 (keys={})", (youtubeApiKeys == null ? "null" : youtubeApiKeys.size()));
+        }
+
+        String fallbackName = originalName;
+        String handle = optText(root, "uploader_id");
+        if ((isBlank(fallbackName) || fallbackName.startsWith("@")) && handle.startsWith("@") && handle.length() > 1) {
+            fallbackName = handle.substring(1);
+        }
+
+        return new ChannelInfo(fallbackName, "", fallbackSubscribers, false);
+    }
 
     private List<String> buildMetaArgs(String url, String client) {
         List<String> a = buildBaseArgs();
@@ -601,7 +679,17 @@ public class YtDlpService {
 
     public record NormalizedYoutube(String videoId, String canonicalUrl) {}
 
-    private record MetaAndComment(String title, String description, String comments, String channelName, String thumbnailUrl) {}
+    private record MetaAndComment(
+            String title,
+            String description,
+            String comments,
+            String channelName,
+            String thumbnailUrl,
+            String channelProfileUrl,
+            Long subscriberCount
+    ) {}
+
+    private record ChannelInfo(String name, String profileUrl, Long subscriberCount, boolean isApiUsed) {}
 
     private record SubtitleTexts(String timecodedText, String plainText) {}
 
@@ -626,6 +714,8 @@ public class YtDlpService {
             String scriptTimecoded,
             String scriptPlain,
             String channelName,
-            String thumbnailUrl
+            String thumbnailUrl,
+            String channelProfileUrl,
+            Long youtubeSubscriberCount
     ) {}
 }
