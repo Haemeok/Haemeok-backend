@@ -69,6 +69,8 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.youtubeChannelName,
                         recipe.youtubeVideoTitle,
                         recipe.youtubeThumbnailUrl,
+                        recipe.youtubeChannelProfileUrl,
+                        recipe.youtubeSubscriberCount,
                         recipe.youtubeUrl,
                         recipe.isAiGenerated
                 ))
