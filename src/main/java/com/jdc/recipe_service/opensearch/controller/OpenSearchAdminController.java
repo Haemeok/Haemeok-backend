@@ -147,12 +147,9 @@ public class OpenSearchAdminController {
     }
 
     @PostMapping("/reindex-recipes")
-    @Operation(summary = "레시피 전체 재색인", description = "모든 레시피 데이터를 OpenSearch에 다시 색인합니다.")
-    public ResponseEntity<Map<String, Boolean>> reindexAllRecipes() {
-        recipeRepository.findAll().stream()
-                .filter(Objects::nonNull)
-                .map(Recipe::getId)
-                .forEach(recipeIndexingService::indexRecipe);
-        return ResponseEntity.ok(Map.of("reindexed", true));
+    @Operation(summary = "레시피 전체 재색인 (Bulk)", description = "모든 레시피 데이터를 Bulk API를 사용하여 효율적으로 재색인합니다.")
+    public ResponseEntity<Map<String, String>> reindexAllRecipes() {
+        recipeIndexingService.indexAllRecipes();
+        return ResponseEntity.ok(Map.of("message", "전체 레시피 Bulk 재색인 작업이 시작되었습니다. 서버 로그를 확인하세요."));
     }
 }
