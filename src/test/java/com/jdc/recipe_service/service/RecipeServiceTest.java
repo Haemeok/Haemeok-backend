@@ -7,14 +7,19 @@ import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRatingRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.type.ActivityLogType;
+import com.jdc.recipe_service.domain.type.AiRecipeConcept;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityManager;
@@ -43,6 +48,9 @@ class RecipeServiceTest {
 
     @Mock private RecipeRepository recipeRepository;
     @Mock private UserRepository userRepository;
+    @Mock private RecipeIngredientRepository recipeIngredientRepository;
+    @Mock private RecipeRatingRepository recipeRatingRepository;
+
     @Mock private RecipeIngredientService recipeIngredientService;
     @Mock private RecipeStepService recipeStepService;
     @Mock private RecipeTagService recipeTagService;
@@ -51,6 +59,9 @@ class RecipeServiceTest {
     @Mock private RecipeImageService recipeImageService;
     @Mock private RecipeLikeService recipeLikeService;
     @Mock private RecipeIndexingService recipeIndexingService;
+    @Mock private RecipeAnalysisService recipeAnalysisService;
+    @Mock private RecipeActivityService recipeActivityService;
+
     @Mock private S3Util s3Util;
     @Mock private ObjectMapper objectMapper;
     @Mock private EntityManager em;
@@ -100,7 +111,11 @@ class RecipeServiceTest {
 
         mockedTxnManager = Mockito.mockStatic(TransactionSynchronizationManager.class);
         mockedTxnManager.when(() -> TransactionSynchronizationManager.registerSynchronization(any(TransactionSynchronization.class)))
-                .thenAnswer(invocation -> null);
+                .thenAnswer(invocation -> {
+                    TransactionSynchronization sync = invocation.getArgument(0);
+                    sync.afterCommit();
+                    return null;
+                });
     }
 
     @AfterEach
@@ -126,6 +141,10 @@ class RecipeServiceTest {
 
         when(recipeIngredientService.saveAll(any(Recipe.class), anyList(), eq(RecipeSourceType.USER)))
                 .thenReturn(0);
+
+        when(recipeIngredientRepository.findByRecipeId(anyLong()))
+                .thenReturn(Collections.emptyList());
+
         doNothing().when(recipeStepService).saveAll(any(Recipe.class), anyList());
         doNothing().when(recipeTagService).saveAll(any(Recipe.class), anyList());
 
@@ -146,7 +165,7 @@ class RecipeServiceTest {
                 .build();
 
         PresignedUrlResponse response = recipeService.createRecipeAndGenerateUrls(
-                requestWithFile, author.getId(), RecipeSourceType.USER);
+                requestWithFile, author.getId(), RecipeSourceType.USER, null);
 
         assertNotNull(response);
         assertEquals(555L, response.getRecipeId());
@@ -179,7 +198,7 @@ class RecipeServiceTest {
                 .build();
 
         CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.createRecipeAndGenerateUrls(requestWithoutFile, author.getId(), RecipeSourceType.USER);
+            recipeService.createRecipeAndGenerateUrls(requestWithoutFile, author.getId(), RecipeSourceType.USER, null);
         });
         assertEquals(ErrorCode.USER_RECIPE_IMAGE_REQUIRED, ex.getErrorCode());
 
@@ -198,7 +217,7 @@ class RecipeServiceTest {
                 .build();
 
         CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.createRecipeAndGenerateUrls(request, 999L, RecipeSourceType.USER);
+            recipeService.createRecipeAndGenerateUrls(request, 999L, RecipeSourceType.USER, null);
         });
         assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
 
@@ -225,7 +244,7 @@ class RecipeServiceTest {
                 .ingredients(Collections.emptyList())
                 .steps(Collections.emptyList())
                 .tags(Collections.emptyList())
-                .isIngredientsModified(false)
+                .isIngredientsModified(true)
                 .build();
 
         RecipeUpdateWithImageRequest updateRequest = RecipeUpdateWithImageRequest.builder()
@@ -235,9 +254,14 @@ class RecipeServiceTest {
 
         when(recipeIngredientService.updateIngredientsFromUser(eq(existing), anyList()))
                 .thenReturn(0);
+
+        when(recipeIngredientRepository.findByRecipeId(anyLong()))
+                .thenReturn(Collections.emptyList());
+
         doNothing().when(recipeStepService).updateStepsFromUser(eq(existing), anyList());
         doNothing().when(recipeTagService).updateTags(eq(existing), anyList());
 
+        doNothing().when(recipeAnalysisService).analyzeRecipeAsync(anyLong());
         doNothing().when(recipeIndexingService).indexRecipeSafelyWithRetry(100L);
 
         when(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
@@ -324,7 +348,8 @@ class RecipeServiceTest {
         doNothing().when(recipeStepService).deleteAllByRecipeId(400L);
         doNothing().when(recipeIngredientService).deleteAllByRecipeId(400L);
         doNothing().when(recipeTagService).deleteAllByRecipeId(400L);
-        doNothing().when(recipeIndexingService).deleteRecipe(400L);
+        doNothing().when(recipeIndexingService).deleteRecipeSafelyWithRetry(400L);
+        doNothing().when(recipeRatingRepository).deleteByRecipeId(400L);
 
         Long result = recipeService.deleteRecipe(400L, author.getId());
         assertEquals(400L, result);
@@ -337,8 +362,9 @@ class RecipeServiceTest {
         verify(recipeStepService, times(1)).deleteAllByRecipeId(400L);
         verify(recipeIngredientService, times(1)).deleteAllByRecipeId(400L);
         verify(recipeTagService, times(1)).deleteAllByRecipeId(400L);
-        verify(recipeRepository, times(1)).delete(existing);
-        verify(recipeIndexingService, times(1)).deleteRecipe(400L);
+        verify(recipeRatingRepository, times(1)).deleteByRecipeId(400L);
+        verify(recipeRepository, times(1)).deleteByIdDirectly(400L);
+        verify(recipeIndexingService, times(1)).deleteRecipeSafelyWithRetry(400L);
     }
 
     @Test
@@ -415,6 +441,71 @@ class RecipeServiceTest {
         });
 
         assertEquals(ErrorCode.CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("createRecipeAndGenerateUrls: AI 레시피 생성 시 로그가 정상적으로 저장되는지 검증")
+    void createAiRecipe_logsActivity() {
+        Long userId = author.getId();
+        String nickname = author.getNickname();
+        AiRecipeConcept concept = AiRecipeConcept.FINE_DINING;
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(author));
+
+        doAnswer(inv -> {
+            Recipe r = inv.getArgument(0);
+            Field id = Recipe.class.getDeclaredField("id");
+            id.setAccessible(true);
+            id.set(r, 777L);
+            return r;
+        }).when(recipeRepository).save(any(Recipe.class));
+
+        when(recipeIngredientService.saveAll(any(), any(), eq(RecipeSourceType.AI))).thenReturn(10000);
+        when(recipeIngredientRepository.findByRecipeId(any())).thenReturn(Collections.emptyList());
+        when(recipeRepository.findWithAllRelationsById(any())).thenReturn(Optional.of(Recipe.builder().user(author).id(777L).build()));
+
+        RecipeWithImageUploadRequest request = RecipeWithImageUploadRequest.builder()
+                .recipe(createDto)
+                .files(nonEmptyFiles)
+                .build();
+
+
+        recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.AI, concept);
+
+
+        verify(recipeActivityService, times(1)).saveLog(
+                eq(userId),
+                eq(nickname),
+                eq(ActivityLogType.AI_RECIPE_FINE_DINING)
+        );
+    }
+
+    @Test
+    @DisplayName("createRecipeAndGenerateUrls: 유저 직접 생성 시에는 로그가 저장되지 않아야 함")
+    void createUserRecipe_doesNotLog() {
+        Long userId = author.getId();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(author));
+        doAnswer(inv -> {
+            Recipe r = inv.getArgument(0);
+            Field id = Recipe.class.getDeclaredField("id");
+            id.setAccessible(true);
+            id.set(r, 888L);
+            return r;
+        }).when(recipeRepository).save(any(Recipe.class));
+
+        when(recipeIngredientService.saveAll(any(), any(), eq(RecipeSourceType.USER))).thenReturn(5000);
+        when(recipeIngredientRepository.findByRecipeId(any())).thenReturn(Collections.emptyList());
+        when(recipeRepository.findWithAllRelationsById(any())).thenReturn(Optional.of(Recipe.builder().user(author).id(888L).build()));
+
+        RecipeWithImageUploadRequest request = RecipeWithImageUploadRequest.builder()
+                .recipe(createDto)
+                .files(nonEmptyFiles)
+                .build();
+
+        recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.USER, null);
+
+        verify(recipeActivityService, never()).saveLog(any(), any(), any());
     }
 
 }

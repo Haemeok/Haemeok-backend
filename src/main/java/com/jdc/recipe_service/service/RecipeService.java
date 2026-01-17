@@ -52,6 +52,7 @@ public class RecipeService {
     private final EntityManager em;
     private final ApplicationEventPublisher publisher;
     private final RecipeAnalysisService recipeAnalysisService;
+    private final RecipeActivityService recipeActivityService;
 
     private static final String MAIN_IMAGE_SLOT = "main";
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
@@ -61,7 +62,8 @@ public class RecipeService {
     public PresignedUrlResponse createRecipeAndGenerateUrls(
             RecipeWithImageUploadRequest req,
             Long userId,
-            RecipeSourceType sourceType
+            RecipeSourceType sourceType,
+            AiRecipeConcept aiConcept
     ) {
         User user = getUserOrThrow(userId);
         RecipeCreateRequestDto dto = Optional.ofNullable(req.getRecipe())
@@ -158,6 +160,7 @@ public class RecipeService {
 
         final Long recipeId = recipe.getId();
         final Long targetUserId = recipe.getUser().getId();
+        final String targetUserNickname = user.getNickname();
 
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
@@ -170,6 +173,18 @@ public class RecipeService {
                             publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
                         } else {
                             publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
+                        }
+
+                        if (sourceType == RecipeSourceType.AI && aiConcept != null) {
+                            try {
+                                recipeActivityService.saveLog(
+                                        targetUserId,
+                                        targetUserNickname,
+                                        ActivityLogType.fromConcept(aiConcept)
+                                );
+                            } catch (Exception e) {
+                                log.warn("⚠️ 활동 로그 저장 실패: {}", e.getMessage());
+                            }
                         }
                     }
                 }
