@@ -53,7 +53,8 @@ public class RecipeController {
         PresignedUrlResponse response = recipeService.createRecipeAndGenerateUrls(
                 request,
                 userDetails.getUser().getId(),
-                RecipeSourceType.USER
+                RecipeSourceType.USER,
+                null
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -161,7 +162,7 @@ public class RecipeController {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        return recipeExtractionService.extractAndCreateRecipe(url, userDetails.getUser().getId())
+        return recipeExtractionService.extractAndCreateRecipe(url, userDetails.getUser().getId(),userDetails.getUser().getNickname())
                 .thenApply(response -> {
                     if (response.isCreated()) {
                         return ResponseEntity.status(HttpStatus.CREATED).body(response);

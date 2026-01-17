@@ -10,6 +10,7 @@ import com.jdc.recipe_service.domain.entity.YoutubeTargetChannel;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
+import com.jdc.recipe_service.domain.type.ActivityLogType;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
@@ -46,6 +47,7 @@ public class RecipeExtractionService {
     private final RecipeService recipeService;
     private final DailyQuotaService dailyQuotaService;
     private final RecipeFavoriteService recipeFavoriteService;
+    private final RecipeActivityService recipeActivityService;
 
 
     private final RecipeRepository recipeRepository;
@@ -101,7 +103,7 @@ public class RecipeExtractionService {
             GrokClientService grokClientService,
             GeminiMultimodalService geminiMultimodalService,
             RecipeService recipeService,
-            DailyQuotaService dailyQuotaService,
+            DailyQuotaService dailyQuotaService, RecipeActivityService recipeActivityService,
             RecipeRepository recipeRepository,
             RecipeFavoriteService recipeFavoriteService, YoutubeTargetChannelRepository youtubeTargetChannelRepository, YoutubeRecommendationRepository youtubeRecommendationRepository,
             TransactionTemplate transactionTemplate
@@ -111,6 +113,7 @@ public class RecipeExtractionService {
         this.geminiMultimodalService = geminiMultimodalService;
         this.recipeService = recipeService;
         this.dailyQuotaService = dailyQuotaService;
+        this.recipeActivityService = recipeActivityService;
         this.recipeRepository = recipeRepository;
         this.recipeFavoriteService = recipeFavoriteService;
         this.youtubeTargetChannelRepository = youtubeTargetChannelRepository;
@@ -434,7 +437,7 @@ public class RecipeExtractionService {
     }
 
     @Async("recipeExtractionExecutor")
-    public CompletableFuture<PresignedUrlResponse> extractAndCreateRecipe(String videoUrl, Long userId) {
+    public CompletableFuture<PresignedUrlResponse> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
         log.info("🚀 유튜브 레시피 추출 요청: URL={}", videoUrl);
 
         if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
@@ -624,6 +627,8 @@ public class RecipeExtractionService {
 
             addFavoriteToUser(userId, response.getRecipeId());
 
+            recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
+
             log.info("💾 신규 생성 및 즐겨찾기 추가 완료: ID={}, UserID={}", response.getRecipeId(), userId);
             return CompletableFuture.completedFuture(response);
 
@@ -778,7 +783,7 @@ public class RecipeExtractionService {
             RecipeWithImageUploadRequest request = new RecipeWithImageUploadRequest();
             request.setRecipe(recipeDto);
 
-            PresignedUrlResponse originalRes = recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.YOUTUBE);
+            PresignedUrlResponse originalRes = recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.YOUTUBE,null);
 
             return PresignedUrlResponse.builder()
                     .recipeId(originalRes.getRecipeId())

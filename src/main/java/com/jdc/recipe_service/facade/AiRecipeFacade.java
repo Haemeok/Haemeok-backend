@@ -112,7 +112,12 @@ public class AiRecipeFacade {
                     .files(request.getFiles())
                     .build();
 
-            return recipeService.createRecipeAndGenerateUrls(processingRequest, userId, RecipeSourceType.AI);
+            return recipeService.createRecipeAndGenerateUrls(
+                    processingRequest,
+                    userId,
+                    RecipeSourceType.AI,
+                    concept
+            );
 
         } catch (Exception e) {
             dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.AI_GENERATION);
