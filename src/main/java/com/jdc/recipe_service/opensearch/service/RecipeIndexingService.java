@@ -81,97 +81,104 @@ public class RecipeIndexingService {
         var request = new CreateIndexRequest("recipes");
 
         request.settings("""
-            {
-              "index": {
-                "number_of_shards": 1,
-                "number_of_replicas": 0,
-                "refresh_interval": "1s",
-                "max_ngram_diff": 18
-              },
-              "analysis": {
-                "tokenizer": {
-                  "nori_user_dict": {
-                    "type": "nori_tokenizer",
-                    "decompound_mode": "mixed"
+                {
+                  "index": {
+                    "number_of_shards": 1,
+                    "number_of_replicas": 0,
+                    "refresh_interval": "1s",
+                    "max_ngram_diff": 18
                   },
-                  "edge_ngram_tokenizer": {
-                    "type": "edge_ngram",
-                    "min_gram": 1,
-                    "max_gram": 20,
-                    "token_chars": ["letter", "digit"]
-                  }
-                },
-                "analyzer": {
-                  "korean_analyzer": { 
-                    "type": "custom",
-                    "tokenizer": "nori_user_dict",
-                    "filter": ["lowercase", "my_synonym"] 
-                  },
-                  "autocomplete_analyzer": {
-                    "tokenizer": "edge_ngram_tokenizer",
-                    "filter": ["lowercase", "my_synonym"]
-                  },
-                  "infix_analyzer": {
-                    "tokenizer": "standard",
-                    "filter": ["lowercase", "infix_ngram"]
-                  }
-                },
-                "filter": {
-                  "infix_ngram": {
-                    "type": "ngram",
-                    "min_gram": 2,
-                    "max_gram": 20
-                  },
-                  "my_synonym": {
-                    "type": "synonym",
-                    "synonyms": ["감자,포테이토", "김치,kimchi"]
-                  }
-                }
-              }
-            }
-            """, XContentType.JSON);
-
-        request.mapping("""
-            {
-              "properties": {
-                "title": {
-                  "type": "text",
-                  "analyzer": "korean_analyzer", 
-                  "fields": {
-                    "keyword": { 
-                      "type": "keyword" 
+                  "analysis": {
+                    "tokenizer": {
+                      "nori_user_dict": {
+                        "type": "nori_tokenizer",
+                        "decompound_mode": "mixed"
+                      },
+                      "edge_ngram_tokenizer": {
+                        "type": "edge_ngram",
+                        "min_gram": 1,
+                        "max_gram": 20,
+                        "token_chars": ["letter", "digit"]
+                      }
                     },
-                    "prefix": {
-                      "type": "text",
-                      "analyzer": "autocomplete_analyzer"
+                    "analyzer": {
+                      "korean_analyzer": { 
+                        "type": "custom",
+                        "tokenizer": "nori_user_dict",
+                        "filter": ["lowercase", "my_synonym"] 
+                      },
+                      "autocomplete_analyzer": {
+                        "tokenizer": "edge_ngram_tokenizer",
+                        "filter": ["lowercase", "my_synonym"]
+                      },
+                      "infix_analyzer": {
+                        "tokenizer": "standard",
+                        "filter": ["lowercase", "infix_ngram"]
+                      }
                     },
-                    "infix": {
-                      "type": "text",
-                      "analyzer": "infix_analyzer",
-                      "search_analyzer": "standard"
+                    "filter": {
+                      "infix_ngram": {
+                        "type": "ngram",
+                        "min_gram": 2,
+                        "max_gram": 20
+                      },
+                      "my_synonym": {
+                        "type": "synonym",
+                        "synonyms": ["감자,포테이토", "김치,kimchi"]
+                      }
                     }
                   }
-                },
-                "dishType": { "type": "keyword" },
-                "tags": { "type": "keyword" },
-                "createdAt": { "type": "date" },
-                "cookingTime": { "type": "integer" },
-                "imageUrl": { "type": "keyword" },
-                "youtubeUrl": { "type": "keyword" },
-                "isAiGenerated": { "type": "boolean" },
-                "isPrivate": { "type": "boolean" },
-                "ingredientIds": { "type": "long" },
-                "ingredientCount": { "type": "integer" },
-                "totalIngredientCost": { "type": "integer" },
-                "totalCalories": { "type": "float" },
-                "protein": { "type": "float" },
-                "carbohydrate": { "type": "float" },
-                "fat": { "type": "float" },
-                "sugar": { "type": "float" },
-                "sodium": { "type": "float" }
-              }
-            }
-            """, XContentType.JSON);
+                }
+                """, XContentType.JSON);
+
+        request.mapping("""
+                {
+                  "properties": {
+                    "title": {
+                      "type": "text",
+                      "analyzer": "korean_analyzer",
+                      "fields": {
+                        "keyword": { 
+                          "type": "keyword" 
+                        },
+                        "prefix": {
+                          "type": "text",
+                          "analyzer": "autocomplete_analyzer"
+                        },
+                        "infix": {
+                          "type": "text",
+                          "analyzer": "infix_analyzer",
+                          "search_analyzer": "standard"
+                        }
+                      }
+                    },
+                    "youtubeChannelName": {
+                      "type": "text",
+                      "analyzer": "korean_analyzer",
+                      "fields": {
+                        "keyword": { "type": "keyword" }
+                      }
+                    },
+                    "dishType": { "type": "keyword" },
+                    "tags": { "type": "keyword" },
+                    "createdAt": { "type": "date" },
+                    "cookingTime": { "type": "integer" },
+                    "imageUrl": { "type": "keyword" },
+                    "youtubeUrl": { "type": "keyword" },
+                    "isAiGenerated": { "type": "boolean" },
+                    "isPrivate": { "type": "boolean" },
+                    "ingredientIds": { "type": "long" },
+                    "ingredientCount": { "type": "integer" },
+                    "totalIngredientCost": { "type": "integer" },
+                    "totalCalories": { "type": "float" },
+                    "protein": { "type": "float" },
+                    "carbohydrate": { "type": "float" },
+                    "fat": { "type": "float" },
+                    "sugar": { "type": "float" },
+                    "sodium": { "type": "float" }
+                  }
+                }
+                """, XContentType.JSON);
 
         try {
             CreateIndexResponse res = client.indices().create(request, RequestOptions.DEFAULT);
@@ -285,15 +292,16 @@ public class RecipeIndexingService {
         Integer cost = recipe.getTotalIngredientCost() != null ? recipe.getTotalIngredientCost() : 0;
 
         Float calories = recipe.getTotalCalories() != null ? recipe.getTotalCalories().floatValue() : 0.0f;
-        Float protein  = recipe.getProtein() != null ? recipe.getProtein().floatValue() : 0.0f;
-        Float carb     = recipe.getCarbohydrate() != null ? recipe.getCarbohydrate().floatValue() : 0.0f;
-        Float fat      = recipe.getFat() != null ? recipe.getFat().floatValue() : 0.0f;
-        Float sugar    = recipe.getSugar() != null ? recipe.getSugar().floatValue() : 0.0f;
-        Float sodium   = recipe.getSodium() != null ? recipe.getSodium().floatValue() : 0.0f;
+        Float protein = recipe.getProtein() != null ? recipe.getProtein().floatValue() : 0.0f;
+        Float carb = recipe.getCarbohydrate() != null ? recipe.getCarbohydrate().floatValue() : 0.0f;
+        Float fat = recipe.getFat() != null ? recipe.getFat().floatValue() : 0.0f;
+        Float sugar = recipe.getSugar() != null ? recipe.getSugar().floatValue() : 0.0f;
+        Float sodium = recipe.getSodium() != null ? recipe.getSodium().floatValue() : 0.0f;
 
         return RecipeDocument.builder()
                 .id(recipe.getId())
                 .title(recipe.getTitle())
+                .youtubeChannelName(recipe.getYoutubeChannelName())
                 .tags(tags)
                 .dishType(recipe.getDishType().name())
                 .createdAt(recipe.getCreatedAt().toString())
@@ -435,7 +443,8 @@ public class RecipeIndexingService {
             throw new CustomException(
                     ErrorCode.SEARCH_FAILURE,
                     "레시피 색인 실패: " + e.getMessage()
-            );        }
+            );
+        }
     }
 
     private void doUpdate(Recipe recipe) {
