@@ -18,16 +18,16 @@ import java.time.LocalDate;
 public class MySqlDailyQuotaDao implements DailyQuotaDao {
 
     private final JdbcTemplate jdbc;
-    private final QuotaProperties props;
+    private final QuotaProperties props; // 시간대(zoneId) 확인용으로만 사용
 
     @Override
-    public boolean tryConsume(Long userId, QuotaType type) {
+    public boolean tryConsume(Long userId, QuotaType type, int limit) { // limit 받음
         var today = LocalDate.now(props.zoneId());
-        int limit = getLimitByType(type);
         String typeStr = type.name();
 
         log.info("Try Consume - User: {}, Type: {}, Today: {}, Limit: {}", userId, typeStr, today, limit);
 
+        // [수정] 쿼리 파라미터에 limit 전달
         int updated = jdbc.update(
                 """
                 UPDATE user_daily_ai_usage_counter 
@@ -37,10 +37,7 @@ public class MySqlDailyQuotaDao implements DailyQuotaDao {
                 userId, today, typeStr, limit
         );
 
-        if (updated > 0) {
-            log.info("-> Update 성공 (카운트 증가)");
-            return true;
-        }
+        if (updated > 0) return true;
 
         try {
             jdbc.update(
@@ -50,19 +47,17 @@ public class MySqlDailyQuotaDao implements DailyQuotaDao {
                     """,
                     userId, today, typeStr
             );
-            log.info("-> Insert 성공 (첫 사용)");
             return true;
         } catch (DuplicateKeyException e) {
-            log.warn("-> 차단됨: 한도 초과 또는 동시성 충돌 (Limit: {}, User: {}, Type: {})", limit, userId, typeStr);
             return false;
         }
     }
 
     @Override
     public void refundOnce(Long userId, QuotaType type) {
+        // 기존과 동일
         var today = LocalDate.now(props.zoneId());
         String typeStr = type.name();
-
         jdbc.update(
                 "UPDATE user_daily_ai_usage_counter SET used_count = GREATEST(used_count - 1, 0) WHERE user_id=? AND used_on=? AND quota_type=?",
                 userId, today, typeStr
@@ -70,11 +65,9 @@ public class MySqlDailyQuotaDao implements DailyQuotaDao {
     }
 
     @Override
-    public int remainingToday(Long userId, QuotaType type) {
+    public int remainingToday(Long userId, QuotaType type, int limit) { // limit 받음
         var today = LocalDate.now(props.zoneId());
         String typeStr = type.name();
-
-        int limit = getLimitByType(type);
 
         Integer used = jdbc.query(
                 "SELECT used_count FROM user_daily_ai_usage_counter WHERE user_id=? AND used_on=? AND quota_type=?",
@@ -85,13 +78,7 @@ public class MySqlDailyQuotaDao implements DailyQuotaDao {
                 },
                 rs -> rs.next() ? rs.getInt(1) : 0
         );
-        return Math.max(0, limit - used);
-    }
 
-    private int getLimitByType(QuotaType type) {
-        if (type == QuotaType.YOUTUBE_EXTRACTION) {
-            return props.getYoutubePerDay();
-        }
-        return props.getPerDay();
+        return Math.max(0, limit - used);
     }
 }

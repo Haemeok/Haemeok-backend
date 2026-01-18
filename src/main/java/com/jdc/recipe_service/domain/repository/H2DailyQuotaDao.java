@@ -15,14 +15,14 @@ import java.time.LocalDate;
 public class H2DailyQuotaDao implements DailyQuotaDao {
 
     private final JdbcTemplate jdbc;
-    private final QuotaProperties props;
+    private final QuotaProperties props; // 시간대(zoneId) 확인용
 
     @Override
-    public boolean tryConsume(Long userId, QuotaType type) {
+    public boolean tryConsume(Long userId, QuotaType type, int limit) { // [수정] limit 파라미터 추가
         var today = LocalDate.now(props.zoneId());
-        int limit = getLimitByType(type);
         String typeStr = type.name();
 
+        // H2 전용 MERGE 문법 사용 (UPSERT)
         String sql = """
             MERGE INTO user_daily_ai_usage_counter t
             USING (SELECT CAST(? AS BIGINT) AS user_id, CAST(? AS DATE) AS used_on, CAST(? AS VARCHAR) AS quota_type) s
@@ -33,6 +33,7 @@ public class H2DailyQuotaDao implements DailyQuotaDao {
                 INSERT (user_id, used_on, quota_type, used_count) VALUES (?, ?, ?, 1)
             """;
 
+        // [수정] 3번째 파라미터에 limit 전달
         int updated = jdbc.update(sql,
                 userId, today, typeStr,
                 limit,
@@ -44,6 +45,7 @@ public class H2DailyQuotaDao implements DailyQuotaDao {
 
     @Override
     public void refundOnce(Long userId, QuotaType type) {
+        // 기존과 동일
         var today = LocalDate.now(props.zoneId());
         String typeStr = type.name();
 
@@ -54,11 +56,9 @@ public class H2DailyQuotaDao implements DailyQuotaDao {
     }
 
     @Override
-    public int remainingToday(Long userId, QuotaType type) {
+    public int remainingToday(Long userId, QuotaType type, int limit) { // [수정] limit 파라미터 추가
         var today = LocalDate.now(props.zoneId());
         String typeStr = type.name();
-
-        int limit = getLimitByType(type);
 
         Integer used = jdbc.query(
                 "SELECT used_count FROM user_daily_ai_usage_counter WHERE user_id=? AND used_on=? AND quota_type=?",
@@ -69,13 +69,8 @@ public class H2DailyQuotaDao implements DailyQuotaDao {
                 },
                 rs -> rs.next() ? rs.getInt(1) : 0
         );
-        return Math.max(0, limit - used);
-    }
 
-    private int getLimitByType(QuotaType type) {
-        if (type == QuotaType.YOUTUBE_EXTRACTION) {
-            return props.getYoutubePerDay();
-        }
-        return props.getPerDay();
+        // [수정] 전달받은 limit으로 남은 횟수 계산
+        return Math.max(0, limit - used);
     }
 }
