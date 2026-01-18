@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'haemeok-backend-prod' # prod(운영)로 이름 변경
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      # [중요] 리눅스(EC2) 컨테이너에서 호스트의 8080포트를 찾는 주소입니다.
+      - targets: ['172.17.0.1:8080']
