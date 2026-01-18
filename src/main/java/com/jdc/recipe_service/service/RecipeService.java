@@ -176,16 +176,26 @@ public class RecipeService {
                         }
 
                         if (sourceType == RecipeSourceType.AI && aiConcept != null) {
-                            try {
-                                recipeActivityService.saveLog(
-                                        targetUserId,
-                                        targetUserNickname,
-                                        ActivityLogType.fromConcept(aiConcept)
-                                );
-                            } catch (Exception e) {
-                                log.warn("⚠️ 활동 로그 저장 실패: {}", e.getMessage());
-                            }
+                            recipeActivityService.saveLog(
+                                    targetUserId,
+                                    targetUserNickname,
+                                    ActivityLogType.fromConcept(aiConcept)
+                            );
                         }
+                        TransactionSynchronizationManager.registerSynchronization(
+                                new TransactionSynchronization() {
+                                    @Override
+                                    public void afterCommit() {
+                                        log.info("레시피 생성 커밋 완료. OpenSearch 색인 요청: ID={}", recipeId);
+                                        recipeIndexingService.indexRecipeSafelyWithRetry(recipeId);
+                                        if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
+                                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
+                                        } else {
+                                            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
+                                        }
+                                    }
+                                }
+                        );
                     }
                 }
         );
@@ -243,15 +253,20 @@ public class RecipeService {
 
             List<RecipeIngredient> currentIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
             calculateAndSetTotalNutrition(recipe, currentIngredients);
+
+            int newMarketPrice = PricingUtil.applyMargin(newTotalCost, DEFAULT_MARGIN_PERCENT);
+            recipe.updateMarketPrice(newMarketPrice);
         }
 
-        if (!Objects.equals(newTotalCost, prevTotalCost)) {
+        else if (!Objects.equals(newTotalCost, prevTotalCost)) {
             int marketPrice = calculateMarketPriceForUpdate(dto, newTotalCost);
             recipe.updateMarketPrice(marketPrice);
         }
 
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTags());
+
+        recipeRepository.save(recipe);
 
         em.flush();
         em.clear();
