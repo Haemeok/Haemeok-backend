@@ -25,6 +25,7 @@ public class RecipeDocument {
     private List<Long> ingredientIds;
     private List<String> ingredientNames;
     private Integer ingredientCount;
+    private String youtubeChannelName;
 
     private Integer totalIngredientCost;
     private Float totalCalories;

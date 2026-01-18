@@ -153,8 +153,12 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                 : null;
     }
 
-    private BooleanExpression titleContains(String title) {
-        return StringUtils.hasText(title) ? QRecipe.recipe.title.containsIgnoreCase(title) : null;
+    private BooleanExpression titleContains(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        return QRecipe.recipe.title.containsIgnoreCase(keyword)
+                .or(QRecipe.recipe.youtubeChannelName.containsIgnoreCase(keyword));
     }
 
     private BooleanBuilder filterByTypes(List<RecipeType> types) {

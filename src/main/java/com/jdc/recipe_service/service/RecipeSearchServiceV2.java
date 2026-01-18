@@ -292,7 +292,12 @@ public class RecipeSearchServiceV2 {
         QRecipeTag tag = QRecipeTag.recipeTag;
         BooleanExpression privacy = recipe.isPrivate.eq(false);
         BooleanBuilder typeFilter = filterByTypes(cond.getTypes());
-        BooleanExpression title = StringUtils.hasText(cond.getTitle()) ? recipe.title.containsIgnoreCase(cond.getTitle()) : null;
+        BooleanExpression keywordSearch = null;
+        if (StringUtils.hasText(cond.getTitle())) {
+            String keyword = cond.getTitle();
+            keywordSearch = recipe.title.containsIgnoreCase(keyword)
+                    .or(recipe.youtubeChannelName.containsIgnoreCase(keyword));
+        }
         BooleanExpression dishType = (cond.getDishTypeEnum() != null) ? recipe.dishType.eq(cond.getDishTypeEnum()) : null;
         BooleanExpression tags = (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) ? tag.tag.in(cond.getTagEnums()) : null;
 
@@ -306,7 +311,7 @@ public class RecipeSearchServiceV2 {
 
         return privacy
                 .and(typeFilter)
-                .and(title)
+                .and(keywordSearch)
                 .and(dishType)
                 .and(tags)
                 .and(cost)

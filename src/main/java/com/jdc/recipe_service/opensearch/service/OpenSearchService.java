@@ -156,15 +156,21 @@ public class OpenSearchService {
         bool.filter(QueryBuilders.termQuery("isPrivate", false));
 
         if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
-            String title = cond.getTitle().trim();
-            keywordService.record(title);
-            BoolQueryBuilder titleQuery = QueryBuilders.boolQuery();
-            titleQuery.should(QueryBuilders.termQuery("title.keyword", title).boost(10.0f));
-            titleQuery.should(QueryBuilders.matchQuery("title", title).boost(5.0f));
-            titleQuery.should(QueryBuilders.matchPhraseQuery("title", title).boost(3.0f));
-            titleQuery.should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", title).boost(1.0f));
-            titleQuery.should(QueryBuilders.matchQuery("title.infix", title).boost(1.0f));
-            bool.must(titleQuery);
+            String keyword = cond.getTitle().trim();
+            keywordService.record(keyword);
+
+            BoolQueryBuilder keywordQuery = QueryBuilders.boolQuery();
+
+            keywordQuery.should(QueryBuilders.termQuery("title.keyword", keyword).boost(10.0f));
+            keywordQuery.should(QueryBuilders.matchQuery("title", keyword).boost(5.0f));
+            keywordQuery.should(QueryBuilders.matchPhraseQuery("title", keyword).boost(3.0f));
+            keywordQuery.should(QueryBuilders.matchPhrasePrefixQuery("title.prefix", keyword).boost(1.0f));
+            keywordQuery.should(QueryBuilders.matchQuery("title.infix", keyword).boost(1.0f));
+
+            keywordQuery.should(QueryBuilders.matchQuery("youtubeChannelName", keyword).boost(4.0f));
+            keywordQuery.should(QueryBuilders.matchPhraseQuery("youtubeChannelName", keyword).boost(2.0f));
+
+            bool.must(keywordQuery);
         }
 
         applyRangeFilter(bool, "totalIngredientCost", cond.getMinCost(), cond.getMaxCost());
