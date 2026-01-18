@@ -40,6 +40,7 @@ public class RecipeIngredientService {
                 .collect(Collectors.toMap(i -> i.getName().toLowerCase().trim(), Function.identity()));
 
         for (RecipeIngredientRequestDto dto : dtos) {
+            log.info("▶▶ [1. 입력 시작] 재료명: [{}], 수량: [{}], 단위(customUnit): [{}]",dto.getName(), dto.getQuantity(), dto.getCustomUnit());
             if (dto.getName() == null || dto.getName().isBlank()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "재료 이름이 비어있습니다.");
             }
@@ -51,6 +52,7 @@ public class RecipeIngredientService {
             double quantity;
             try {
                 quantity = parseQuantity(dto.getQuantity());
+                log.info("   ▷ [2. 파싱 완료] 변환된 숫자: [{}]", quantity);
             } catch (NumberFormatException e) {
                 log.warn("수량 파싱 실패: name={}, quantity='{}'. → '약간'으로 보정", dto.getName(), dto.getQuantity());
                 dto.setQuantity("약간");
@@ -67,12 +69,14 @@ public class RecipeIngredientService {
                         ? BigDecimal.valueOf(masterIngredient.getPrice())
                         : BigDecimal.ZERO;
 
+                log.info("   ▷ [3. DB 매핑 성공] 찾은재료: [{}], DB가격: [{}], 계산식: {} * {}", masterIngredient.getName(), pricePerUnit, pricePerUnit, quantity);
                 calculatedPrice = pricePerUnit.multiply(BigDecimal.valueOf(quantity)).intValue();
 
                 unitForRecipeItem = (dto.getCustomUnit() != null && !dto.getCustomUnit().isBlank())
                         ? dto.getCustomUnit()
                         : masterIngredient.getUnit();
             } else {
+                log.warn("   ❌ [3. DB 매핑 실패] 이름 '{}'(키: {})을 DB에서 못 찾음. -> 커스텀 재료 처리", dto.getName(), nameKey);
                 unitForRecipeItem = dto.getCustomUnit();
 
                 if (unitForRecipeItem == null || unitForRecipeItem.isBlank()) {
@@ -88,11 +92,13 @@ public class RecipeIngredientService {
                         : 0;
             }
 
+            log.info("   💰 [4. 최종 가격] 이 재료의 가격: [{}원]", calculatedPrice);
             totalCost += calculatedPrice;
 
             RecipeIngredient entity = RecipeIngredientMapper.toEntity(dto, recipe, masterIngredient, calculatedPrice, unitForRecipeItem, sourceType);
             recipeIngredientRepository.save(entity);
         }
+        log.info("🏁 [총 합계] 이번 요청의 TotalCost: [{}원]", totalCost);
         return totalCost;
     }
 
