@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus # 데이터를 껐다 켜도 날아가지 않게 저장
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=3d' # 데이터 3일치만 보관 (메모리 절약)
+    ports:
+      - "9090:9090"
+    deploy:
+      resources:
+        limits:
+          memory: 400M # 프로메테우스는 400MB 넘으면 재시작
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 150M # 그라파나는 150MB 제한
+
+volumes:
+  prometheus_data:
