@@ -131,7 +131,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     private String randomDefaultProfileImageUrl() {
-        int n = ThreadLocalRandom.current().nextInt(1, 11);
+        int n = ThreadLocalRandom.current().nextInt(1, 18);
         return DEFAULT_PROFILE_BASE + n + ".webp";
     }
 }
