@@ -162,40 +162,25 @@ public class RecipeService {
         final Long targetUserId = recipe.getUser().getId();
         final String targetUserNickname = user.getNickname();
 
+        if (sourceType == RecipeSourceType.AI && aiConcept != null) {
+            recipeActivityService.saveLog(
+                    targetUserId,
+                    targetUserNickname,
+                    ActivityLogType.fromConcept(aiConcept)
+            );
+        }
+
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
                         log.info("레시피 생성 커밋 완료. OpenSearch 색인 요청: ID={}", recipeId);
                         recipeIndexingService.indexRecipeSafelyWithRetry(recipeId);
-
                         if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
                             publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
                         } else {
                             publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
                         }
-
-                        if (sourceType == RecipeSourceType.AI && aiConcept != null) {
-                            recipeActivityService.saveLog(
-                                    targetUserId,
-                                    targetUserNickname,
-                                    ActivityLogType.fromConcept(aiConcept)
-                            );
-                        }
-                        TransactionSynchronizationManager.registerSynchronization(
-                                new TransactionSynchronization() {
-                                    @Override
-                                    public void afterCommit() {
-                                        log.info("레시피 생성 커밋 완료. OpenSearch 색인 요청: ID={}", recipeId);
-                                        recipeIndexingService.indexRecipeSafelyWithRetry(recipeId);
-                                        if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
-                                            publisher.publishEvent(new AiRecipeCreatedEvent(recipeId, targetUserId));
-                                        } else {
-                                            publisher.publishEvent(new UserRecipeCreatedEvent(recipeId));
-                                        }
-                                    }
-                                }
-                        );
                     }
                 }
         );
