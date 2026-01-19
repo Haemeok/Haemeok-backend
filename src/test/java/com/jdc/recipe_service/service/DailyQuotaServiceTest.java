@@ -165,4 +165,26 @@ class DailyQuotaServiceTest {
         verify(dao).remainingToday(userId, type, limit);
         assert remaining == 3;
     }
+
+    @Test
+    @DisplayName("캐시 제거 검증: DB 한도 값을 변경하면 즉시 반영되어야 한다")
+    void cache_removal_verification() {
+        setAuth("ROLE_USER");
+        Long userId = 10L;
+        QuotaType type = QuotaType.AI_GENERATION;
+
+        QuotaPolicy policy10 = QuotaPolicy.builder().limitCount(10).build();
+        when(policyRepository.findByQuotaType(type)).thenReturn(Optional.of(policy10));
+
+        int limit1 = svc.getLimitByType(type);
+        org.assertj.core.api.Assertions.assertThat(limit1).isEqualTo(10);
+
+        QuotaPolicy policy50 = QuotaPolicy.builder().limitCount(50).build();
+        when(policyRepository.findByQuotaType(type)).thenReturn(Optional.of(policy50));
+
+        int limit2 = svc.getLimitByType(type);
+        org.assertj.core.api.Assertions.assertThat(limit2).isEqualTo(50);
+
+        verify(policyRepository, times(2)).findByQuotaType(type);
+    }
 }
