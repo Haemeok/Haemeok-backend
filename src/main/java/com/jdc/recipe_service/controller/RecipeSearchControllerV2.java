@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v2/recipes")
@@ -32,6 +34,7 @@ public class RecipeSearchControllerV2 {
 
     private final RecipeSearchServiceV2 recipeSearchServiceV2;
     private final RecipeStatusService recipeStatusService;
+    private final Hashids hashids;
 
     @GetMapping("/{id}")
     @Operation(summary = "레시피 상세 조회 (정적)", description = "레시피 ID를 기반으로 정적 상세 정보를 조회합니다.")
@@ -65,7 +68,7 @@ public class RecipeSearchControllerV2 {
 
     @PostMapping("/status")
     @Operation(summary = "레시피 상태 정보 배치 조회 (목록용 동적)", description = "레시피 ID 목록으로 동적 정보(좋아요 여부)를 일괄 조회합니다. 응답은 목록 조회용(Simple Status)입니다.")
-    public ResponseEntity<Map<Long, RecipeSimpleStatusDto>> getStatuses(
+    public ResponseEntity<Map<String, RecipeSimpleStatusDto>> getStatuses(
             @RequestBody RecipeStatusRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -80,7 +83,14 @@ public class RecipeSearchControllerV2 {
         Map<Long, RecipeDetailStatusDto> detailStatuses = recipeStatusService.getStatuses(recipeIds, userId);
         Map<Long, RecipeSimpleStatusDto> simpleStatuses = recipeStatusService.convertToSimpleStatus(detailStatuses);
 
-        return ResponseEntity.ok(simpleStatuses);
+
+        Map<String, RecipeSimpleStatusDto> encodedResult = simpleStatuses.entrySet().stream()
+                .collect(Collectors.toMap(
+                        entry -> hashids.encode(entry.getKey()),
+                        Map.Entry::getValue
+                ));
+
+        return ResponseEntity.ok(encodedResult);
     }
 
     @GetMapping("/search")
