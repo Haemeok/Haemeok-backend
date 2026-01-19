@@ -663,49 +663,75 @@ public class RecipeExtractionService {
             }
 
             Collections.shuffle(allChannels);
-            List<YoutubeTargetChannel> selectedChannels = allChannels.subList(0, Math.min(allChannels.size(), 5));
+            List<YoutubeTargetChannel> selectedChannels = allChannels.subList(0, Math.min(allChannels.size(), 6));
 
-            List<YtDlpService.YoutubeSearchDto> combinedResults = new ArrayList<>();
+            List<YtDlpService.YoutubeSearchDto> rawCandidates = new ArrayList<>();
+
+            int fetchPerChannel = 10;
 
             for (YoutubeTargetChannel channel : selectedChannels) {
-                List<YtDlpService.YoutubeSearchDto> results = ytDlpService.getLatestVideosFromChannel(channel.getChannelUrl(), 10);
-                combinedResults.addAll(results);
+                try {
+                    List<YtDlpService.YoutubeSearchDto> results = ytDlpService.getLatestVideosFromChannel(channel.getChannelUrl(), fetchPerChannel);
+                    rawCandidates.addAll(results);
+                } catch (Exception e) {
+                    log.warn("⚠️ 채널 수집 실패 [{}]: {}", channel.getChannelName(), e.getMessage());
+                }
             }
 
-            if (!combinedResults.isEmpty()) {
-                Map<String, YtDlpService.YoutubeSearchDto> bestById = new LinkedHashMap<>();
-                for (YtDlpService.YoutubeSearchDto dto : combinedResults) {
-                    if (dto == null || dto.videoId() == null) continue;
-                    if (isNoiseVideo(dto.title())) continue;
-                    bestById.put(dto.videoId(), dto);
-                }
+            List<YtDlpService.YoutubeSearchDto> keywordFiltered = rawCandidates.stream()
+                    .filter(dto -> dto != null && dto.videoId() != null)
+                    .filter(dto -> !isNoiseVideo(dto.title()))
+                    .distinct()
+                    .toList();
 
-                List<YtDlpService.YoutubeSearchDto> rankedResults = bestById.values().stream()
-                        .sorted(Comparator.comparingLong(YtDlpService.YoutubeSearchDto::viewCount).reversed())
-                        .limit(40)
+            log.info("1차 키워드 필터: {}개 -> {}개", rawCandidates.size(), keywordFiltered.size());
+
+            if (keywordFiltered.isEmpty()) return;
+
+            List<Map<String, String>> aiInput = keywordFiltered.stream()
+                    .map(dto -> {
+                        Map<String, String> map = new HashMap<>();
+                        map.put("id", dto.videoId());
+                        map.put("title", dto.title());
+                        map.put("channel", dto.channelName());
+                        return map;
+                    })
+                    .toList();
+
+            List<String> validIds = grokClientService.filterRecipeVideos(aiInput).join();
+
+            if (validIds.isEmpty()) {
+                log.warn("⚠️ AI 필터링 결과 없음(0건). 키워드 필터링 결과를 그대로 사용합니다.");
+                validIds = keywordFiltered.stream()
+                        .map(YtDlpService.YoutubeSearchDto::videoId)
+                        .toList();
+            }
+
+            List<String> finalValidIds = validIds;
+
+            List<YtDlpService.YoutubeSearchDto> finalResults = keywordFiltered.stream()
+                    .filter(dto -> finalValidIds.contains(dto.videoId()))
+                    .sorted(Comparator.comparingLong(YtDlpService.YoutubeSearchDto::viewCount).reversed())
+                    .limit(40)
+                    .toList();
+
+            if (!finalResults.isEmpty()) {
+                youtubeRecommendationRepository.deleteAll();
+                youtubeRecommendationRepository.flush();
+                List<YoutubeRecommendation> entities = finalResults.stream()
+                        .map(dto -> YoutubeRecommendation.builder()
+                                .videoId(dto.videoId())
+                                .title(dto.title())
+                                .thumbnail(dto.thumbnailUrl())
+                                .channelName(dto.channelName())
+                                .viewCount(dto.viewCount())
+                                .publishedAt("")
+                                .collectedAt(LocalDateTime.now())
+                                .build())
                         .toList();
 
-                if (!rankedResults.isEmpty()) {
-                    youtubeRecommendationRepository.deleteAll();
-                    youtubeRecommendationRepository.flush();
-
-                    List<YoutubeRecommendation> entities = rankedResults.stream()
-                            .map(dto -> YoutubeRecommendation.builder()
-                                    .videoId(dto.videoId())
-                                    .title(dto.title())
-                                    .thumbnail(dto.thumbnailUrl())
-                                    .channelName(dto.channelName())
-                                    .viewCount(dto.viewCount())
-                                    .publishedAt("")
-                                    .collectedAt(LocalDateTime.now())
-                                    .build())
-                            .toList();
-
-                    youtubeRecommendationRepository.saveAll(entities);
-
-                    log.info("✅ 추천 레시피 DB 갱신 완료: {}개 저장됨. (트렌드 1위: {})",
-                            entities.size(), rankedResults.get(0).title());
-                }
+                youtubeRecommendationRepository.saveAll(entities);
+                log.info("✅ AI 정제 및 저장 완료: {}개 (API 노출 시 랜덤 20개)", entities.size());
             }
 
         } catch (Exception e) {
@@ -955,3 +981,4 @@ public class RecipeExtractionService {
         return false;
     }
 }
+

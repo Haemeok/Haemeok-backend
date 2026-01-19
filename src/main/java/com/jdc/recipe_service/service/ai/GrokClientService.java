@@ -23,6 +23,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -212,6 +213,61 @@ public class GrokClientService {
                     }
                 })
                 .toFuture();
+    }
+
+    public CompletableFuture<List<String>> filterRecipeVideos(List<Map<String, String>> candidates) {
+        if (candidates.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+
+        try {
+            String candidatesJson = objectMapper.writeValueAsString(candidates);
+
+            String systemPrompt = """
+                당신은 '유튜브 요리 레시피 분류기'입니다.
+                입력된 영상 목록(JSON)에서 '요리 레시피(Recipe) 영상'의 ID만 골라내세요.
+                
+                [판단 기준]
+                1. Title: '만드는 법', '레시피', '하기', '밥상' 등 조리 의도 포함.
+                2. Channel: 'Mukbang', 'Vlog' 등은 배제.
+                
+                [제외 대상]
+                - 맛집 탐방, 먹방, 일상 브이로그, 편의점 꿀조합
+                
+                [출력 형식 - 중요]
+                - JSON 객체 포맷을 준수해야 합니다.
+                - 레시피 ID들의 리스트를 "ids"라는 키에 담아 출력하세요.
+                - 예시: { "ids": ["videoId1", "videoId2", "videoId3"] }
+                """;
+
+            String userPrompt = "분석 대상 목록: " + candidatesJson;
+
+            return callGrokApi(systemPrompt, userPrompt, 2000, 0.1)
+                    .flatMap(jsonString -> {
+                        try {
+                            JsonNode rootNode = objectMapper.readTree(jsonString);
+                            JsonNode idsNode = rootNode.get("ids");
+
+                            List<String> validIds;
+                            if (idsNode != null && idsNode.isArray()) {
+                                validIds = objectMapper.convertValue(idsNode, new TypeReference<List<String>>() {});
+                            } else {
+                                validIds = Collections.emptyList();
+                            }
+
+                            log.info("🎯 AI 필터링 결과: 입력 {}개 -> 통과 {}개", candidates.size(), validIds.size());
+                            return Mono.just(validIds);
+                        } catch (Exception e) {
+                            log.error("AI 응답 파싱 실패. JSON: {}", jsonString, e);
+                            return Mono.just(Collections.<String>emptyList());
+                        }
+                    })
+                    .toFuture();
+
+        } catch (Exception e) {
+            log.error("필터링 요청 생성 중 에러", e);
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
     }
 
     public CompletableFuture<RecipeAnalysisResponseDto> analyzeRecipe(String userPrompt) {
