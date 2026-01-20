@@ -58,6 +58,7 @@ public class SecurityConfig {
                             .requestMatchers("/api/test/ai-recipe/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/logs/stats").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/recipes/reports").hasRole("ADMIN")
                             // 2) 공개 GET (인증 없이 모두 허용)
                             .requestMatchers(HttpMethod.GET,
                                     "/api/ingredients",
@@ -97,6 +98,7 @@ public class SecurityConfig {
                             // 4) 보호된 POST
                             .requestMatchers(HttpMethod.POST,
                                     "/api/me/fridge/items",
+                                    "/api/recipes/*/ingredients/*/reports",
                                     "/api/me/records",
                                     "/api/me/survey",
                                     "/api/recipes/*/comments",
@@ -209,6 +211,8 @@ public class SecurityConfig {
                                 "/api/users/*/profile-image/presign"
                         ).authenticated()
 
+                        .requestMatchers(HttpMethod.GET, "/api/recipes/reports").hasRole("ADMIN")
+
                         // 3) 읽기 전용 GET (모두 허용)
                         .requestMatchers(HttpMethod.GET,
                                 "/api/ingredients",
@@ -240,6 +244,7 @@ public class SecurityConfig {
                         // 4) 인증 필요 POST
                         .requestMatchers(HttpMethod.POST,
                                 "/api/ingredients",
+                                "/api/recipes/*/ingredients/*/reports",
                                 "/api/recipes/*/comments",
                                 "/api/recipes/*/comments/*/replies",
                                 "/api/comments/*/like",
