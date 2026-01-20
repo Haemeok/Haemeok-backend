@@ -189,6 +189,7 @@ public class RecipeRecommendationService {
                 recipe.getAvgRating() != null ? recipe.getAvgRating() : BigDecimal.ZERO,
                 recipe.getRatingCount(),
                 recipe.getYoutubeChannelName(),
+                recipe.getYoutubeChannelId(),
                 recipe.getYoutubeVideoTitle(),
                 recipe.getYoutubeThumbnailUrl(),
                 recipe.getYoutubeChannelProfileUrl(),

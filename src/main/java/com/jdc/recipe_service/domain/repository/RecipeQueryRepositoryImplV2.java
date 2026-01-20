@@ -67,6 +67,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
                         recipe.youtubeChannelName,
+                        recipe.youtubeChannelId,
                         recipe.youtubeVideoTitle,
                         recipe.youtubeThumbnailUrl,
                         recipe.youtubeChannelProfileUrl,

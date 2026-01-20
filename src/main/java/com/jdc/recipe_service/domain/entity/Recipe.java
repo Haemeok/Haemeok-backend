@@ -70,6 +70,9 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "youtube_channel_name", length = 100)
     private String youtubeChannelName;
 
+    @Column(name = "youtube_channel_id",  length = 100)
+    private String youtubeChannelId;
+
     @Column(name = "youtube_video_title", length = 255)
     private String youtubeVideoTitle;
 
@@ -238,8 +241,9 @@ public class Recipe extends BaseTimeEntity {
         this.marketPrice = marketPrice;
     }
 
-    public void updateYoutubeInfo(String channelName, String videoTitle, String thumbnailUrl,String channelProfileUrl, Long subscriberCount) {
+    public void updateYoutubeInfo(String channelName,String channelId, String videoTitle, String thumbnailUrl,String channelProfileUrl, Long subscriberCount) {
         this.youtubeChannelName = channelName;
+        this.youtubeChannelId = channelId;
         this.youtubeVideoTitle = videoTitle;
         this.youtubeThumbnailUrl = thumbnailUrl;
         this.youtubeChannelProfileUrl = channelProfileUrl;
