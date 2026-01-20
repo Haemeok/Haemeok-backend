@@ -200,10 +200,16 @@ public class AdminRecipeService {
         for (AdminIngredientUpdateDto dto : dtos) {
             String action = dto.getAction() != null ? dto.getAction().toUpperCase() : "UPDATE";
 
+            RecipeIngredient target = currentIngredients.stream()
+                    .filter(i -> (i.getIngredient() != null && i.getIngredient().getId().equals(dto.getId())) // 표준 재료 매칭 (19번 등)
+                            || (i.getId().equals(dto.getId())))
+                    .findFirst()
+                    .orElse(null);
+
             if ("DELETE".equals(action)) {
-                RecipeIngredient target = findById(currentIngredients, dto.getId());
                 if (target != null) {
-                    resolvePendingReports(target.getId());
+                    Long reportIdKey = (target.getIngredient() != null) ? target.getIngredient().getId() : target.getId();
+                    resolvePendingReports(reportIdKey);
                     recipeIngredientRepository.delete(target);
                 }
                 continue;
@@ -242,8 +248,8 @@ public class AdminRecipeService {
                 }
                 recipeIngredientRepository.save(builder.build());
 
-            } else if ("UPDATE".equals(action)) {
-                RecipeIngredient target = findById(currentIngredients, dto.getId());
+            }
+            else if ("UPDATE".equals(action)) {
                 if (target != null) {
                     target.updateWithMapping(
                             dto.getName(),
@@ -253,7 +259,10 @@ public class AdminRecipeService {
                             calculatedPrice,
                             dto
                     );
-                    resolvePendingReports(target.getId());
+                    Long reportIdKey = (target.getIngredient() != null) ? target.getIngredient().getId() : target.getId();
+                    resolvePendingReports(reportIdKey);
+                } else {
+                    log.warn("[WARN] 수정을 시도했으나 레시피 {}에서 재료 ID {}를 찾을 수 없습니다.", recipeId, dto.getId());
                 }
             }
         }
@@ -262,12 +271,10 @@ public class AdminRecipeService {
         em.clear();
 
         List<RecipeIngredient> updatedIngredients = recipeIngredientRepository.findByRecipeId(recipeId);
-
         calculateAndSetTotalNutrition(recipe, updatedIngredients);
 
         int newTotalCost = updatedIngredients.stream().mapToInt(RecipeIngredient::getPrice).sum();
         recipe.updateTotalIngredientCost(newTotalCost);
-
         recipe.updateMarketPrice(PricingUtil.applyMargin(newTotalCost, 30));
 
         recipeRepository.save(recipe);
