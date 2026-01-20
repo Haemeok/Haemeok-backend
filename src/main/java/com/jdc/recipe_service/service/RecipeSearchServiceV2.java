@@ -65,7 +65,8 @@ public class RecipeSearchServiceV2 {
     private final RecipeStepRepository recipeStepRepository;
     private final RecipeTagRepository recipeTagRepository;
     private final RecipeStepIngredientRepository recipeStepIngredientRepository;
-    private final RecipeFavoriteRepository recipeFavoriteRepository;
+    private final RecipeIngredientReportRepository recipeIngredientReportRepository;
+
     private final CommentService commentService;
 
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
@@ -190,6 +191,8 @@ public class RecipeSearchServiceV2 {
                     .build();
         }
 
+        List<Long> contributors = recipeIngredientReportRepository.findVerifiedMemberIds(recipeId);
+
         return RecipeDetailStaticDto.builder()
                 .id(recipeId)
                 .title(basic.getTitle())
@@ -201,10 +204,12 @@ public class RecipeSearchServiceV2 {
                 .imageStatus(basic.getImageStatus() != null ? basic.getImageStatus().name() : null)
                 .youtubeUrl(basic.getYoutubeUrl())
                 .youtubeChannelName(basic.getYoutubeChannelName())
+                .youtubeChannelId(basic.getYoutubeChannelId())
                 .youtubeVideoTitle(basic.getYoutubeVideoTitle())
                 .youtubeThumbnailUrl(basic.getYoutubeThumbnailUrl())
                 .youtubeChannelProfileUrl(basic.getYoutubeChannelProfileUrl())
                 .youtubeSubscriberCount(basic.getYoutubeSubscriberCount())
+                .contributors(contributors)
                 .cookingTools(new ArrayList<>(basic.getCookingTools()))
                 .servings(basic.getServings())
                 .isPrivate(basic.getIsPrivate())
