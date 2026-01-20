@@ -19,7 +19,7 @@ import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.service.media.YtDlpService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +28,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,26 +43,8 @@ public class RecipeExtractionService {
     private static final int MAX_SCRIPT_CHARS  = 80_000;
     private static final int MAX_DESC_CHARS    = 10_000;
     private static final int MAX_CMT_CHARS     = 1_000;
-
-    private final YtDlpService ytDlpService;
-    private final GrokClientService grokClientService;
-    private final GeminiMultimodalService geminiMultimodalService;
-    private final RecipeService recipeService;
-    private final DailyQuotaService dailyQuotaService;
-    private final RecipeFavoriteService recipeFavoriteService;
-    private final RecipeActivityService recipeActivityService;
-
-
-    private final RecipeRepository recipeRepository;
-    private final YoutubeTargetChannelRepository youtubeTargetChannelRepository;
-    private final YoutubeRecommendationRepository youtubeRecommendationRepository;
-
-    private final TransactionTemplate transactionTemplate;
-
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
     private static final Set<String> SPECIAL_QTY = Set.of("약간");
-
-    private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
 
     private static final List<String> NOISE_KEYWORDS = List.of(
             // 1. 기존 먹방/브이로그
@@ -98,6 +83,24 @@ public class RecipeExtractionService {
             "(?i)(만드는|방법|recipe|step|direction|넣고|볶|끓|굽|튀기|섞|다지|채썰|chop|mix|boil|fry|bake|roast)"
     );
 
+    private final YtDlpService ytDlpService;
+    private final GrokClientService grokClientService;
+    private final GeminiMultimodalService geminiMultimodalService;
+    private final RecipeService recipeService;
+    private final DailyQuotaService dailyQuotaService;
+    private final RecipeFavoriteService recipeFavoriteService;
+    private final RecipeActivityService recipeActivityService;
+
+    private final RecipeRepository recipeRepository;
+    private final YoutubeTargetChannelRepository youtubeTargetChannelRepository;
+    private final YoutubeRecommendationRepository youtubeRecommendationRepository;
+
+    private final TransactionTemplate transactionTemplate;
+    private final Executor extractionExecutor;
+
+    private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
+    private final ConcurrentHashMap<String, CompletableFuture<PresignedUrlResponse>> extractionTasks = new ConcurrentHashMap<>();
+
     public RecipeExtractionService(
             YtDlpService ytDlpService,
             GrokClientService grokClientService,
@@ -106,7 +109,8 @@ public class RecipeExtractionService {
             DailyQuotaService dailyQuotaService, RecipeActivityService recipeActivityService,
             RecipeRepository recipeRepository,
             RecipeFavoriteService recipeFavoriteService, YoutubeTargetChannelRepository youtubeTargetChannelRepository, YoutubeRecommendationRepository youtubeRecommendationRepository,
-            TransactionTemplate transactionTemplate
+            TransactionTemplate transactionTemplate,
+            @Qualifier("recipeExtractionExecutor") Executor extractionExecutor
     ) {
         this.ytDlpService = ytDlpService;
         this.grokClientService = grokClientService;
@@ -119,6 +123,7 @@ public class RecipeExtractionService {
         this.youtubeTargetChannelRepository = youtubeTargetChannelRepository;
         this.youtubeRecommendationRepository = youtubeRecommendationRepository;
         this.transactionTemplate = transactionTemplate;
+        this.extractionExecutor = extractionExecutor;
     }
 
     private String getExtractionPrompt() {
@@ -436,80 +441,114 @@ public class RecipeExtractionService {
             """;
     }
 
-    @Async("recipeExtractionExecutor")
     public CompletableFuture<PresignedUrlResponse> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
-        log.info("🚀 유튜브 레시피 추출 요청: URL={}", videoUrl);
+        log.info("🚀 유튜브 레시피 추출 요청: URL={}, UserID={}", videoUrl, userId);
 
         if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
             throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
         }
-
         String videoId = extractVideoId(videoUrl);
+        if (videoId == null) throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
 
-        if (videoId != null) {
-            String standardizedUrl = convertToCanonical(videoId);
-            Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(standardizedUrl);
-            if (existingRecipe.isPresent()) {
-                log.info("♻️ 이미 존재하는 레시피 발견 (ID 기반). 생성 건너뜀: ID={}", existingRecipe.get().getId());
-                return handleExistingRecipe(existingRecipe.get(), userId);
+        CompletableFuture<PresignedUrlResponse> sharedTask = extractionTasks.computeIfAbsent(videoId, key -> {
+            log.info("🚌 [버스 출발] 새로운 추출 작업 시작 (운전자: {}). VideoID: {}", userId, key);
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    return processActualExtractionLogic(videoUrl, userId, key, nickname);
+                } finally {
+                    extractionTasks.remove(key);
+                    log.info("🏁 [종점 도착] 작업 종료 및 맵에서 제거. VideoID: {}", key);
+                }
+            }, extractionExecutor).orTimeout(5, TimeUnit.MINUTES);
+        });
+
+        sharedTask.whenComplete((res, ex) -> {
+            if (extractionTasks.remove(videoId) != null) {
+                log.info("🏁 [종점 도착] 맵에서 Key 제거 완료: {}", videoId);
             }
+        });
+
+        return sharedTask.handle((response, ex) -> {
+            if (ex != null) {
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                if (cause instanceof RuntimeException re) throw re;
+                throw new RuntimeException(cause);
+            }
+
+            try {
+                log.info("⭐ 유저 {}에게 레시피 {} 즐겨찾기/로그 추가", userId, response.getRecipeId());
+                addFavoriteToUser(userId, response.getRecipeId());
+                recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
+            } catch (Exception e) {
+                log.warn("⚠️ 후속 처리(즐겨찾기 등) 실패: userId={}, error={}", userId, e.getMessage());
+            }
+            return response;
+        });
+    }
+
+    private PresignedUrlResponse processActualExtractionLogic(String videoUrl, Long userId, String videoId, String nickname) {
+        boolean shorts = isShortsUrl(videoUrl);
+        String storageUrl = buildStorageYoutubeUrl(videoId, shorts);
+        String watchUrl  = buildStorageYoutubeUrl(videoId, false);
+        String shortsUrl = buildStorageYoutubeUrl(videoId, true);
+
+        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(watchUrl)
+                .or(() -> recipeRepository.findByYoutubeUrl(shortsUrl));
+
+        if (existingRecipe.isPresent()) {
+            log.info("♻️ 이미 존재하는 레시피 발견. 생성 건너뜀.");
+            return handleExistingRecipe(existingRecipe.get()).join();
         }
 
         dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION);
 
-        String canonicalUrl = videoUrl;
         String title = "제목 미상";
         String description = "";
         String comments = "";
         String scriptPlain = "";
-
         String channelName = "";
+        String channelId = "";
         String originalVideoTitle = "";
         String thumbnailUrl = "";
         String channelProfileUrl = "";
         Long subscriberCount = 0L;
-
         boolean useUrlFallback = false;
 
         try {
             YtDlpService.YoutubeFullDataDto videoData = ytDlpService.getVideoDataFull(videoUrl);
 
-            canonicalUrl = nullToEmpty(videoData.canonicalUrl());
             title = nullToEmpty(videoData.title());
             description = cap(nullToEmpty(videoData.description()), MAX_DESC_CHARS);
             comments = cap(nullToEmpty(videoData.comments()), MAX_CMT_CHARS);
             scriptPlain = cap(nullToEmpty(videoData.scriptTimecoded()), MAX_SCRIPT_CHARS);
-
             channelName = nullToEmpty(videoData.channelName());
+            channelId = nullToEmpty(videoData.channelId());
             originalVideoTitle = nullToEmpty(videoData.title());
             thumbnailUrl = nullToEmpty(videoData.thumbnailUrl());
             channelProfileUrl = nullToEmpty(videoData.channelProfileUrl());
             subscriberCount = videoData.youtubeSubscriberCount();
 
+            String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
                 log.info("♻️ 이미 존재하는 레시피 발견 (Canonical URL). 쿼터 환불 및 연결: ID={}", existingRecipeCanonical.get().getId());
-
                 dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
-
-                return handleExistingRecipe(existingRecipeCanonical.get(), userId);
+                return handleExistingRecipe(existingRecipeCanonical.get()).join();
             }
 
         } catch (Exception e) {
-            log.warn("⚠️ yt-dlp 추출 실패 (YouTube 차단/오류). Gemini 영상 분석으로 즉시 전환합니다. Error: {}", safeMsg(e));
+            log.warn("⚠️ yt-dlp 실패 -> Gemini 모드 전환: {}", safeMsg(e));
             useUrlFallback = true;
         }
 
         try {
             String fullContext = cap(("""
-                영상 URL: %s
-                영상 제목: %s
-                영상 설명: %s
-                고정/인기 댓글: %s
-                자막: %s
-                """).formatted(
-                    canonicalUrl,
-                    title,
+            영상 URL: %s
+            영상 제목: %s
+            영상 설명: %s
+            고정/인기 댓글: %s
+            자막: %s
+            """).formatted(storageUrl, title,
                     emptyToPlaceholder(description, "(없음)"),
                     emptyToPlaceholder(comments, "(없음)"),
                     emptyToPlaceholder(scriptPlain, "(없음)")
@@ -573,7 +612,7 @@ public class RecipeExtractionService {
                 log.info("🎥 [멀티모달 모드] Gemini 3.0 Flash에게 영상 URL 직접 전송");
 
                 RecipeCreateRequestDto geminiRecipe = geminiMultimodalService
-                        .generateRecipeFromYoutubeUrl(getExtractionPromptV2(), title, canonicalUrl)
+                        .generateRecipeFromYoutubeUrl(getExtractionPromptV2(), title, storageUrl)
                         .join();
 
                 if (geminiRecipe == null) {
@@ -613,9 +652,9 @@ public class RecipeExtractionService {
             if (recipeDto.getTitle() == null || recipeDto.getTitle().isBlank() || "제목 미상".equals(title)) {
                 recipeDto.setTitle(recipeDto.getTitle() != null && !recipeDto.getTitle().isBlank() ? recipeDto.getTitle() : title);
             }
-            recipeDto.setYoutubeUrl(canonicalUrl);
-
+            recipeDto.setYoutubeUrl(storageUrl);
             recipeDto.setYoutubeChannelName(channelName);
+            recipeDto.setYoutubeChannelId(channelId);
             recipeDto.setYoutubeVideoTitle(originalVideoTitle);
             recipeDto.setYoutubeThumbnailUrl(thumbnailUrl);
             recipeDto.setYoutubeChannelProfileUrl(channelProfileUrl);
@@ -625,12 +664,8 @@ public class RecipeExtractionService {
 
             PresignedUrlResponse response = saveRecipeTransactional(recipeDto, OFFICIAL_RECIPE_USER_ID);
 
-            addFavoriteToUser(userId, response.getRecipeId());
-
-            recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
-
             log.info("💾 신규 생성 및 즐겨찾기 추가 완료: ID={}, UserID={}", response.getRecipeId(), userId);
-            return CompletableFuture.completedFuture(response);
+            return response;
 
         } catch (CustomException e) {
             if (e.getErrorCode() == ErrorCode.INVALID_INPUT_VALUE) {
@@ -787,14 +822,12 @@ public class RecipeExtractionService {
         return existingRecipe.map(Recipe::getId).orElse(null);
     }
 
-    private CompletableFuture<PresignedUrlResponse> handleExistingRecipe(Recipe recipe, Long requestingUserId) {
-        addFavoriteToUser(requestingUserId, recipe.getId());
-
+    private CompletableFuture<PresignedUrlResponse> handleExistingRecipe(Recipe recipe) {
         PresignedUrlResponse response = PresignedUrlResponse.builder()
                 .recipeId(recipe.getId())
                 .uploads(Collections.emptyList())
+                .created(false)
                 .build();
-
         return CompletableFuture.completedFuture(response);
     }
 
@@ -980,5 +1013,16 @@ public class RecipeExtractionService {
         }
         return false;
     }
+
+    private boolean isShortsUrl(String url) {
+        if (url == null) return false;
+        return url.contains("youtube.com/shorts/") || url.contains("/shorts/");
+    }
+
+    private String buildStorageYoutubeUrl(String videoId, boolean shorts) {
+        if (shorts) return "https://www.youtube.com/shorts/" + videoId;
+        return "https://www.youtube.com/watch?v=" + videoId;
+    }
+
 }
 
