@@ -3,14 +3,15 @@ package com.jdc.recipe_service.controller;
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
+import com.jdc.recipe_service.domain.dto.report.AdminIngredientUpdateDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
+import com.jdc.recipe_service.domain.type.Role;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.AdminRecipeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +39,7 @@ public class AdminRecipeController {
     @PostMapping
     @Operation(summary = "크롤링 레시피 단건 등록", description = "관리자가 단일 크롤링 레시피를 저장합니다.")
     public ResponseEntity<Map<String, String>> createCrawledRecipe(
-            @RequestBody(description = "크롤링 레시피 생성 요청 DTO") @Valid RecipeCreateRequestDto dto,
+            @RequestBody @Valid RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUser().getId();
         Long recipeId = recipeService.createRecipe(dto, userId);
@@ -48,7 +49,7 @@ public class AdminRecipeController {
     @PostMapping("/bulk")
     @Operation(summary = "크롤링 레시피 일괄 등록", description = "관리자가 여러 개의 크롤링 레시피를 한 번에 저장합니다.")
     public ResponseEntity<Map<String, Object>> createCrawledRecipesInBulk(
-            @RequestBody(description = "크롤링 레시피 리스트") @Valid List<RecipeCreateRequestDto> recipes,
+            @RequestBody @Valid List<RecipeCreateRequestDto> recipes,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = userDetails.getUser().getId();
@@ -68,7 +69,7 @@ public class AdminRecipeController {
     @PostMapping("/with-images")
     @Operation(summary = "크롤링 레시피 + 이미지 업로드 URL 발급", description = "레시피와 함께 이미지 업로드용 Presigned URL을 발급합니다.")
     public ResponseEntity<PresignedUrlResponse> createCrawledRecipeWithPresignedUrls(
-            @RequestBody(description = "레시피 + 이미지 요청 DTO") RecipeWithImageUploadRequest request,
+            @RequestBody RecipeWithImageUploadRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUser().getId();
         PresignedUrlResponse response = recipeService.createRecipeAndPresignedUrls(request, userId);
@@ -79,7 +80,7 @@ public class AdminRecipeController {
     @Operation(summary = "크롤링 레시피 수정", description = "관리자가 기존의 크롤링 레시피를 수정합니다.")
     public ResponseEntity<Map<String, String>> updateCrawledRecipe(
             @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
-            @RequestBody(description = "수정할 레시피 정보") RecipeCreateRequestDto dto,
+            @RequestBody RecipeCreateRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = userDetails.getUser().getId();
@@ -100,5 +101,21 @@ public class AdminRecipeController {
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
         recipeService.deleteRecipe(recipeId, userId, isAdmin);
         return ResponseEntity.ok("크롤링 레시피가 성공적으로 삭제되었습니다.");
+    }
+
+    @PutMapping("/{recipeId}/ingredients")
+    @Operation(summary = "재료 일괄 수정 (관리자)", description = "관리자가 재료를 추가, 수정, 삭제하고 신고 내역을 자동 해결 처리합니다.")
+    public ResponseEntity<String> updateIngredientsBatch(
+            @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
+            @RequestBody List<AdminIngredientUpdateDto> dtos,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (userDetails == null || userDetails.getUser().getRole() != Role.ADMIN) {
+            throw new CustomException(ErrorCode.ADMIN_ACCESS_DENIED);
+        }
+
+        recipeService.updateIngredientsBatch(recipeId, dtos);
+
+        return ResponseEntity.ok("재료 수정 및 관련 신고 처리가 완료되었습니다.");
     }
 }

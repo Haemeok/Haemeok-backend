@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.domain.entity;
 
+import com.jdc.recipe_service.domain.dto.report.AdminIngredientUpdateDto;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -69,4 +70,37 @@ public class RecipeIngredient {
     @Column(name = "custom_sodium", precision = 10, scale = 3)
     @Builder.Default
     private BigDecimal customSodium = BigDecimal.ZERO;
+
+    public void updateWithMapping(String name, String quantity, String unit,
+                                  Ingredient master, Integer calculatedPrice,
+                                  AdminIngredientUpdateDto dto) {
+        this.quantity = quantity;
+        this.unit = unit;
+        this.price = calculatedPrice;
+
+        if (master != null) {
+            this.ingredient = master;
+            this.customName = null;
+            this.customUnit = null;
+            this.customPrice = 0;
+            this.customCalorie = BigDecimal.ZERO;
+            this.customCarbohydrate = BigDecimal.ZERO;
+            this.customProtein = BigDecimal.ZERO;
+            this.customFat = BigDecimal.ZERO;
+            this.customSugar = BigDecimal.ZERO;
+            this.customSodium = BigDecimal.ZERO;
+        } else {
+            this.ingredient = null;
+            this.customName = name;
+            this.customUnit = unit;
+            this.customPrice = calculatedPrice;
+
+            this.customCalorie = dto.getCalorie() != null ? dto.getCalorie() : BigDecimal.ZERO;
+            this.customCarbohydrate = dto.getCarbohydrate() != null ? dto.getCarbohydrate() : BigDecimal.ZERO;
+            this.customProtein = dto.getProtein() != null ? dto.getProtein() : BigDecimal.ZERO;
+            this.customFat = dto.getFat() != null ? dto.getFat() : BigDecimal.ZERO;
+            this.customSugar = dto.getSugar() != null ? dto.getSugar() : BigDecimal.ZERO;
+            this.customSodium = dto.getSodium() != null ? dto.getSodium() : BigDecimal.ZERO;
+        }
+    }
 }

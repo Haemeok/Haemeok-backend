@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
+import com.jdc.recipe_service.domain.dto.report.AdminIngredientUpdateDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponseItem;
 import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
@@ -16,14 +17,20 @@ import com.jdc.recipe_service.mapper.RecipeMapper;
 import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.S3Util;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminRecipeService {
 
     private final RecipeIngredientService recipeIngredientService;
@@ -36,6 +43,11 @@ public class AdminRecipeService {
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final S3Util s3Util;
+
+    private final RecipeIngredientRepository recipeIngredientRepository;
+    private final RecipeIngredientReportRepository recipeIngredientReportRepository;
+    private final IngredientRepository ingredientRepository;
+    private final EntityManager em;
 
     @Transactional
     public Long createRecipe(RecipeCreateRequestDto dto, Long userId) {
@@ -170,6 +182,186 @@ public class AdminRecipeService {
 
         recipeRepository.delete(recipe);
         return recipeId;
+    }
+
+    /**
+     * [관리자 전용] 재료 일괄 수정 (Batch Update)
+     * - 기능: 추가(CREATE), 수정(UPDATE), 삭제(DELETE)
+     * - 특징: 표준/커스텀 자동 판별, 신고 자동 해결, 영양소/비용 재계산
+     */
+    @Transactional
+    public void updateIngredientsBatch(Long recipeId, List<AdminIngredientUpdateDto> dtos) {
+        Recipe recipe = getRecipeOrThrow(recipeId);
+        List<RecipeIngredient> currentIngredients = recipeIngredientRepository.findByRecipeId(recipeId);
+
+        Map<String, Ingredient> masterIngredientMap = ingredientRepository.findAll().stream()
+                .collect(Collectors.toMap(i -> i.getName().trim(), Function.identity(), (p1, p2) -> p1));
+
+        for (AdminIngredientUpdateDto dto : dtos) {
+            String action = dto.getAction() != null ? dto.getAction().toUpperCase() : "UPDATE";
+
+            if ("DELETE".equals(action)) {
+                RecipeIngredient target = findById(currentIngredients, dto.getId());
+                if (target != null) {
+                    resolvePendingReports(target.getId());
+                    recipeIngredientRepository.delete(target);
+                }
+                continue;
+            }
+
+            Ingredient master = masterIngredientMap.get(dto.getName().trim());
+            int calculatedPrice = 0;
+
+            if (master != null) {
+                double qty = parseQuantity(dto.getQuantity());
+                int masterPrice = master.getPrice() != null ? master.getPrice() : 0;
+                calculatedPrice = (int) (masterPrice * qty);
+            } else {
+                calculatedPrice = (dto.getPrice() != null) ? dto.getPrice() : 0;
+            }
+
+            if ("CREATE".equals(action)) {
+                RecipeIngredient.RecipeIngredientBuilder builder = RecipeIngredient.builder()
+                        .recipe(recipe)
+                        .quantity(dto.getQuantity())
+                        .unit(dto.getUnit())
+                        .price(calculatedPrice);
+
+                if (master != null) {
+                    builder.ingredient(master);
+                } else {
+                    builder.customName(dto.getName());
+                    builder.customUnit(dto.getUnit());
+                    builder.customPrice(calculatedPrice);
+                    builder.customCalorie(valOrZero(dto.getCalorie()))
+                            .customCarbohydrate(valOrZero(dto.getCarbohydrate()))
+                            .customProtein(valOrZero(dto.getProtein()))
+                            .customFat(valOrZero(dto.getFat()))
+                            .customSugar(valOrZero(dto.getSugar()))
+                            .customSodium(valOrZero(dto.getSodium()));
+                }
+                recipeIngredientRepository.save(builder.build());
+
+            } else if ("UPDATE".equals(action)) {
+                RecipeIngredient target = findById(currentIngredients, dto.getId());
+                if (target != null) {
+                    target.updateWithMapping(
+                            dto.getName(),
+                            dto.getQuantity(),
+                            dto.getUnit(),
+                            master,
+                            calculatedPrice,
+                            dto
+                    );
+                    resolvePendingReports(target.getId());
+                }
+            }
+        }
+
+        recipeIngredientRepository.flush();
+        em.clear();
+
+        List<RecipeIngredient> updatedIngredients = recipeIngredientRepository.findByRecipeId(recipeId);
+
+        calculateAndSetTotalNutrition(recipe, updatedIngredients);
+
+        int newTotalCost = updatedIngredients.stream().mapToInt(RecipeIngredient::getPrice).sum();
+        recipe.updateTotalIngredientCost(newTotalCost);
+
+        recipe.updateMarketPrice(PricingUtil.applyMargin(newTotalCost, 30));
+
+        recipeRepository.save(recipe);
+        log.info("관리자 재료 일괄 수정 완료. RecipeID={}", recipeId);
+    }
+
+
+    private RecipeIngredient findById(List<RecipeIngredient> list, Long id) {
+        if (id == null) return null;
+        return list.stream().filter(i -> i.getId().equals(id)).findFirst().orElse(null);
+    }
+
+    private void resolvePendingReports(Long ingredientId) {
+        List<RecipeIngredientReport> reports =
+                recipeIngredientReportRepository.findByIngredientIdAndIsResolvedFalse(ingredientId);
+        for (RecipeIngredientReport report : reports) {
+            report.markAsResolved();
+        }
+    }
+
+    private void calculateAndSetTotalNutrition(Recipe recipe, List<RecipeIngredient> ingredients) {
+        BigDecimal totalCalorie = BigDecimal.ZERO;
+        BigDecimal totalCarb = BigDecimal.ZERO;
+        BigDecimal totalProtein = BigDecimal.ZERO;
+        BigDecimal totalFat = BigDecimal.ZERO;
+        BigDecimal totalSugar = BigDecimal.ZERO;
+        BigDecimal totalSodium = BigDecimal.ZERO;
+
+        for (RecipeIngredient ri : ingredients) {
+            BigDecimal quantity = parseQuantityToBigDecimal(ri.getQuantity());
+
+            if (ri.getIngredient() != null) {
+                Ingredient ing = ri.getIngredient();
+
+                totalCalorie = totalCalorie.add(valOrZero(ing.getCalorie()).multiply(quantity));
+                totalCarb = totalCarb.add(valOrZero(ing.getCarbohydrate()).multiply(quantity));
+                totalProtein = totalProtein.add(valOrZero(ing.getProtein()).multiply(quantity));
+                totalFat = totalFat.add(valOrZero(ing.getFat()).multiply(quantity));
+                totalSugar = totalSugar.add(valOrZero(ing.getSugar()).multiply(quantity));
+                totalSodium = totalSodium.add(valOrZero(ing.getSodium()).multiply(quantity));
+            } else {
+                totalCalorie = totalCalorie.add(valOrZero(ri.getCustomCalorie()));
+                totalCarb = totalCarb.add(valOrZero(ri.getCustomCarbohydrate()));
+                totalProtein = totalProtein.add(valOrZero(ri.getCustomProtein()));
+                totalFat = totalFat.add(valOrZero(ri.getCustomFat()));
+                totalSugar = totalSugar.add(valOrZero(ri.getCustomSugar()));
+                totalSodium = totalSodium.add(valOrZero(ri.getCustomSodium()));
+            }
+        }
+
+        recipe.updateNutrition(totalProtein, totalCarb, totalFat, totalSugar, totalSodium, totalCalorie);
+    }
+
+    private BigDecimal parseQuantityToBigDecimal(String quantityStr) {
+        if (quantityStr == null || quantityStr.isBlank()) return BigDecimal.ZERO;
+        String cleanStr = quantityStr.replaceAll("[^0-9./]", "");
+        try {
+            if (cleanStr.contains("/")) {
+                String[] parts = cleanStr.split("/");
+                if (parts.length == 2) {
+                    double num = Double.parseDouble(parts[0]);
+                    double den = Double.parseDouble(parts[1]);
+                    if (den == 0) return BigDecimal.ZERO;
+                    return BigDecimal.valueOf(num / den);
+                }
+            }
+            return new BigDecimal(cleanStr);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private double parseQuantity(String quantityStr) {
+        if (quantityStr == null || quantityStr.trim().isEmpty()) return 0.0;
+        quantityStr = quantityStr.trim();
+        if (Set.of("약간", "적당량").contains(quantityStr)) return 0.0;
+        try {
+            if (quantityStr.contains("/")) {
+                String[] parts = quantityStr.split("/");
+                if (parts.length == 2) {
+                    double num = Double.parseDouble(parts[0].trim());
+                    double den = Double.parseDouble(parts[1].trim());
+                    if (den == 0) return 0.0;
+                    return num / den;
+                }
+            }
+            return Double.parseDouble(quantityStr.replaceAll("[^0-9.]", ""));
+        } catch (NumberFormatException e) {
+            return 0.0;
+        }
+    }
+
+    private BigDecimal valOrZero(BigDecimal val) {
+        return val != null ? val : BigDecimal.ZERO;
     }
 
     private List<PresignedUrlResponseItem> generatePresignedUrlsAndSaveImages(Recipe recipe, List<FileInfoRequest> files) {
