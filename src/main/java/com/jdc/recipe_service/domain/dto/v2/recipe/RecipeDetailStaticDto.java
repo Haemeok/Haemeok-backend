@@ -61,6 +61,9 @@ public class RecipeDetailStaticDto {
     @Schema(description = "유튜브 채널명")
     private String youtubeChannelName;
 
+    @Schema(description = "유튜브 채널 ID")
+    private String youtubeChannelId;
+
     @Schema(description = "유튜브 원본 영상 제목")
     private String youtubeVideoTitle;
 
@@ -72,6 +75,10 @@ public class RecipeDetailStaticDto {
 
     @Schema(description = "유튜브 구독자 수")
     private Long youtubeSubscriberCount;
+
+    @Schema(description = "레시피 오류 수정에 기여한 사용자 ID 목록")
+    @JsonSerialize(contentUsing = HashIdSerializer.class)
+    private List<Long> contributors;
 
     @Schema(description = "조리 도구 목록")
     private List<String> cookingTools;

@@ -193,6 +193,7 @@ public class UserService {
                             likedIds.contains(recipe.getId()),
                             recipe.getCookingTime(),
                             recipe.getYoutubeChannelName(),
+                            recipe.getYoutubeChannelId(),
                             recipe.getYoutubeVideoTitle(),
                             recipe.getYoutubeThumbnailUrl(),
                             recipe.getYoutubeChannelProfileUrl(),

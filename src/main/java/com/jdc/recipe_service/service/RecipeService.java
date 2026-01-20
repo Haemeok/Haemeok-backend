@@ -78,6 +78,7 @@ public class RecipeService {
         if (sourceType == RecipeSourceType.YOUTUBE) {
             recipe.updateYoutubeInfo(
                     dto.getYoutubeChannelName(),
+                    dto.getYoutubeChannelId(),
                     dto.getYoutubeVideoTitle(),
                     dto.getYoutubeThumbnailUrl(),
                     dto.getYoutubeChannelProfileUrl(),

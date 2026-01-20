@@ -85,6 +85,7 @@ public class YtDlpService {
                 nullToEmpty(subs.timecodedText),
                 nullToEmpty(subs.plainText),
                 nullToEmpty(mc.channelName),
+                nullToEmpty(mc.channelId),
                 nullToEmpty(mc.thumbnailUrl),
                 nullToEmpty(mc.channelProfileUrl),
                 mc.subscriberCount
@@ -107,6 +108,8 @@ public class YtDlpService {
                 String title = optText(metaRoot, "title");
                 String desc = optText(metaRoot, "description");
                 String thumbnail = optText(metaRoot, "thumbnail");
+                String channelId = optText(metaRoot, "channel_id");
+                if (isBlank(channelId)) channelId = optText(metaRoot, "uploader_id");
 
                 ChannelInfo channelInfo = fetchChannelMetadata(metaRoot);
 
@@ -127,6 +130,7 @@ public class YtDlpService {
                         desc,
                         commentsBuilder.toString(),
                         channelInfo.name(),
+                        channelId,
                         thumbnail,
                         channelInfo.profileUrl(),
                         channelInfo.subscriberCount()
@@ -150,7 +154,7 @@ public class YtDlpService {
             } catch (Exception ignored) {
             }
         }
-        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "",  "",0L);
+        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "", "", "", 0L);
     }
 
     private boolean isBetter(MetaAndComment a, MetaAndComment b) {
@@ -684,6 +688,7 @@ public class YtDlpService {
             String description,
             String comments,
             String channelName,
+            String channelId,
             String thumbnailUrl,
             String channelProfileUrl,
             Long subscriberCount
@@ -714,6 +719,7 @@ public class YtDlpService {
             String scriptTimecoded,
             String scriptPlain,
             String channelName,
+            String channelId,
             String thumbnailUrl,
             String channelProfileUrl,
             Long youtubeSubscriberCount

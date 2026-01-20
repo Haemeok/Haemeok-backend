@@ -66,6 +66,9 @@ public class RecipeSimpleStaticDtoV2 {
     @Schema(description = "유튜브 채널명")
     private String youtubeChannelName;
 
+    @Schema(description = "유튜브 채널 ID")
+    private String youtubeChannelId;
+
     @Schema(description = "유튜브 원본 영상 제목")
     private String youtubeVideoTitle;
 
@@ -90,7 +93,7 @@ public class RecipeSimpleStaticDtoV2 {
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                    LocalDateTime createdAt, Integer cookingTime, long likeCount, BigDecimal avgRating,
                                    long ratingCount, Integer ingredientCost, Integer marketPrice,
-                                   String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
+                                   String youtubeChannelName, String youtubeChannelId,  String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
                                    String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -106,6 +109,7 @@ public class RecipeSimpleStaticDtoV2 {
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
         this.youtubeChannelName = youtubeChannelName;
+        this.youtubeChannelId = youtubeChannelId;
         this.youtubeVideoTitle = youtubeVideoTitle;
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;
@@ -117,7 +121,7 @@ public class RecipeSimpleStaticDtoV2 {
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
                                    LocalDateTime createdAt, Integer cookingTime, Long likeCount,
                                    Double avgRating, Long ratingCount, Integer ingredientCost, Integer marketPrice,
-                                   String youtubeChannelName, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
+                                   String youtubeChannelName, String youtubeChannelId, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
                                    String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -133,6 +137,7 @@ public class RecipeSimpleStaticDtoV2 {
         this.ingredientCost = ingredientCost;
         this.marketPrice = marketPrice;
         this.youtubeChannelName = youtubeChannelName;
+        this.youtubeChannelId = youtubeChannelId;
         this.youtubeVideoTitle = youtubeVideoTitle;
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;

@@ -137,6 +137,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                     COALESCE(r.avgRating, 0.0),
                     COALESCE(r.ratingCount, 0L),
                     r.youtubeChannelName,
+                    r.youtubeChannelId,
                     r.youtubeVideoTitle,
                     r.youtubeThumbnailUrl,
                     r.youtubeChannelProfileUrl,
@@ -166,6 +167,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             r.totalIngredientCost,
             r.marketPrice,
             r.youtubeChannelName,
+            r.youtubeChannelId,
             r.youtubeVideoTitle,
             r.youtubeThumbnailUrl,
             r.youtubeChannelProfileUrl,
@@ -193,6 +195,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 COALESCE(r.avgRating, 0.0),
                 COALESCE(r.ratingCount, 0L),
                 r.youtubeChannelName,
+                r.youtubeChannelId,
                 r.youtubeVideoTitle,
                 r.youtubeThumbnailUrl,
                 r.youtubeChannelProfileUrl,
@@ -217,7 +220,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
             "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
-            "r.likeCount, FALSE, r.cookingTime, r.youtubeChannelName, r.youtubeVideoTitle, r.youtubeThumbnailUrl, r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, " +
+            "r.likeCount, FALSE, r.cookingTime, r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl, r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, " +
             "COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount, r.youtubeUrl, r.isAiGenerated)" +
             "FROM Recipe r " +
             "WHERE r.id IN :ids")
