@@ -9,10 +9,10 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.*;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Base64;
 
 @Service
@@ -32,36 +32,38 @@ public class GeminiImageService {
     @Value("${cloud.aws.region.static}")
     private String region;
 
+    @Value("#{'${app.vertex.locations:global,asia-northeast3,us-central1}'.split(',')}")
+    private List<String> vertexLocations;
+
+    @Value("${app.vertex.cooldown-ms:30000}")
+    private long cooldownMs;
+
+    private final Map<String, Long> cooldownUntil = new ConcurrentHashMap<>();
+
     private static final String DEFAULT_IMAGE_URL =
             "https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com/images/icons/no_image.webp";
 
     private static final String GCP_PROJECT_ID = "gen-lang-client-0326396795";
     private static final String GEMINI_MODEL_ID = "gemini-2.5-flash-image";
 
-    private static final String VERTEX_GEMINI_URL =
-            "https://aiplatform.googleapis.com/v1/projects/" + GCP_PROJECT_ID
-                    + "/locations/global/publishers/google/models/" + GEMINI_MODEL_ID
-                    + ":generateContent?key={key}";
-
     static class NoImageGeneratedException extends RuntimeException {
         NoImageGeneratedException(String msg) { super(msg); }
     }
 
+    /** ✅ 추천: 고정 2초 3회 대신 지수 백오프(폭주 시 효과 큼) */
     @Retryable(
             retryFor = { RestClientException.class },
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 2000)
+            maxAttempts = 2,
+            backoff = @Backoff(delay = 1000, multiplier = 2.0, maxDelay = 20000, random = true)
     )
     public List<String> generateImageUrls(String prompt, Long userId, Long recipeId) {
-        log.info("[GeminiImageService] Vertex AI - Gemini 2.5 flash");
+        log.info("[GeminiImageService] Vertex AI - Gemini 2.5 flash (failover enabled), recipeId={}", recipeId);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        String url = VERTEX_GEMINI_URL.replace("{key}", geminiApiKey);
-
         Map<String, Object> body1 = buildRequestBody(prompt);
-        Map<String, Object> resp1 = post(url, headers, body1);
+        Map<String, Object> resp1 = postWithFailover(headers, body1, recipeId);
 
         try {
             return parseVertexResponse(resp1, userId, recipeId);
@@ -72,7 +74,7 @@ public class GeminiImageService {
 
             try {
                 Map<String, Object> body2 = buildRequestBody(safePrompt);
-                Map<String, Object> resp2 = post(url, headers, body2);
+                Map<String, Object> resp2 = postWithFailover(headers, body2, recipeId);
                 return parseVertexResponse(resp2, userId, recipeId);
             } catch (NoImageGeneratedException e2) {
                 log.error("❌ 세이프 프롬프트도 이미지 0장. 기본 이미지로 폴백. recipeId={}, 원인={}",
@@ -84,20 +86,88 @@ public class GeminiImageService {
 
     @Recover
     public List<String> recover(RestClientException e, String prompt, Long userId, Long recipeId) {
-        log.error("❌ 이미지 생성 최종 실패 (네트워크 재시도 소진). 기본 이미지를 반환합니다. recipeId={}, 원인={}",
+        log.error("❌ 이미지 생성 최종 실패 (재시도 소진). 기본 이미지를 반환합니다. recipeId={}, 원인={}",
                 recipeId, e.getMessage());
         return Collections.singletonList(DEFAULT_IMAGE_URL);
     }
 
+    /** ✅ location별 URL 생성 */
+    private String vertexUrl(String location) {
+        String loc = location.trim();
+        return "https://aiplatform.googleapis.com/v1/projects/" + GCP_PROJECT_ID
+                + "/locations/" + loc
+                + "/publishers/google/models/" + GEMINI_MODEL_ID
+                + ":generateContent?key=" + geminiApiKey;
+    }
+
+    private boolean inCooldown(String loc) {
+        Long until = cooldownUntil.get(loc);
+        return until != null && until > System.currentTimeMillis();
+    }
+
+    private void markCooldown(String loc) {
+        cooldownUntil.put(loc, System.currentTimeMillis() + cooldownMs);
+    }
+
+    /** ✅ 핵심: global -> region 순으로 failover */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> post(String url, HttpHeaders headers, Map<String, Object> body) {
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-            return (Map<String, Object>) response.getBody();
-        } catch (RestClientException e) {
-            log.warn("⚠️ Vertex AI 호출 실패 (재시도 예정): {}", e.getMessage());
-            throw e;
+    private Map<String, Object> postWithFailover(HttpHeaders headers, Map<String, Object> body, Long recipeId) {
+        RuntimeException last = null;
+
+        for (String locRaw : vertexLocations) {
+            String loc = locRaw.trim();
+            if (loc.isEmpty()) continue;
+            if (inCooldown(loc)) continue;
+
+            String url = vertexUrl(loc);
+
+            try {
+                ResponseEntity<Map> response =
+                        restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
+
+                Map<String, Object> respBody = (Map<String, Object>) response.getBody();
+                log.info("✅ Vertex 호출 성공 (location={}, recipeId={})", loc, recipeId);
+                return respBody;
+
+            } catch (HttpStatusCodeException e) {
+                int code = e.getStatusCode().value();
+
+                // ✅ 429 / 5xx면 다른 region으로 넘어감
+                if (code == 429 || code == 404 || (code >= 500 && code <= 599)) {
+                    log.warn("⚠️ Vertex 실패 -> failover (location={}, code={}, recipeId={}, msg={})",
+                            loc, code, recipeId, shorten(e.getResponseBodyAsString()));
+                    markCooldown(loc);
+                    last = e;
+                    continue;
+                }
+
+                // ✅ 그 외 4xx는 요청 자체 문제일 확률이 커서 failover 의미 없음
+                throw e;
+
+            } catch (ResourceAccessException e) {
+                // ✅ 네트워크 타임아웃/연결 실패류도 failover
+                log.warn("⚠️ Vertex 네트워크 실패 -> failover (location={}, recipeId={}, msg={})",
+                        loc, recipeId, e.getMessage());
+                markCooldown(loc);
+                last = e;
+
+            } catch (RestClientException e) {
+                // ✅ 기타 RestTemplate 예외도 일단 failover 시도
+                log.warn("⚠️ Vertex 호출 실패 -> failover (location={}, recipeId={}, msg={})",
+                        loc, recipeId, e.getMessage());
+                markCooldown(loc);
+                last = e;
+            }
         }
+
+        // 모든 location이 실패하면 Retryable로 넘겨서 백오프 재시도
+        if (last instanceof RestClientException re) throw re;
+        throw new RestClientException("All Vertex locations failed", last);
+    }
+
+    private String shorten(String s) {
+        if (s == null) return "null";
+        return s.length() > 300 ? s.substring(0, 300) + "..." : s;
     }
 
     private Map<String, Object> buildRequestBody(String prompt) {
@@ -203,10 +273,6 @@ public class GeminiImageService {
         return s.length() > 600 ? s.substring(0, 600) + "..." : s;
     }
 
-    /**
-     * 1) 'original/' 폴더에 원본(JPG) 업로드 -> Lambda가 감지하고 동작함
-     * 2) DB에는 'images/' 폴더의 WebP URL을 미리 반환 (Lambda가 변환해서 거기에 넣어둘 것이므로)
-     */
     private String uploadOriginalToS3(String base64, Long userId, Long recipeId) {
         byte[] bytes = Base64.getDecoder().decode(base64);
 
