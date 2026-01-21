@@ -62,3 +62,9 @@ ai:
     per-day: 1
     youtube-per-day: 10
     timezone: "Asia/Seoul"
+
+app:
+  vertex:
+    locations: "global, us-central1, us-east1"
+    # 한 번 429 뜬 지역을 몇 ms 동안 제외할지 (여기선 30초)
+    cooldown-ms: 30000
