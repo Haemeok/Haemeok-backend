@@ -10,13 +10,11 @@ import com.jdc.recipe_service.security.oauth.CustomOAuth2User;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
-import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationExchange;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
@@ -106,20 +104,8 @@ public class AuthService {
         OAuth2AuthorizationCodeGrantRequest grantRequest =
                 new OAuth2AuthorizationCodeGrantRequest(clientRegistration, new OAuth2AuthorizationExchange(authRequest, authResponse));
 
-        log.info("🍎 [애플 토큰 요청 시작] 요청 보낼 URL: https://appleid.apple.com/auth/token");
-        log.info("🍎 [전송 파라미터] client_id=[{}], redirect_uri=[{}], code=[{}]", clientRegistration.getClientId(), redirectUri, code);
         try {
-            log.info("🍎 [애플 토큰 요청 시도] Code: {}", code);
-
             OAuth2AccessTokenResponse tokenResponse = accessTokenResponseClient.getTokenResponse(grantRequest);
-
-            String tokenPreview = (tokenResponse.getAccessToken() != null)
-                    ? tokenResponse.getAccessToken().getTokenValue().substring(0, 5)
-                    : "null";
-
-            log.info("🍎 [성공] 토큰 응답 받음. AccessToken: {}..., ID Token 존재 여부: {}",
-                    tokenPreview,
-                    tokenResponse.getAdditionalParameters().containsKey("id_token"));
 
             OAuth2UserRequest userRequest = new OAuth2UserRequest(
                     clientRegistration,
@@ -130,8 +116,7 @@ public class AuthService {
             return customOAuth2UserService.loadUser(userRequest);
 
         } catch (Exception e) {
-            log.error("🍎 [애플 토큰 요청 대실패] 에러 메시지: {}", e.getMessage());
-            log.error("🍎 [에러 상세 스택트레이스]", e);
+            log.error("[AuthService] OAuth2 token exchange failed for provider: {}", registrationId, e);
             throw e;
         }
     }
