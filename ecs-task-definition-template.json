@@ -50,7 +50,8 @@
         { "name": "APPLE_TEAM_ID", "value": "${APPLE_TEAM_ID}" },
         { "name": "APPLE_KEY_ID", "value": "${APPLE_KEY_ID}" },
         { "name": "APPLE_PRIVATE_KEY", "value": "${APPLE_PRIVATE_KEY}" },
-        { "name": "APPLE_CLIENT_ID", "value": "${APPLE_CLIENT_ID}" }
+        { "name": "APPLE_CLIENT_ID", "value": "${APPLE_CLIENT_ID}" },
+        { "name": "GEMINI_CREDENTIALS", "value": "${GEMINI_CREDENTIALS}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
