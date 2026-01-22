@@ -31,8 +31,6 @@ public class OAuthController {
         log.info("[Controller] generated tokens for provider={}: accessToken(length)={}, refreshToken(length)={}",
                 provider, tokens.getAccessToken().length(), tokens.getRefreshToken().length());
 
-        boolean isLocal = "local".equalsIgnoreCase(env);
-
         var accessB = ResponseCookie.from("accessToken", tokens.getAccessToken())
                 .path("/")
                 .httpOnly(true)
@@ -45,9 +43,13 @@ public class OAuthController {
                 .sameSite("Lax")
                 .maxAge(7 * 24 * 60 * 60);
 
-        if (!isLocal) {
+        if ("prod".equalsIgnoreCase(env)) {
             accessB.secure(true).domain(".recipio.kr");
             refreshB.secure(true).domain(".recipio.kr");
+        } else if ("local".equalsIgnoreCase(env)) {
+        } else {
+            accessB.secure(true).sameSite("None");
+            refreshB.secure(true).sameSite("None");
         }
 
         return ResponseEntity.ok()
