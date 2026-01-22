@@ -98,7 +98,7 @@ public class SecurityConfig {
                             // 4) 보호된 POST
                             .requestMatchers(HttpMethod.POST,
                                     "/api/me/fridge/items",
-                                    "/api/recipes/*/ingredients/*/reports",
+                                    "/api/recipes/*/reports",
                                     "/api/me/records",
                                     "/api/me/survey",
                                     "/api/recipes/*/comments",
@@ -244,7 +244,7 @@ public class SecurityConfig {
                         // 4) 인증 필요 POST
                         .requestMatchers(HttpMethod.POST,
                                 "/api/ingredients",
-                                "/api/recipes/*/ingredients/*/reports",
+                                "/api/recipes/*/reports",
                                 "/api/recipes/*/comments",
                                 "/api/recipes/*/comments/*/replies",
                                 "/api/comments/*/like",
