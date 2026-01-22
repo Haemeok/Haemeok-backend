@@ -5,6 +5,7 @@ import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
 import com.jdc.recipe_service.domain.dto.auth.AuthTokens;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
+import com.jdc.recipe_service.security.oauth.AppleClientSecretGenerator;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2User;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2UserService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient;
+    private final AppleClientSecretGenerator appleClientSecretGenerator;
 
     /**
      * provider: "google", "kakao" 또는 "naver"
@@ -64,6 +66,13 @@ public class AuthService {
     private OAuth2User exchangeCodeAndLoadUser(String registrationId, String code, String env) {
         ClientRegistration clientRegistration = clientRegistrationRepository.findByRegistrationId(registrationId);
         log.info("[AuthService] Found ClientRegistration for {}", registrationId);
+
+        if ("apple".equals(registrationId)) {
+            String appleClientSecret = appleClientSecretGenerator.createClientSecret();
+            clientRegistration = ClientRegistration.withClientRegistration(clientRegistration)
+                    .clientSecret(appleClientSecret)
+                    .build();
+        }
 
         String redirectUri;
         if ("local".equalsIgnoreCase(env)) {
