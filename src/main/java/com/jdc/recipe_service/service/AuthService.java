@@ -107,11 +107,19 @@ public class AuthService {
 
         log.info("🍎 [애플 토큰 요청 시작] 요청 보낼 URL: https://appleid.apple.com/auth/token");
         log.info("🍎 [전송 파라미터] client_id=[{}], redirect_uri=[{}], code=[{}]", clientRegistration.getClientId(), redirectUri, code);
-        log.info("[AuthService] Requesting access token directly...");
-        OAuth2AccessToken accessToken = accessTokenResponseClient.getTokenResponse(grantRequest).getAccessToken();
-        log.info("[AuthService] Access token received successfully.");
+        try {
+            log.info("🍎 [애플 토큰 요청 시도] Code: {}", code);
+            OAuth2AccessToken accessToken = accessTokenResponseClient.getTokenResponse(grantRequest).getAccessToken();
+            log.info("🍎 [성공] 토큰 받기 완료! (앞 10자리): {}", accessToken.getTokenValue().substring(0, 10) + "...");
 
-        OAuth2UserRequest userRequest = new OAuth2UserRequest(clientRegistration, accessToken);
-        return customOAuth2UserService.loadUser(userRequest);
+            OAuth2UserRequest userRequest = new OAuth2UserRequest(clientRegistration, accessToken);
+            return customOAuth2UserService.loadUser(userRequest);
+
+        } catch (Exception e) {
+            log.error("🍎 [애플 토큰 요청 대실패] 에러 메시지: {}", e.getMessage());
+            log.error("🍎 [에러 상세 스택트레이스]", e);
+
+            throw e;
+        }
     }
 }
