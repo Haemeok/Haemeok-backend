@@ -105,6 +105,8 @@ public class AuthService {
         OAuth2AuthorizationCodeGrantRequest grantRequest =
                 new OAuth2AuthorizationCodeGrantRequest(clientRegistration, new OAuth2AuthorizationExchange(authRequest, authResponse));
 
+        log.info("🍎 [애플 토큰 요청 시작] 요청 보낼 URL: https://appleid.apple.com/auth/token");
+        log.info("🍎 [전송 파라미터] client_id=[{}], redirect_uri=[{}], code=[{}]", clientRegistration.getClientId(), redirectUri, code);
         log.info("[AuthService] Requesting access token directly...");
         OAuth2AccessToken accessToken = accessTokenResponseClient.getTokenResponse(grantRequest).getAccessToken();
         log.info("[AuthService] Access token received successfully.");

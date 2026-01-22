@@ -32,6 +32,12 @@ public class AppleClientSecretGenerator {
     private String clientId;
 
     public String createClientSecret() {
+        log.info("🍎 [애플 설정 확인] TeamID=[{}], KeyID=[{}], ClientID=[{}]", teamId, keyId, clientId);
+        if (privateKeyPem == null || privateKeyPem.isBlank()) {
+            log.error("🍎 [치명적 오류] Private Key가 비어있습니다!");
+        } else {
+            log.info("🍎 [키 로딩 성공] Private Key 길이: {}", privateKeyPem.length());
+        }
         Date now = new Date();
         Date expiration = new Date(now.getTime() + 3600000);
 
@@ -54,14 +60,20 @@ public class AppleClientSecretGenerator {
                     .replace("-----END PRIVATE KEY-----", "")
                     .replace("\\n", "")
                     .replaceAll("\\s+", "");
+            log.info("🍎 [키 정제 완료] 헤더 제거 후 길이: {}", cleanKey.length());
 
             byte[] decodedKey = java.util.Base64.getDecoder().decode(cleanKey);
+            log.info("🍎 [Base64 디코딩 완료] 바이트 길이: {}", decodedKey.length);
 
             java.security.KeyFactory keyFactory = java.security.KeyFactory.getInstance("EC");
-            return keyFactory.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(decodedKey));
+            PrivateKey privateKey = keyFactory.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(decodedKey));
+
+            log.info("🍎 [PrivateKey 객체 생성 성공] 알고리즘: {}, 포맷: {}", privateKey.getAlgorithm(), privateKey.getFormat());
+
+            return privateKey;
 
         } catch (Exception e) {
-            log.error("Failed to parse Apple private key", e);
+            log.error("🍎 [키 파싱 대실패] 이유: {}", e.getMessage());
             throw new RuntimeException("Apple Private Key Parsing Error", e);
         }
     }
