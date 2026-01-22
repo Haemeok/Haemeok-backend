@@ -77,7 +77,12 @@ public class AuthService {
         String redirectUri;
         if ("local".equalsIgnoreCase(env)) {
             redirectUri = "http://localhost:3000/api/auth/callback/" + registrationId;
-        } else {
+        }
+        else if (env != null && (env.startsWith("http://") || env.startsWith("https://"))) {
+            String baseUrl = env.endsWith("/") ? env.substring(0, env.length() - 1) : env;
+            redirectUri = baseUrl + "/api/auth/callback/" + registrationId;
+        }
+        else {
             redirectUri = "https://www.recipio.kr/api/auth/callback/" + registrationId;
         }
         log.info("[AuthService] Using redirectUri={}", redirectUri);
