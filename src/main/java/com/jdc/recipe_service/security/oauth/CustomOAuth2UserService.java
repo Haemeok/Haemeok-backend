@@ -1,16 +1,22 @@
 package com.jdc.recipe_service.security.oauth;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.type.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -20,6 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String DEFAULT_PROFILE_BASE =
             "https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com/images/profiles/default/";
     private static final String ALPHANUM = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -94,9 +101,15 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) {
-        OAuth2User oAuth2User = super.loadUser(userRequest);
-
         String provider = userRequest.getClientRegistration().getRegistrationId().toLowerCase();
+
+        OAuth2User oAuth2User;
+
+        if ("apple".equals(provider)) {
+            oAuth2User = processAppleUser(userRequest);
+        } else {
+            oAuth2User = super.loadUser(userRequest);
+        }
 
         OauthProfile p = extractProfile(provider, oAuth2User);
 
@@ -120,6 +133,29 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 });
 
         return new CustomOAuth2User(user, oAuth2User.getAttributes());
+    }
+
+    private OAuth2User processAppleUser(OAuth2UserRequest userRequest) {
+        String idToken = (String) userRequest.getAdditionalParameters().get("id_token");
+        Map<String, Object> attributes = decodeJwtTokenPayload(idToken);
+
+        return new DefaultOAuth2User(
+                Collections.singleton(new SimpleGrantedAuthority("ROLE_USER")),
+                attributes,
+                "sub"
+        );
+    }
+
+    private Map<String, Object> decodeJwtTokenPayload(String jwtToken) {
+        try {
+            String[] parts = jwtToken.split("\\.");
+            Base64.Decoder decoder = Base64.getUrlDecoder();
+            String payload = new String(decoder.decode(parts[1]), StandardCharsets.UTF_8);
+            return objectMapper.readValue(payload, Map.class);
+        } catch (Exception e) {
+            log.error("Apple ID Token Parsing Failed", e);
+            throw new RuntimeException("Apple ID Token Decode Error", e);
+        }
     }
 
     private String randomSuffix(int length) {
