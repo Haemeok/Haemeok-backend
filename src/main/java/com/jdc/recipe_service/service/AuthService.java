@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationExchange;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationResponse;
@@ -109,16 +110,28 @@ public class AuthService {
         log.info("🍎 [전송 파라미터] client_id=[{}], redirect_uri=[{}], code=[{}]", clientRegistration.getClientId(), redirectUri, code);
         try {
             log.info("🍎 [애플 토큰 요청 시도] Code: {}", code);
-            OAuth2AccessToken accessToken = accessTokenResponseClient.getTokenResponse(grantRequest).getAccessToken();
-            log.info("🍎 [성공] 토큰 받기 완료! (앞 10자리): {}", accessToken.getTokenValue().substring(0, 10) + "...");
 
-            OAuth2UserRequest userRequest = new OAuth2UserRequest(clientRegistration, accessToken);
+            OAuth2AccessTokenResponse tokenResponse = accessTokenResponseClient.getTokenResponse(grantRequest);
+
+            String tokenPreview = (tokenResponse.getAccessToken() != null)
+                    ? tokenResponse.getAccessToken().getTokenValue().substring(0, 5)
+                    : "null";
+
+            log.info("🍎 [성공] 토큰 응답 받음. AccessToken: {}..., ID Token 존재 여부: {}",
+                    tokenPreview,
+                    tokenResponse.getAdditionalParameters().containsKey("id_token"));
+
+            OAuth2UserRequest userRequest = new OAuth2UserRequest(
+                    clientRegistration,
+                    tokenResponse.getAccessToken(),
+                    tokenResponse.getAdditionalParameters()
+            );
+
             return customOAuth2UserService.loadUser(userRequest);
 
         } catch (Exception e) {
             log.error("🍎 [애플 토큰 요청 대실패] 에러 메시지: {}", e.getMessage());
             log.error("🍎 [에러 상세 스택트레이스]", e);
-
             throw e;
         }
     }
