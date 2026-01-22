@@ -79,6 +79,10 @@ jobs:
           YTDLP_PROXY_URL: ${{ secrets.YTDLP_PROXY_URL }}
           GEMINI_STUDIO_API_KEY: ${{ secrets.GEMINI_STUDIO_API_KEY }}
           YOUTUBE_API_KEYS: ${{ secrets.YOUTUBE_API_KEYS }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
