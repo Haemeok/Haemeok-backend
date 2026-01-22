@@ -1,6 +1,5 @@
 package com.jdc.recipe_service.controller;
 
-import com.jdc.recipe_service.domain.dto.TokenResponseDTO;
 import com.jdc.recipe_service.domain.entity.RefreshToken;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
@@ -20,8 +19,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Parameter;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
-
 
 @RestController
 @RequestMapping("/api/token")
@@ -37,7 +34,7 @@ public class AuthController {
             summary = "Access Token 재발급",
             description = "유효한 Refresh Token 쿠키가 존재할 경우 새로운 Access Token을 발급합니다. Refresh Token도 갱신됩니다."
     )
-    public ResponseEntity<?> refreshAccessToken(
+    public ResponseEntity<Void> refreshAccessToken(
             @Parameter(hidden = true)
             @CookieValue(name = "refreshToken", required = false) String refreshToken,
             HttpServletRequest request,
@@ -50,7 +47,8 @@ public class AuthController {
         RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken)
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
 
-        if (savedToken == null || savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
+        if (savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
+            refreshTokenRepository.delete(savedToken);
             throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
@@ -62,118 +60,84 @@ public class AuthController {
         savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(savedToken);
 
-        String origin = request.getHeader("Origin");
-        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
+        ResponseCookie refreshCookie = createCookie("refreshToken", newRefreshToken, 7 * 24 * 60 * 60, request);
+        ResponseCookie accessCookie  = createCookie("accessToken", newAccessToken, 15 * 60, request);
 
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
-        var refreshBuilder = ResponseCookie.from("refreshToken", newRefreshToken)
-                .path("/")
-                .httpOnly(true)
-                .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Lax");
-        var accessBuilder  = ResponseCookie.from("accessToken", newAccessToken)
-                .path("/")
-                .httpOnly(true)
-                .maxAge(15 * 60)
-                .sameSite("Lax");
-
-        if (!isLocalRequest) {
-            refreshBuilder.secure(true).domain(".recipio.kr");
-            accessBuilder.secure(true).domain(".recipio.kr");
-        }
-
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder .build().toString());
-
-        return ResponseEntity.ok(new TokenResponseDTO(newAccessToken, null));
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/logout")
-    @Operation(
-            summary = "로그아웃",
-            description = "현재 사용자의 Access Token을 검증하고, 쿠키도 무효화합니다."
-    )
+    @Operation(summary = "로그아웃")
     public ResponseEntity<Void> logout(
-            @Parameter(hidden = true)
-            @CookieValue(value = "accessToken",  required = false) String accessToken,
             @CookieValue(value = "refreshToken", required = false) String refreshToken,
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        if (accessToken == null || !jwtTokenProvider.validateToken(accessToken)) {
-            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        if (refreshToken != null) {
+            refreshTokenRepository.findByToken(refreshToken)
+                    .ifPresent(refreshTokenRepository::delete);
         }
 
-        Optional.ofNullable(refreshToken)
-                .flatMap(refreshTokenRepository::findByToken)
-                .ifPresent(refreshTokenRepository::delete);
+        ResponseCookie deleteRefresh = createDeleteCookie("refreshToken", request);
+        ResponseCookie deleteAccess  = createDeleteCookie("accessToken", request);
 
-        String origin = request.getHeader("Origin");
-        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
-
-        var deleteRefresh = ResponseCookie.from("refreshToken", "")
-                .path("/")
-                .httpOnly(true)
-                .maxAge(0)
-                .sameSite("Lax");
-        var deleteAccess  = ResponseCookie.from("accessToken", "")
-                .path("/")
-                .httpOnly(true)
-                .maxAge(0)
-                .sameSite("Lax");
-
-        if (!isLocalRequest) {
-            deleteRefresh.secure(true).domain(".recipio.kr");
-            deleteAccess.secure(true).domain(".recipio.kr");
-        }
-
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess .build().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
 
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/logout/all")
     @Transactional
-    @Operation(
-            summary = "전체 로그아웃",
-            description = "모든 기기에서 사용자의 Refresh Token을 삭제하여 전체 로그아웃을 수행합니다."
-    )
+    @Operation(summary = "전체 로그아웃")
     public ResponseEntity<Void> logoutAll(
             @Parameter(hidden = true)
             @CookieValue(value = "accessToken", required = false) String accessToken,
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        if (accessToken == null || !jwtTokenProvider.validateToken(accessToken)) {
-            throw new CustomException(ErrorCode.AUTH_UNAUTHORIZED);
+        if (accessToken != null && jwtTokenProvider.validateToken(accessToken)) {
+            Long userId = jwtTokenProvider.getUserIdFromToken(accessToken);
+            refreshTokenRepository.deleteByUserId(userId);
         }
 
-        Long userId = jwtTokenProvider.getUserIdFromToken(accessToken);
-        refreshTokenRepository.deleteByUserId(userId);
+        ResponseCookie deleteRefresh = createDeleteCookie("refreshToken", request);
+        ResponseCookie deleteAccess  = createDeleteCookie("accessToken", request);
 
-        String origin = request.getHeader("Origin");
-        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
-
-        var deleteRefresh = ResponseCookie.from("refreshToken", "")
-                .path("/")
-                .httpOnly(true)
-                .maxAge(0)
-                .sameSite("Lax");
-        var deleteAccess  = ResponseCookie.from("accessToken", "")
-                .path("/")
-                .httpOnly(true)
-                .maxAge(0)
-                .sameSite("Lax");
-
-        if (!isLocalRequest) {
-            deleteRefresh.secure(true).domain(".recipio.kr");
-            deleteAccess.secure(true).domain(".recipio.kr");
-        }
-
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.build().toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess .build().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
 
         return ResponseEntity.ok().build();
+    }
+
+    private ResponseCookie createCookie(String name, String value, long maxAge, HttpServletRequest request) {
+        String origin = request.getHeader("Origin");
+
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, value)
+                .path("/")
+                .httpOnly(true)
+                .maxAge(maxAge);
+
+        if (origin == null || origin.isBlank()) {
+            builder.secure(true).sameSite("Lax");
+        }
+        else if (origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1")) {
+            builder.secure(false).sameSite("Lax");
+        }
+        else if (origin.contains("recipio.kr")) {
+            builder.secure(true).domain(".recipio.kr").sameSite("Lax");
+        }
+        else {
+            builder.secure(true).sameSite("None");
+        }
+
+        return builder.build();
+    }
+
+    private ResponseCookie createDeleteCookie(String name, HttpServletRequest request) {
+        return createCookie(name, "", 0, request);
     }
 }
