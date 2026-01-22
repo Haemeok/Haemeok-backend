@@ -48,16 +48,18 @@ public class AppleClientSecretGenerator {
     }
 
     private PrivateKey getPrivateKey() {
-        try (StringReader stringReader = new StringReader(privateKeyPem.replace("\\n", "\n"));
-             PEMParser pemParser = new PEMParser(stringReader)) {
+        try {
+            String cleanKey = privateKeyPem
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replace("\\n", "")
+                    .replaceAll("\\s+", "");
 
-            Object object = pemParser.readObject();
-            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+            byte[] decodedKey = java.util.Base64.getDecoder().decode(cleanKey);
 
-            if (object instanceof PrivateKeyInfo) {
-                return converter.getPrivateKey((PrivateKeyInfo) object);
-            }
-            throw new IllegalArgumentException("Invalid Private Key format");
+            java.security.KeyFactory keyFactory = java.security.KeyFactory.getInstance("EC");
+            return keyFactory.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(decodedKey));
+
         } catch (Exception e) {
             log.error("Failed to parse Apple private key", e);
             throw new RuntimeException("Apple Private Key Parsing Error", e);
