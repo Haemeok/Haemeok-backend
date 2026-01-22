@@ -23,7 +23,7 @@ public class RecipeIngredientReport extends BaseTimeEntity {
     @Column(nullable = false)
     private Long memberId;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Long ingredientId;
 
     @Enumerated(EnumType.STRING)
@@ -36,14 +36,17 @@ public class RecipeIngredientReport extends BaseTimeEntity {
     @Column(nullable = false)
     private boolean isResolved;
 
+    private String proposedName;
+
     @Builder
-    public RecipeIngredientReport(Long recipeId, Long ingredientId,Long memberId, ReportReason reason, String userMemo) {
+    public RecipeIngredientReport(Long recipeId, Long ingredientId,Long memberId, ReportReason reason, String userMemo, String proposedName) {
         this.recipeId = recipeId;
         this.ingredientId = ingredientId;
         this.memberId = memberId;
         this.reason = reason;
         this.userMemo = userMemo;
         this.isResolved = false;
+        this.proposedName = proposedName;
     }
 
     public void markAsResolved() {
