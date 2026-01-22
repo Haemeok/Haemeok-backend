@@ -42,7 +42,7 @@ spring:
           apple:
             client-id: ${APPLE_CLIENT_ID}
             client-secret: "TEMP_SECRET"   # 코드로 동적 생성하므로 임시값 넣어둠
-            client-authentication-method: post
+            client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
             redirect-uri: "https://www.recipio.kr/login/oauth2/code/{registrationId}"
             scope: name, email
