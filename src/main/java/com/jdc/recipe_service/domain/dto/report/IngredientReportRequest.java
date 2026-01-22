@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.dto.report;
 
 import com.jdc.recipe_service.domain.type.ReportReason;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -8,6 +9,9 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class IngredientReportRequest {
+
+    @NotBlank(message = "재료 이름은 필수입니다.")
+    private String ingredientName;
 
     @NotNull(message = "신고 사유는 필수입니다.")
     private ReportReason reason;

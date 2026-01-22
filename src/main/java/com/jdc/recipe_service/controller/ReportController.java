@@ -27,11 +27,10 @@ public class ReportController {
 
     private final ReportService reportService;
 
-    @PostMapping("/{recipeId}/ingredients/{ingredientId}/reports")
-    @Operation(summary = "재료 오류 신고", description = "특정 레시피의 재료에 대한 오류(양, 이름, 없음 등)를 신고합니다.")
-    public ResponseEntity<String> reportIngredientError(
+    @PostMapping("/{recipeId}/reports")
+    @Operation(summary = "재료 제보 (이름 기반)", description = "재료 이름을 통해 제보합니다. 이미 있는 재료면 해당 재료에 대한 신고로, 없는 재료면 '빠진 재료' 신고로 처리됩니다.")
+    public ResponseEntity<String> reportIngredient(
             @Parameter(description = "레시피 ID") @DecodeId Long recipeId,
-            @Parameter(description = "재료 ID") @DecodeId Long ingredientId,
             @RequestBody @Valid IngredientReportRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -39,7 +38,7 @@ public class ReportController {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        reportService.createReport(recipeId, ingredientId, userDetails.getUser().getId(), request);
+        reportService.createReportByName(recipeId, userDetails.getUser().getId(), request);
         return ResponseEntity.ok("소중한 제보 감사합니다.");
     }
 

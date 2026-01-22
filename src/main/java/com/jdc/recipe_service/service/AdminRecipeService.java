@@ -248,6 +248,7 @@ public class AdminRecipeService {
                 }
                 recipeIngredientRepository.save(builder.build());
 
+                resolvePendingReportsByName(recipeId, dto.getName());
             }
             else if ("UPDATE".equals(action)) {
                 if (target != null) {
@@ -326,6 +327,17 @@ public class AdminRecipeService {
         }
 
         recipe.updateNutrition(totalProtein, totalCarb, totalFat, totalSugar, totalSodium, totalCalorie);
+    }
+
+    private void resolvePendingReportsByName(Long recipeId, String ingredientName) {
+        if (ingredientName == null) return;
+
+        List<RecipeIngredientReport> reports =
+                recipeIngredientReportRepository.findByRecipeIdAndProposedNameAndIsResolvedFalse(recipeId, ingredientName.trim());
+
+        for (RecipeIngredientReport report : reports) {
+            report.markAsResolved();
+        }
     }
 
     private BigDecimal parseQuantityToBigDecimal(String quantityStr) {

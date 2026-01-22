@@ -12,6 +12,8 @@ public interface RecipeIngredientReportRepository extends JpaRepository<RecipeIn
 
     List<RecipeIngredientReport> findByIngredientIdAndIsResolvedFalse(Long ingredientId);
 
+    List<RecipeIngredientReport> findByRecipeIdAndProposedNameAndIsResolvedFalse(Long recipeId, String proposedName);
+
     @Query("SELECT DISTINCT r.memberId FROM RecipeIngredientReport r WHERE r.recipeId = :recipeId AND r.isResolved = true")
     List<Long> findVerifiedMemberIds(@Param("recipeId") Long recipeId);
 }
