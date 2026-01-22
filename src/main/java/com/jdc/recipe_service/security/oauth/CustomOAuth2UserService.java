@@ -76,6 +76,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 }
                 return new OauthProfile(id, name);
             }
+            case "apple" -> {
+                String sub = (String) attrs.get("sub");
+                String email = (String) attrs.get("email");
+
+                String name = null;
+                if (email != null && !email.isBlank()) {
+                    name = email.split("@")[0];
+                }
+                return new OauthProfile(sub, name);
+            }
             default -> {
                 return new OauthProfile(oAuth2User.getName(), (String) attrs.get("name"));
             }
@@ -87,7 +97,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         OAuth2User oAuth2User = super.loadUser(userRequest);
 
         String provider = userRequest.getClientRegistration().getRegistrationId().toLowerCase();
-
 
         OauthProfile p = extractProfile(provider, oAuth2User);
 
