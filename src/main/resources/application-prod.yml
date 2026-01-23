@@ -94,6 +94,9 @@ app:
 
     proxy: ${YTDLP_PROXY_URL:}
 
+  test-login:
+    enabled: ${APP_TEST_LOGIN_ENABLED:false}
+
 
 cloud:
   aws:
