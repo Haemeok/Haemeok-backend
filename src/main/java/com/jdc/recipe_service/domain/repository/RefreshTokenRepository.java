@@ -14,15 +14,14 @@ import java.util.Optional;
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
     Optional<RefreshToken> findByToken(String token);
+    Optional<RefreshToken> findByUser(User user);
 
     List<RefreshToken> findByUserOrderByCreatedAtAsc(User user);
 
-    // 전체 로그아웃
     @Modifying
     @Query("delete from RefreshToken t where t.user.id = :userId")
     void deleteByUserId(@Param("userId") Long userId);
 
-    //만료 토큰 청소
     @Modifying
     @Query("delete from RefreshToken t where t.expiredAt < :now")
     void deleteAllByExpiredAtBefore(@Param("now") LocalDateTime now);
