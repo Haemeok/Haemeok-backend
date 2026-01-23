@@ -47,8 +47,7 @@ public class AuthController {
         RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken)
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
 
-        if (savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
-            refreshTokenRepository.delete(savedToken);
+        if (savedToken == null || savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
