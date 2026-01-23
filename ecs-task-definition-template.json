@@ -51,7 +51,8 @@
         { "name": "APPLE_KEY_ID", "value": "${APPLE_KEY_ID}" },
         { "name": "APPLE_PRIVATE_KEY", "value": "${APPLE_PRIVATE_KEY}" },
         { "name": "APPLE_CLIENT_ID", "value": "${APPLE_CLIENT_ID}" },
-        { "name": "GEMINI_CREDENTIALS", "value": "${GEMINI_CREDENTIALS}" }
+        { "name": "GEMINI_CREDENTIALS", "value": "${GEMINI_CREDENTIALS}" },
+        { "name": "APP_TEST_LOGIN_ENABLED", "value": "${APP_TEST_LOGIN_ENABLED}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
