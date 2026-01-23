@@ -55,6 +55,7 @@ public class SecurityConfig {
                             .requestMatchers("/h2-console/**", "/local-token").permitAll()
                             .requestMatchers("/actuator/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/token/test-login").permitAll()
                             .requestMatchers("/api/test/ai-recipe/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/logs/stats").permitAll()
@@ -189,6 +190,7 @@ public class SecurityConfig {
                                 "/swagger-resources/**",
                                 "/webjars/**",
                                 "/api/token/refresh",
+                                "/api/token/test-login",
                                 "/api/tags/**",
                                 "/", "/oauth2/**", "/login/**", "/error",
                                 "/h2-console/**",
