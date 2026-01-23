@@ -59,11 +59,28 @@ public class AuthController {
         savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(savedToken);
 
-        ResponseCookie refreshCookie = createCookie("refreshToken", newRefreshToken, 7 * 24 * 60 * 60, request);
-        ResponseCookie accessCookie  = createCookie("accessToken", newAccessToken, 15 * 60, request);
+        String origin = request.getHeader("Origin");
+        boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
 
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+
+        var refreshBuilder = ResponseCookie.from("refreshToken", newRefreshToken)
+                .path("/")
+                .httpOnly(true)
+                .maxAge(7 * 24 * 60 * 60)
+                .sameSite("Lax");
+        var accessBuilder  = ResponseCookie.from("accessToken", newAccessToken)
+                .path("/")
+                .httpOnly(true)
+                .maxAge(15 * 60)
+                .sameSite("Lax");
+
+        if (!isLocalRequest) {
+            refreshBuilder.secure(true).domain(".recipio.kr");
+            accessBuilder.secure(true).domain(".recipio.kr");
+        }
+
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder .build().toString());
 
         return ResponseEntity.ok().build();
     }
