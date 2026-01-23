@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.domain.dto.TokenResponseDTO;
 import com.jdc.recipe_service.domain.entity.RefreshToken;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
@@ -34,7 +35,7 @@ public class AuthController {
             summary = "Access Token 재발급",
             description = "유효한 Refresh Token 쿠키가 존재할 경우 새로운 Access Token을 발급합니다. Refresh Token도 갱신됩니다."
     )
-    public ResponseEntity<Void> refreshAccessToken(
+    public ResponseEntity<?> refreshAccessToken(
             @Parameter(hidden = true)
             @CookieValue(name = "refreshToken", required = false) String refreshToken,
             HttpServletRequest request,
@@ -82,7 +83,7 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
         response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder .build().toString());
 
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(new TokenResponseDTO(newAccessToken, null));
     }
 
     @PostMapping("/logout")
