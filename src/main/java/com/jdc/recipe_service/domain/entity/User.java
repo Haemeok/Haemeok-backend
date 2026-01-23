@@ -26,6 +26,9 @@ public class User extends BaseTimeEntity {
     @Column(name = "oauth_id", nullable = false, length = 100)
     private String oauthId;
 
+    @Column(length = 100)
+    private String email;
+
     @Column(length = 50)
     private String nickname;
 
@@ -55,6 +58,11 @@ public class User extends BaseTimeEntity {
         if (nickname     != null) this.nickname     = nickname;
         if (profileImage != null) this.profileImage = profileImage;
         if (introduction != null) this.introduction = introduction;
+    }
+    public void updateEmail(String email) {
+        if (email != null && !email.isBlank()) {
+            this.email = email;
+        }
     }
     public void updateProfileImageKey(String profileImageKey) {
         if (profileImageKey != null && !profileImageKey.isBlank()) {

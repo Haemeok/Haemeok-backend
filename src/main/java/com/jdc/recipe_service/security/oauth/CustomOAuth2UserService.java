@@ -35,9 +35,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private static class OauthProfile {
         final String oauthId;
         final String baseName;
-        OauthProfile(String oauthId, String baseName) {
+        final String email;
+        OauthProfile(String oauthId, String baseName, String email) {
             this.oauthId = oauthId;
             this.baseName = baseName;
+            this.email = email;
         }
     }
 
@@ -48,40 +50,42 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             case "google" -> {
                 String sub  = (String) attrs.get("sub");
                 String name = (String) attrs.get("name");
-                return new OauthProfile(sub, name);
+                String email = (String) attrs.get("email");
+                return new OauthProfile(sub, name, email);
             }
             case "kakao" -> {
                 String id = String.valueOf(attrs.get("id"));
                 String name = null;
+                String email = null;
                 Object acc = attrs.get("kakao_account");
                 if (acc instanceof Map<?, ?> accMap) {
+                    email = (String) accMap.get("email");
                     Object prof = accMap.get("profile");
                     if (prof instanceof Map<?, ?> p) {
                         name = (String) p.get("nickname");
                     }
                     if (name == null || name.isBlank()) {
-                        String email = (String) accMap.get("email");
                         if (email != null && !email.isBlank()) {
                             name = email.split("@")[0];
                         }
                     }
                 }
-                return new OauthProfile(id, name);
+                return new OauthProfile(id, name,email);
             }
             case "naver" -> {
                 Object resp = attrs.get("response");
-                String id = null, name = null;
+                String id = null, name = null, email = null;
                 if (resp instanceof Map<?, ?> r) {
                     id   = (String) r.get("id");
                     name = (String) r.get("name");
+                    email = (String) r.get("email");
                     if (name == null || name.isBlank()) {
-                        String email = (String) r.get("email");
                         if (email != null && !email.isBlank()) {
                             name = email.split("@")[0];
                         }
                     }
                 }
-                return new OauthProfile(id, name);
+                return new OauthProfile(id, name, email);
             }
             case "apple" -> {
                 String sub = (String) attrs.get("sub");
@@ -91,10 +95,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 if (email != null && !email.isBlank()) {
                     name = email.split("@")[0];
                 }
-                return new OauthProfile(sub, name);
+                return new OauthProfile(sub, name, email);
             }
             default -> {
-                return new OauthProfile(oAuth2User.getName(), (String) attrs.get("name"));
+                return new OauthProfile(oAuth2User.getName(), (String) attrs.get("name"), null);
             }
         }
     }
@@ -118,6 +122,13 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
 
         User user = userRepository.findByProviderAndOauthId(provider, p.oauthId)
+                .map(existingUser -> {
+                    if (existingUser.getEmail() == null && p.email != null && !p.email.isBlank()) {
+                        existingUser.updateEmail(p.email);
+                        return userRepository.save(existingUser);
+                    }
+                    return existingUser;
+                })
                 .orElseGet(() -> {
                     String nicknameBase = (p.baseName == null || p.baseName.isBlank()) ? provider : p.baseName;
                     String nickname = makeUniqueNickname(nicknameBase);
@@ -126,6 +137,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     return userRepository.save(User.builder()
                             .provider(provider)
                             .oauthId(p.oauthId)
+                            .email(p.email)
                             .nickname(nickname)
                             .role(Role.USER)
                             .profileImage(randomProfile)
