@@ -13,6 +13,7 @@ import com.jdc.recipe_service.service.RecipeSearchService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.Hibernate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
@@ -159,7 +160,7 @@ public class AsyncImageService {
             }
 
             String fullUrl = imageUrls.get(0);
-            String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
+                String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
 
             transactionTemplate.executeWithoutResult(status -> {
                 Recipe recipe = recipeRepository.findDetailWithFineDiningById(recipeId)
@@ -176,13 +177,18 @@ public class AsyncImageService {
                         .status(ImageStatus.ACTIVE)
                         .build();
                 recipeImageRepository.save(recipeImage);
-            });
 
-            try {
-                recipeIndexingService.updateRecipe(recipeId);
-            } catch (Exception e) {
-                log.warn("이미지 생성 후 인덱싱 업데이트 실패 (DB는 성공함): {}", e.getMessage());
-            }
+                Hibernate.initialize(recipe.getIngredients());
+                if (recipe.getTags() != null) {
+                    Hibernate.initialize(recipe.getTags());
+                }
+
+                try {
+                    recipeIndexingService.updateRecipe(recipe);
+                } catch (Exception e) {
+                    log.warn("이미지 생성 후 인덱싱 업데이트 실패 (DB는 성공함): {}", e.getMessage());
+                }
+            });
 
             RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, promptData.userId);
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));

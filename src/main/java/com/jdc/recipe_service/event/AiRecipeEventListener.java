@@ -20,19 +20,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class AiRecipeEventListener {
     private final AsyncImageService asyncImageService;
     private final NotificationService notificationService;
-    private final RecipeIndexingService recipeIndexingService;
     private final Hashids hashids;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAiRecipeCreated(AiRecipeCreatedEvent event) {
-
-        try {
-            recipeIndexingService.indexRecipeSafelyWithRetry(event.getRecipeId());
-        } catch (Exception e) {
-            log.error("AI 레시피 생성 후 OpenSearch 인덱싱 시도 실패 (리스너 레벨)", e);
-        }
-
         try {
             String imageUrl = asyncImageService.generateAndUploadAiImage(event.getRecipeId());
 
