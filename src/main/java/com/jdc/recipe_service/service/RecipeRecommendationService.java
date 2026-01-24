@@ -1,6 +1,5 @@
 package com.jdc.recipe_service.service;
 
-import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
@@ -13,6 +12,7 @@ import com.jdc.recipe_service.domain.type.TagType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +38,9 @@ public class RecipeRecommendationService {
     private String region;
 
     private String generateImageUrl(String key) {
-        return key == null ? null :
-                String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
+        if (key == null) return null;
+        if (key.startsWith("http://") || key.startsWith("https://")) return key;
+        return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 
 
@@ -77,102 +78,179 @@ public class RecipeRecommendationService {
     }
 
     /**
-     * 상세 페이지 하단 추천 리스트 반환 (유저 좋아요 정보 포함)
+     * 상세 페이지 하단 추천 리스트 반환
+     *
+     * 주의: 캐시 미스 시, 후보/현재 레시피의 연관관계 로딩 전략에 따라 N+1이 발생할 수 있습니다.
      */
+    /**
+     * 상세 페이지 하단 추천 리스트 반환
+     * 전략: 카테고리 궁합이 맞는 ID 조회(Smart) -> 랜덤 셔플 -> 50개 선정 -> 상세 조회 -> 정밀 채점
+     */
+    @Cacheable(value = "recipeRecommendations", key = "#currentRecipeId + '-' + #limitSize", unless = "#result.isEmpty()")
     public List<RecipeSimpleStaticDto> getRecommendations(Long currentRecipeId, int limitSize) {
+        if (currentRecipeId == null || limitSize <= 0) {
+            return Collections.emptyList();
+        }
 
-        Recipe currentRecipe = recipeRepository.findWithAllRelationsById(currentRecipeId)
+        long startNano = 0L;
+        if (log.isDebugEnabled()) {
+            startNano = System.nanoTime();
+        }
+
+        Recipe currentRecipe = recipeRepository.findForRecommendationById(currentRecipeId)
                 .orElseThrow(() -> new IllegalArgumentException("Recipe not found"));
 
-        List<Recipe> candidates = recipeRepository.findCandidatesForRecommendation(PageRequest.of(0, 100));
+        final List<DishType> bestMatches = PAIRING_MAP.get(currentRecipe.getDishType());
+        final Set<TagType> currentTags = currentRecipe.getTags() == null ? Collections.emptySet() :
+                currentRecipe.getTags().stream()
+                        .map(RecipeTag::getTag)
+                        .collect(Collectors.toSet());
+        final Set<Object> currentIngredientKeys = extractIngredientKeys(currentRecipe.getIngredients());
 
-        if (candidates.isEmpty()) return Collections.emptyList();
+        List<DishType> targetDishTypes = new ArrayList<>();
+        if (bestMatches != null && !bestMatches.isEmpty()) {
+            targetDishTypes.addAll(bestMatches);
+        } else {
+            targetDishTypes.add(currentRecipe.getDishType());
+        }
 
-        List<Long> candidateIds = candidates.stream().map(Recipe::getId).toList();
+        List<Long> candidateIds = recipeRepository.findIdsByDishTypeIn(targetDishTypes);
 
-        Map<Long, List<RecipeTag>> tagsMap = recipeTagRepository.findByRecipeIdIn(candidateIds)
-                .stream().collect(Collectors.groupingBy(rt -> rt.getRecipe().getId()));
+        if (candidateIds.size() < 50) {
+            List<Long> allIds = recipeRepository.findAllPublicRecipeIds();
+            Set<Long> uniqueIds = new HashSet<>(candidateIds);
+            uniqueIds.addAll(allIds);
+            candidateIds = new ArrayList<>(uniqueIds);
+        }
 
-        Map<Long, List<RecipeIngredient>> ingredientsMap = recipeIngredientRepository.findByRecipeIdIn(candidateIds)
-                .stream().collect(Collectors.groupingBy(ri -> ri.getRecipe().getId()));
+        if (candidateIds.isEmpty()) return Collections.emptyList();
 
-        candidates.forEach(recipe -> {
-            recipe.setTags(new HashSet<>(tagsMap.getOrDefault(recipe.getId(), Collections.emptyList())));
-            recipe.setIngredients(ingredientsMap.getOrDefault(recipe.getId(), Collections.emptyList()));
-        });
+        Collections.shuffle(candidateIds);
 
-        int shufflePoolSize = limitSize * 2;
+        int candidatePoolSize = 50;
+        List<Long> selectedIds = candidateIds.stream()
+                .filter(id -> !id.equals(currentRecipeId))
+                .limit(candidatePoolSize)
+                .collect(Collectors.toList());
+
+        if (selectedIds.isEmpty()) return Collections.emptyList();
+
+        List<Recipe> candidates = recipeRepository.findCandidatesForRecommendationByIds(selectedIds);
 
         List<Recipe> topCandidates = candidates.stream()
-                .filter(candidate -> !candidate.getId().equals(currentRecipeId))
-                .map(candidate -> new AbstractMap.SimpleEntry<>(candidate, calculateScore(currentRecipe, candidate)))
+                .map(candidate -> new AbstractMap.SimpleEntry<>(
+                        candidate, calculateScore(bestMatches, currentTags, currentIngredientKeys, candidate)))
                 .sorted((e1, e2) -> Integer.compare(e2.getValue(), e1.getValue()))
-                .limit(shufflePoolSize)
                 .map(AbstractMap.SimpleEntry::getKey)
+                .limit(limitSize)
                 .collect(Collectors.toList());
-
-        Collections.shuffle(topCandidates);
 
         List<RecipeSimpleStaticDto> result = topCandidates.stream()
-                .limit(limitSize)
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
+
+        if (log.isDebugEnabled()) {
+            long tookMs = (System.nanoTime() - startNano) / 1_000_000L;
+            log.debug("[Recommendation] recipeId={}, poolSize={}, selected={}, took={}ms",
+                    currentRecipeId, candidates.size(), result.size(), tookMs);
+        }
 
         return result;
     }
 
-    /**
-     *  점수 채점기 (Scoring Logic)
-     */
     private int calculateScore(Recipe current, Recipe candidate) {
         int score = 0;
 
-        // 1. [카테고리 궁합] (+50점)
         List<DishType> bestMatches = PAIRING_MAP.get(current.getDishType());
         if (bestMatches != null && bestMatches.contains(candidate.getDishType())) {
             score += 50;
         }
 
-        // 2. [태그 분위기 일치] (+30점)
-        Set<TagType> currentTags = current.getTags().stream().map(RecipeTag::getTag).collect(Collectors.toSet());
-        Set<TagType> candidateTags = candidate.getTags().stream().map(RecipeTag::getTag).collect(Collectors.toSet());
+        Set<TagType> currentTags = current.getTags().stream()
+                .map(RecipeTag::getTag)
+                .collect(Collectors.toSet());
+
+        Set<TagType> candidateTags = candidate.getTags().stream()
+                .map(RecipeTag::getTag)
+                .collect(Collectors.toSet());
 
         if (currentTags.stream().anyMatch(candidateTags::contains)) {
             score += 30;
         }
 
-        // [보너스] 술안주 ↔ 해장/국물 조합
         if (currentTags.contains(TagType.HANGOVER) && candidateTags.contains(TagType.DRINK)) score += 20;
         if (currentTags.contains(TagType.DRINK) && candidate.getDishType() == DishType.SOUP_STEW) score += 20;
 
-        // 3. [재료 중복 회피] (-100점)
-        Set<String> currentIngredients = extractIngredientNames(current.getIngredients());
-        Set<String> candidateIngredients = extractIngredientNames(candidate.getIngredients());
+        Set<Object> currentIngredientKeys = extractIngredientKeys(current.getIngredients());
+        Set<Object> candidateIngredientKeys = extractIngredientKeys(candidate.getIngredients());
 
-        boolean isIngredientOverlap = candidateIngredients.stream()
-                .anyMatch(currentIngredients::contains);
-
+        boolean isIngredientOverlap = candidateIngredientKeys.stream().anyMatch(currentIngredientKeys::contains);
         if (isIngredientOverlap) {
             score -= 100;
         }
 
-        // 4. [평점 가산] (평점 * 10점)
         BigDecimal rating = candidate.getAvgRating() != null ? candidate.getAvgRating() : BigDecimal.ZERO;
-        score += rating.doubleValue() * 10;
+        score += (int) Math.round(rating.doubleValue() * 10.0);
 
         return score;
     }
 
-    private Set<String> extractIngredientNames(List<RecipeIngredient> ingredients) {
-        return ingredients.stream()
-                .map(ri -> {
-                    if (ri.getIngredient() != null) {
-                        return ri.getIngredient().getName();
-                    }
-                    return ri.getCustomName();
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+    private int calculateScore(List<DishType> bestMatches,
+                               Set<TagType> currentTags,
+                               Set<Object> currentIngredientKeys,
+                               Recipe candidate) {
+        int score = 0;
+
+        if (bestMatches != null && bestMatches.contains(candidate.getDishType())) {
+            score += 50;
+        }
+
+        Set<TagType> candidateTags = candidate.getTags() == null ? Collections.emptySet() :
+                candidate.getTags().stream()
+                        .map(RecipeTag::getTag)
+                        .collect(Collectors.toSet());
+
+        if (!currentTags.isEmpty() && currentTags.stream().anyMatch(candidateTags::contains)) {
+            score += 30;
+        }
+
+        if (currentTags.contains(TagType.HANGOVER) && candidateTags.contains(TagType.DRINK)) score += 20;
+        if (currentTags.contains(TagType.DRINK) && candidate.getDishType() == DishType.SOUP_STEW) score += 20;
+
+        Set<Object> candidateIngredientKeys = extractIngredientKeys(candidate.getIngredients());
+        boolean isIngredientOverlap = !currentIngredientKeys.isEmpty() &&
+                candidateIngredientKeys.stream().anyMatch(currentIngredientKeys::contains);
+        if (isIngredientOverlap) {
+            score -= 100;
+        }
+
+        BigDecimal rating = candidate.getAvgRating() != null ? candidate.getAvgRating() : BigDecimal.ZERO;
+        score += (int) Math.round(rating.doubleValue() * 10.0);
+
+        return score;
+    }
+
+    /**
+     * 겹침 비교용 Key:
+     * - 재료가 Ingredient를 참조하면 Ingredient ID(Long)
+     * - 커스텀 재료면 customName(String)
+     */
+    private Set<Object> extractIngredientKeys(List<RecipeIngredient> ingredients) {
+        if (ingredients == null || ingredients.isEmpty()) return Collections.emptySet();
+
+        Set<Object> keys = new HashSet<>(ingredients.size() * 2);
+        for (RecipeIngredient ri : ingredients) {
+            if (ri == null) continue;
+
+            if (ri.getIngredient() != null) {
+                Long id = ri.getIngredient().getId();
+                if (id != null) keys.add(id);
+            } else {
+                String custom = ri.getCustomName();
+                if (custom != null && !custom.isBlank()) keys.add(custom);
+            }
+        }
+        return keys;
     }
 
     private RecipeSimpleStaticDto convertToDto(Recipe recipe) {

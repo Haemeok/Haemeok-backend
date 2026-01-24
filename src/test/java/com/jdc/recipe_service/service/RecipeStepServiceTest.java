@@ -323,24 +323,17 @@ class RecipeStepServiceTest {
     }
 
     @Test
-    @DisplayName("deleteAllByRecipeId: 모든 단계와 연관된 단계별 재료 삭제")
+    @DisplayName("deleteAllByRecipeId: 모든 단계와 연관된 단계별 재료를 벌크 삭제한다")
     void deleteAllByRecipeId_success() {
-        // given: 두 개의 단계(각각 id=1,2)가 있다고 가정
-        RecipeStep step1 = RecipeStep.builder().id(1L).stepNumber(1).recipe(recipe).build();
-        RecipeStep step2 = RecipeStep.builder().id(2L).stepNumber(2).recipe(recipe).build();
+        Long recipeId = 10L;
 
-        when(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
-                .thenReturn(List.of(step1, step2));
+        service.deleteAllByRecipeId(recipeId);
 
-        // when
-        service.deleteAllByRecipeId(10L);
+        verify(recipeStepIngredientRepository, times(1)).deleteAllByRecipeId(recipeId);
 
-        // then
-        // 각 단계별 재료 deleteByStepId 호출
-        verify(recipeStepIngredientRepository, times(1)).deleteByStepId(1L);
-        verify(recipeStepIngredientRepository, times(1)).deleteByStepId(2L);
-        // 단계 자체는 deleteByRecipeId 호출
-        verify(recipeStepRepository, times(1)).deleteByRecipeId(10L);
+        verify(recipeStepRepository, times(1)).deleteByRecipeId(recipeId);
+
+        verify(recipeStepIngredientRepository, never()).deleteByStepId(anyLong());
     }
 
     @Test

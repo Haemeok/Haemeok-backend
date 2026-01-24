@@ -4,6 +4,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
@@ -126,6 +127,48 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 ));
     }
 
+    @Modifying(clearAutomatically = true)
+    @Query("""
+        UPDATE Recipe r 
+        SET r.weeklyLikeCount = (
+            SELECT COUNT(rl)
+            FROM RecipeLike rl
+            WHERE rl.recipe.id = r.id
+              AND rl.createdAt >= :startDate
+        )
+    """)
+    void updateAllWeeklyLikeCounts(@Param("startDate") java.time.LocalDateTime startDate);
+
+    @SuppressWarnings("JpaQlInspection")
+    @Query("""
+        SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
+            r.id, 
+            r.title, 
+            r.imageKey, 
+            r.user.id, 
+            r.user.nickname, 
+            r.user.profileImage, 
+            r.createdAt, 
+            r.cookingTime,
+            r.weeklyLikeCount,       
+            COALESCE(r.avgRating, 0.0),
+            COALESCE(r.ratingCount, 0L),
+            r.youtubeChannelName,
+            r.youtubeChannelId,
+            r.youtubeVideoTitle,
+            r.youtubeThumbnailUrl,
+            r.youtubeChannelProfileUrl,
+            r.youtubeSubscriberCount,
+            r.youtubeUrl,
+            r.isAiGenerated
+        )
+        FROM Recipe r
+        WHERE r.isPrivate = false
+          AND r.isAiGenerated = false
+        ORDER BY r.weeklyLikeCount DESC, r.createdAt DESC
+    """)
+    Page<RecipeSimpleStaticDto> findPopularRecipesStaticV2(Pageable pageable);
+
     @SuppressWarnings("JpaQlInspection")
     @QueryHints({
             @QueryHint(name = "jakarta.persistence.cache.retrieveMode", value = "BYPASS")
@@ -153,7 +196,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.avgRating, r.ratingCount
                 ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
             """)
-    Page<RecipeSimpleStaticDto> findPopularRecipesStaticV2(
+    Page<RecipeSimpleStaticDto> findPopularRecipesByRealtimeCount(
             @Param("startDate") LocalDateTime startDate,
             Pageable pageable);
 
@@ -235,13 +278,61 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("status") String status
     );
 
-    @EntityGraph(attributePaths = {"fineDiningDetails", "user"})
     @Query("""
-            SELECT r FROM Recipe r
+            SELECT r.id
+            FROM Recipe r
             WHERE r.isPrivate = false
-            ORDER BY r.avgRating DESC
+              AND r.isAiGenerated = false
+            ORDER BY r.avgRating DESC, r.createdAt DESC
             """)
-    List<Recipe> findCandidatesForRecommendation(Pageable pageable);
+    Page<Long> findCandidateIdsForRecommendation(Pageable pageable);
+
+    @EntityGraph(attributePaths = {
+            "user",
+            "tags",
+            "tags.tag",
+            "ingredients",
+            "ingredients.ingredient",
+            "fineDiningDetails"
+    })
+    @Query("""
+            SELECT r
+            FROM Recipe r
+            WHERE r.id IN :ids
+            """)
+    List<Recipe> findCandidatesForRecommendationByIds(@Param("ids") List<Long> ids);
+
+    @EntityGraph(attributePaths = {
+            "user",
+            "tags",
+            "tags.tag",
+            "ingredients",
+            "ingredients.ingredient",
+            "fineDiningDetails"
+    })
+    @Query("""
+            SELECT r
+            FROM Recipe r
+            WHERE r.id = :recipeId
+            """)
+    Optional<Recipe> findForRecommendationById(@Param("recipeId") Long recipeId);
+
+    @Query("""
+            SELECT r.id
+            FROM Recipe r
+            WHERE r.isPrivate = false
+              AND r.isAiGenerated = false
+            """)
+    List<Long> findAllPublicRecipeIds();
+
+    @Query("""
+            SELECT r.id
+            FROM Recipe r
+            WHERE r.dishType IN :dishTypes
+              AND r.isPrivate = false
+              AND r.isAiGenerated = false
+            """)
+    List<Long> findIdsByDishTypeIn(@Param("dishTypes") List<DishType> dishTypes);
 
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM Recipe r WHERE r.id = :id")

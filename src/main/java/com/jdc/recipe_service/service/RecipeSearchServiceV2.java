@@ -42,6 +42,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -329,18 +330,25 @@ public class RecipeSearchServiceV2 {
     }
 
     /**
-     * 기간별 인기 레시피 목록 조회 (정적 정보)
-     * V2 원칙: 동적 정보(좋아요 수, 좋아요 여부)를 DTO에 포함하지 않고,
-     * 오직 정적 정보인 RecipeSimpleStaticDto만 반환합니다.
+     * 기간별 인기 레시피 목록 조회 (하이브리드 방식)
+     * 1. Weekly: 스케줄러가 갱신한 'weeklyLikeCount' 컬럼 사용 (Fast, O(1))
+     * 2. Monthly/All: 실시간 'COUNT(*)' 쿼리 사용 (Slow, Real-time)
      */
     @Transactional(readOnly = true)
-    public Page<RecipeSimpleStaticDto> getPopularRecipesStaticV2(
-            String periodCode,
-            Pageable pageable) {
+    public Page<RecipeSimpleStaticDto> getPopularRecipesStaticV2(String period, Pageable pageable) {
 
-        java.time.LocalDateTime startDate = java.time.LocalDateTime.now().minusDays(7);
+        Page<RecipeSimpleStaticDto> page;
 
-        Page<RecipeSimpleStaticDto> page = recipeRepository.findPopularRecipesStaticV2(startDate, pageable);
+        if (!StringUtils.hasText(period) || "weekly".equalsIgnoreCase(period)) {
+            log.info("Fetching popular recipes using [Optimized Column] (Weekly)");
+            page = recipeRepository.findPopularRecipesStaticV2(pageable);
+        }
+
+        else {
+            log.info("Fetching popular recipes using [Real-time Aggregation] (Period: {})", period);
+            LocalDateTime startDate = calculateStartDate(period);
+            page = recipeRepository.findPopularRecipesByRealtimeCount(startDate, pageable);
+        }
 
         page.getContent().forEach(dto -> {
             dto.setImageUrl(generateImageUrl(dto.getImageUrl()));
@@ -422,5 +430,12 @@ public class RecipeSearchServiceV2 {
             }
         }
         return builder;
+    }
+
+    private LocalDateTime calculateStartDate(String period) {
+        if ("monthly".equalsIgnoreCase(period)) {
+            return LocalDateTime.now().minusDays(30);
+        }
+        return LocalDateTime.of(2000, 1, 1, 0, 0);
     }
 }
