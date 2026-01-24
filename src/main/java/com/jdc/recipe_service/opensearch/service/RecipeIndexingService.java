@@ -189,7 +189,7 @@ public class RecipeIndexingService {
     }
 
     public void indexRecipe(Recipe recipe) {
-        indexRecipe(recipe.getId());
+        doIndex(recipe);
     }
 
     public void indexAllRecipes() {
@@ -230,7 +230,7 @@ public class RecipeIndexingService {
     }
 
     public void updateRecipe(Recipe recipe) {
-        updateRecipe(recipe.getId());
+        doUpdate(recipe);
     }
 
     public void indexRecipe(Long recipeId) {
