@@ -19,7 +19,10 @@ import java.util.Set;
 @Table(
         name = "recipes",
         indexes = {
-                @Index(name = "idx_user_id", columnList = "user_id")
+                @Index(name = "idx_user_id", columnList = "user_id"),
+                @Index(name = "idx_recipe_weekly_like", columnList = "weekly_like_count"),
+                @Index(name = "idx_recipe_avg_rating", columnList = "avg_rating DESC"),
+                @Index(name = "idx_recipe_like_count", columnList = "like_count DESC")
         }
 )
 @Getter
@@ -60,6 +63,10 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "like_count")
     @Builder.Default
     private Long likeCount = 0L;
+
+    @Column(name = "weekly_like_count")
+    @Builder.Default
+    private Long weeklyLikeCount = 0L;
 
     @Column(name = "image_key")
     private String imageKey;
@@ -263,6 +270,10 @@ public class Recipe extends BaseTimeEntity {
         if (this.likeCount > 0) {
             this.likeCount--;
         }
+    }
+
+    public void updateWeeklyLikeCount(Long weeklyLikeCount) {
+        this.weeklyLikeCount = weeklyLikeCount != null ? weeklyLikeCount : 0L;
     }
 
     public void setFineDiningDetails(FineDiningDetails fineDiningDetails) {
