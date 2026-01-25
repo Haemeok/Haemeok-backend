@@ -77,18 +77,16 @@ public class GeminiImageService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, Object> body1 = buildRequestBody(prompt);
-
-        Map<String, Object> resp1 = postWithKeyRotation(headers, body1, recipeId);
-
         try {
+            Map<String, Object> body1 = buildRequestBody(prompt);
+            Map<String, Object> resp1 = postWithKeyRotation(headers, body1, recipeId);
             return parseVertexResponse(resp1, userId, recipeId);
-        } catch (NoImageGeneratedException e) {
-            String safePrompt = buildSafePrompt(prompt);
-            log.warn("⚠️ 1차 생성 실패(0장) -> Safe Prompt로 재시도. recipeId={}, promptHash={}",
-                    recipeId, promptHash(prompt));
+
+        } catch (Exception e) {
+            log.warn("⚠️ 1차 생성 실패 (원인: {}) -> Safe Prompt로 재시도. recipeId={}", e.getMessage(), recipeId);
 
             try {
+                String safePrompt = buildSafePrompt(prompt);
                 Map<String, Object> body2 = buildRequestBody(safePrompt);
                 Map<String, Object> resp2 = postWithKeyRotation(headers, body2, recipeId);
                 return parseVertexResponse(resp2, userId, recipeId);
@@ -196,10 +194,17 @@ public class GeminiImageService {
                 "candidateCount", 1,
                 "imageConfig", imageConfig
         );
+        List<Map<String, String>> safetySettings = List.of(
+                Map.of("category", "HARM_CATEGORY_HATE_SPEECH", "threshold", "BLOCK_ONLY_HIGH"),
+                Map.of("category", "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold", "BLOCK_ONLY_HIGH"),
+                Map.of("category", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold", "BLOCK_ONLY_HIGH"),
+                Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_ONLY_HIGH")
+        );
         String enhancedPrompt = prompt + " , high quality, photorealistic food photography, 1:1 aspect ratio";
         return Map.of(
                 "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", enhancedPrompt)))),
-                "generationConfig", generationConfig
+                "generationConfig", generationConfig,
+                "safetySettings", safetySettings
         );
     }
 
@@ -234,7 +239,10 @@ public class GeminiImageService {
             Map<String, Object> content = (Map<String, Object>) candidate.get("content");
             if (content == null) continue;
 
+            if (!content.containsKey("parts")) continue;
             List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
+            if (parts == null) continue;
+
             for (Map<String, Object> part : parts) {
                 if (part.containsKey("inlineData")) {
                     Map<String, Object> inline = (Map<String, Object>) part.get("inlineData");
