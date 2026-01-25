@@ -60,6 +60,10 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Long ratingCount = 0L;
 
+    @Column(name = "favorite_count")
+    @Builder.Default
+    private Long favoriteCount = 0L;
+
     @Column(name = "like_count")
     @Builder.Default
     private Long likeCount = 0L;
@@ -91,6 +95,9 @@ public class Recipe extends BaseTimeEntity {
 
     @Column(name = "youtube_subscriber_count")
     private Long youtubeSubscriberCount;
+
+    @Column(name = "youtube_video_view_count")
+    private Long youtubeVideoViewCount;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "recipe_cooking_tools", joinColumns = @JoinColumn(name = "recipe_id"))
@@ -248,13 +255,14 @@ public class Recipe extends BaseTimeEntity {
         this.marketPrice = marketPrice;
     }
 
-    public void updateYoutubeInfo(String channelName,String channelId, String videoTitle, String thumbnailUrl,String channelProfileUrl, Long subscriberCount) {
+    public void updateYoutubeInfo(String channelName,String channelId, String videoTitle, String thumbnailUrl,String channelProfileUrl, Long subscriberCount, Long videoViewCount) {
         this.youtubeChannelName = channelName;
         this.youtubeChannelId = channelId;
         this.youtubeVideoTitle = videoTitle;
         this.youtubeThumbnailUrl = thumbnailUrl;
         this.youtubeChannelProfileUrl = channelProfileUrl;
         this.youtubeSubscriberCount = subscriberCount;
+        this.youtubeVideoViewCount = videoViewCount;
     }
 
     public void increaseLikeCount() {
@@ -269,6 +277,22 @@ public class Recipe extends BaseTimeEntity {
         }
         if (this.likeCount > 0) {
             this.likeCount--;
+        }
+    }
+
+    public void increaseFavoriteCount() {
+        if (this.favoriteCount == null) {
+            this.favoriteCount = 0L;
+        }
+        this.favoriteCount++;
+    }
+
+    public void decreaseFavoriteCount() {
+        if (this.favoriteCount == null) {
+            this.favoriteCount = 0L;
+        }
+        if (this.favoriteCount > 0) {
+            this.favoriteCount--;
         }
     }
 

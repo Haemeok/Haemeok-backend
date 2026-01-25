@@ -512,6 +512,7 @@ public class RecipeExtractionService {
         String thumbnailUrl = "";
         String channelProfileUrl = "";
         Long subscriberCount = 0L;
+        Long videoViewCount = 0L;
         boolean useUrlFallback = false;
 
         try {
@@ -527,6 +528,7 @@ public class RecipeExtractionService {
             thumbnailUrl = nullToEmpty(videoData.thumbnailUrl());
             channelProfileUrl = nullToEmpty(videoData.channelProfileUrl());
             subscriberCount = videoData.youtubeSubscriberCount();
+            videoViewCount = videoData.viewCount();
 
             String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
@@ -659,6 +661,7 @@ public class RecipeExtractionService {
             recipeDto.setYoutubeThumbnailUrl(thumbnailUrl);
             recipeDto.setYoutubeChannelProfileUrl(channelProfileUrl);
             recipeDto.setYoutubeSubscriberCount(subscriberCount);
+            recipeDto.setYoutubeVideoViewCount(videoViewCount);
 
             mergeDuplicateIngredientsByNameAndUnit(recipeDto);
 

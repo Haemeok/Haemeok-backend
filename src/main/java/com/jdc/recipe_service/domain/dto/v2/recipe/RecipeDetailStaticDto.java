@@ -76,6 +76,9 @@ public class RecipeDetailStaticDto {
     @Schema(description = "유튜브 구독자 수")
     private Long youtubeSubscriberCount;
 
+    @Schema(description = "유튜브 영상 조회수")
+    private Long youtubeVideoViewCount;
+
     @Schema(description = "레시피 오류 수정에 기여한 사용자 ID 목록")
     @JsonSerialize(contentUsing = HashIdSerializer.class)
     private List<Long> contributors;

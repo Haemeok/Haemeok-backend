@@ -264,6 +264,7 @@ public class RecipeRecommendationService {
                 recipe.getCreatedAt(),
                 recipe.getCookingTime(),
                 (long) (recipe.getLikeCount() != null ? recipe.getLikeCount() : 0),
+                recipe.getFavoriteCount() != null ?  recipe.getFavoriteCount() : 0L,
                 recipe.getAvgRating() != null ? recipe.getAvgRating() : BigDecimal.ZERO,
                 recipe.getRatingCount(),
                 recipe.getYoutubeChannelName(),
@@ -272,6 +273,7 @@ public class RecipeRecommendationService {
                 recipe.getYoutubeThumbnailUrl(),
                 recipe.getYoutubeChannelProfileUrl(),
                 recipe.getYoutubeSubscriberCount(),
+                recipe.getYoutubeVideoViewCount(),
                 recipe.getYoutubeUrl(),
                 recipe.isAiGenerated()
         );

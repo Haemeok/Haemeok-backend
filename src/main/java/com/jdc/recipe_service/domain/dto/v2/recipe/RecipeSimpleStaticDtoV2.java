@@ -51,6 +51,9 @@ public class RecipeSimpleStaticDtoV2 {
     @Schema(description = "레시피 좋아요 수")
     private long likeCount;
 
+    @Schema(description = "레시피 즐겨찾기 수")
+    private Long favoriteCount;
+
     @Schema(description = "레시피 평점 평균")
     private double avgRating;
 
@@ -81,6 +84,9 @@ public class RecipeSimpleStaticDtoV2 {
     @Schema(description = "유튜브 구독자 수")
     private Long youtubeSubscriberCount;
 
+    @Schema(description = "유튜브 영상 조회수")
+    private Long youtubeVideoViewCount;
+
     @Schema(description = "유튜브 레시피 여부")
     @JsonProperty("isYoutube")
     private boolean isYoutube;
@@ -91,9 +97,9 @@ public class RecipeSimpleStaticDtoV2 {
 
     @QueryProjection
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
-                                   LocalDateTime createdAt, Integer cookingTime, long likeCount, BigDecimal avgRating,
+                                   LocalDateTime createdAt, Integer cookingTime, long likeCount,Long favoriteCount, BigDecimal avgRating,
                                    long ratingCount, Integer ingredientCost, Integer marketPrice,
-                                   String youtubeChannelName, String youtubeChannelId,  String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
+                                   String youtubeChannelName, String youtubeChannelId,  String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount, Long youtubeVideoViewCount,
                                    String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -104,6 +110,7 @@ public class RecipeSimpleStaticDtoV2 {
         this.createdAt = createdAt;
         this.cookingTime = cookingTime;
         this.likeCount = likeCount;
+        this.favoriteCount = favoriteCount != null ? favoriteCount : 0L;
         this.avgRating = avgRating != null ? avgRating.doubleValue() : 0.0;
         this.ratingCount = ratingCount;
         this.ingredientCost = ingredientCost;
@@ -114,14 +121,15 @@ public class RecipeSimpleStaticDtoV2 {
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;
         this.youtubeSubscriberCount = youtubeSubscriberCount;
+        this.youtubeVideoViewCount = youtubeVideoViewCount;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
         this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
 
     public RecipeSimpleStaticDtoV2(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
-                                   LocalDateTime createdAt, Integer cookingTime, Long likeCount,
+                                   LocalDateTime createdAt, Integer cookingTime, Long likeCount, Long favoriteCount,
                                    Double avgRating, Long ratingCount, Integer ingredientCost, Integer marketPrice,
-                                   String youtubeChannelName, String youtubeChannelId, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
+                                   String youtubeChannelName, String youtubeChannelId, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount, Long youtubeVideoViewCount,
                                    String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -132,6 +140,7 @@ public class RecipeSimpleStaticDtoV2 {
         this.createdAt = createdAt;
         this.cookingTime = cookingTime;
         this.likeCount = likeCount != null ? likeCount : 0L;
+        this.favoriteCount = favoriteCount != null ? favoriteCount : 0L;
         this.avgRating = avgRating != null ? avgRating : 0.0;
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.ingredientCost = ingredientCost;
@@ -142,6 +151,7 @@ public class RecipeSimpleStaticDtoV2 {
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;
         this.youtubeSubscriberCount = youtubeSubscriberCount;
+        this.youtubeVideoViewCount = youtubeVideoViewCount;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
         this.isAiGenerated = isAiGenerated != null && isAiGenerated;
     }
