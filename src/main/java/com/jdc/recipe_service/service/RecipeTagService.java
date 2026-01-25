@@ -5,6 +5,7 @@ import com.jdc.recipe_service.domain.entity.RecipeTag;
 import com.jdc.recipe_service.domain.repository.RecipeTagRepository;
 import com.jdc.recipe_service.domain.type.TagType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RecipeTagService {
 
     private final RecipeTagRepository recipeTagRepository;
@@ -22,12 +24,10 @@ public class RecipeTagService {
             return;
         }
 
-        List<TagType> tagTypes = tagDisplayNames.stream()
-                .map(TagType::fromDisplayName)
+        List<RecipeTag> recipeTags = tagDisplayNames.stream()
+                .map(this::safeConvertToTagType)
+                .filter(Objects::nonNull)
                 .distinct()
-                .toList();
-
-        List<RecipeTag> recipeTags = tagTypes.stream()
                 .map(tagType -> RecipeTag.builder()
                         .recipe(recipe)
                         .tag(tagType)
@@ -37,13 +37,15 @@ public class RecipeTagService {
         recipeTagRepository.saveAll(recipeTags);
     }
 
+    @Transactional
     public void updateTags(Recipe recipe, List<String> tagDisplayNames) {
         if (tagDisplayNames == null) {
             tagDisplayNames = Collections.emptyList();
         }
 
         Set<TagType> newTagTypes = tagDisplayNames.stream()
-                .map(TagType::fromDisplayName)
+                .map(this::safeConvertToTagType)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
         List<RecipeTag> existingTags = recipeTagRepository.findByRecipeId(recipe.getId());
@@ -66,6 +68,15 @@ public class RecipeTagService {
                 .toList();
 
         recipeTagRepository.saveAll(tagsToAdd);
+    }
+
+    private TagType safeConvertToTagType(String displayName) {
+        try {
+            return TagType.fromDisplayName(displayName);
+        } catch (IllegalArgumentException e) {
+            log.warn("⚠️ AI가 생성한 유효하지 않은 태그 무시됨: [{}]", displayName);
+            return null;
+        }
     }
 
     @Transactional

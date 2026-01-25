@@ -82,7 +82,7 @@ class RecipeExtractionServiceTest {
         when(ytDlpService.getVideoDataFull(anyString())).thenReturn(
                 new YtDlpService.YoutubeFullDataDto(
                         "test1234", url, "맛있는 김치볶음밥", richDescription, "댓글",
-                        "[00:00] " + richScript, richScript, "채널", "id", "http://thumb", "http://prof", 100L
+                        "[00:00] " + richScript, richScript, "채널", "id", "http://thumb", "http://prof", 100L, 100L
                 )
         );
 
@@ -144,7 +144,7 @@ class RecipeExtractionServiceTest {
             System.out.println("⚡ [Mock] yt-dlp 작업 재개!");
             return new YtDlpService.YoutubeFullDataDto(
                     "TEST_VIDEO", url, "Test Title", description, "Cmt",
-                    "[00:00] " + script, script, "Ch", "Id", "Thumb", "Prof", 100L
+                    "[00:00] " + script, script, "Ch", "Id", "Thumb", "Prof", 100L, 100L
             );
         });
 
