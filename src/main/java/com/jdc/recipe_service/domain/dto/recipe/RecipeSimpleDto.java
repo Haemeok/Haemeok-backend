@@ -46,6 +46,9 @@ public class RecipeSimpleDto {
     @Schema(description = "생성일시 (UTC)")
     private LocalDateTime createdAt;
 
+    @Schema(description = "즐겨찾기 수")
+    private Long favoriteCount;
+
     @Schema(description = "좋아요 수")
     private Long likeCount;
 
@@ -80,6 +83,9 @@ public class RecipeSimpleDto {
     @Schema(description = "유튜브 구독자 수")
     private Long youtubeSubscriberCount;
 
+    @Schema(description = "유튜브 영상 조회수")
+    private Long youtubeVideoViewCount;
+
     @Schema(description = "유튜브 레시피 여부")
     @JsonProperty("isYoutube")
     private boolean isYoutube;
@@ -98,8 +104,8 @@ public class RecipeSimpleDto {
 
     @QueryProjection
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
-                           LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser, Integer cookingTime,
-                           String youtubeChannelName,String youtubeChannelId, String youtubeVideoTitle, String youtubeThumbnailUrl,String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
+                           LocalDateTime createdAt,Long favoriteCount, Long likeCount, boolean likedByCurrentUser, Integer cookingTime,
+                           String youtubeChannelName,String youtubeChannelId, String youtubeVideoTitle, String youtubeThumbnailUrl,String youtubeChannelProfileUrl, Long youtubeSubscriberCount, Long youtubeVideoViewCount,
                            BigDecimal avgRating, Long ratingCount, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -108,6 +114,7 @@ public class RecipeSimpleDto {
         this.authorName = authorName;
         this.profileImage = profileImage;
         this.createdAt = createdAt;
+        this.favoriteCount = favoriteCount;
         this.likeCount = likeCount;
         this.likedByCurrentUser = likedByCurrentUser;
         this.cookingTime = cookingTime;
@@ -117,6 +124,7 @@ public class RecipeSimpleDto {
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;
         this.youtubeSubscriberCount = youtubeSubscriberCount;
+        this.youtubeVideoViewCount = youtubeVideoViewCount;
         this.avgRating = avgRating;
         this.ratingCount = ratingCount;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();
@@ -124,8 +132,8 @@ public class RecipeSimpleDto {
     }
 
     public RecipeSimpleDto(Long id, String title, String imageUrl, Long authorId, String authorName, String profileImage,
-                           LocalDateTime createdAt, Long likeCount, boolean likedByCurrentUser, Integer cookingTime,
-                           String youtubeChannelName,String youtubeChannelId, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount,
+                           LocalDateTime createdAt,Long favoriteCount, Long likeCount, boolean likedByCurrentUser, Integer cookingTime,
+                           String youtubeChannelName,String youtubeChannelId, String youtubeVideoTitle, String youtubeThumbnailUrl, String youtubeChannelProfileUrl, Long youtubeSubscriberCount, Long youtubeVideoViewCount,
                            double avgRating, Long ratingCount, String youtubeUrl, Boolean isAiGenerated) {
         this.id = id;
         this.title = title;
@@ -134,6 +142,7 @@ public class RecipeSimpleDto {
         this.authorName = authorName;
         this.profileImage = profileImage;
         this.createdAt = createdAt;
+        this.favoriteCount = favoriteCount;
         this.likeCount = likeCount;
         this.likedByCurrentUser = likedByCurrentUser;
         this.cookingTime = cookingTime;
@@ -143,6 +152,7 @@ public class RecipeSimpleDto {
         this.youtubeThumbnailUrl = youtubeThumbnailUrl;
         this.youtubeChannelProfileUrl = youtubeChannelProfileUrl;
         this.youtubeSubscriberCount = youtubeSubscriberCount;
+        this.youtubeVideoViewCount = youtubeVideoViewCount;
         this.avgRating = BigDecimal.valueOf(avgRating);
         this.ratingCount = ratingCount != null ? ratingCount : 0L;
         this.isYoutube = youtubeUrl != null && !youtubeUrl.isEmpty();

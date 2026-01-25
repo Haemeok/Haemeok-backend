@@ -30,12 +30,11 @@ public class RecipeStatusService {
         }
 
         Map<Long, Long> recipeLikeCounts = recipeRepository.findLikeCountsMapByIds(recipeIds);
+        Map<Long, Long> recipeFavoriteCounts = recipeRepository.findFavoriteCountsMapByIds(recipeIds);
 
         Map<Long, List<CommentStatusDto>> commentStatusesMap = new HashMap<>();
-
         if (recipeIds.size() == 1) {
             Long recipeId = recipeIds.get(0);
-
             List<Long> commentIds = recipeCommentRepository.findTopNIdsByRecipeId(recipeId, Pageable.ofSize(3));
 
             if (!commentIds.isEmpty()) {
@@ -50,6 +49,7 @@ public class RecipeStatusService {
                 RecipeDetailStatusDto status = RecipeDetailStatusDto.builder()
                         .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L))
                         .likedByCurrentUser(false)
+                        .favoriteCount(recipeFavoriteCounts.getOrDefault(recipeId, 0L))
                         .favoriteByCurrentUser(false)
                         .myRating(null)
                         .comments(commentStatusesMap.getOrDefault(recipeId, Collections.emptyList()))
@@ -68,10 +68,10 @@ public class RecipeStatusService {
 
             Double myRating = myRatings.getOrDefault(recipeId, null);
 
-
             RecipeDetailStatusDto status = RecipeDetailStatusDto.builder()
                     .likeCount(recipeLikeCounts.getOrDefault(recipeId, 0L))
                     .likedByCurrentUser(likedRecipeIds.contains(recipeId))
+                    .favoriteCount(recipeFavoriteCounts.getOrDefault(recipeId, 0L))
                     .favoriteByCurrentUser(favoritedRecipeIds.contains(recipeId))
                     .myRating(myRating)
                     .comments(commentStatusesMap.getOrDefault(recipeId, Collections.emptyList()))
@@ -81,7 +81,6 @@ public class RecipeStatusService {
         }
         return statusMap;
     }
-
 
     public Map<Long, RecipeSimpleStatusDto> convertToSimpleStatus(Map<Long, RecipeDetailStatusDto> detailStatusMap) {
         return detailStatusMap.entrySet().stream()

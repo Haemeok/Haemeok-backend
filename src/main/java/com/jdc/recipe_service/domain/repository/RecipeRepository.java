@@ -76,6 +76,17 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 ));
     }
 
+    @Query("SELECT r.id, r.favoriteCount FROM Recipe r WHERE r.id IN :ids")
+    List<Object[]> findFavoriteCountsByIdsRaw(@Param("ids") List<Long> ids);
+
+    default Map<Long, Long> findFavoriteCountsMapByIds(List<Long> ids) {
+        return findFavoriteCountsByIdsRaw(ids).stream()
+                .collect(Collectors.toMap(
+                        a -> (Long) a[0],
+                        a -> a[1] != null ? (Long) a[1] : 0L
+                ));
+    }
+
     @Query("""
             SELECT r.id, COUNT(rc.id)
             FROM Recipe r
@@ -129,7 +140,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     @Modifying(clearAutomatically = true)
     @Query("""
-        UPDATE Recipe r 
+        UPDATE Recipe r
         SET r.weeklyLikeCount = (
             SELECT COUNT(rl)
             FROM RecipeLike rl
@@ -142,15 +153,16 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @SuppressWarnings("JpaQlInspection")
     @Query("""
         SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
-            r.id, 
-            r.title, 
-            r.imageKey, 
-            r.user.id, 
-            r.user.nickname, 
-            r.user.profileImage, 
-            r.createdAt, 
+            r.id,
+            r.title,
+            r.imageKey,
+            r.user.id,
+            r.user.nickname,
+            r.user.profileImage,
+            r.createdAt,
             r.cookingTime,
-            r.weeklyLikeCount,       
+           COALESCE(r.likeCount, 0L),
+            COALESCE(r.favoriteCount, 0L),
             COALESCE(r.avgRating, 0.0),
             COALESCE(r.ratingCount, 0L),
             r.youtubeChannelName,
@@ -159,6 +171,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             r.youtubeThumbnailUrl,
             r.youtubeChannelProfileUrl,
             r.youtubeSubscriberCount,
+            r.youtubeVideoViewCount,
             r.youtubeUrl,
             r.isAiGenerated
         )
@@ -176,7 +189,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @Query("""
                 SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
                     r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
-                    COUNT(DISTINCT rl.id),
+                    COALESCE(r.likeCount, 0L),
+                    COALESCE(r.favoriteCount, 0L),
                     COALESCE(r.avgRating, 0.0),
                     COALESCE(r.ratingCount, 0L),
                     r.youtubeChannelName,
@@ -185,6 +199,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                     r.youtubeThumbnailUrl,
                     r.youtubeChannelProfileUrl,
                     r.youtubeSubscriberCount,
+                    r.youtubeVideoViewCount,
                     r.youtubeUrl,
                     r.isAiGenerated
                 )
@@ -193,7 +208,11 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
                 WHERE r.isPrivate = false
                   AND r.isAiGenerated = false
-                GROUP BY r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime, r.avgRating, r.ratingCount
+                GROUP BY
+                   r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime,
+                   r.likeCount, r.favoriteCount, r.avgRating, r.ratingCount,
+                   r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl,
+                   r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount, r.youtubeUrl, r.isAiGenerated
                 ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
             """)
     Page<RecipeSimpleStaticDto> findPopularRecipesByRealtimeCount(
@@ -205,6 +224,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2(
             r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
             COALESCE(r.likeCount, 0L),
+            COALESCE(r.favoriteCount, 0L),
             COALESCE(r.avgRating, 0.0),
             COALESCE(r.ratingCount, 0L),
             r.totalIngredientCost,
@@ -215,6 +235,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             r.youtubeThumbnailUrl,
             r.youtubeChannelProfileUrl,
             r.youtubeSubscriberCount,
+            r.youtubeVideoViewCount,
             r.youtubeUrl,
             r.isAiGenerated
         )
@@ -235,6 +256,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
                 r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.cookingTime,
                 COALESCE(r.likeCount, 0L),
+                COALESCE(r.favoriteCount, 0L),
                 COALESCE(r.avgRating, 0.0),
                 COALESCE(r.ratingCount, 0L),
                 r.youtubeChannelName,
@@ -243,6 +265,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 r.youtubeThumbnailUrl,
                 r.youtubeChannelProfileUrl,
                 r.youtubeSubscriberCount,
+                r.youtubeVideoViewCount,
                 r.youtubeUrl,
                 r.isAiGenerated
             )
@@ -262,8 +285,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     List<Recipe> findAllByIdInAndIsPrivateFalseFetchUser(@Param("ids") List<Long> ids);
 
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
-            "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, " +
-            "r.likeCount, FALSE, r.cookingTime, r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl, r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, " +
+            "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.favoriteCount, " +
+            "r.likeCount, FALSE, r.cookingTime, r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl, r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount, " +
             "COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount, r.youtubeUrl, r.isAiGenerated)" +
             "FROM Recipe r " +
             "WHERE r.id IN :ids")

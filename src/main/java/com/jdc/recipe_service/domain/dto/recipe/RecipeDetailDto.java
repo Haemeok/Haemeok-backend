@@ -73,6 +73,9 @@ public class RecipeDetailDto {
     @Schema(description = "유튜브 구독자 수")
     private Long youtubeSubscriberCount;
 
+    @Schema(description = "유튜브 영상 조회수")
+    private Long youtubeVideoViewCount;
+
     @Schema(description = "레시피 오류 수정에 기여한 사용자 ID 목록")
     @JsonSerialize(contentUsing = HashIdSerializer.class)
     private List<Long> contributors;
@@ -109,6 +112,9 @@ public class RecipeDetailDto {
 
     @Schema(description = "현재 로그인한 사용자가 좋아요를 눌렀는지 여부")
     private boolean likedByCurrentUser;
+
+    @Schema(description = "즐겨찾기 수")
+    private Long favoriteCount;
 
     @Schema(description = "현재 로그인한 사용자가 즐겨찾기를 눌렀는지 여부")
     private boolean favoriteByCurrentUser;

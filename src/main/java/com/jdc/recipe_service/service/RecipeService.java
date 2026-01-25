@@ -82,7 +82,8 @@ public class RecipeService {
                     dto.getYoutubeVideoTitle(),
                     dto.getYoutubeThumbnailUrl(),
                     dto.getYoutubeChannelProfileUrl(),
-                    dto.getYoutubeSubscriberCount()
+                    dto.getYoutubeSubscriberCount(),
+                    dto.getYoutubeVideoViewCount()
             );
         }
 

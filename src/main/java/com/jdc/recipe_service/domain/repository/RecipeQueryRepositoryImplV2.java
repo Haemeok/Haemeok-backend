@@ -64,6 +64,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.createdAt,
                         recipe.cookingTime,
                         recipe.likeCount.coalesce(0L),
+                        recipe.favoriteCount.coalesce(0L),
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
                         recipe.ratingCount.coalesce(0L),
                         recipe.youtubeChannelName,
@@ -72,6 +73,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.youtubeThumbnailUrl,
                         recipe.youtubeChannelProfileUrl,
                         recipe.youtubeSubscriberCount,
+                        recipe.youtubeVideoViewCount,
                         recipe.youtubeUrl,
                         recipe.isAiGenerated
                 ))

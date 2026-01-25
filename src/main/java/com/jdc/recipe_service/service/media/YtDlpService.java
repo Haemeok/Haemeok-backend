@@ -61,6 +61,33 @@ public class YtDlpService {
     @Value("#{'${youtube.api-keys:}'.split(',')}")
     private List<String> youtubeApiKeys;
 
+    @jakarta.annotation.PostConstruct
+    public void logYoutubeApiKeys() {
+        log.info("==================================================");
+        log.info("🎥 [DEBUG] YouTube API Key 설정 확인");
+
+        if (youtubeApiKeys == null || youtubeApiKeys.isEmpty() || (youtubeApiKeys.size() == 1 && youtubeApiKeys.get(0).isBlank())) {
+            log.error("❌ YouTube API Key 리스트가 비어있습니다! (환경변수 YOUTUBE_API_KEYS 확인 필요)");
+            log.error("👉 현재 설정값: {}", youtubeApiKeys);
+        } else {
+            log.info("👉 로드된 키 개수: {}개", youtubeApiKeys.size());
+            for (int i = 0; i < youtubeApiKeys.size(); i++) {
+                String key = youtubeApiKeys.get(i).trim();
+                // 보안상 앞 10자리만 출력 (AIzaSy... 확인용)
+                String masked = key.length() > 10 ? key.substring(0, 10) + "..." : key;
+
+                if (key.isBlank()) {
+                    log.warn("⚠️ Key[{}] 는 빈 문자열입니다!", i);
+                } else if (!key.startsWith("AIzaSy")) {
+                    log.warn("⚠️ Key[{}] 형식이 수상합니다 (AIzaSy로 시작 안함): {}", i, masked);
+                } else {
+                    log.info("✅ Key[{}] 정상 로드: {}", i, masked);
+                }
+            }
+        }
+        log.info("==================================================");
+    }
+
     /* =========================================================
      * Public APIs: 오직 텍스트 데이터만 가져옵니다.
      * ========================================================= */
@@ -88,7 +115,8 @@ public class YtDlpService {
                 nullToEmpty(mc.channelId),
                 nullToEmpty(mc.thumbnailUrl),
                 nullToEmpty(mc.channelProfileUrl),
-                mc.subscriberCount
+                mc.subscriberCount,
+                mc.viewCount
         );
     }
 
@@ -110,6 +138,7 @@ public class YtDlpService {
                 String thumbnail = optText(metaRoot, "thumbnail");
                 String channelId = optText(metaRoot, "channel_id");
                 if (isBlank(channelId)) channelId = optText(metaRoot, "uploader_id");
+                Long viewCount = metaRoot.path("view_count").asLong(0);
 
                 ChannelInfo channelInfo = fetchChannelMetadata(metaRoot);
 
@@ -133,7 +162,8 @@ public class YtDlpService {
                         channelId,
                         thumbnail,
                         channelInfo.profileUrl(),
-                        channelInfo.subscriberCount()
+                        channelInfo.subscriberCount(),
+                        viewCount
                 );
 
                 log.info("[client={}] uploader='{}', channel='{}', uploader_id='{}', channel_id='{}'",
@@ -154,7 +184,7 @@ public class YtDlpService {
             } catch (Exception ignored) {
             }
         }
-        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "", "", "", 0L);
+        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "", "", "", 0L,0L);
     }
 
     private boolean isBetter(MetaAndComment a, MetaAndComment b) {
@@ -691,7 +721,8 @@ public class YtDlpService {
             String channelId,
             String thumbnailUrl,
             String channelProfileUrl,
-            Long subscriberCount
+            Long subscriberCount,
+            Long viewCount
     ) {}
 
     private record ChannelInfo(String name, String profileUrl, Long subscriberCount, boolean isApiUsed) {}
@@ -722,6 +753,7 @@ public class YtDlpService {
             String channelId,
             String thumbnailUrl,
             String channelProfileUrl,
-            Long youtubeSubscriberCount
+            Long youtubeSubscriberCount,
+            Long viewCount
     ) {}
 }

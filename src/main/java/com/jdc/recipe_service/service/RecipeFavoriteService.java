@@ -27,7 +27,10 @@ public class RecipeFavoriteService {
         Optional<RecipeFavorite> favorite = favoriteRepository.findByUserIdAndRecipeId(userId, recipeId);
 
         if (favorite.isPresent()) {
+            Recipe recipe = favorite.get().getRecipe();
             favoriteRepository.delete(favorite.get());
+
+            recipe.decreaseFavoriteCount();
             return false;
         }
 
@@ -37,9 +40,14 @@ public class RecipeFavoriteService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         favoriteRepository.save(RecipeFavorite.builder().user(user).recipe(recipe).build());
+
+        recipe.increaseFavoriteCount();
         return true;
     }
 
+    /**
+     * 즐겨찾기 강제 추가 (중복 체크 후)
+     */
     @Transactional
     public void addFavoriteIfNotExists(Long userId, Long recipeId) {
         boolean exists = favoriteRepository.existsByRecipeIdAndUserId(recipeId, userId);
@@ -54,11 +62,12 @@ public class RecipeFavoriteService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         favoriteRepository.save(RecipeFavorite.builder().user(user).recipe(recipe).build());
+
+        recipe.increaseFavoriteCount();
     }
 
     @Transactional
     public void deleteByRecipeId(Long recipeId) {
         favoriteRepository.deleteByRecipeId(recipeId);
     }
-
 }
