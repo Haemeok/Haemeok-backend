@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service.image;
 
 import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
+import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeImage;
 import com.jdc.recipe_service.domain.entity.RecipeStep;
@@ -25,6 +26,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -198,8 +200,12 @@ public class AsyncImageService {
                 }
             });
 
-            RecipeDetailDto fullDto = recipeSearchService.getRecipeDetail(recipeId, promptData.userId);
-            deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
+            PresignedUrlResponse response = PresignedUrlResponse.builder()
+                    .recipeId(recipeId)
+                    .uploads(new ArrayList<>())
+                    .build();
+
+            deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(response));
 
             log.info("✅ [AsyncImageService] 이미지 생성 및 저장 완료. URL: {}", fullUrl);
 
@@ -241,8 +247,11 @@ public class AsyncImageService {
                 log.error("실패 상태 업데이트 중 추가 오류 발생", ex);
             }
             try {
-                RecipeDetailDto failDto = recipeSearchService.getRecipeDetail(recipeId, null);
-                deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(failDto));
+                PresignedUrlResponse failResponse = PresignedUrlResponse.builder()
+                        .recipeId(recipeId)
+                        .uploads(new ArrayList<>())
+                        .build();
+                deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(failResponse));
             } catch (Exception dtoEx) {
                 log.error("실패 응답 DTO 생성 중 오류", dtoEx);
                 deferredResultHolder.completeAll(recipeId, ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());

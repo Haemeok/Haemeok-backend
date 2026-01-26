@@ -455,7 +455,7 @@ public class RecipeExtractionService {
             """;
     }
 
-    public DeferredResult<ResponseEntity<RecipeDetailDto>> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
+    public DeferredResult<ResponseEntity<PresignedUrlResponse>> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
         log.info("🚀 유튜브 레시피 추출 요청: URL={}, UserID={}", videoUrl, userId);
 
         if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
@@ -470,17 +470,19 @@ public class RecipeExtractionService {
                 .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, false)));
 
         if (existingRecipe.isPresent()) {
-            log.info("♻️ 이미 존재하는 레시피 발견. 생성 건너뜀. ID={}", existingRecipe.get().getId());
-            DeferredResult<ResponseEntity<RecipeDetailDto>> result = new DeferredResult<>();
-            RecipeDetailDto detail = recipeSearchService.getRecipeDetail(existingRecipe.get().getId(), userId);
-            result.setResult(ResponseEntity.ok(detail));
+            DeferredResult<ResponseEntity<PresignedUrlResponse>> result = new DeferredResult<>();
+            PresignedUrlResponse response = PresignedUrlResponse.builder()
+                    .recipeId(existingRecipe.get().getId())
+                    .uploads(new ArrayList<>())
+                    .build();
+            result.setResult(ResponseEntity.ok(response));
             return result;
         }
 
         PresignedUrlResponse savedResponse = processActualExtractionLogic(videoUrl, userId, videoId, nickname);
         Long recipeId = savedResponse.getRecipeId();
 
-        DeferredResult<ResponseEntity<RecipeDetailDto>> deferredResult = deferredResultHolder.create(recipeId, 40000L);
+        DeferredResult<ResponseEntity<PresignedUrlResponse>> deferredResult = deferredResultHolder.create(recipeId, 60000L);
 
         CompletableFuture.runAsync(() -> {
             try {
