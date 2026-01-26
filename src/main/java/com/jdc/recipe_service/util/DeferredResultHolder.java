@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.util;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
+import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -21,8 +22,7 @@ import java.util.concurrent.ConcurrentMap;
 public class DeferredResultHolder {
 
     private final ConcurrentMap<Long, List<DeferredResult<ResponseEntity<?>>>> holder = new ConcurrentHashMap<>();
-    private final Map<Long, DeferredResult<ResponseEntity<RecipeDetailDto>>> resultMap = new ConcurrentHashMap<>();
-
+    private final Map<Long, DeferredResult<ResponseEntity<PresignedUrlResponse>>> resultMap = new ConcurrentHashMap<>();
     /**
      * recipeId에 해당하는 DeferredResult를 등록
      */
@@ -40,8 +40,8 @@ public class DeferredResultHolder {
      * [추가된 메서드] 대기 객체 생성 및 저장
      * Facade에서 호출합니다.
      */
-    public DeferredResult<ResponseEntity<RecipeDetailDto>> create(Long recipeId, Long timeout) {
-        DeferredResult<ResponseEntity<RecipeDetailDto>> result = new DeferredResult<>(timeout);
+    public DeferredResult<ResponseEntity<PresignedUrlResponse>> create(Long recipeId, Long timeout) {
+        DeferredResult<ResponseEntity<PresignedUrlResponse>> result = new DeferredResult<>(timeout);
 
         resultMap.put(recipeId, result);
 
@@ -62,14 +62,12 @@ public class DeferredResultHolder {
      * 이미지 생성 완료 시 호출 (AsyncImageService에서 호출)
      * 저장된 대기 객체를 찾아 응답을 보냅니다.
      */
-    public void completeAll(Long recipeId, ResponseEntity<RecipeDetailDto> response) {
-        DeferredResult<ResponseEntity<RecipeDetailDto>> result = resultMap.remove(recipeId);
+    public void completeAll(Long recipeId, ResponseEntity<PresignedUrlResponse> response) {
+        DeferredResult<ResponseEntity<PresignedUrlResponse>> result = resultMap.remove(recipeId);
 
         if (result != null && !result.isSetOrExpired()) {
             result.setResult(response);
             log.info("Recipe ID {} - DeferredResult 응답 완료", recipeId);
-        } else {
-            log.warn("대기 중인 요청을 찾을 수 없거나 이미 처리됨. Recipe ID: {}", recipeId);
         }
     }
     /**
