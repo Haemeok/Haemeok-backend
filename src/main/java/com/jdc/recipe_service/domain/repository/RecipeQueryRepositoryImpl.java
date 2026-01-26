@@ -409,6 +409,131 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
 
+    @Override
+    public Page<RecipeSimpleDto> searchByIncludedIngredients(
+            List<Long> ingredientIds,
+            RecipeSearchCondition cond,
+            Pageable pageable
+    ) {
+        QRecipe recipe = QRecipe.recipe;
+        QRecipeIngredient ri = QRecipeIngredient.recipeIngredient;
+        QIngredient ing = QIngredient.ingredient;
+        QRecipeTag tag = QRecipeTag.recipeTag;
+
+        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
+
+        BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
+                .or(recipe.imageStatus.isNull());
+
+        var query = queryFactory
+                .select(new QRecipeSimpleDto(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.favoriteCount.coalesce(0L),
+                        recipe.likeCount,
+                        Expressions.constant(false),
+                        recipe.cookingTime,
+                        recipe.youtubeChannelName,
+                        recipe.youtubeChannelId,
+                        recipe.youtubeVideoTitle,
+                        recipe.youtubeThumbnailUrl,
+                        recipe.youtubeChannelProfileUrl,
+                        recipe.youtubeSubscriberCount,
+                        recipe.youtubeVideoViewCount,
+                        recipe.avgRating.coalesce(BigDecimal.ZERO),
+                        recipe.ratingCount.coalesce(0L),
+                        recipe.youtubeUrl,
+                        recipe.isAiGenerated
+                ))
+                .from(recipe)
+                .join(recipe.ingredients, ri)
+                .join(ri.ingredient, ing);
+
+        if (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) {
+            query.leftJoin(recipe.tags, tag);
+        }
+
+        List<RecipeSimpleDto> content = query
+                .where(
+                        privacyCondition,
+                        imageReadyCondition,
+                        ing.id.in(ingredientIds),
+                        titleContains(cond.getTitle()),
+                        dishTypeEq(cond.getDishTypeEnum()),
+                        tagIn(cond.getTagEnums(), tag),
+                        filterByTypes(cond.getTypes()),
+                        costBetween(cond.getMinCost(), cond.getMaxCost()),
+                        caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
+                        proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
+                        carbBetween(cond.getMinCarb(), cond.getMaxCarb()),
+                        fatBetween(cond.getMinFat(), cond.getMaxFat()),
+                        sugarBetween(cond.getMinSugar(), cond.getMaxSugar()),
+                        sodiumBetween(cond.getMinSodium(), cond.getMaxSodium())
+                )
+                .groupBy(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.cookingTime,
+                        recipe.avgRating,
+                        recipe.ratingCount,
+                        recipe.likeCount
+                )
+                .having(ing.id.countDistinct().eq((long) ingredientIds.size()))
+
+                .orderBy(getOrderSpecifiers(pageable))
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        if (!content.isEmpty()) {
+            content.forEach(dto ->
+                    dto.setImageUrl(generateImageUrl(dto.getImageUrl()))
+            );
+        }
+
+        var countQuery = queryFactory
+                .select(recipe.id)
+                .from(recipe)
+                .join(recipe.ingredients, ri)
+                .join(ri.ingredient, ing);
+
+        if (cond.getTagEnums() != null && !cond.getTagEnums().isEmpty()) {
+            countQuery.leftJoin(recipe.tags, tag);
+        }
+
+        long total = countQuery
+                .where(
+                        privacyCondition,
+                        imageReadyCondition,
+                        ing.id.in(ingredientIds),
+                        titleContains(cond.getTitle()),
+                        dishTypeEq(cond.getDishTypeEnum()),
+                        tagIn(cond.getTagEnums(), tag),
+                        filterByTypes(cond.getTypes()),
+                        costBetween(cond.getMinCost(), cond.getMaxCost()),
+                        caloriesBetween(cond.getMinCalories(), cond.getMaxCalories()),
+                        proteinBetween(cond.getMinProtein(), cond.getMaxProtein()),
+                        carbBetween(cond.getMinCarb(), cond.getMaxCarb()),
+                        fatBetween(cond.getMinFat(), cond.getMaxFat()),
+                        sugarBetween(cond.getMinSugar(), cond.getMaxSugar()),
+                        sodiumBetween(cond.getMinSodium(), cond.getMaxSodium())
+                )
+                .groupBy(recipe.id)
+                .having(ing.id.countDistinct().eq((long) ingredientIds.size()))
+                .fetch().size();
+
+        return new PageImpl<>(content, pageable, total);
+    }
 
     @Override
     public Page<Recipe> findByFridgeFallback(

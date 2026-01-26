@@ -8,9 +8,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hashids.Hashids;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -20,6 +23,9 @@ public class RecipeSearchCondition {
     private String title;
     private String dishType;
     private List<String> tags;
+
+    @Schema(description = "포함할 재료 ID 목록 (HashID) (예: ?ingredientIds=Jk2L,aB9d)")
+    private List<String> ingredientIds;
 
     private List<RecipeType> types = new ArrayList<>(List.of(RecipeType.USER));
 
@@ -57,6 +63,23 @@ public class RecipeSearchCondition {
     private Integer minSodium;
     @Schema(description = "최대 나트륨 (mg)", example = "1000")
     private Integer maxSodium;
+
+    public List<Long> getDecodedIngredientIds(Hashids hashids) {
+        if (ingredientIds == null || ingredientIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return ingredientIds.stream()
+                .map(hashId -> {
+                    try {
+                        long[] result = hashids.decode(hashId);
+                        return result.length > 0 ? result[0] : null;
+                    } catch (Exception e) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
 
     public DishType getDishTypeEnum() {
         if (dishType == null || dishType.isBlank()) return null;

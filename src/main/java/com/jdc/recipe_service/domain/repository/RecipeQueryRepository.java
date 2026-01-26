@@ -25,6 +25,12 @@ public interface RecipeQueryRepository {
             Pageable pageable,
             Long userId);
 
+    Page<RecipeSimpleDto> searchByIncludedIngredients(
+            List<Long> ingredientIds,
+            RecipeSearchCondition cond,
+            Pageable pageable
+    );
+
     Page<Recipe> findByFridgeFallback(
             List<Long> fridgeIds,
             List<RecipeType> types,
