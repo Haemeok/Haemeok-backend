@@ -81,10 +81,10 @@ class RecipeExtractionServiceTest {
         when(recipeService.createRecipeAndGenerateUrls(any(), any(), eq(RecipeSourceType.YOUTUBE), isNull()))
                 .thenReturn(PresignedUrlResponse.builder().recipeId(1L).build());
 
-        DeferredResult<ResponseEntity<RecipeDetailDto>> mockDeferredResult = new DeferredResult<>();
+        DeferredResult<ResponseEntity<PresignedUrlResponse>> mockDeferredResult = new DeferredResult<>();
         when(deferredResultHolder.create(anyLong(), anyLong())).thenReturn(mockDeferredResult); // create 호출 시 모의 객체 반환
 
-        DeferredResult<ResponseEntity<RecipeDetailDto>> result = service.extractAndCreateRecipe(url, userId, nickname);
+        DeferredResult<ResponseEntity<PresignedUrlResponse>> result = service.extractAndCreateRecipe(url, userId, nickname);
 
         try {
             Thread.sleep(100);
