@@ -7,9 +7,14 @@ import lombok.*;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "recipe_ingredients", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"recipe_id", "ingredient_id"})
-})
+@Table(name = "recipe_ingredients",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"recipe_id", "ingredient_id"})
+        },
+        indexes = {
+                @Index(name = "idx_recipe_ingredient_ing_id", columnList = "ingredient_id")
+        }
+)
 @Getter
 @ToString(exclude = "recipe")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

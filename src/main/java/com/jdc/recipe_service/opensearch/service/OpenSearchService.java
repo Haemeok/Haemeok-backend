@@ -9,6 +9,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.keyword.KeywordService;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.RequestOptions;
@@ -37,6 +38,7 @@ public class OpenSearchService {
     private final RecipeRepository recipeRepository;
     private final RestHighLevelClient client;
     private final KeywordService keywordService;
+    private final Hashids hashids;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -171,6 +173,14 @@ public class OpenSearchService {
             keywordQuery.should(QueryBuilders.matchPhraseQuery("youtubeChannelName", keyword).boost(2.0f));
 
             bool.must(keywordQuery);
+        }
+
+        List<Long> ingredientIds = cond.getDecodedIngredientIds(hashids);
+
+        if (!ingredientIds.isEmpty()) {
+            for (Long ingId : ingredientIds) {
+                bool.filter(QueryBuilders.termQuery("ingredientIds", ingId));
+            }
         }
 
         applyRangeFilter(bool, "totalIngredientCost", cond.getMinCost(), cond.getMaxCost());

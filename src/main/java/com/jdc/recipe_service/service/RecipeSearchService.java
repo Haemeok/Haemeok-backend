@@ -23,6 +23,7 @@ import com.jdc.recipe_service.mapper.UserMapper;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
 import com.jdc.recipe_service.util.SearchProperties;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.slf4j.Logger;
@@ -53,6 +54,7 @@ public class RecipeSearchService {
     private final RecipeTagRepository recipeTagRepository;
     private final RecipeStepIngredientRepository recipeStepIngredientRepository;
     private final RecipeIngredientReportRepository recipeIngredientReportRepository;
+    private final Hashids hashids;
 
     private final RecipeRatingService recipeRatingService;
     private final CommentService commentService;
@@ -101,7 +103,11 @@ public class RecipeSearchService {
             Page<RecipeSimpleDto> page = openSearchService.searchRecipes(condition, pageable, userId);
             return addLikeInfoToPage(page, userId);
         } else {
-            return searchWithQuerydsl(condition, pageable, userId);
+            if (condition.getIngredientIds() != null && !condition.getIngredientIds().isEmpty()) {
+                return searchByIncludedIngredients(condition, pageable, userId);
+            } else {
+                return searchWithQuerydsl(condition, pageable, userId);
+            }
         }
     }
 
@@ -121,6 +127,23 @@ public class RecipeSearchService {
                 pageable,
                 userId
         );
+
+        return addLikeInfoToPage(page, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecipeSimpleDto> searchByIncludedIngredients(
+            RecipeSearchCondition cond,
+            Pageable pageable,
+            Long userId
+    ) {
+        List<Long> decodedIds = cond.getDecodedIngredientIds(hashids);
+
+        if (decodedIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        Page<RecipeSimpleDto> page = recipeRepository.searchByIncludedIngredients(decodedIds, cond, pageable);
 
         return addLikeInfoToPage(page, userId);
     }
