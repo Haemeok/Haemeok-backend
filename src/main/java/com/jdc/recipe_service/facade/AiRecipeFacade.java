@@ -2,6 +2,7 @@ package com.jdc.recipe_service.facade;
 
 import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
@@ -17,7 +18,9 @@ import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.SurveyService;
 import com.jdc.recipe_service.service.ai.GeminiClientService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
+import com.jdc.recipe_service.service.image.AsyncImageService;
 import com.jdc.recipe_service.util.ActionImageService;
+import com.jdc.recipe_service.util.DeferredResultHolder;
 import com.jdc.recipe_service.util.UnitService;
 import com.jdc.recipe_service.util.prompt.CostEffectivePromptBuilder;
 import com.jdc.recipe_service.util.prompt.FineDiningPromptBuilder;
@@ -25,12 +28,15 @@ import com.jdc.recipe_service.util.prompt.IngredientFocusPromptBuilder;
 import com.jdc.recipe_service.util.prompt.NutritionPromptBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 
@@ -46,6 +52,8 @@ public class AiRecipeFacade {
     private final SurveyService surveyService;
     private final ActionImageService actionImageService;
     private final UnitService unitService;
+    private final AsyncImageService asyncImageService;
+    private final DeferredResultHolder deferredResultHolder;
 
     private final IngredientFocusPromptBuilder ingredientBuilder;
     private final CostEffectivePromptBuilder costBuilder;
@@ -56,7 +64,11 @@ public class AiRecipeFacade {
     /**
      * 트랜잭션 없이 AI 호출 수행 후, 저장 시점에만 트랜잭션 참여
      */
-    public PresignedUrlResponse generateAndSave(RecipeWithImageUploadRequest request, AiRecipeConcept concept, Long userId) {
+    public DeferredResult<ResponseEntity<RecipeDetailDto>> generateAndSave(
+            RecipeWithImageUploadRequest request,
+            AiRecipeConcept concept,
+            Long userId
+    ) {
 
         if (request.getAiRequest() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "AI 요청 정보가 없습니다.");
@@ -112,12 +124,21 @@ public class AiRecipeFacade {
                     .files(request.getFiles())
                     .build();
 
-            return recipeService.createRecipeAndGenerateUrls(
-                    processingRequest,
-                    userId,
-                    RecipeSourceType.AI,
-                    concept
+            PresignedUrlResponse savedResponse = recipeService.createRecipeAndGenerateUrls(
+                    processingRequest, userId, RecipeSourceType.AI, concept
             );
+            Long recipeId = savedResponse.getRecipeId();
+            DeferredResult<ResponseEntity<RecipeDetailDto>> result = deferredResultHolder.create(recipeId, 30000L);
+
+            CompletableFuture.runAsync(() -> {
+                try {
+                    asyncImageService.generateAndUploadAiImage(recipeId,true);
+                } catch (Exception e) {
+                    log.error("비동기 작업 중 예상치 못한 오류 발생 ID: {}", recipeId, e);
+                }
+            });
+
+            return result;
 
         } catch (Exception e) {
             dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.AI_GENERATION);

@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
@@ -17,20 +18,22 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
+import com.jdc.recipe_service.service.image.AsyncImageService;
 import com.jdc.recipe_service.service.media.YtDlpService;
+import com.jdc.recipe_service.util.DeferredResultHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.context.request.async.DeferredResult;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -98,8 +101,11 @@ public class RecipeExtractionService {
     private final TransactionTemplate transactionTemplate;
     private final Executor extractionExecutor;
 
+    private final AsyncImageService asyncImageService;
+    private final DeferredResultHolder deferredResultHolder;
+    private final RecipeSearchService recipeSearchService;
+
     private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
-    private final ConcurrentHashMap<String, CompletableFuture<PresignedUrlResponse>> extractionTasks = new ConcurrentHashMap<>();
 
     public RecipeExtractionService(
             YtDlpService ytDlpService,
@@ -108,9 +114,14 @@ public class RecipeExtractionService {
             RecipeService recipeService,
             DailyQuotaService dailyQuotaService, RecipeActivityService recipeActivityService,
             RecipeRepository recipeRepository,
-            RecipeFavoriteService recipeFavoriteService, YoutubeTargetChannelRepository youtubeTargetChannelRepository, YoutubeRecommendationRepository youtubeRecommendationRepository,
+            RecipeFavoriteService recipeFavoriteService,
+            YoutubeTargetChannelRepository youtubeTargetChannelRepository,
+            YoutubeRecommendationRepository youtubeRecommendationRepository,
             TransactionTemplate transactionTemplate,
-            @Qualifier("recipeExtractionExecutor") Executor extractionExecutor
+            @Qualifier("recipeExtractionExecutor") Executor extractionExecutor,
+            AsyncImageService asyncImageService,
+            DeferredResultHolder deferredResultHolder,
+            RecipeSearchService recipeSearchService
     ) {
         this.ytDlpService = ytDlpService;
         this.grokClientService = grokClientService;
@@ -124,6 +135,9 @@ public class RecipeExtractionService {
         this.youtubeRecommendationRepository = youtubeRecommendationRepository;
         this.transactionTemplate = transactionTemplate;
         this.extractionExecutor = extractionExecutor;
+        this.asyncImageService = asyncImageService;
+        this.deferredResultHolder = deferredResultHolder;
+        this.recipeSearchService = recipeSearchService;
     }
 
     private String getExtractionPrompt() {
@@ -441,7 +455,7 @@ public class RecipeExtractionService {
             """;
     }
 
-    public CompletableFuture<PresignedUrlResponse> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
+    public DeferredResult<ResponseEntity<RecipeDetailDto>> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
         log.info("🚀 유튜브 레시피 추출 요청: URL={}, UserID={}", videoUrl, userId);
 
         if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
@@ -450,40 +464,38 @@ public class RecipeExtractionService {
         String videoId = extractVideoId(videoUrl);
         if (videoId == null) throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
 
-        CompletableFuture<PresignedUrlResponse> sharedTask = extractionTasks.computeIfAbsent(videoId, key -> {
-            log.info("🚌 [버스 출발] 새로운 추출 작업 시작 (운전자: {}). VideoID: {}", userId, key);
-            return CompletableFuture.supplyAsync(() -> {
-                try {
-                    return processActualExtractionLogic(videoUrl, userId, key, nickname);
-                } finally {
-                    extractionTasks.remove(key);
-                    log.info("🏁 [종점 도착] 작업 종료 및 맵에서 제거. VideoID: {}", key);
-                }
-            }, extractionExecutor).orTimeout(5, TimeUnit.MINUTES);
-        });
+        String canonicalUrl = convertToCanonical(videoId);
+        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(canonicalUrl)
+                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, true)))
+                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, false)));
 
-        sharedTask.whenComplete((res, ex) -> {
-            if (extractionTasks.remove(videoId) != null) {
-                log.info("🏁 [종점 도착] 맵에서 Key 제거 완료: {}", videoId);
-            }
-        });
+        if (existingRecipe.isPresent()) {
+            log.info("♻️ 이미 존재하는 레시피 발견. 생성 건너뜀. ID={}", existingRecipe.get().getId());
+            DeferredResult<ResponseEntity<RecipeDetailDto>> result = new DeferredResult<>();
+            RecipeDetailDto detail = recipeSearchService.getRecipeDetail(existingRecipe.get().getId(), userId);
+            result.setResult(ResponseEntity.ok(detail));
+            return result;
+        }
 
-        return sharedTask.handle((response, ex) -> {
-            if (ex != null) {
-                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                if (cause instanceof RuntimeException re) throw re;
-                throw new RuntimeException(cause);
-            }
+        PresignedUrlResponse savedResponse = processActualExtractionLogic(videoUrl, userId, videoId, nickname);
+        Long recipeId = savedResponse.getRecipeId();
 
+        DeferredResult<ResponseEntity<RecipeDetailDto>> deferredResult = deferredResultHolder.create(recipeId, 40000L);
+
+        CompletableFuture.runAsync(() -> {
             try {
-                log.info("⭐ 유저 {}에게 레시피 {} 즐겨찾기/로그 추가", userId, response.getRecipeId());
-                addFavoriteToUser(userId, response.getRecipeId());
+                asyncImageService.generateAndUploadAiImage(recipeId, false);
+
+                log.info("⭐ 유저 {}에게 레시피 {} 즐겨찾기/로그 추가", userId, recipeId);
+                addFavoriteToUser(userId, recipeId);
                 recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
+
             } catch (Exception e) {
-                log.warn("⚠️ 후속 처리(즐겨찾기 등) 실패: userId={}, error={}", userId, e.getMessage());
+                log.error("비동기 이미지 생성 중 오류 ID: {}", recipeId, e);
             }
-            return response;
-        });
+        }, extractionExecutor);
+
+        return deferredResult;
     }
 
     private PresignedUrlResponse processActualExtractionLogic(String videoUrl, Long userId, String videoId, String nickname) {
