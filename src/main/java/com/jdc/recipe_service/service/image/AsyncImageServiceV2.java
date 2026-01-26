@@ -253,12 +253,21 @@ public class AsyncImageServiceV2 {
 
         } catch (Exception e) {
             log.error("❌ [AsyncImageService] 예외 발생, recipeId={}", recipeId, e);
-            recipeRepository.findById(recipeId).ifPresent(recipe -> {
-                recipe.updateImageStatus(RecipeImageStatus.FAILED);
-                recipeRepository.save(recipe);
-            });
-            var errorResponse = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-            deferredResultHolder.completeAll(recipeId, errorResponse);
+            try {
+                recipeRepository.findById(recipeId).ifPresent(recipe -> {
+                    recipe.updateImageStatus(RecipeImageStatus.FAILED);
+                    recipeRepository.save(recipe);
+                });
+            } catch (Exception dbEx) {
+                log.error("DB 업데이트 중 오류", dbEx);
+            }
+            try {
+                RecipeDetailDto failDto = recipeSearchService.getRecipeDetail(recipeId, null);
+                deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(failDto));
+            } catch (Exception dtoEx) {
+                log.error("실패 응답 생성 중 오류", dtoEx);
+            }
+
             return CompletableFuture.failedFuture(e);
         }
     }
