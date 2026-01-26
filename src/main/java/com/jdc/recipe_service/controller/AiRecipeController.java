@@ -32,7 +32,7 @@ public class AiRecipeController {
             summary = "AI 레시피 생성 (동기 대기 방식)",
             description = "요청 시 텍스트 생성 후 DB에 저장하며, **이미지가 생성될 때까지(약 3~5초) 응답을 대기**합니다. 완료되면 이미지가 포함된 레시피 상세 정보를 반환합니다."
     )
-    public DeferredResult<ResponseEntity<RecipeDetailDto>> createAiRecipe(
+    public DeferredResult<ResponseEntity<PresignedUrlResponse>> createAiRecipe(
             @Parameter(description = "요리 컨셉 선택 (INGREDIENT_FOCUS, COST_EFFECTIVE, NUTRITION_BALANCE, FINE_DINING)")
             @RequestParam(value = "concept") AiRecipeConcept concept,
 

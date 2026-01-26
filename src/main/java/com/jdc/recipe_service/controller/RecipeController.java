@@ -156,7 +156,7 @@ public class RecipeController {
 
     @PostMapping("/extract")
     @Operation(summary = "유튜브 링크로 레시피 AI 추출", description = "유튜브 영상 URL을 분석하여 레시피를 자동 생성하고 저장합니다. (비동기 처리)")
-    public DeferredResult<ResponseEntity<RecipeDetailDto>> extractRecipeFromYoutube(
+    public DeferredResult<ResponseEntity<PresignedUrlResponse>> extractRecipeFromYoutube(
             @Parameter(description = "유튜브 영상 URL", required = true) @RequestParam String url,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
