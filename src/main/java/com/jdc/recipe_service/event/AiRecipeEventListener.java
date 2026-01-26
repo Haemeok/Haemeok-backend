@@ -18,16 +18,14 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 @Slf4j
 public class AiRecipeEventListener {
-    private final AsyncImageService asyncImageService;
     private final NotificationService notificationService;
     private final Hashids hashids;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAiRecipeCreated(AiRecipeCreatedEvent event) {
-        try {
-            String imageUrl = asyncImageService.generateAndUploadAiImage(event.getRecipeId());
-
+        log.info("이벤트 리스너: 레시피 생성됨 (ID: {}). 이미지 생성은 Facade에서 직접 처리하므로 여기선 생략합니다.", event.getRecipeId());
+        /*try {
             String encodedId = hashids.encode(event.getRecipeId());
             notificationService.createNotification(
                     NotificationCreateDto.builder()
@@ -45,5 +43,7 @@ public class AiRecipeEventListener {
         } catch (Exception ex) {
             log.error("AI 레시피 이미지 생성 실패로 인해 알림 발송 중단", ex);
         }
+    }
+    */
     }
 }
