@@ -64,7 +64,7 @@ public class AiRecipeFacade {
     /**
      * 트랜잭션 없이 AI 호출 수행 후, 저장 시점에만 트랜잭션 참여
      */
-    public DeferredResult<ResponseEntity<RecipeDetailDto>> generateAndSave(
+    public DeferredResult<ResponseEntity<PresignedUrlResponse>> generateAndSave(
             RecipeWithImageUploadRequest request,
             AiRecipeConcept concept,
             Long userId
@@ -128,7 +128,7 @@ public class AiRecipeFacade {
                     processingRequest, userId, RecipeSourceType.AI, concept
             );
             Long recipeId = savedResponse.getRecipeId();
-            DeferredResult<ResponseEntity<RecipeDetailDto>> result = deferredResultHolder.create(recipeId, 30000L);
+            DeferredResult<ResponseEntity<PresignedUrlResponse>> result = deferredResultHolder.create(recipeId, 60000L);
 
             CompletableFuture.runAsync(() -> {
                 try {
