@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service.image;
 
+import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeImage;
@@ -7,12 +8,16 @@ import com.jdc.recipe_service.domain.entity.RecipeStep;
 import com.jdc.recipe_service.domain.repository.RecipeImageRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.ImageStatus;
+import com.jdc.recipe_service.domain.type.NotificationRelatedType;
+import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import com.jdc.recipe_service.service.NotificationService;
 import com.jdc.recipe_service.service.RecipeSearchService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hashids.Hashids;
 import org.hibernate.Hibernate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,9 +42,12 @@ public class AsyncImageService {
     private final RecipeSearchService recipeSearchService;
     private final DeferredResultHolder deferredResultHolder;
     private final GeminiImageService geminiImageService;
+    private final NotificationService notificationService;
+    private final Hashids hashids;
 
     private final TransactionTemplate transactionTemplate;
-
+    private static final String DEFAULT_IMAGE_KEY =
+            "images/icons/no_image.webp";
     private static final List<String> LIGHTING_OPTIONS = List.of(
             "Natural morning sunlight streaming through a kitchen window (Bright & Fresh)",
             "Warm cozy indoor kitchen lighting at dinner time (Homey & Inviting)",
@@ -137,7 +145,7 @@ public class AsyncImageService {
 
     private record RecipePromptData(Long userId, String prompt) {}
 
-    public String generateAndUploadAiImage(Long recipeId) {
+    public String generateAndUploadAiImage(Long recipeId, boolean sendNotification) {
         log.info("▶ [AsyncImageService] Gemini 이미지 생성 시작, recipeId={}", recipeId);
 
         try {
@@ -194,6 +202,28 @@ public class AsyncImageService {
             deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(fullDto));
 
             log.info("✅ [AsyncImageService] 이미지 생성 및 저장 완료. URL: {}", fullUrl);
+
+            if (sendNotification) {
+                try {
+                    String encodedId = hashids.encode(recipeId);
+                    notificationService.createNotification(
+                            NotificationCreateDto.builder()
+                                    .userId(promptData.userId)
+                                    .imageUrl(fullUrl)
+                                    .type(NotificationType.AI_RECIPE_DONE)
+                                    .relatedType(NotificationRelatedType.RECIPE)
+                                    .relatedId(recipeId)
+                                    .relatedUrl("/recipes/" + encodedId)
+                                    .build()
+                    );
+                    log.info("🔔 알림 발송 완료");
+                } catch (Exception notiEx) {
+                    log.error("⚠️ 알림 발송 실패", notiEx);
+                }
+            } else {
+                log.info("🔕 알림 발송 생략 (설정값 false)");
+            }
+
             return fullUrl;
 
         } catch (Exception e) {
@@ -202,17 +232,21 @@ public class AsyncImageService {
             try {
                 transactionTemplate.executeWithoutResult(status -> {
                     recipeRepository.findById(recipeId).ifPresent(failedRecipe -> {
-                        failedRecipe.updateImageKey(null);
+                        failedRecipe.updateImageKey(DEFAULT_IMAGE_KEY);
                         failedRecipe.updateImageStatus(RecipeImageStatus.FAILED);
-                        failedRecipe.updateIsPrivate(true);
+                        failedRecipe.updateIsPrivate(false);
                     });
                 });
             } catch (Exception ex) {
                 log.error("실패 상태 업데이트 중 추가 오류 발생", ex);
             }
-
-            var errorResponse = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-            deferredResultHolder.completeAll(recipeId, errorResponse);
+            try {
+                RecipeDetailDto failDto = recipeSearchService.getRecipeDetail(recipeId, null);
+                deferredResultHolder.completeAll(recipeId, ResponseEntity.ok(failDto));
+            } catch (Exception dtoEx) {
+                log.error("실패 응답 DTO 생성 중 오류", dtoEx);
+                deferredResultHolder.completeAll(recipeId, ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
+            }
 
             throw new RuntimeException(e);
         }
