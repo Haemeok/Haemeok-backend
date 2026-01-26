@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.AiRecipeConcept;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.async.DeferredResult;
 
 @RestController
 @RequestMapping("/api/recipes/ai")
@@ -26,8 +28,11 @@ public class AiRecipeController {
     private final AiRecipeFacade aiRecipeFacade;
 
     @PostMapping
-    @Operation(summary = "AI 레시피 생성", description = "AI 로봇이 레시피를 생성하고 저장합니다. (처리 시간 소요됨)")
-    public ResponseEntity<PresignedUrlResponse> createAiRecipe(
+    @Operation(
+            summary = "AI 레시피 생성 (동기 대기 방식)",
+            description = "요청 시 텍스트 생성 후 DB에 저장하며, **이미지가 생성될 때까지(약 3~5초) 응답을 대기**합니다. 완료되면 이미지가 포함된 레시피 상세 정보를 반환합니다."
+    )
+    public DeferredResult<ResponseEntity<RecipeDetailDto>> createAiRecipe(
             @Parameter(description = "요리 컨셉 선택 (INGREDIENT_FOCUS, COST_EFFECTIVE, NUTRITION_BALANCE, FINE_DINING)")
             @RequestParam(value = "concept") AiRecipeConcept concept,
 
@@ -40,12 +45,10 @@ public class AiRecipeController {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        PresignedUrlResponse response = aiRecipeFacade.generateAndSave(
+        return aiRecipeFacade.generateAndSave(
                 request,
                 concept,
                 userDetails.getUser().getId()
         );
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

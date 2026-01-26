@@ -3,6 +3,7 @@ package com.jdc.recipe_service.controller;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
 import java.util.Map;
@@ -154,7 +156,7 @@ public class RecipeController {
 
     @PostMapping("/extract")
     @Operation(summary = "유튜브 링크로 레시피 AI 추출", description = "유튜브 영상 URL을 분석하여 레시피를 자동 생성하고 저장합니다. (비동기 처리)")
-    public CompletableFuture<ResponseEntity<PresignedUrlResponse>> extractRecipeFromYoutube(
+    public DeferredResult<ResponseEntity<RecipeDetailDto>> extractRecipeFromYoutube(
             @Parameter(description = "유튜브 영상 URL", required = true) @RequestParam String url,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
@@ -162,14 +164,11 @@ public class RecipeController {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        return recipeExtractionService.extractAndCreateRecipe(url, userDetails.getUser().getId(),userDetails.getUser().getNickname())
-                .thenApply(response -> {
-                    if (response.isCreated()) {
-                        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-                    } else {
-                        return ResponseEntity.ok(response);
-                    }
-                });
+        return recipeExtractionService.extractAndCreateRecipe(
+                url,
+                userDetails.getUser().getId(),
+                userDetails.getUser().getNickname()
+        );
     }
 
     @GetMapping("/youtube/check")
