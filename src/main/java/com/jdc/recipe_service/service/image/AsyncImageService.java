@@ -1,7 +1,8 @@
 package com.jdc.recipe_service.service.image;
 
 import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeImage;
@@ -22,7 +23,6 @@ import org.hashids.Hashids;
 import org.hibernate.Hibernate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -41,7 +41,6 @@ public class AsyncImageService {
     private final RecipeRepository recipeRepository;
     private final RecipeImageRepository recipeImageRepository;
     private final RecipeIndexingService recipeIndexingService;
-    private final RecipeSearchService recipeSearchService;
     private final DeferredResultHolder deferredResultHolder;
     private final GeminiImageService geminiImageService;
     private final NotificationService notificationService;
@@ -170,7 +169,7 @@ public class AsyncImageService {
             }
 
             String fullUrl = imageUrls.get(0);
-                String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
+            String s3Key = fullUrl.substring(fullUrl.indexOf(".com/") + 5);
 
             transactionTemplate.executeWithoutResult(status -> {
                 Recipe recipe = recipeRepository.findDetailWithFineDiningById(recipeId)
@@ -320,5 +319,72 @@ public class AsyncImageService {
                     .replace("{{CUTLERY_RULE}}", cutleryRule)
                     .replace("{{DESCRIPTION}}", recipe.getDescription() != null ? recipe.getDescription() : "");
         }
+    }
+
+    public CompletableFuture<String> generateImageFromDto(RecipeCreateRequestDto recipeDto, Long userId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String prompt = buildPromptFromDto(recipeDto);
+                log.info(">>>> [Pre-Save Image] Prompt Generated for '{}' (Length: {})", recipeDto.getTitle(), prompt.length());
+
+                List<String> imageUrls = geminiImageService.generateImageUrls(prompt, userId, 0L);
+
+                if (imageUrls.isEmpty()) {
+                    throw new RuntimeException("No image URL returned from Gemini");
+                }
+
+                String fullUrl = imageUrls.get(0);
+
+                log.info("✅ [Pre-Save Image] Generated: {}", fullUrl);
+                return fullUrl;
+
+            } catch (Exception e) {
+                log.warn("⚠️ [Pre-Save Image] Failed for '{}': {}", recipeDto.getTitle(), e.getMessage());
+                return null;
+            }
+        });
+    }
+
+    private String buildPromptFromDto(RecipeCreateRequestDto dto) {
+
+        String allIngredients = dto.getIngredients().stream()
+                .map(RecipeIngredientRequestDto::getName)
+                .map(name -> {
+                    if (name.contains("매생이")) return "fine silky green seaweed (Maesaengi)";
+                    if (name.contains("순대")) return "Korean blood sausage (Sundae)";
+                    if (name.contains("떡")) return "chewy rice cakes";
+                    return name;
+                })
+                .collect(Collectors.joining(", "));
+
+        if (allIngredients.isBlank()) allIngredients = dto.getTitle();
+
+        String allSteps = (dto.getSteps() != null) ? dto.getSteps().stream()
+                .sorted(Comparator.comparingInt(com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto::getStepNumber))
+                .map(step -> String.format("- Step %d (%s): %s", step.getStepNumber(), step.getAction(), step.getInstruction()))
+                .collect(Collectors.joining("\n")) : "Cook seamlessly.";
+
+        String randomLighting = LIGHTING_OPTIONS.get(ThreadLocalRandom.current().nextInt(LIGHTING_OPTIONS.size()));
+        String randomAngle = ANGLE_OPTIONS.get(ThreadLocalRandom.current().nextInt(ANGLE_OPTIONS.size()));
+        String randomBackground = BACKGROUND_OPTIONS.get(ThreadLocalRandom.current().nextInt(BACKGROUND_OPTIONS.size()));
+
+        boolean showCutlery = ThreadLocalRandom.current().nextBoolean();
+        String cutleryRule;
+        if (showCutlery) {
+            cutleryRule = "**Analyze the dish type.** If Asian/Korean, place wooden chopsticks and a spoon. If Western, place a fork and knife. If Finger Food(Pizza), NO cutlery. Cutlery must be plain and unbranded: no engraving, no logo, no text.";
+        } else {
+            cutleryRule = "**NO CUTLERY.** Do NOT place any spoon, fork, chopsticks, or knife. Keep the composition clean and minimal. Focus strictly on the food.";
+        }
+
+        return DEFAULT_PROMPT_TEMPLATE
+                .replace("{{TITLE}}", dto.getTitle() != null ? dto.getTitle() : "Delicious Food")
+                .replace("{{DISH_TYPE}}", dto.getDishType() != null ? dto.getDishType() : "Dish")
+                .replace("{{INGREDIENTS}}", allIngredients)
+                .replace("{{STEPS}}", allSteps)
+                .replace("{{ANGLE}}", randomAngle)
+                .replace("{{LIGHTING}}", randomLighting)
+                .replace("{{BACKGROUND}}", randomBackground)
+                .replace("{{CUTLERY_RULE}}", cutleryRule)
+                .replace("{{DESCRIPTION}}", dto.getDescription() != null ? dto.getDescription() : "");
     }
 }
