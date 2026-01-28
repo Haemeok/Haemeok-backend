@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.ai.RecipeAnalysisResponseDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
+import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.exception.CustomException;
@@ -59,58 +60,34 @@ public class GrokClientService {
         return generateRecipeJson(systemContent, userContent);
     }
 
-    @Retry(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
-    @CircuitBreaker(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
-    @TimeLimiter(name = "aiGenerate", fallbackMethod = "fallbackGenerate")
-    public CompletableFuture<RecipeCreateRequestDto> refineRecipeToStandard(String systemContent, RecipeCreateRequestDto rawRecipe) {
-        log.info("🤖 Grok 2단계: 재료 규격화 및 커스텀 데이터 생성 시작");
-
+    @Retry(name = "aiGenerate", fallbackMethod = "fallbackRefineIngredients")
+    public CompletableFuture<List<RecipeIngredientRequestDto>> refineIngredientsOnly(String systemContent, List<RecipeIngredientRequestDto> rawIngredients) {
+        log.info("🤖 Grok 2단계: 재료 부분 최적화 시작 (입력 개수: {})", rawIngredients.size());
         try {
-            List<String> allNames = rawRecipe.getIngredients().stream()
-                    .map(ing -> ing.getName().trim())
-                    .toList();
-
+            List<String> allNames = rawIngredients.stream().map(i -> i.getName().trim()).toList();
             List<Ingredient> dbIngredients = ingredientRepository.findAllByNameIn(allNames);
-
             Map<String, String> dbUnitMap = dbIngredients.stream()
-                    .collect(Collectors.toMap(
-                            Ingredient::getName,
-                            Ingredient::getUnit,
-                            (existing, replacement) -> existing
-                    ));
+                    .collect(Collectors.toMap(Ingredient::getName, Ingredient::getUnit, (a, b) -> a));
 
-            String rawJson = objectMapper.writeValueAsString(rawRecipe);
             StringBuilder ingredientReport = new StringBuilder();
-
-            for (var ing : rawRecipe.getIngredients()) {
+            for (var ing : rawIngredients) {
                 String name = ing.getName().trim();
-
                 String dbUnit = dbUnitMap.get(name);
-
                 if (dbUnit != null) {
-                    ingredientReport.append(String.format(
-                            "- [DB보유] '%s': 표준 단위 '%s'로 환산. custom 필드 삭제 대상.\n",
-                            name, dbUnit
-                    ));
+                    ingredientReport.append(String.format("- [DB보유] '%s': 표준 단위 '%s'로 변환.\n", name, dbUnit));
                 } else {
-                    ingredientReport.append(String.format(
-                            "- [미보유/신규] '%s': 현재 수량(%s %s) 기준. 아래 7개 상세 영양 정보 필수.\n",
-                            name, ing.getQuantity(), ing.getCustomUnit()
-                    ));
+                    ingredientReport.append(String.format("- [미보유] '%s': 영양정보 생성 대상.\n", name));
                 }
             }
 
+            String ingredientsJson = objectMapper.writeValueAsString(rawIngredients);
+
             String userContent = """
-                    너는 '데이터 규격화 전문가'다.
-                    1단계 JSON을 입력받아, 아래 **[재료 분석 보고서]**를 기준으로 **[필드 강제 규칙]**을 100%% 준수하여 재료(ingredients) 필드를 완벽하게 수정해라.
+                    너는 '식재료 데이터 규격화 전문가'다.
+                    입력된 **재료 리스트(JSON Array)**를 분석 보고서에 따라 수정해라.
                     
                     [🚨 재료 분석 보고서 (Java 시스템 분석 결과)]
                     %s
-                    
-                    [🚨 CRITICAL WARNING: 숫자 필드 NULL/공백 절대 금지]
-                    - **모든 숫자 필드** `quantity`, `customPrice`, `customCalories`, `customCarbohydrate`, `customProtein`, `customFat`, `customSugar`, `customSodium`, `marketPrice`, `cookingTime`는 **0.00 이상의 유효한 숫자만** 허용됩니다.
-                    - **`servings`(인분)는 반드시 '정수(Integer)'로 반올림하여 출력하세요.**
-                    - **절대로 빈 문자열("") 또는 null 값을 사용하지 마세요.**
                     
                     [🚨 ingredients 필드 강제 규칙 - 반드시 준수]
                     1. **[미보유/신규] 재료의 경우**:
@@ -136,14 +113,48 @@ public class GrokClientService {
                     [입력 JSON]
                     %s
                     
-                    다른 필드(steps, description 등)는 원본을 유지하고, 오직 수정된 JSON만 출력해라.
-                    """.formatted(ingredientReport.toString(), rawJson);
+                    [출력 형식]
+                    1. 반드시 **JSON Array** (`[...]`) 포맷으로 출력해라.
+                    2. 절대 단일 객체(`{...}`)로 감싸거나 병합하지 마라.
+                    3. 예시: [ {"name": "...", ...}, {"name": "...", ...} ]
+                    """.formatted(ingredientReport.toString(), ingredientsJson);
 
-            return generateRecipeJson(systemContent, userContent);
+            return callGrokApi(systemContent, userContent, 2000, 0.2) // 토큰수 약간 늘림
+                    .flatMap(jsonString -> {
+                        try {
+                            String fixedJson = repairMalformedJson(jsonString);
+
+                            JsonNode rootNode = objectMapper.readTree(fixedJson);
+
+                            if (rootNode.isArray()) {
+                                return convertToList(rootNode);
+                            }
+
+                            if (rootNode.isObject()) {
+                                if (rootNode.has("ingredients") && rootNode.get("ingredients").isArray()) {
+                                    return convertToList(rootNode.get("ingredients"));
+                                }
+                                if (rootNode.has("service_response") && rootNode.get("service_response").isArray()) {
+                                    return convertToList(rootNode.get("service_response"));
+                                }
+                                for (JsonNode child : rootNode) {
+                                    if (child.isArray() && !child.isEmpty()) {
+                                        return convertToList(child);
+                                    }
+                                }
+                            }
+
+                            throw new RuntimeException("JSON Array not found");
+
+                        } catch (Exception e) {
+                            log.error("재료 파싱 실패. 원본: {}", jsonString);
+                            return Mono.just(rawIngredients);
+                        }
+                    })
+                    .toFuture();
 
         } catch (Exception e) {
-            log.error("2단계 정제 중 에러: {}", e.getMessage());
-            return CompletableFuture.completedFuture(rawRecipe);
+            return CompletableFuture.completedFuture(rawIngredients);
         }
     }
 
@@ -287,6 +298,34 @@ public class GrokClientService {
                 .toFuture();
     }
 
+    private String repairMalformedJson(String json) {
+        String trimmed = json.trim();
+        if (trimmed.startsWith("[")) return trimmed;
+
+        if (trimmed.startsWith("{") && trimmed.contains("\"name\"")) {
+            String repaired = trimmed.replaceAll(",\\s*\"name\":", "},{\"name\":");
+
+            repaired = "[" + repaired.substring(1);
+
+            if (repaired.endsWith("}")) {
+                repaired = repaired.substring(0, repaired.length() - 1) + "}]";
+            } else {
+                repaired += "]";
+            }
+            log.info("🔧 Malformed JSON 수선 적용됨");
+            return repaired;
+        }
+
+        return json;
+    }
+
+    private Mono<List<RecipeIngredientRequestDto>> convertToList(JsonNode node) {
+        List<RecipeIngredientRequestDto> refinedList = objectMapper.convertValue(
+                node,
+                new TypeReference<List<RecipeIngredientRequestDto>>() {}
+        );
+        return Mono.just(refinedList);
+    }
     private Mono<String> callGrokApi(String systemContent, String userContent, int maxTokens, double temperature) {
         Map<String, Object> requestBody = Map.of(
                 "model", grokRecipeModelName,
@@ -375,6 +414,10 @@ public class GrokClientService {
         });
     }
 
+    private CompletableFuture<List<RecipeIngredientRequestDto>> fallbackRefineIngredients(String s, List<RecipeIngredientRequestDto> raw, Throwable t) {
+        log.error("재료 정제 실패(Fallback): {}", t.getMessage());
+        return CompletableFuture.completedFuture(raw);
+    }
 
     private CompletableFuture<RecipeCreateRequestDto> fallbackGenerate(String system, String user, Throwable ex) {
         log.error("Grok Fallback (DTO): {}", ex.getMessage());
