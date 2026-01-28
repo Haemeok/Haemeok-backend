@@ -12,7 +12,7 @@ import java.math.BigDecimal;
                 @UniqueConstraint(columnNames = {"recipe_id", "ingredient_id"})
         },
         indexes = {
-                @Index(name = "idx_recipe_ingredient_ing_id", columnList = "ingredient_id")
+                @Index(name = "idx_ri_covering", columnList = "ingredient_id, recipe_id")
         }
 )
 @Getter
