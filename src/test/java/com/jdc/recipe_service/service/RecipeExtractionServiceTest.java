@@ -1,7 +1,7 @@
 package com.jdc.recipe_service.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
@@ -17,12 +17,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.request.async.DeferredResult;
 
+import java.util.ArrayList;
 import java.util.concurrent.*;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -48,16 +50,19 @@ class RecipeExtractionServiceTest {
     @Mock private DeferredResultHolder deferredResultHolder;
     @Mock private RecipeSearchService recipeSearchService;
 
+    @Spy private ObjectMapper objectMapper = new ObjectMapper();
+
     @Test
-    @DisplayName("유튜브 추출 성공 테스트 (DeferredResult 반환)")
-    void extractAndCreateRecipe_logsActivityWithNickname() {
+    @DisplayName("유튜브 병렬 추출 성공 테스트 (extractAndCreateRecipeParallel)")
+    void extractAndCreateRecipeParallel_success() {
         ExecutorService realExecutor = Executors.newSingleThreadExecutor();
 
         RecipeExtractionService service = new RecipeExtractionService(
                 ytDlpService, grokClientService, geminiMultimodalService, recipeService,
                 dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService,
                 youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
-                realExecutor, asyncImageService, deferredResultHolder, recipeSearchService
+                realExecutor, asyncImageService, deferredResultHolder, recipeSearchService,
+                objectMapper
         );
 
         String url = "https://www.youtube.com/watch?v=test1234";
@@ -73,26 +78,35 @@ class RecipeExtractionServiceTest {
 
         RecipeCreateRequestDto mockDto = new RecipeCreateRequestDto();
         mockDto.setIsRecipe(true);
-        when(grokClientService.generateRecipeStep1(any(), any())).thenReturn(CompletableFuture.completedFuture(mockDto));
+        mockDto.setTitle("김치볶음밥");
+        mockDto.setIngredients(new ArrayList<>());
 
-        when(grokClientService.refineRecipeToStandard(any(), any())).thenReturn(CompletableFuture.completedFuture(mockDto));
+        when(grokClientService.generateRecipeStep1(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(mockDto));
+
+        when(grokClientService.refineIngredientsOnly(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(new ArrayList<>()));
+
+        when(asyncImageService.generateImageFromDto(any(), eq(userId)))
+                .thenReturn(CompletableFuture.completedFuture("https://s3.bucket/image.jpg"));
 
         when(transactionTemplate.execute(any())).thenAnswer(inv -> ((TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
+
         when(recipeService.createRecipeAndGenerateUrls(any(), any(), eq(RecipeSourceType.YOUTUBE), isNull()))
                 .thenReturn(PresignedUrlResponse.builder().recipeId(1L).build());
-
-        DeferredResult<ResponseEntity<PresignedUrlResponse>> mockDeferredResult = new DeferredResult<>();
-        when(deferredResultHolder.create(anyLong(), anyLong())).thenReturn(mockDeferredResult); // create 호출 시 모의 객체 반환
 
         DeferredResult<ResponseEntity<PresignedUrlResponse>> result = service.extractAndCreateRecipe(url, userId, nickname);
 
         try {
-            Thread.sleep(100);
+            Thread.sleep(200);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
         verify(recipeActivityService, times(1)).saveLog(eq(userId), eq(nickname), eq(ActivityLogType.YOUTUBE_EXTRACT));
-        verify(asyncImageService, times(1)).generateAndUploadAiImage(eq(1L), eq(false));
+
+        verify(asyncImageService, times(1)).generateImageFromDto(any(), eq(userId));
+
+        verify(asyncImageService, never()).generateAndUploadAiImage(anyLong(), eq(false));
     }
 }
