@@ -89,6 +89,13 @@ public class RecipeSearchServiceV2 {
         return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 
+    public String generateDetailImageUrl(String key) {
+        String listUrl = generateImageUrl(key);
+        if (listUrl == null) return null;
+
+        return listUrl.replace(".webp", "_detail.webp");
+    }
+
     /**
      * V2 레시피 상세 조회 (정적 정보 + 공통 동적 정보만 제공)
      * 사용자 특정 동적 정보(좋아요/즐겨찾기 여부, 나의 평점 등)는 RecipeStatusService를 통해 별도로 조회해야 합니다.
@@ -200,7 +207,7 @@ public class RecipeSearchServiceV2 {
                 .dishType(basic.getDishType().getDisplayName())
                 .description(basic.getDescription())
                 .cookingTime(basic.getCookingTime())
-                .imageUrl(generateImageUrl(basic.getImageKey()))
+                .imageUrl(generateDetailImageUrl(basic.getImageKey()))
                 .imageKey(basic.getImageKey())
                 .imageStatus(basic.getImageStatus() != null ? basic.getImageStatus().name() : null)
                 .youtubeUrl(basic.getYoutubeUrl())

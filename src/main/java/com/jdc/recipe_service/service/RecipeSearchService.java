@@ -84,6 +84,13 @@ public class RecipeSearchService {
         return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 
+    public String generateDetailImageUrl(String key) {
+        String listUrl = generateImageUrl(key);
+        if (listUrl == null) return null;
+
+        return listUrl.replace(".webp", "_detail.webp");
+    }
+
     @Transactional(readOnly = true)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
@@ -257,7 +264,7 @@ public class RecipeSearchService {
                 .description(basic.getDescription())
                 .cookingTime(basic.getCookingTime())
                 .ratingInfo(ratingInfo)
-                .imageUrl(generateImageUrl(basic.getImageKey()))
+                .imageUrl(generateDetailImageUrl(basic.getImageKey()))
                 .imageKey(basic.getImageKey())
                 .imageStatus(basic.getImageStatus() != null
                         ? basic.getImageStatus().name() : null)
