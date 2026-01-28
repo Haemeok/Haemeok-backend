@@ -29,6 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -327,7 +328,9 @@ public class AsyncImageService {
                 String prompt = buildPromptFromDto(recipeDto);
                 log.info(">>>> [Pre-Save Image] Prompt Generated for '{}' (Length: {})", recipeDto.getTitle(), prompt.length());
 
-                List<String> imageUrls = geminiImageService.generateImageUrls(prompt, userId, 0L);
+                String uniqueId = UUID.randomUUID().toString();
+
+                List<String> imageUrls = geminiImageService.generateImageUrls(prompt, userId, uniqueId);
 
                 if (imageUrls.isEmpty()) {
                     throw new RuntimeException("No image URL returned from Gemini");

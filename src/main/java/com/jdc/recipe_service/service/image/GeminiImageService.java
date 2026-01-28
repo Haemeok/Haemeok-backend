@@ -71,7 +71,7 @@ public class GeminiImageService {
             maxAttempts = 2,
             backoff = @Backoff(delay = 500)
     )
-    public List<String> generateImageUrls(String prompt, Long userId, Long recipeId) {
+    public List<String> generateImageUrls(String prompt, Long userId, Object recipeId) {
         log.info("[GeminiImageService] 이미지 생성 요청 (Multi-Project Rotation), recipeId={}", recipeId);
 
         HttpHeaders headers = new HttpHeaders();
@@ -98,7 +98,7 @@ public class GeminiImageService {
     }
 
     @Recover
-    public List<String> recover(RestClientException e, String prompt, Long userId, Long recipeId) {
+    public List<String> recover(RestClientException e, String prompt, Long userId, Object recipeId) {
         log.error("❌ 모든 계정/리전 실패 (재시도 소진). 기본 이미지 반환. recipeId={}, error={}", recipeId, e.getMessage());
         return Collections.singletonList(DEFAULT_IMAGE_URL);
     }
@@ -108,7 +108,7 @@ public class GeminiImageService {
      * 2. 5xx(Server) -> 다음 리전(Region)으로 전환
      */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> postWithKeyRotation(HttpHeaders headers, Map<String, Object> body, Long recipeId) {
+    private Map<String, Object> postWithKeyRotation(HttpHeaders headers, Map<String, Object> body, Object recipeId) {
         RuntimeException lastException = null;
 
         for (String loc : vertexLocations) {
@@ -217,7 +217,7 @@ public class GeminiImageService {
     private int promptHash(String prompt) { return prompt == null ? 0 : prompt.hashCode(); }
 
     @SuppressWarnings("unchecked")
-    private List<String> parseVertexResponse(Map<String, Object> responseBody, Long userId, Long recipeId) {
+    private List<String> parseVertexResponse(Map<String, Object> responseBody, Long userId, Object recipeId) {
         if (responseBody == null || !responseBody.containsKey("candidates")) {
             log.error("🚨 응답 오류: {}", safeToString(responseBody));
             throw new NoImageGeneratedException("Gemini 응답에 candidates가 없습니다.");
@@ -268,11 +268,11 @@ public class GeminiImageService {
         return s.length() > 600 ? s.substring(0, 600) + "..." : s;
     }
 
-    private String uploadOriginalToS3(String base64, Long userId, Long recipeId) {
+    private String uploadOriginalToS3(String base64, Long userId, Object recipeId) {
         byte[] bytes = Base64.getDecoder().decode(base64);
 
-        String originalKey = String.format("original/images/recipes/%d/%d/main.jpg", userId, recipeId);
-        String finalWebpKey = String.format("images/recipes/%d/%d/main.webp", userId, recipeId);
+        String originalKey = String.format("original/images/recipes/%d/%s/main.jpg", userId, recipeId);
+        String finalWebpKey = String.format("images/recipes/%d/%s/main.webp", userId, recipeId);
 
         s3Util.upload(bytes, originalKey, "image/jpeg");
 
