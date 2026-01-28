@@ -181,7 +181,8 @@ public class YtDlpService {
                     bestResult = current;
                 }
 
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.error("💥 yt-dlp 실행 실패 (client={}): {}", client, e.getMessage());
             }
         }
         return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "", "", "", 0L,0L);
