@@ -303,19 +303,9 @@ public class GrokClientService {
         if (trimmed.startsWith("[")) return trimmed;
 
         if (trimmed.startsWith("{") && trimmed.contains("\"name\"")) {
-            String repaired = trimmed.replaceAll(",\\s*\"name\":", "},{\"name\":");
-
-            repaired = "[" + repaired.substring(1);
-
-            if (repaired.endsWith("}")) {
-                repaired = repaired.substring(0, repaired.length() - 1) + "}]";
-            } else {
-                repaired += "]";
-            }
-            log.info("🔧 Malformed JSON 수선 적용됨");
-            return repaired;
+            String repaired = trimmed.replaceAll(",\\s*\"name\"\\s*:", "},{\"name\":");
+            return "[" + repaired + "]";
         }
-
         return json;
     }
 
