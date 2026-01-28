@@ -424,7 +424,7 @@ public class RecipeExtractionService {
             CompletableFuture<List<RecipeIngredientRequestDto>> ingredientTask =
                     grokClientService.refineIngredientsOnly(refineSystemPrompt, recipeDto.getIngredients());
 
-            CompletableFuture<String> imageTask = asyncImageService.generateImageFromDto(recipeDto, userId)
+            CompletableFuture<String> imageTask = asyncImageService.generateImageFromDto(recipeDto, OFFICIAL_RECIPE_USER_ID)
                     .exceptionally(ex -> {
                         log.warn("⚠️ 이미지 생성 실패 (병렬 처리 중): {}", ex.getMessage());
                         return null;
@@ -436,9 +436,13 @@ public class RecipeExtractionService {
             String generatedImageUrl = imageTask.join();
 
             logJson("STEP 2: Refined Ingredients", refinedIngredients);
-            if (generatedImageUrl != null) {
+            if (generatedImageUrl != null && !generatedImageUrl.isBlank()) {
                 log.info("🎨 생성된 이미지 URL: {}", generatedImageUrl);
-                recipeDto.setImageKey(generatedImageUrl);
+
+                String s3Key = extractS3Key(generatedImageUrl);
+                recipeDto.setImageKey(s3Key);
+
+                recipeDto.setImageStatus(com.jdc.recipe_service.domain.type.RecipeImageStatus.READY);
             }
 
             recipeDto.setIngredients(refinedIngredients);
@@ -898,6 +902,29 @@ public class RecipeExtractionService {
                     "==================================================", title, json);
         } catch (Exception e) {
             log.error("Failed to convert object to JSON for logging", e);
+        }
+    }
+
+    private String extractS3Key(String fullUrl) {
+        if (fullUrl == null || fullUrl.isBlank()) return null;
+
+        try {
+            java.net.URI uri = new java.net.URI(fullUrl);
+            String path = uri.getPath();
+
+            if (path != null && path.startsWith("/")) {
+                return path.substring(1);
+            }
+            return path;
+
+        } catch (Exception e) {
+            log.warn("⚠️ URI 파싱 실패, 문자열 처리로 대체: {}", fullUrl);
+
+            int imgIdx = fullUrl.indexOf("images/");
+            if (imgIdx != -1) {
+                return fullUrl.substring(imgIdx);
+            }
+            return fullUrl;
         }
     }
 

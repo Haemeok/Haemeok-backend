@@ -89,7 +89,11 @@ public class RecipeService {
 
         if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
             recipe.updateIsPrivate(false);
-            recipe.updateImageStatus(RecipeImageStatus.PENDING);
+            if (dto.getImageStatus() != null) {
+                recipe.updateImageStatus(dto.getImageStatus());
+            } else {
+                recipe.updateImageStatus(RecipeImageStatus.PENDING);
+            }
         } else {
             boolean hasMain = req.getFiles() != null &&
                     req.getFiles().stream().anyMatch(f -> MAIN_IMAGE_SLOT.equals(f.getType()));
