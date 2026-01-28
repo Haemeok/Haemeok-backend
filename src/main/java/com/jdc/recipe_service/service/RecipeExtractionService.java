@@ -1,7 +1,7 @@
 package com.jdc.recipe_service.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
@@ -33,7 +33,9 @@ import org.springframework.web.context.request.async.DeferredResult;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -104,6 +106,9 @@ public class RecipeExtractionService {
     private final AsyncImageService asyncImageService;
     private final DeferredResultHolder deferredResultHolder;
     private final RecipeSearchService recipeSearchService;
+    private final ObjectMapper objectMapper;
+
+    private final ConcurrentHashMap<String, CompletableFuture<PresignedUrlResponse>> extractionTasks = new ConcurrentHashMap<>();
 
     private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
 
@@ -121,7 +126,7 @@ public class RecipeExtractionService {
             @Qualifier("recipeExtractionExecutor") Executor extractionExecutor,
             AsyncImageService asyncImageService,
             DeferredResultHolder deferredResultHolder,
-            RecipeSearchService recipeSearchService
+            RecipeSearchService recipeSearchService, ObjectMapper objectMapper
     ) {
         this.ytDlpService = ytDlpService;
         this.grokClientService = grokClientService;
@@ -138,151 +143,10 @@ public class RecipeExtractionService {
         this.asyncImageService = asyncImageService;
         this.deferredResultHolder = deferredResultHolder;
         this.recipeSearchService = recipeSearchService;
+        this.objectMapper = objectMapper;
     }
 
     private String getExtractionPrompt() {
-        return """
-            [SYSTEM]
-            너는 다양한 요리 영상(집밥, 셰프, 초보 레시피 등)을 분석하는 전문 AI다. 출력은 반드시 "단 하나의 JSON 객체"만 허용한다.
-            설명/주석/마크다운/코드펜스(```)/여분 텍스트를 절대 출력하지 마라.
-            
-            ==============================
-            0) OUTPUT CONTRACT (최우선)
-            - JSON 1개만 출력
-            - 키 이름 변경/추가 금지
-            - 문자열 필드는 ""(빈값) 금지
-            - 숫자 필드는 null/"" 금지
-            - timeline, nonRecipeReason(isRecipe=true일 때)만 null 허용 (그 외 null 금지)
-            ==============================
-            
-            1) 레시피 영상 판별 (Critical)
-            입력(제목/설명/자막/댓글)이 "요리 조리법"이 아니면, 아래 JSON만 그대로 출력하고 종료:
-            {
-              "isRecipe": false,
-              "nonRecipeReason": "먹방/리뷰/브이로그 등 조리법이 아닙니다."
-            }
-            
-            2) 레시피 추출 (isRecipe=true일 때만)
-            [근거 우선순위] Script > Description > Title > Comments
-            - 광고/링크/쿠폰/인사/웃음/잡담은 전부 무시
-            - 댓글은 자막/설명과 100% 일치할 때만 보조로 참고
-            - **영상에 명확한 근거 없는 정보는 절대 추측/추가/창의적으로 채우지 마라**
-            
-            [Universal Culinary Principles]
-            - 암묵적 재료: 시각/조리 행위로 "거의 확실"할 때만 포함
-            - 다양한 요리 스타일(이탈리아, 한국, 디저트 등)에 맞춰 유연하게 분석. 영상 톤(캐주얼/전문)을 반영하되, 일반적으로 적용 가능하게.
-            
-            ==============================
-            3) 성공 JSON 스키마 (반드시 이 형태)
-            {
-              "isRecipe": true,
-              "nonRecipeReason": null,
-              "title": "요리 제목",
-              "dishType": "볶음",
-              "description": "영상 톤의 1~2문장 소개(맛/식감 1개 + 핵심특징 1개 포함)",
-              "cookingTime": 15,
-              "cookingTools": ["도구1","도구2"],
-              "servings": 1,
-              "ingredients": [
-                { "name": "재료명", "quantity": "수량문자열", "unit": "단위" }
-              ],
-              "steps": [
-                { "stepNumber": 0, "instruction": "지시문", "action": "액션", "timeline": "MM:SS" }
-              ],
-              "tags": ["태그1","태그2","태그3"],
-              "marketPrice": 1500,
-              "cookingTips": "문장으로만 3~5개 팁을 이어서 작성"
-            }
-            ==============================
-            
-            4) 필드 규칙 (위반 시 전체 실패)
-            [dishType]
-            - dishType은 아래 중 정확히 1개만 선택: "볶음", "국/찌개/탕", "구이", "무침/샐러드", "튀김/부침", "찜/조림", "오븐요리", "생식/회", "절임/피클류", "밥/면/파스타", "디저트/간식류"
-            - 빈 문자열/공백 금지
-            
-            [숫자 필드]
-            - cookingTime: 0 이상의 정수(분)
-            - servings: 정수(반올림하여 출력), 소수 금지
-            - marketPrice: 정수, 100원 단위 올림(ceil)
-            - quantity: 아래 형식만 허용(문자열이지만 수치로 해석 가능해야 함)
-              - 정수: "2"
-              - 소수: "0.5"
-              - 분수: "1/2"  (혼합분수 "1 1/2" 금지, 공백 금지)
-              - 단, 추정 불가(영상에서 수량 단서 없음)인 경우에만 quantity="약간" 허용
-            - quantity/marketPrice/cookingTime/servings는 null/"" 절대 금지
-            
-            [timeline]
-            - "MM:SS" 문자열 또는 null만 허용
-            - 자막에 [04:12] 또는 0:02 형태가 있으면 우선 매핑
-            - 시간을 확실히 못 찾으면 억지로 추측하지 말고 null
-            
-            [ingredients] (DB 매칭을 위한 핵심 규칙)
-            - **[중요] 단일 명사 원칙:** '또는', 'or', '/', '대체', '취향껏' 같은 표현 금지. 영상에서 실제로 사용한 **가장 메인이 되는 재료 하나**만 적어라.
-            - quantity: 단위와 수량을 명확히 분리하고, null 금지.
-            - **[부재료 포착]:** 파, 깨, 참기름, 후추 등 셰프가 조리 중간에 "향"이나 "마무리"를 위해 소량 첨가하는 재료도 놓치지 말고 포함하라.
-            - **[소스 분석]:** 영상에서 별도의 소스(양념장)를 배합하는 과정이 나온다면, 그 배합에 들어가는 재료(간장, 설탕, 식초 등)를 모두 분리하여 적어라.
-            
-            [steps] (영상 순서 최우선, '극도로 상세한' 서술형 작성)
-            - stepNumber는 0부터 1씩 증가
-            - **[Hyper-Detailing Instruction Rule - 6대 필수 요소]:**
-              각 단계는 **2~3문장**으로 작성하되, 문장 수를 줄이려고 핵심 정보를 생략하지 마라.
-              6대 요소는 영상/자막에 근거가 있는 것만 포함. 근거 없으면 생략. 절대 지어내지 마라.
-              아래 항목 중 해당되는 것은 빠짐없이 문장에 녹여내라:
-             1. **무엇을 (Specifics):** 재료의 상태나 도구. (Bad: "파를 넣고" -> Good: "파의 흰 대 부분만 송송 썰어 예열된 팬에 넣고")
-             2. **어떻게 (Action):** 구체적 동작. (Bad: "볶는다" -> Good: "기름이 튀지 않게 조심하며 저어가며 볶습니다")
-             3. **불/온도 (Heat):** 강불/중불/약불, 잔열, "연기가 날 정도로 달궈지면", "끓기 시작하면 약불로 줄여"
-             4. **시간/횟수 (Time):** "3분간", "30초 정도", "3번에 나눠서"
-             5. **멈춤 타이밍 (Visual Cue & State):** 시간보다 **'상태'**가 더 중요하다. (예: "양파가 투명해질 때까지", "가장자리가 갈색이 돌면", "소스가 걸쭉해질 때까지")
-             6. **이유/팁 (Why & Insight):** 단순 조리 순서를 넘어, **셰프가 강조하는 이유나 철학**을 반드시 포함하라. (예: "그래야 잡내가 날아갑니다", "지금 간을 해야 재료에 맛이 뱁니다")
-            
-            - **[금지어]:** "적당히", "알맞게", "잘". -> 반드시 "어떤 상태가 될 때까지"라고 풀어서 써라.
-            - **[Flow]:** 같은 단계 안에서는 '행동 → 관찰(상태) → 이유/다음행동' 순으로 자연스럽게 이어 써라.
-            - **[순서 규칙: 타임라인 오름차순]:** 요리의 논리적 순서(재료손질->조리)보다 **'영상의 편집/진행 순서'**를 최우선으로 따르라.
-            - 사용자가 영상을 보며 따라 할 수 있도록, `step 0` -> `step 1`으로 갈수록 `timeline` 시간도 반드시 커져야 한다. (시간 역전 금지)
-            - timeline: 해당 동작이 시작되는 정확한 시간 (MM:SS)
-            - action: "썰기","다지기","볶기","튀기기","끓이기","찌기","데치기","구이","조림","무치기","섞기","부치기" 중 택1
-            
-            [Chef Insight Capture - 누락 금지]
-            - 영상에서 조리의 "이유/원리/선택 기준"을 설명하면 절대 누락하지 마라.
-            - 아래 유형은 반드시 결과에 포함:
-              1) 기술/과정의 이유(왜 이런 순서/불/상태를 고집하는지)
-              2) 재료/제품 선택 기준(면/오일/재료 선택 논리, 가성비/등급/보관 포인트)
-              3) 향/풍미 보강 팁(향을 옮기는 방법, 마무리 포인트)
-            - 배치 규칙:
-              - “행동과 직결된 이유”는 해당 step instruction 안에 1문장으로 포함(Why & Insight).
-              - “제품/재료 선택 팁(가성비/등급/구매 요령)”은 cookingTips에 1~2문장으로 포함.
-            - 제외 규칙:
-              - 인사, 근황, 농담, 협찬 멘트 등 조리와 무관한 대화는 steps/cookingTips 모두에서 제외
-            
-            [tags] (허용 목록에서 최대 3개)
-            "🏠 홈파티","🌼 피크닉","🏕️ 캠핑","🥗 다이어트 / 건강식","👶 아이와 함께","🍽️ 혼밥","🍶 술안주","🥐 브런치","🌙 야식","⚡ 초스피드 / 간단 요리","🎉 기념일 / 명절","🍱 도시락","🔌 에어프라이어","🍲 해장","👨‍🍳 셰프 레시피"
-            - 🍽️ 혼밥: servings==1일 때만
-            - ⚡ 초스피드 / 간단 요리: cookingTime<=15일 때만
-            - 🔌 에어프라이어: cookingTools에 오븐/에어프라이어 포함 OR dishType이 구이/튀김/부침일 때만
-            - 🥗 다이어트 / 건강식: 설탕/튀김/가공육이 주재료가 아니고 채소·단백질 위주일 때만
-            - 👨‍🍳 셰프 레시피: 제목/설명/자막에 셰프/대가/명장/호텔 등 명확 근거가 있을 때만
-            - servings>2이면 🍽️ 혼밥 금지
-            - cookingTime>20(오븐/찜 포함)이면 ⚡, 🥗 금지
-            
-            [marketPrice] (배달앱 메뉴판 감각, 선형곱 금지)
-            - 비싼 재료 TOP3만 반영(기본양념/물/소금/설탕/간장/마늘 등은 무시)
-            - 등급 1개 선택: A(SIDE) / B(MEAL) / C(PREMIUM)
-              - A: 2,000~7,500 (A이면서 1인분이면 8,000 초과 금지)
-              - B: 9,000~15,900
-              - C: 17,900~45,900
-            - 공유형(전골/탕/찜/떡볶이 등): 1인×1.0, 2인×1.4, 3인×1.7, 4인+×2.0
-            - 개별형(1인 1그릇): 1인×1.0, 2인×1.9, 3인×2.8, 4인+×(servings*0.9)
-            - 극소 메뉴(공기밥/후라이/소스/단무지 등): servings가 커도 개당 2,500원 초과 금지
-            - 전체 범위: 1,500~150,000
-            - 100원 단위 올림 정수 출력
-            
-            [cookingTips]
-            - 일반적인 요리 상식이 아니라, **이 영상에서 요리사가 강조한 꿀팁** 3~5가지를 문장으로 적어라.
-            - 숫자/목록표시/접두어("팁:") 금지
-            """;
-    }
-
-    private String getExtractionPromptV2() {
         return """
             당신은 레시피 추출 AI입니다. 오직 유효한 JSON만 출력하세요.
             
@@ -455,51 +319,6 @@ public class RecipeExtractionService {
             """;
     }
 
-    public DeferredResult<ResponseEntity<PresignedUrlResponse>> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
-        log.info("🚀 유튜브 레시피 추출 요청: URL={}, UserID={}", videoUrl, userId);
-
-        if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
-            throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
-        }
-        String videoId = extractVideoId(videoUrl);
-        if (videoId == null) throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
-
-        String canonicalUrl = convertToCanonical(videoId);
-        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(canonicalUrl)
-                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, true)))
-                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, false)));
-
-        if (existingRecipe.isPresent()) {
-            DeferredResult<ResponseEntity<PresignedUrlResponse>> result = new DeferredResult<>();
-            PresignedUrlResponse response = PresignedUrlResponse.builder()
-                    .recipeId(existingRecipe.get().getId())
-                    .uploads(new ArrayList<>())
-                    .build();
-            result.setResult(ResponseEntity.ok(response));
-            return result;
-        }
-
-        PresignedUrlResponse savedResponse = processActualExtractionLogic(videoUrl, userId, videoId, nickname);
-        Long recipeId = savedResponse.getRecipeId();
-
-        DeferredResult<ResponseEntity<PresignedUrlResponse>> deferredResult = deferredResultHolder.create(recipeId, 60000L);
-
-        CompletableFuture.runAsync(() -> {
-            try {
-                asyncImageService.generateAndUploadAiImage(recipeId, false);
-
-                log.info("⭐ 유저 {}에게 레시피 {} 즐겨찾기/로그 추가", userId, recipeId);
-                addFavoriteToUser(userId, recipeId);
-                recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
-
-            } catch (Exception e) {
-                log.error("비동기 이미지 생성 중 오류 ID: {}", recipeId, e);
-            }
-        }, extractionExecutor);
-
-        return deferredResult;
-    }
-
     private PresignedUrlResponse processActualExtractionLogic(String videoUrl, Long userId, String videoId, String nickname) {
         boolean shorts = isShortsUrl(videoUrl);
         String storageUrl = buildStorageYoutubeUrl(videoId, shorts);
@@ -510,7 +329,6 @@ public class RecipeExtractionService {
                 .or(() -> recipeRepository.findByYoutubeUrl(shortsUrl));
 
         if (existingRecipe.isPresent()) {
-            log.info("♻️ 이미 존재하는 레시피 발견. 생성 건너뜀.");
             return handleExistingRecipe(existingRecipe.get()).join();
         }
 
@@ -531,7 +349,6 @@ public class RecipeExtractionService {
 
         try {
             YtDlpService.YoutubeFullDataDto videoData = ytDlpService.getVideoDataFull(videoUrl);
-
             title = nullToEmpty(videoData.title());
             description = cap(nullToEmpty(videoData.description()), MAX_DESC_CHARS);
             comments = cap(nullToEmpty(videoData.comments()), MAX_CMT_CHARS);
@@ -547,11 +364,9 @@ public class RecipeExtractionService {
             String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
-                log.info("♻️ 이미 존재하는 레시피 발견 (Canonical URL). 쿼터 환불 및 연결: ID={}", existingRecipeCanonical.get().getId());
                 dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
                 return handleExistingRecipe(existingRecipeCanonical.get()).join();
             }
-
         } catch (Exception e) {
             log.warn("⚠️ yt-dlp 실패 -> Gemini 모드 전환: {}", safeMsg(e));
             useUrlFallback = true;
@@ -573,101 +388,61 @@ public class RecipeExtractionService {
             RecipeCreateRequestDto recipeDto = null;
 
             if (!useUrlFallback && isTextSufficient(description, comments, scriptPlain)) {
-                log.info("✅ [텍스트 모드] 자막/설명이 충분함. 1차 분석 시도.");
+                log.info("✅ [텍스트 모드] Step 1: 초안 생성 시작");
                 try {
-                    RecipeCreateRequestDto rawRecipe = grokClientService.generateRecipeStep1(getExtractionPromptV2(), fullContext).join();
+                    recipeDto = grokClientService.generateRecipeStep1(getExtractionPrompt(), fullContext).join();
 
-                    if (rawRecipe == null) {
+                    if (recipeDto != null && Boolean.FALSE.equals(recipeDto.getIsRecipe())) {
+                        throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 아님: " + recipeDto.getNonRecipeReason());
+                    }
+                    if (recipeDto == null || !Boolean.TRUE.equals(recipeDto.getIsRecipe())) {
                         useUrlFallback = true;
-                    } else {
-                        Boolean isRecipe = rawRecipe.getIsRecipe();
-
-                        if (Boolean.FALSE.equals(isRecipe)) {
-                            log.warn("🚫 Grok 확정 판정: 레시피 아님. 사유: {}", rawRecipe.getNonRecipeReason());
-                            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
-                                    "레시피 영상이 아닙니다: " + rawRecipe.getNonRecipeReason());
-                        }
-
-                        if (!Boolean.TRUE.equals(isRecipe)) {
-                            log.info("⚠️ Grok 판단 모호(null). Gemini 분석으로 전환합니다.");
-                            useUrlFallback = true;
-                        }
+                        recipeDto = null;
                     }
-
-                    if (!useUrlFallback) {
-                        log.info("🔨 [텍스트 모드] 2차 가공(가격/영양소 계산) 시작");
-                        String refineSystemPrompt =
-                                "너는 JSON 데이터 검증 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라. " +
-                                        "입력 JSON의 isRecipe, nonRecipeReason 값은 절대 변경하지 마라.";
-
-                        recipeDto = grokClientService.refineRecipeToStandard(refineSystemPrompt, rawRecipe).join();
-
-                        if (recipeDto == null) {
-                            useUrlFallback = true;
-                        } else {
-                            if (!Boolean.TRUE.equals(recipeDto.getIsRecipe())) {
-                                log.warn("⚠️ refine가 isRecipe를 변경함(위반). fallback 전환. isRecipe={}, reason={}",
-                                        recipeDto.getIsRecipe(), recipeDto.getNonRecipeReason());
-                                useUrlFallback = true;
-                                recipeDto = null;
-                            }
-                        }
-                    }
-                } catch (CustomException ce) {
-                    throw ce;
                 } catch (Exception e) {
-                    log.warn("⚠️ 텍스트 분석 실패. URL 분석으로 전환합니다. 이유: {}", safeMsg(e));
                     useUrlFallback = true;
                 }
-            } else if (!useUrlFallback) {
-                log.info("ℹ️ 텍스트 정보 부족. 바로 URL 분석으로 진입합니다.");
+            } else {
                 useUrlFallback = true;
             }
 
             if (useUrlFallback || recipeDto == null) {
-                log.info("🎥 [멀티모달 모드] Gemini 3.0 Flash에게 영상 URL 직접 전송");
+                log.info("🎥 [멀티모달 모드] Step 1: Gemini 초안 생성 시작");
+                recipeDto = geminiMultimodalService.generateRecipeFromYoutubeUrl(getExtractionPrompt(), title, storageUrl).join();
 
-                RecipeCreateRequestDto geminiRecipe = geminiMultimodalService
-                        .generateRecipeFromYoutubeUrl(getExtractionPromptV2(), title, storageUrl)
-                        .join();
-
-                if (geminiRecipe == null) {
-                    throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "레시피 생성에 실패했습니다.");
-                }
-                if (!Boolean.TRUE.equals(geminiRecipe.getIsRecipe())) {
-                    throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
-                            "레시피 영상이 아닙니다: " + geminiRecipe.getNonRecipeReason());
-                }
-
-                if (geminiRecipe != null) {
-                    log.info("🔨 [멀티모달 모드] 2차 가공(가격/영양소 계산) 시작");
-                    String refineSystemPrompt =
-                            "너는 JSON 데이터 검증 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라. " +
-                                    "입력 JSON의 isRecipe, nonRecipeReason 값은 절대 변경하지 마라.";
-                    recipeDto = grokClientService
-                            .refineRecipeToStandard(refineSystemPrompt, geminiRecipe)
-                            .join();
-
-                    if (recipeDto != null) {
-                        recipeDto.setIsRecipe(true);
-                        recipeDto.setNonRecipeReason(null);
-                    }
+                if (recipeDto == null || !Boolean.TRUE.equals(recipeDto.getIsRecipe())) {
+                    throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 아님/생성실패");
                 }
             }
 
-            if (recipeDto == null) {
-                throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "레시피 생성에 실패했습니다.");
+            logJson("STEP 1: Draft Recipe Created (Before Refinement)", recipeDto);
+
+
+            log.info("⚡ [병렬 처리 시작] 2단계 재료 정제(Grok) + 이미지 생성(AsyncImage) 동시 실행");
+
+            String refineSystemPrompt = "너는 식재료 데이터 정제 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라.";
+            CompletableFuture<List<RecipeIngredientRequestDto>> ingredientTask =
+                    grokClientService.refineIngredientsOnly(refineSystemPrompt, recipeDto.getIngredients());
+
+            CompletableFuture<String> imageTask = asyncImageService.generateImageFromDto(recipeDto, userId)
+                    .exceptionally(ex -> {
+                        log.warn("⚠️ 이미지 생성 실패 (병렬 처리 중): {}", ex.getMessage());
+                        return null;
+                    });
+
+            CompletableFuture.allOf(ingredientTask, imageTask).join();
+
+            List<RecipeIngredientRequestDto> refinedIngredients = ingredientTask.join();
+            String generatedImageUrl = imageTask.join();
+
+            logJson("STEP 2: Refined Ingredients", refinedIngredients);
+            if (generatedImageUrl != null) {
+                log.info("🎨 생성된 이미지 URL: {}", generatedImageUrl);
+                recipeDto.setImageKey(generatedImageUrl);
             }
 
-            if (Boolean.FALSE.equals(recipeDto.getIsRecipe())) {
-                String reason = recipeDto.getNonRecipeReason();
-                log.warn("🚫 레시피 아님: {}", reason);
-                throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 영상이 아닙니다: " + (reason == null ? "" : reason));
-            }
+            recipeDto.setIngredients(refinedIngredients);
 
-            if (recipeDto.getTitle() == null || recipeDto.getTitle().isBlank() || "제목 미상".equals(title)) {
-                recipeDto.setTitle(recipeDto.getTitle() != null && !recipeDto.getTitle().isBlank() ? recipeDto.getTitle() : title);
-            }
             recipeDto.setYoutubeUrl(storageUrl);
             recipeDto.setYoutubeChannelName(channelName);
             recipeDto.setYoutubeChannelId(channelId);
@@ -686,9 +461,8 @@ public class RecipeExtractionService {
 
         } catch (CustomException e) {
             if (e.getErrorCode() == ErrorCode.INVALID_INPUT_VALUE) {
-                log.warn("🚫 레시피 아님 판정으로 쿼터 환불 없이 종료: userId={}", userId);
+                log.warn("🚫 레시피 아님 판정: {}", e.getMessage());
             } else {
-                log.warn("❌ 추출 실패(System/AI Error). 쿼터 환불: userId={}", userId);
                 dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
             }
             throw e;
@@ -697,6 +471,80 @@ public class RecipeExtractionService {
             dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
             throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED);
         }
+    }
+
+    public DeferredResult<ResponseEntity<PresignedUrlResponse>> extractAndCreateRecipe(String videoUrl, Long userId, String nickname) {
+        String safeVideoUrl = videoUrl != null ? videoUrl.trim() : "";
+        log.info("🚀 유튜브 레시피 추출 요청: URL={}, UserID={}", safeVideoUrl, userId);
+
+        if (!YOUTUBE_URL_PATTERN.matcher(safeVideoUrl).matches()) {
+            throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
+        }
+
+        String videoId = extractVideoId(safeVideoUrl);
+        if (videoId == null) throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
+
+        String canonicalUrl = convertToCanonical(videoId);
+        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(canonicalUrl)
+                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, true)))
+                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, false)));
+
+        if (existingRecipe.isPresent()) {
+            log.info("♻️ 이미 존재하는 레시피 발견. 생성 건너뜀. ID={}", existingRecipe.get().getId());
+            DeferredResult<ResponseEntity<PresignedUrlResponse>> result = new DeferredResult<>();
+
+            PresignedUrlResponse response = PresignedUrlResponse.builder()
+                    .recipeId(existingRecipe.get().getId())
+                    .uploads(new ArrayList<>())
+                    .created(false)
+                    .build();
+            result.setResult(ResponseEntity.ok(response));
+            return result;
+        }
+
+        CompletableFuture<PresignedUrlResponse> sharedTask = extractionTasks.computeIfAbsent(videoId, key -> {
+            log.info("🚌 [버스 출발] 새로운 추출 작업 시작 (운전자: {}). VideoID: {}", userId, key);
+
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    return processActualExtractionLogic(safeVideoUrl, userId, key, nickname);
+                } finally {
+                }
+            }, extractionExecutor).orTimeout(5, TimeUnit.MINUTES);
+        });
+
+        long timeout = 300000L;
+        DeferredResult<ResponseEntity<PresignedUrlResponse>> deferredResult = new DeferredResult<>(timeout);
+
+        deferredResult.onTimeout(() -> {
+            log.warn("⏳ 추출 요청 타임아웃: UserID={}, VideoID={}", userId, videoId);
+            deferredResult.setErrorResult(new CustomException(ErrorCode.TIMEOUT_ERROR));
+        });
+
+        sharedTask.whenComplete((response, ex) -> {
+            if (extractionTasks.remove(videoId) != null) {
+                log.info("🏁 [종점 도착] 작업 종료 및 맵에서 Key 제거 완료: {}", videoId);
+            }
+
+            if (ex != null) {
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                log.error("❌ 추출 작업 실패: {}", cause.getMessage());
+                deferredResult.setErrorResult(new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED));
+                return;
+            }
+
+            try {
+                log.info("⭐ 유저 {}에게 레시피 {} 즐겨찾기/로그 추가", userId, response.getRecipeId());
+                addFavoriteToUser(userId, response.getRecipeId());
+                recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
+            } catch (Exception e) {
+                log.warn("⚠️ 후속 처리 실패: {}", e.getMessage());
+            }
+
+            deferredResult.setResult(ResponseEntity.ok(response));
+        });
+
+        return deferredResult;
     }
 
     @Scheduled(cron = "0 0 4 * * *")
@@ -1005,12 +853,11 @@ public class RecipeExtractionService {
 
     private String extractVideoId(String url) {
         String pattern = "(?<=watch\\?v=|/videos/|embed\\/|youtu.be\\/|\\/v\\/|\\/e\\/|watch\\?v%3D|watch\\?feature=player_embedded&v=|%2Fvideos%2F|embed%5C%2F|youtu.be%2F|%2Fv%2F|shorts\\/)[^#\\&\\?\\n]*";
-
         Pattern compiledPattern = Pattern.compile(pattern);
         Matcher matcher = compiledPattern.matcher(url);
 
         if (matcher.find()) {
-            return matcher.group();
+            return matcher.group().trim();
         }
         return null;
     }
@@ -1039,6 +886,19 @@ public class RecipeExtractionService {
     private String buildStorageYoutubeUrl(String videoId, boolean shorts) {
         if (shorts) return "https://www.youtube.com/shorts/" + videoId;
         return "https://www.youtube.com/watch?v=" + videoId;
+    }
+
+    private void logJson(String title, Object object) {
+        try {
+            String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(object);
+            log.info("\n==================================================\n" +
+                    "👀 {} (Debugging Log)\n" +
+                    "--------------------------------------------------\n" +
+                    "{}\n" +
+                    "==================================================", title, json);
+        } catch (Exception e) {
+            log.error("Failed to convert object to JSON for logging", e);
+        }
     }
 
 }
