@@ -117,9 +117,10 @@ public class GrokClientService {
                     1. 반드시 **JSON Array** (`[...]`) 포맷으로 출력해라.
                     2. 절대 단일 객체(`{...}`)로 감싸거나 병합하지 마라.
                     3. 예시: [ {"name": "...", ...}, {"name": "...", ...} ]
+                    4. 응답의 시작은 반드시 '[' 문자여야 하고, 끝은 ']' 여야 한다.
                     """.formatted(ingredientReport.toString(), ingredientsJson);
 
-            return callGrokApi(systemContent, userContent, 2000, 0.2) // 토큰수 약간 늘림
+            return callGrokApi(systemContent, userContent, 5000, 0.2)
                     .flatMap(jsonString -> {
                         try {
                             String fixedJson = repairMalformedJson(jsonString);
