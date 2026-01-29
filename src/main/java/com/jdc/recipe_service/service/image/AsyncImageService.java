@@ -15,7 +15,6 @@ import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.NotificationService;
-import com.jdc.recipe_service.service.RecipeSearchService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -162,6 +161,17 @@ public class AsyncImageService {
             if (promptData == null) throw new RuntimeException("프롬프트 데이터 생성 실패");
 
             log.info(">>>> [GEMINI PROMPT] Recipe ID: {}, Prompt Length: {}", recipeId, promptData.prompt.length());
+
+            try {
+                long minDelay = 100;
+                long maxDelay = 1000;
+                long randomDelay = minDelay + (long)(Math.random() * (maxDelay - minDelay));
+
+                log.info("⏳ [Throttling] 트래픽 분산을 위해 {}ms 대기 (recipeId={})", randomDelay, recipeId);
+                Thread.sleep(randomDelay);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
 
             List<String> imageUrls = geminiImageService.generateImageUrls(promptData.prompt, promptData.userId, recipeId);
 
@@ -327,6 +337,15 @@ public class AsyncImageService {
             try {
                 String prompt = buildPromptFromDto(recipeDto);
                 log.info(">>>> [Pre-Save Image] Prompt Generated for '{}' (Length: {})", recipeDto.getTitle(), prompt.length());
+
+                try {
+                    long minDelay = 100;
+                    long maxDelay = 1000;
+                    long randomDelay = minDelay + (long)(Math.random() * (maxDelay - minDelay));
+                    Thread.sleep(randomDelay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
 
                 String uniqueId = UUID.randomUUID().toString();
 
