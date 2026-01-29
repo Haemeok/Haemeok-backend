@@ -4,8 +4,6 @@ import com.jdc.recipe_service.domain.dto.RecipeSearchCondition;
 import com.jdc.recipe_service.domain.dto.ingredient.IngredientSummaryDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.type.IngredientType;
-import com.jdc.recipe_service.opensearch.dto.IngredientSearchDto;
-import com.jdc.recipe_service.opensearch.service.IngredientSearchService;
 import com.jdc.recipe_service.opensearch.service.OpenSearchSuggestionService;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.opensearch.service.OpenSearchService;
@@ -14,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/search")
 @RequiredArgsConstructor
@@ -79,7 +79,7 @@ public class SearchController {
     public ResponseEntity<Page<IngredientSummaryDto>> searchIngredients(
             @Parameter(description = "검색어") @RequestParam(required = false) String q,
             @Parameter(description = "카테고리") @RequestParam(required = false) String category,
-            @Parameter(description = "정렬 (기본 name)") @RequestParam(defaultValue = "name") String sort,
+            @Parameter(description = "정렬 (기본 name)") @RequestParam(required = false) String sort,
             @Parameter(description = "페이지") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "크기") @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal CustomUserDetails userDetails
@@ -92,9 +92,10 @@ public class SearchController {
             try {
                 koCategory = IngredientType.fromCode(category).getKor();
             } catch (IllegalArgumentException e) {
+                log.debug("Invalid category code: {}", category);
             }
         }
-        Pageable pageable = PageRequest.of(page, safeSize, Sort.by(Sort.Direction.ASC, "name"));
+        Pageable pageable = PageRequest.of(page, safeSize);
         Page<IngredientSummaryDto> result = ingredientService.search(q, koCategory, userId, false, pageable);
         return ResponseEntity.ok(result);
     }
