@@ -73,7 +73,6 @@ public class RecipeIngredientService {
                         ? dto.getCustomUnit()
                         : masterIngredient.getUnit();
             } else {
-                log.warn("   ❌ [3. DB 매핑 실패] 이름 '{}'(키: {})을 DB에서 못 찾음. -> 커스텀 재료 처리", dto.getName(), nameKey);
                 unitForRecipeItem = dto.getCustomUnit();
 
                 if (unitForRecipeItem == null || unitForRecipeItem.isBlank()) {

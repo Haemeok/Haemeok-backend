@@ -63,6 +63,7 @@ public class SecurityConfig {
                             // 2) 공개 GET (인증 없이 모두 허용)
                             .requestMatchers(HttpMethod.GET,
                                     "/api/ingredients",
+                                    "/api/ingredients/names",
                                     "/api/recipes/*/comments",
                                     "/api/recipes/*/comments/*/replies",
                                     "/api/recipes/*",
@@ -218,6 +219,7 @@ public class SecurityConfig {
                         // 3) 읽기 전용 GET (모두 허용)
                         .requestMatchers(HttpMethod.GET,
                                 "/api/ingredients",
+                                "/api/ingredients/names",
                                 "/api/recipes/*/comments",
                                 "/api/recipes/*/comments/*/replies",
                                 "/api/recipes/*",
