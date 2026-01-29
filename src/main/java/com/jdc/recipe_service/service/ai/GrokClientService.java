@@ -123,31 +123,25 @@ public class GrokClientService {
                     .flatMap(jsonString -> {
                         try {
                             String fixedJson = repairMalformedJson(jsonString);
-
                             JsonNode rootNode = objectMapper.readTree(fixedJson);
 
                             if (rootNode.isArray()) {
                                 return convertToList(rootNode);
                             }
 
-                            if (rootNode.isObject()) {
-                                if (rootNode.has("ingredients") && rootNode.get("ingredients").isArray()) {
-                                    return convertToList(rootNode.get("ingredients"));
+                            if (rootNode.has("ingredients")) {
+                                JsonNode ingNode = rootNode.get("ingredients");
+                                if (ingNode.isArray()) {
+                                    return convertToList(ingNode);
                                 }
-                                if (rootNode.has("service_response") && rootNode.get("service_response").isArray()) {
-                                    return convertToList(rootNode.get("service_response"));
-                                }
-                                for (JsonNode child : rootNode) {
-                                    if (child.isArray() && !child.isEmpty()) {
-                                        return convertToList(child);
-                                    }
-                                }
+                                return convertToList(objectMapper.readTree(repairMalformedJson(ingNode.toString())));
                             }
 
-                            throw new RuntimeException("JSON Array not found");
+                            log.error("⚠️ 유효한 재료 배열을 찾을 수 없습니다. 원본: {}", jsonString);
+                            return Mono.just(rawIngredients);
 
                         } catch (Exception e) {
-                            log.error("재료 파싱 실패. 원본: {}", jsonString);
+                            log.error("❌ 재료 파싱 최종 실패: {}", e.getMessage());
                             return Mono.just(rawIngredients);
                         }
                     })
@@ -300,13 +294,32 @@ public class GrokClientService {
 
     private String repairMalformedJson(String json) {
         String trimmed = json.trim();
+
         if (trimmed.startsWith("[")) return trimmed;
 
-        if (trimmed.startsWith("{") && trimmed.contains("\"name\"")) {
-            String repaired = trimmed.replaceAll(",\\s*\"name\"\\s*:", "},{\"name\":");
-            return "[" + repaired + "]";
+        if (trimmed.startsWith("{") && countNameKeys(trimmed) > 1) {
+            log.info("🔧 중복된 Key(name) 감지됨. JSON 배열 구조로 강제 수선을 시작합니다.");
+
+            if (trimmed.contains("\"ingredients\"")) {
+                int firstBrace = trimmed.indexOf("{", trimmed.indexOf("\"ingredients\""));
+                int lastBrace = trimmed.lastIndexOf("}");
+                if (firstBrace != -1 && lastBrace > firstBrace) {
+                    trimmed = trimmed.substring(firstBrace, lastBrace + 1);
+                }
+            }
+
+            String content = trimmed.substring(1, trimmed.lastIndexOf("}"));
+
+            String repaired = content.replaceAll(",\\s*\"name\"\\s*:", "},{\"name\":");
+
+            return "[{" + repaired + "}]";
         }
-        return json;
+
+        return trimmed;
+    }
+
+    private int countNameKeys(String json) {
+        return json.split("\"name\"\\s*:", -1).length - 1;
     }
 
     private Mono<List<RecipeIngredientRequestDto>> convertToList(JsonNode node) {
