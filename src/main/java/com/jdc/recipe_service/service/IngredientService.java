@@ -8,21 +8,24 @@ import com.jdc.recipe_service.domain.repository.IngredientRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
 import com.jdc.recipe_service.mapper.IngredientMapper;
 import com.querydsl.core.types.Expression;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
-import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.data.domain.*;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,6 +37,7 @@ public class IngredientService {
     private final JPAQueryFactory queryFactory;
     private final IngredientRepository repo;
     private final RefrigeratorItemRepository fridgeRepo;
+    private final Hashids hashids;
 
     private final QIngredient ing = QIngredient.ingredient;
     private final QIngredientKeyword ingKeyword = QIngredientKeyword.ingredientKeyword;
@@ -83,6 +87,24 @@ public class IngredientService {
                 .prepend(s3Prefix)
                 .append(".webp");
 
+        OrderSpecifier<?>[] orderSpecifiers;
+
+        if (keyword == null || keyword.isBlank()) {
+            NumberExpression<Integer> categoryPriority = new CaseBuilder()
+                    .when(ing.category.in("음료/주류", "조미료/양념")).then(2)
+                    .otherwise(1);
+
+            orderSpecifiers = new OrderSpecifier[]{
+                    categoryPriority.asc(),
+                    ing.usageCount.desc(),
+                    ing.name.asc()
+            };
+        } else {
+            orderSpecifiers = new OrderSpecifier[]{
+                    ing.name.asc()
+            };
+        }
+
         List<IngredientSummaryDto> content = queryFactory
                 .select(Projections.constructor(
                         IngredientSummaryDto.class,
@@ -95,8 +117,7 @@ public class IngredientService {
                 ))
                 .from(ing)
                 .where(searchCond, catCond)
-                .distinct()
-                .orderBy(ing.name.asc())
+                .orderBy(orderSpecifiers)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -109,6 +130,30 @@ public class IngredientService {
         if (total == null) total = 0L;
 
         return new PageImpl<>(content, pageable, total);
+    }
+
+    @Transactional(readOnly = true)
+    public List<IngredientIdNameDto> findNamesByHashIds(List<String> hashIds) {
+        List<Long> decodedIds = hashIds.stream()
+                .map(h -> {
+                    long[] decoded = hashids.decode(h);
+                    return (decoded.length > 0) ? decoded[0] : null;
+                })
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+
+        List<Ingredient> ingredients = repo.findAllById(decodedIds);
+
+        Map<Long, Ingredient> ingredientMap = ingredients.stream()
+                .collect(Collectors.toMap(Ingredient::getId, i -> i));
+
+        return decodedIds.stream()
+                .filter(ingredientMap::containsKey)
+                .map(id -> {
+                    Ingredient i = ingredientMap.get(id);
+                    return new IngredientIdNameDto(i.getId(), i.getName());
+                })
+                .collect(Collectors.toList());
     }
 
     /** 생성 (관리자 전용) */

@@ -19,6 +19,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/ingredients")
 @RequiredArgsConstructor
@@ -37,7 +40,7 @@ public class IngredientController {
             @Parameter(description = "검색어") @RequestParam(required = false) String q,
             @Parameter(hidden = true) @RequestParam(required = false) String category,
             @Parameter(description = "사용자의 냉장고에 있는 재료만 조회할지 여부") @RequestParam(required = false) Boolean inFridge,
-            @Parameter(description = "정렬 기준 (기본: name ASC)", example = "name,ASC") @PageableDefault(size = 20, sort = "name") Pageable pageable,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = userDetails != null
@@ -53,8 +56,7 @@ public class IngredientController {
             }
         }
 
-        Page<IngredientSummaryDto> page =
-                service.search(q, koCategory, userId, true, pageable);
+        Page<IngredientSummaryDto> page = service.search(q, koCategory, userId, true, pageable);
         return ResponseEntity.ok(page);
     }
 
@@ -89,4 +91,15 @@ public class IngredientController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+    /** 6) 여러 ID에 대한 이름 조회 (해시 ID 리스트)*/
+    @GetMapping("/names")
+    @Operation(summary = "재료 이름 목록 조회", description = "해시화된 ID 리스트를 받아 해당 재료들의 이름 목록을 반환합니다.")
+    public ResponseEntity<Map<String, List<IngredientIdNameDto>>> getIngredientNames(
+            @Parameter(description = "해시화된 ID 리스트 (쉼표로 구분)") @RequestParam List<String> ids) {
+
+        List<IngredientIdNameDto> content = service.findNamesByHashIds(ids);
+
+        return ResponseEntity.ok(Map.of("content", content));
+    }
+
 }
