@@ -114,10 +114,9 @@ public class GrokClientService {
                     %s
                     
                     [출력 형식]
-                    1. 반드시 **JSON Array** (`[...]`) 포맷으로 출력해라.
-                    2. 절대 단일 객체(`{...}`)로 감싸거나 병합하지 마라.
-                    3. 예시: [ {"name": "...", ...}, {"name": "...", ...} ]
-                    4. 응답의 시작은 반드시 '[' 문자여야 하고, 끝은 ']' 여야 한다.
+                    1. 전체를 반드시 **JSON Object** (`{}`)로 감싸야 한다.
+                    2. 결과 데이터는 **"ingredients"** 라는 키(Key) 안에 배열로 담아라.
+                    3. 예시: { "ingredients": [ {"name": "...", ...}, {"name": "...", ...} ] }
                     """.formatted(ingredientReport.toString(), ingredientsJson);
 
             return callGrokApi(systemContent, userContent, 5000, 0.2)
