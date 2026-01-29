@@ -23,4 +23,10 @@ public interface RecipeIngredientRepository extends JpaRepository<RecipeIngredie
     @Query("DELETE FROM RecipeIngredient ri WHERE ri.recipe.id = :recipeId")
     @Transactional
     void deleteByRecipeId(@Param("recipeId") Long recipeId);
+
+    @Query("SELECT ri.ingredient.id, COUNT(ri) " +
+            "FROM RecipeIngredient ri " +
+            "WHERE ri.ingredient IS NOT NULL " +
+            "GROUP BY ri.ingredient.id")
+    List<Object[]> countIngredientsUsage();
 }
