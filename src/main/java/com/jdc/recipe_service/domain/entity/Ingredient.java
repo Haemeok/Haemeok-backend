@@ -67,4 +67,13 @@ public class Ingredient {
     @Column(name = "sodium", precision = 10, scale = 3)
     @Builder.Default
     private BigDecimal sodium = BigDecimal.ZERO;
+
+    @Column(name = "usage_count")
+    @Builder.Default
+    private Long usageCount = 0L;
+
+    public void updateUsageCount(Long count) {
+        this.usageCount = count;
+    }
+
 }
