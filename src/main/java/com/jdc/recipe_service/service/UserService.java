@@ -10,10 +10,7 @@ import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.User;
-import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
-import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
-import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -54,7 +51,6 @@ public class UserService {
                 String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
     }
 
-    // presigned URL 생성
     @Transactional(readOnly = true)
     public PresignedUrlResponseItem generateProfileImagePresign(Long userId, String contentType) {
         User user = userRepository.findById(userId)
@@ -86,7 +82,6 @@ public class UserService {
         };
     }
 
-    //  프로필 수정 (관리자 or 나)
     public UserResponseDTO updateUser(Long id, UserPatchDTO dto) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -101,7 +96,7 @@ public class UserService {
         if (dto.getProfileImageKey() != null) {
             String key = dto.getProfileImageKey();
             if (key.isBlank()) {
-                user.updateProfile(null, null, null);               // profileImage → null
+                user.updateProfile(null, null, null);
                 user.updateProfileImageKey(null);
             } else {
                 user.updateProfileImageKey(key);
@@ -112,14 +107,12 @@ public class UserService {
         return UserMapper.toDto(user);
     }
 
-    // 관리자 전용: 사용자 생성
     public UserResponseDTO createUser(UserRequestDTO dto) {
         User user = UserMapper.toEntity(dto);
         userRepository.save(user);
         return UserMapper.toDto(user);
     }
 
-    // 관리자 전용: 전체 조회
     public List<UserResponseDTO> getAllUsers() {
         return userRepository.findAll()
                 .stream()
@@ -127,14 +120,30 @@ public class UserService {
                 .toList();
     }
 
-    // 관리자 전용: 하드 삭제
-    public void deleteUser(Long id) {
-        User user = userRepository.findById(id)
+    public void deleteUser(Long userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        List<String> s3KeysToDelete = new ArrayList<>();
+
+        if (user.getProfileImageKey() != null && !user.getProfileImageKey().isBlank()) {
+            s3KeysToDelete.add(user.getProfileImageKey());
+        }
+
+        List<Recipe> myRecipes = recipeRepository.findAllByUserId(userId);
+        for (Recipe recipe : myRecipes) {
+            if (recipe.getImageKey() != null && !recipe.getImageKey().isBlank()) {
+                s3KeysToDelete.add(recipe.getImageKey());
+            }
+        }
+
         userRepository.delete(user);
+
+        if (!s3KeysToDelete.isEmpty()) {
+            s3Util.deleteFiles(s3KeysToDelete);
+        }
     }
 
-    // 유저 정보 조회(관리자 or 나)
     public UserResponseDTO getUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -142,12 +151,11 @@ public class UserService {
 
         int aiQuota = dailyQuotaService.getRemainingQuota(id, QuotaType.AI_GENERATION);
         int youtubeQuota = dailyQuotaService.getRemainingQuota(id, QuotaType.YOUTUBE_EXTRACTION);
-        dto.updateQuotas(aiQuota, youtubeQuota); // DTO에 값 주입
+        dto.updateQuotas(aiQuota, youtubeQuota);
         return dto;
     }
 
 
-    // 프로필 조회(모든 사람)
     @Transactional(readOnly = true)
     public UserDto getPublicProfile(Long userId) {
         User user = userRepository.findById(userId)
