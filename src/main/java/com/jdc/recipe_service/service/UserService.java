@@ -137,7 +137,7 @@ public class UserService {
             }
         }
 
-        userRepository.delete(user);
+        userRepository.deleteByIdForce(user.getId());
 
         if (!s3KeysToDelete.isEmpty()) {
             s3Util.deleteFiles(s3KeysToDelete);
