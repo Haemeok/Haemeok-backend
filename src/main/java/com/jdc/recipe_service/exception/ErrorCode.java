@@ -37,7 +37,7 @@ public enum ErrorCode {
     INVALID_INGREDIENT_REQUEST(HttpStatus.BAD_REQUEST, "404", "잘못된 재료 요청입니다."),
     CUSTOM_INGREDIENT_INFO_MISSING(HttpStatus.BAD_REQUEST, "405", "새로운 재료는 가격과 단위를 함께 입력해야 합니다."),
     MISSING_INGREDIENT_NAME(HttpStatus.BAD_REQUEST, "406", "재료명(name 또는 customName)이 비어 있을 수 없습니다."),
-    DAILY_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "429", "하루 생성 제한을 초과했습니다."),
+    DAILY_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "429", "일일 무료 한도와 보유 토큰을 모두 소진했습니다."),
 
     // --- Fridge (500) ---
     INVALID_FRIDGE_REQUEST(HttpStatus.BAD_REQUEST, "501", "잘못된 냉장고 요청입니다."),

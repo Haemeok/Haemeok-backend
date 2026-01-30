@@ -59,8 +59,8 @@ management:
 
 ai:
   quota:
-    per-day: 1
-    youtube-per-day: 10
+    per-day: 2
+    youtube-per-day: 3
     timezone: "Asia/Seoul"
 
 app:

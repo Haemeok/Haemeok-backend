@@ -74,7 +74,7 @@ public class AiRecipeFacade {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "AI 요청 정보가 없습니다.");
         }
 
-        dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.AI_GENERATION);
+        boolean usedToken = dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.AI_GENERATION);
 
         try {
             AiRecipeRequestDto aiReq = request.getAiRequest();
@@ -141,7 +141,7 @@ public class AiRecipeFacade {
             return result;
 
         } catch (Exception e) {
-            dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.AI_GENERATION);
+            dailyQuotaService.refund(userId, QuotaType.AI_GENERATION, usedToken);
             throw e;
         }
     }
