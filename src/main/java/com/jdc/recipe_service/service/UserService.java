@@ -147,11 +147,15 @@ public class UserService {
     public UserResponseDTO getUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
         UserResponseDTO dto = UserMapper.toDto(user);
 
         int aiQuota = dailyQuotaService.getRemainingQuota(id, QuotaType.AI_GENERATION);
         int youtubeQuota = dailyQuotaService.getRemainingQuota(id, QuotaType.YOUTUBE_EXTRACTION);
         dto.updateQuotas(aiQuota, youtubeQuota);
+
+        dto.updateTokens(user.getYoutubeToken(), user.getAiToken());
+
         return dto;
     }
 

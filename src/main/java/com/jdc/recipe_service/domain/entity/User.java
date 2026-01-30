@@ -54,6 +54,14 @@ public class User extends BaseTimeEntity {
     @Builder.Default
     private boolean hasFirstRecord = false;
 
+    @Column(name = "youtube_token", nullable = false)
+    @Builder.Default
+    private int youtubeToken = 0;
+
+    @Column(name = "ai_token", nullable = false)
+    @Builder.Default
+    private int aiToken = 0;
+
     public void updateProfile(String nickname, String profileImage, String introduction) {
         if (nickname     != null) this.nickname     = nickname;
         if (profileImage != null) this.profileImage = profileImage;
@@ -74,4 +82,28 @@ public class User extends BaseTimeEntity {
     }
 
     public void markFirstRecord() {this.hasFirstRecord = true;}
+
+    public void addYoutubeToken(int amount) {
+        this.youtubeToken += amount;
+    }
+
+    public void addAiToken(int amount) {
+        this.aiToken += amount;
+    }
+
+    public boolean tryUseYoutubeToken() {
+        if (this.youtubeToken > 0) {
+            this.youtubeToken--;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean tryUseAiToken() {
+        if (this.aiToken > 0) {
+            this.aiToken--;
+            return true;
+        }
+        return false;
+    }
 }

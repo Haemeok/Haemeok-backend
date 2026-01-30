@@ -3,10 +3,13 @@ package com.jdc.recipe_service.controller;
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.user.UserRequestDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
+import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.service.UserService;
+import com.jdc.recipe_service.service.token.TokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +25,7 @@ import java.util.List;
 public class AdminUserController {
 
     private final UserService userService;
+    private final TokenService tokenService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -54,5 +58,25 @@ public class AdminUserController {
     public ResponseEntity<String> deleteUser(@DecodeId Long id) {
         userService.deleteUser(id);
         return ResponseEntity.ok("사용자가 삭제되었습니다.");
+    }
+
+    @PostMapping("/tokens/bulk-give")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<String> bulkGiveToken(@RequestBody BulkTokenRequest request) {
+
+        int count = tokenService.giveTokenToUsersBulk(
+                request.getUserIds(),
+                request.getType(),
+                request.getAmount()
+        );
+
+        return ResponseEntity.ok(count + "명의 유저에게 " + request.getType() + " 토큰 지급 완료");
+    }
+
+    @Data
+    public static class BulkTokenRequest {
+        private List<Long> userIds;
+        private QuotaType type;
+        private int amount;
     }
 }

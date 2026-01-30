@@ -79,13 +79,21 @@ public class RecipeExtractionService {
     );
 
     private static final Pattern UNIT_PATTERN = Pattern.compile(
-            "(?i)(큰술|작은술|spoon|tbs|tsp|cup|\\b[0-9.]+\\s?g\\b|\\b[0-9.]+\\s?ml\\b|\\b[0-9.]+\\s?oz\\b|한\\s?꼬집|약간)"
+            "(?i)(큰술|작은술|밥숟가락|티스푼|종이컵|국자|주걱|꼬집|약간|적당량|" +
+                    "spoon|tbs|tbsp|tsp|cup|oz|lb|kg|ml|l|cc|liter|" +
+                    "개|마리|모|단|통|알|쪽|줌|봉|봉지|팩|장|copy|ea|" +
+                    "\\b[0-9]+/[0-9]+\\b|" +
+                    "\\b[0-9.]+\\s?(g|kg|ml|l|cc)\\b)"
     );
+
     private static final Pattern INGREDIENT_KEYWORD_PATTERN = Pattern.compile(
-            "(?i)(재료|ingredient|준비물|필요한\\s?것)"
+            "(?i)(재료|ingredient|준비물|필요|양념|소스|드레싱|시즈닝|seasoning|sauce|dressing|materials|shopping list)"
     );
+
     private static final Pattern STEP_ACTION_PATTERN = Pattern.compile(
-            "(?i)(만드는|방법|recipe|step|direction|넣고|볶|끓|굽|튀기|섞|다지|채썰|chop|mix|boil|fry|bake|roast)"
+            "(?i)(만드는|방법|순서|조리|과정|레시피|recipe|step|direction|how to|" +
+                    "넣|볶|끓|굽|튀기|섞|다지|채썰|썰|자르|데치|삶|찌|무치|부치|재우|간하|손질|씻|헹구|" +
+                    "chop|mix|boil|fry|stir|bake|roast|grill|simmer|poach|slice|mince|dice)"
     );
 
     private final YtDlpService ytDlpService;
@@ -104,8 +112,6 @@ public class RecipeExtractionService {
     private final Executor extractionExecutor;
 
     private final AsyncImageService asyncImageService;
-    private final DeferredResultHolder deferredResultHolder;
-    private final RecipeSearchService recipeSearchService;
     private final ObjectMapper objectMapper;
 
     private final ConcurrentHashMap<String, CompletableFuture<PresignedUrlResponse>> extractionTasks = new ConcurrentHashMap<>();
@@ -125,8 +131,7 @@ public class RecipeExtractionService {
             TransactionTemplate transactionTemplate,
             @Qualifier("recipeExtractionExecutor") Executor extractionExecutor,
             AsyncImageService asyncImageService,
-            DeferredResultHolder deferredResultHolder,
-            RecipeSearchService recipeSearchService, ObjectMapper objectMapper
+            ObjectMapper objectMapper
     ) {
         this.ytDlpService = ytDlpService;
         this.grokClientService = grokClientService;
@@ -141,8 +146,6 @@ public class RecipeExtractionService {
         this.transactionTemplate = transactionTemplate;
         this.extractionExecutor = extractionExecutor;
         this.asyncImageService = asyncImageService;
-        this.deferredResultHolder = deferredResultHolder;
-        this.recipeSearchService = recipeSearchService;
         this.objectMapper = objectMapper;
     }
 
@@ -208,8 +211,10 @@ public class RecipeExtractionService {
             2. 실제 사용한 메인 재료 1개만
             3. quantity 형식: "2", "0.5", "1/2" (혼합분수 금지)
             4. quantity="약간"은 정말 추정 불가능할 때만
-            5. 소스 분해: 양념장 만드는 장면 있으면 간장/설탕/식초 등 모두 분리
-            6. 부재료 포착: 파/깨/참기름/후추 등 조리 중 추가하는 것 누락 금지
+            **5. [단위 보존]: 영상에서 '국자', '컵', '개', '봉지', '줌' 등으로 표현된 단위는 무리하게 '큰술'이나 'g'으로 바꾸지 말고 들리는 그대로(예: "1 개", "1 국자") 적어라. (정확한 환산은 다음 단계에서 진행함)**
+            6. 소스 분해: 양념장 만드는 장면 있으면 간장/설탕/식초 등 모두 분리
+            7. 부재료 포착: 파/깨/참기름/후추 등 조리 중 추가하는 것 누락 금지
+            **8. [중요] 총 합계 작성: 조리 과정 중 재료를 여러 번 나눠 넣더라도, ingredients 리스트에는 요리 전체에 사용된 '총 합계량'을 계산하여 적어라. (예: 고기 밑간에 1스푼, 소스에 2스푼을 썼다면 ingredients에는 3스푼으로 기재)**
             
             예시:
             [
@@ -332,7 +337,13 @@ public class RecipeExtractionService {
             return handleExistingRecipe(existingRecipe.get()).join();
         }
 
-        dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION);
+        boolean usedToken = false;
+
+        try {
+            usedToken = dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION);
+        } catch (Exception e) {
+            throw e;
+        }
 
         String title = "제목 미상";
         String description = "";
@@ -391,6 +402,12 @@ public class RecipeExtractionService {
                 log.info("✅ [텍스트 모드] Step 1: 초안 생성 시작");
                 try {
                     recipeDto = grokClientService.generateRecipeStep1(getExtractionPrompt(), fullContext).join();
+
+                    if (isRecipeResultGarbage(recipeDto)) {
+                        log.warn("📉 Grok 분석 실패: 결과물 품질 미달 (재료 부족/모호). Gemini로 재시도합니다.");
+                        useUrlFallback = true;
+                        recipeDto = null;
+                    }
 
                     if (recipeDto != null && Boolean.FALSE.equals(recipeDto.getIsRecipe())) {
                         throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 아님: " + recipeDto.getNonRecipeReason());
@@ -467,12 +484,12 @@ public class RecipeExtractionService {
             if (e.getErrorCode() == ErrorCode.INVALID_INPUT_VALUE) {
                 log.warn("🚫 레시피 아님 판정: {}", e.getMessage());
             } else {
-                dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
+                dailyQuotaService.refund(userId, QuotaType.YOUTUBE_EXTRACTION, usedToken);
             }
             throw e;
         } catch (Exception e) {
             log.warn("❌ 알 수 없는 오류. 쿼터 환불: userId={}", userId);
-            dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
+            dailyQuotaService.refund(userId, QuotaType.YOUTUBE_EXTRACTION, usedToken);
             throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED);
         }
     }
@@ -727,11 +744,12 @@ public class RecipeExtractionService {
 
         if (combinedText.length() < 50) return false;
 
-        boolean hasUnit = UNIT_PATTERN.matcher(combinedText).find();
-        boolean hasIngredient = INGREDIENT_KEYWORD_PATTERN.matcher(combinedText).find();
-        boolean hasAction = STEP_ACTION_PATTERN.matcher(combinedText).find();
+        boolean hasIngredientSignal = INGREDIENT_KEYWORD_PATTERN.matcher(combinedText).find()
+                || UNIT_PATTERN.matcher(combinedText).find();
 
-        return (hasUnit || hasIngredient) && hasAction;
+        boolean hasActionSignal = STEP_ACTION_PATTERN.matcher(combinedText).find();
+
+        return hasIngredientSignal && hasActionSignal;
     }
 
     private boolean isSpecialQty(String q) {
@@ -928,5 +946,24 @@ public class RecipeExtractionService {
         }
     }
 
+    private boolean isRecipeResultGarbage(RecipeCreateRequestDto dto) {
+        if (dto == null) return true;
+        if (!Boolean.TRUE.equals(dto.getIsRecipe())) return false;
+
+        List<RecipeIngredientRequestDto> ings = dto.getIngredients();
+
+        if (ings == null || ings.size() < 2) return true;
+
+        long badQuantityCount = ings.stream()
+                .filter(i -> {
+                    String q = i.getQuantity();
+                    String u = i.getCustomUnit();
+                    return q == null || q.equals("0") || q.contains("약간") ||
+                            (u != null && u.contains("약간"));
+                })
+                .count();
+
+        return (double) badQuantityCount / ings.size() > 0.5;
+    }
 }
 
