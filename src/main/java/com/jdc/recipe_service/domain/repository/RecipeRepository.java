@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 @Repository
 public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQueryRepository {
-
+    List<Recipe> findAllByUserId(Long userId);
 
     @Query("""
                 SELECT r FROM Recipe r
