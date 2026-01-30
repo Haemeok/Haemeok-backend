@@ -310,7 +310,7 @@ public class RecipeService {
 
         recipeImageService.deleteImagesByRecipeId(recipeId);
 
-        recipeLikeService.deleteByRecipeId(recipeId);
+        /*recipeLikeService.deleteByRecipeId(recipeId);
 
         recipeFavoriteService.deleteByRecipeId(recipeId);
 
@@ -323,6 +323,7 @@ public class RecipeService {
         recipeIngredientService.deleteAllByRecipeId(recipeId);
 
         recipeTagService.deleteAllByRecipeId(recipeId);
+        */
 
         recipeRepository.deleteByIdDirectly(recipeId);
 
