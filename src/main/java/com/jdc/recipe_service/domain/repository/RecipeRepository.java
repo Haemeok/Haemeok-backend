@@ -150,6 +150,18 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     """)
     void updateAllWeeklyLikeCounts(@Param("startDate") java.time.LocalDateTime startDate);
 
+    @Modifying(clearAutomatically = true)
+    @Query("""
+        UPDATE Recipe r
+        SET r.weeklyFavoriteCount = (
+            SELECT COUNT(rf)
+            FROM RecipeFavorite rf    
+            WHERE rf.recipe.id = r.id
+              AND rf.createdAt >= :startDate
+        )
+    """)
+    void updateAllWeeklyFavoriteCounts(@Param("startDate") java.time.LocalDateTime startDate);
+
     @SuppressWarnings("JpaQlInspection")
     @Query("""
         SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto(
@@ -244,7 +256,10 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         WHERE r.isPrivate = false
           AND r.isAiGenerated = false
           AND r.totalIngredientCost <= :maxCost
-        ORDER BY r.totalIngredientCost ASC, r.createdAt DESC
+          AND r.totalIngredientCost >= 1000
+        ORDER BY 
+            ( (COALESCE(r.favoriteCount, 0) * 0.3) + (COALESCE(r.weeklyFavoriteCount, 0) * 0.7) ) DESC,
+            r.createdAt DESC
         """)
     Page<RecipeSimpleStaticDtoV2> findBudgetRecipesStaticV2(
             @Param("maxCost") Integer maxCost,

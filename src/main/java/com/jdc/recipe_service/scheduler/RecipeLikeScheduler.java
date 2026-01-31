@@ -39,6 +39,8 @@ public class RecipeLikeScheduler {
 
         recipeRepository.updateAllWeeklyLikeCounts(oneWeekAgo);
 
+        recipeRepository.updateAllWeeklyFavoriteCounts(oneWeekAgo);
+
         long end = System.currentTimeMillis();
         log.info("[Scheduler] 집계 완료 (소요시간: {}ms)", end - start);
     }
