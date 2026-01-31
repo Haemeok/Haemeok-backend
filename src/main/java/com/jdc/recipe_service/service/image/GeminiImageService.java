@@ -103,19 +103,21 @@ public class GeminiImageService {
         return Collections.singletonList(DEFAULT_IMAGE_URL);
     }
 
-    /** * ✅ 핵심 로직: (리전 Loop) x (계정 Loop)
-     * 1. 429(Quota) -> 다음 계정(Key)으로 전환
-     * 2. 5xx(Server) -> 다음 리전(Region)으로 전환
+    /** * ✅ 핵심 로직 수정: (리전 Loop) x (계정 Loop)
+     * - [수정됨] 매 요청마다 계정 순서를 섞어서(Shuffle) 특정 계정만 429가 뜨는 현상 방지
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> postWithKeyRotation(HttpHeaders headers, Map<String, Object> body, Object recipeId) {
         RuntimeException lastException = null;
 
+        List<VertexCredential> shuffledCredentials = new ArrayList<>(this.credentials);
+        Collections.shuffle(shuffledCredentials);
+
         for (String loc : vertexLocations) {
             loc = loc.trim();
             if (loc.isEmpty()) continue;
 
-            for (VertexCredential cred : credentials) {
+            for (VertexCredential cred : shuffledCredentials) {
                 String cacheKey = cred.projectId + "-" + loc;
 
                 if (isCooldown(cacheKey)) continue;
@@ -124,7 +126,8 @@ public class GeminiImageService {
 
                 try {
                     ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-                    log.info("✅ 성공! (Project={}, Location={}, recipeId={})", cred.projectId, loc, recipeId);
+
+                    log.info("✅ Gemini API 성공! (Project={}, Location={}, recipeId={})", cred.projectId, loc, recipeId);
                     return (Map<String, Object>) response.getBody();
 
                 } catch (HttpStatusCodeException e) {
@@ -160,10 +163,11 @@ public class GeminiImageService {
         throw new RestClientException("No available credentials or regions configured");
     }
 
+
     private String buildUrl(String loc, VertexCredential cred) {
         if (cred.apiKey.startsWith("AIza")) {
             return String.format("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
-                    "gemini-2.5-flash-image", // 모델명
+                    "gemini-2.5-flash-image",
                     cred.apiKey);
         }
 
