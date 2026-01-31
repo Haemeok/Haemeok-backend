@@ -31,6 +31,7 @@ import org.opensearch.client.RestHighLevelClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -342,6 +343,7 @@ public class RecipeSearchServiceV2 {
      * 1. Weekly: 스케줄러가 갱신한 'weeklyLikeCount' 컬럼 사용 (Fast, O(1))
      * 2. Monthly/All: 실시간 'COUNT(*)' 쿼리 사용 (Slow, Real-time)
      */
+    @Cacheable(value = "popularRecipes", key = "#period", unless = "#result.content.isEmpty()")
     @Transactional(readOnly = true)
     public Page<RecipeSimpleStaticDto> getPopularRecipesStaticV2(String period, Pageable pageable) {
 
@@ -370,6 +372,7 @@ public class RecipeSearchServiceV2 {
      * V2 원칙: 동적 정보(좋아요 수, 좋아요 여부)를 DTO에 포함하지 않고,
      * 오직 정적 정보인 RecipeSimpleStaticDtoV2만 반환합니다.
      */
+    @Cacheable(value = "budgetRecipes", key = "#maxCost", unless = "#result.content.isEmpty()")
     @Transactional(readOnly = true)
     public Page<RecipeSimpleStaticDtoV2> getBudgetRecipesStaticV2(
             Integer maxCost,
