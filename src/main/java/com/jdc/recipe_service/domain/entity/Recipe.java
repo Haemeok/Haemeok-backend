@@ -72,6 +72,10 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Long weeklyLikeCount = 0L;
 
+    @Column(name = "weekly_favorite_count")
+    @Builder.Default
+    private Long weeklyFavoriteCount = 0L;
+
     @Column(name = "image_key")
     private String imageKey;
 
@@ -98,6 +102,9 @@ public class Recipe extends BaseTimeEntity {
 
     @Column(name = "youtube_video_view_count")
     private Long youtubeVideoViewCount;
+
+    @Column(name = "extractor_id", nullable = true)
+    private Long extractorId;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "recipe_cooking_tools", joinColumns = @JoinColumn(name = "recipe_id"))
@@ -265,6 +272,10 @@ public class Recipe extends BaseTimeEntity {
         this.youtubeVideoViewCount = videoViewCount;
     }
 
+    public void updateExtractorId(Long extractorId) {
+        this.extractorId = extractorId;
+    }
+
     public void increaseLikeCount() {
         if (this.likeCount == null) {
             this.likeCount = 0L;
@@ -298,6 +309,10 @@ public class Recipe extends BaseTimeEntity {
 
     public void updateWeeklyLikeCount(Long weeklyLikeCount) {
         this.weeklyLikeCount = weeklyLikeCount != null ? weeklyLikeCount : 0L;
+    }
+
+    public void updateWeeklyFavoriteCount(Long count) {
+        this.weeklyFavoriteCount = count != null ? count : 0L;
     }
 
     public void setFineDiningDetails(FineDiningDetails fineDiningDetails) {

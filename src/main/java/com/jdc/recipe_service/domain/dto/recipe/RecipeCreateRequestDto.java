@@ -40,6 +40,7 @@ public class RecipeCreateRequestDto {
     private String youtubeChannelProfileUrl;
     private Long youtubeSubscriberCount;
     private Long youtubeVideoViewCount;
+    private Long extractorId;
 
     private List<String> cookingTools;
     private Integer servings;
