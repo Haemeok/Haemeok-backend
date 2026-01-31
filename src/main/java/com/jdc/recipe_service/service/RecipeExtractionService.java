@@ -74,6 +74,8 @@ public class RecipeExtractionService {
             "라이브", "live", "다시보기", "full ver"
     );
 
+    private static final Pattern TIMESTAMP_PATTERN = Pattern.compile("\\d{1,2}:\\d{2}");
+
     private static final Pattern YOUTUBE_URL_PATTERN = Pattern.compile(
             "(?i)^(https?://)?(www\\.)?(youtube\\.com|youtu\\.be)/.+$"
     );
@@ -425,7 +427,15 @@ public class RecipeExtractionService {
 
             if (useUrlFallback || recipeDto == null) {
                 log.info("🎥 [멀티모달 모드] Step 1: Gemini 초안 생성 시작");
-                recipeDto = geminiMultimodalService.generateRecipeFromYoutubeUrl(getExtractionPrompt(), title, storageUrl).join();
+
+                String promptWithHint = getExtractionPrompt() + "\n\n" +
+                        "## [참고용 텍스트 데이터]\n" +
+                        "아래 텍스트는 영상의 설명, 댓글, 자막입니다. " +
+                        "영상을 분석할 때 이 내용을 '강력한 힌트'로 참고하되, " +
+                        "타임라인(Timeline)은 반드시 영상 화면을 보고 실제 조리 시점을 기준으로 작성하세요.\n\n" +
+                        fullContext;
+
+                recipeDto = geminiMultimodalService.generateRecipeFromYoutubeUrl(promptWithHint, title, storageUrl).join();
 
                 if (recipeDto == null || !Boolean.TRUE.equals(recipeDto.getIsRecipe())) {
                     throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 아님/생성실패");
@@ -549,6 +559,13 @@ public class RecipeExtractionService {
 
             if (ex != null) {
                 Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+
+                if (cause instanceof DailyQuotaService.DailyQuotaExceededException) {
+                    log.warn("🚫 쿼터 소진으로 인한 차단: {}", cause.getMessage());
+                    deferredResult.setErrorResult(cause);
+                    return;
+                }
+
                 log.error("❌ 추출 작업 실패: {}", cause.getMessage());
                 deferredResult.setErrorResult(new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED));
                 return;
@@ -737,6 +754,7 @@ public class RecipeExtractionService {
                     .build();
         });
     }
+
     private boolean isTextSufficient(String description, String comments, String scriptPlain) {
         String combinedText = (nullToEmpty(description) + " "
                 + nullToEmpty(comments) + " "
@@ -749,7 +767,9 @@ public class RecipeExtractionService {
 
         boolean hasActionSignal = STEP_ACTION_PATTERN.matcher(combinedText).find();
 
-        return hasIngredientSignal && hasActionSignal;
+        boolean hasTimestamp = TIMESTAMP_PATTERN.matcher(combinedText).find();
+
+        return hasIngredientSignal && hasActionSignal && hasTimestamp;
     }
 
     private boolean isSpecialQty(String q) {
