@@ -21,7 +21,9 @@ public class CacheConfig {
         SimpleCacheManager cacheManager = new SimpleCacheManager();
         List<CaffeineCache> caches = Arrays.asList(
                 buildCache("ingredientSearch", 10, 500),
-                buildCache("recipeRecommendations", 30, 1000)
+                buildCache("recipeRecommendations", 30, 1000),
+                buildCache("popularRecipes", 60, 100),
+                buildCache("budgetRecipes", 60, 100)
         );
 
         cacheManager.setCaches(caches);
