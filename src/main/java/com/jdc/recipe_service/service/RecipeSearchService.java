@@ -276,6 +276,7 @@ public class RecipeSearchService {
                 .youtubeChannelProfileUrl(basic.getYoutubeChannelProfileUrl())
                 .youtubeSubscriberCount(basic.getYoutubeSubscriberCount())
                 .youtubeVideoViewCount(basic.getYoutubeVideoViewCount())
+                .extractorId(basic.getExtractorId())
                 .contributors(contributors)
                 .cookingTools(tools)
                 .servings(basic.getServings())

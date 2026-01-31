@@ -73,6 +73,9 @@ public class RecipeService {
                 ));
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
+        if (dto.getExtractorId() != null) {
+            recipe.updateExtractorId(dto.getExtractorId());
+        }
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
 
         if (sourceType == RecipeSourceType.YOUTUBE) {
@@ -398,12 +401,13 @@ public class RecipeService {
         }
 
         if (!recipe.isAiGenerated()) {
-            if (!hasMainImageUploaded) {
+            /*if (!hasMainImageUploaded) {
                 recipe.updateIsPrivate(true);
                 log.warn("사용자 레시피 {} finalize 실패: 메인 이미지 누락. 강제 비공개 처리.", recipeId);
             } else {
                 recipe.updateIsPrivate(false);
-            }
+            }*/
+            recipe.updateIsPrivate(false);
         }
 
         em.flush();

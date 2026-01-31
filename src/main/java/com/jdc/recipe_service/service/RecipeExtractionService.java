@@ -485,9 +485,10 @@ public class RecipeExtractionService {
 
             mergeDuplicateIngredientsByNameAndUnit(recipeDto);
 
-            PresignedUrlResponse response = saveRecipeTransactional(recipeDto, OFFICIAL_RECIPE_USER_ID);
+            PresignedUrlResponse response = saveRecipeTransactional(recipeDto, OFFICIAL_RECIPE_USER_ID, userId);
 
-            log.info("💾 신규 생성 및 즐겨찾기 추가 완료: ID={}, UserID={}", response.getRecipeId(), userId);
+            log.info("💾 신규 생성 및 즐겨찾기 추가 완료: ID={}, OwnerID={}, ExtractorID={}",
+                    response.getRecipeId(), OFFICIAL_RECIPE_USER_ID, userId);
             return response;
 
         } catch (CustomException e) {
@@ -740,9 +741,12 @@ public class RecipeExtractionService {
         });
     }
 
-    private PresignedUrlResponse saveRecipeTransactional(RecipeCreateRequestDto recipeDto, Long userId) {
+    private PresignedUrlResponse saveRecipeTransactional(RecipeCreateRequestDto recipeDto, Long userId, Long extractorId) {
         return transactionTemplate.execute(status -> {
             RecipeWithImageUploadRequest request = new RecipeWithImageUploadRequest();
+
+            recipeDto.setExtractorId(extractorId);
+
             request.setRecipe(recipeDto);
 
             PresignedUrlResponse originalRes = recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.YOUTUBE,null);
