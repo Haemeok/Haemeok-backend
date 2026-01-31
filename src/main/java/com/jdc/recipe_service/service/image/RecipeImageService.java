@@ -47,26 +47,28 @@ public class RecipeImageService {
                     ? "main"
                     : "step_" + fileInfo.getStepIndex();
 
-            String extension = getFileExtension(fileInfo.getContentType());
+            String originalExtension = getFileExtension(fileInfo.getContentType());
 
-            String fileKey = "images/recipes/" + recipe.getId() + "/" + slot + extension;
+            String uploadKey = "original/images/recipes/" + recipe.getId() + "/" + slot + originalExtension;
+
+            String dbKey = "images/recipes/" + recipe.getId() + "/" + slot + ".webp";
 
             String contentType = fileInfo.getContentType();
             if (contentType == null || contentType.isEmpty()) {
                 contentType = "image/jpeg";
             }
 
-            String presignedUrl = s3Util.createPresignedUrl(fileKey, contentType);
+            String presignedUrl = s3Util.createPresignedUrl(uploadKey, contentType);
 
             uploads.add(PresignedUrlResponseItem.builder()
-                    .fileKey(fileKey)
+                    .fileKey(uploadKey)
                     .presignedUrl(presignedUrl)
                     .build());
 
             images.add(RecipeImage.builder()
                     .recipe(recipe)
                     .slot(slot)
-                    .fileKey(fileKey)
+                    .fileKey(dbKey)
                     .status(ImageStatus.PENDING)
                     .build());
         }
