@@ -1,11 +1,17 @@
 package com.jdc.recipe_service.service.image;
 
+import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponseItem;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeImage;
 import com.jdc.recipe_service.domain.repository.RecipeImageRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.ImageStatus;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.mapper.RecipeMapper;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +32,8 @@ public class RecipeImageService {
 
     private final RecipeImageRepository recipeImageRepository;
     private final S3Util s3Util;
+    private final AsyncImageService asyncImageService;
+    private final RecipeRepository recipeRepository;
 
     @Transactional(readOnly = true)
     public List<RecipeImage> getImagesByRecipeId(Long recipeId) {
@@ -121,6 +129,43 @@ public class RecipeImageService {
     @Transactional
     public void deleteByFileKey(String fileKey) {
         recipeImageRepository.deleteByFileKey(fileKey);
+    }
+
+    @Transactional
+    public void regenerateAndApplyImage(Long recipeId) {
+        Recipe recipe = recipeRepository.findById(recipeId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+
+        RecipeCreateRequestDto recipeDto = RecipeMapper.toCreateDto(recipe);
+
+        log.info("🎨 [Service] 레시피 ID {} 이미지 재생성 프로세스 시작", recipeId);
+
+        asyncImageService.generateImageFromDto(recipeDto, recipe.getUser().getId())
+                .thenAccept(generatedImageUrl -> {
+                    if (generatedImageUrl != null && !generatedImageUrl.contains("no_image")) {
+                        String s3Key = extractS3Key(generatedImageUrl);
+
+                        recipe.updateImageKey(s3Key);
+                        recipe.updateImageStatus(RecipeImageStatus.READY);
+                        recipeRepository.save(recipe);
+                        log.info("✅ 레시피 {} 이미지 업데이트 완료: {}", recipeId, s3Key);
+                    }
+                });
+    }
+
+    /**
+     * URL에서 S3 Key 추출 (ExtractionService에서 이관)
+     */
+    private String extractS3Key(String fullUrl) {
+        if (fullUrl == null || fullUrl.isBlank()) return null;
+        try {
+            java.net.URI uri = new java.net.URI(fullUrl);
+            String path = uri.getPath();
+            return (path != null && path.startsWith("/")) ? path.substring(1) : path;
+        } catch (Exception e) {
+            int imgIdx = fullUrl.indexOf("images/");
+            return (imgIdx != -1) ? fullUrl.substring(imgIdx) : fullUrl;
+        }
     }
 
 }

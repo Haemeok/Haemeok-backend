@@ -10,6 +10,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.AdminRecipeService;
+import com.jdc.recipe_service.service.image.RecipeImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +36,7 @@ public class AdminRecipeController {
 
     private final AdminRecipeService recipeService;
     private final Hashids hashids;
+    private final RecipeImageService recipeImageService;
 
     @PostMapping
     @Operation(summary = "크롤링 레시피 단건 등록", description = "관리자가 단일 크롤링 레시피를 저장합니다.")
@@ -117,5 +119,12 @@ public class AdminRecipeController {
         recipeService.updateIngredientsBatch(recipeId, dtos);
 
         return ResponseEntity.ok("재료 수정 및 관련 신고 처리가 완료되었습니다.");
+    }
+
+    @PostMapping("/{recipeId}/regenerate-image")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> regenerateRecipeImage(@PathVariable Long recipeId) {
+        recipeImageService.regenerateAndApplyImage(recipeId);
+        return ResponseEntity.ok("이미지 재생성 작업이 백그라운드에서 시작되었습니다.");
     }
 }
