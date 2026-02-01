@@ -219,12 +219,22 @@ public class RecipeService {
 
         Integer newTotalIngredientCost = (dto.getTotalIngredientCost() != null) ? dto.getTotalIngredientCost() : recipe.getTotalIngredientCost();
 
+        String newImageKey = recipe.getImageKey();
+        boolean hasNewMainFile = req.getFiles() != null &&
+                req.getFiles().stream().anyMatch(f -> MAIN_IMAGE_SLOT.equals(f.getType()));
+
+        if (hasNewMainFile) {
+            newImageKey = "images/recipes/" + recipe.getId() + "/main.webp";
+        } else if (dto.getImageKey() != null && !dto.getImageKey().isBlank()) {
+            newImageKey = dto.getImageKey();
+        }
+
         recipe.update(
                 dto.getTitle(),
                 dto.getDescription(),
                 DishType.fromDisplayName(dto.getDishType()),
                 dto.getCookingTime(),
-                dto.getImageKey(),
+                newImageKey,
                 dto.getYoutubeUrl(),
                 tools,
                 dto.getServings(),
