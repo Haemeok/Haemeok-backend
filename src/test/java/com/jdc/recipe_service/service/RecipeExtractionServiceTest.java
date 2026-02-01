@@ -4,10 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
+import com.jdc.recipe_service.domain.entity.RecipeGenerationJob;
+import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
 import com.jdc.recipe_service.domain.type.ActivityLogType;
+import com.jdc.recipe_service.domain.type.JobStatus;
+import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
@@ -27,8 +31,10 @@ import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.*;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -51,6 +57,8 @@ class RecipeExtractionServiceTest {
     @Mock private AsyncImageService asyncImageService;
     @Mock private DeferredResultHolder deferredResultHolder;
     @Mock private RecipeSearchService recipeSearchService;
+    @Mock private RecipeGenerationJobRepository jobRepository;
+    @Mock private RecipeExtractionService service;
 
     @Spy private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -61,7 +69,7 @@ class RecipeExtractionServiceTest {
 
         RecipeExtractionService service = new RecipeExtractionService(
                 ytDlpService, grokClientService, geminiMultimodalService, recipeService,
-                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService,
+                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
                 youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
                 realExecutor, asyncImageService, objectMapper
         );
@@ -77,7 +85,7 @@ class RecipeExtractionServiceTest {
         when(ytDlpService.getVideoDataFull(anyString())).thenReturn(
                 new YtDlpService.YoutubeFullDataDto(
                         "test1234", url, "맛있는 김치볶음밥",sufficientDesc , "댓글",
-                        "[00:00] 자막", sufficientScript, "채널", "id", "http://thumb", "http://prof", 100L, 100L
+                        "[00:00] 자막", sufficientScript, "채널", "id", "http://thumb", "http://prof", 100L, 100L,600L
                 )
         );
 
@@ -130,5 +138,101 @@ class RecipeExtractionServiceTest {
         verify(asyncImageService, times(1)).generateImageFromDto(any(), anyLong());
 
         verify(asyncImageService, never()).generateAndUploadAiImage(anyLong(), eq(false));
+    }
+
+    @Test
+    @DisplayName("[V2] 유튜브 추출 작업 접수 및 비동기 실행 성공 테스트")
+    void createYoutubeExtractionJobV2_Success() {
+        // Given
+        String url = "https://www.youtube.com/watch?v=v2test";
+        Long userId = 100L;
+        String nickname = "요리사";
+        String idempotencyKey = "unique-key-123";
+        Long jobId = 1L;
+
+        // Mock: save 호출 시 전달받은 객체에 ID를 강제로 세팅해서 반환하도록 설정 (ID 0 문제 해결)
+        when(jobRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.empty());
+        when(jobRepository.save(any(RecipeGenerationJob.class))).thenAnswer(invocation -> {
+            RecipeGenerationJob job = invocation.getArgument(0);
+            job.setId(jobId); // ID 수동 주입
+            return job;
+        });
+
+        RecipeExtractionService service = new RecipeExtractionService(
+                ytDlpService, grokClientService, geminiMultimodalService, recipeService,
+                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
+                youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
+                Executors.newSingleThreadExecutor(), asyncImageService, objectMapper
+        );
+
+        // When: 1단계 접수
+        Long returnedJobId = service.createYoutubeExtractionJobV2(url, userId, nickname, idempotencyKey);
+
+        // Then: 접수 확인
+        assertEquals(jobId, returnedJobId);
+        verify(dailyQuotaService, times(1)).consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION);
+    }
+
+    @Test
+    @DisplayName("[V2] 동일한 멱등성 키로 요청 시 기존 JobID 반환 테스트")
+    void createYoutubeExtractionJobV2_Idempotency() {
+        // Given
+        String url = "https://www.youtube.com/watch?v=v2test";
+        String idempotencyKey = "same-key";
+        Long existingJobId = 999L;
+
+        // 명확하게 ID가 세팅된 Mock 객체 반환
+        RecipeGenerationJob existingJob = RecipeGenerationJob.builder()
+                .id(existingJobId)
+                .idempotencyKey(idempotencyKey)
+                .build();
+
+        when(jobRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.of(existingJob));
+
+        RecipeExtractionService service = new RecipeExtractionService(
+                ytDlpService, grokClientService, geminiMultimodalService, recipeService,
+                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
+                youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
+                Executors.newSingleThreadExecutor(), asyncImageService, objectMapper
+        );
+
+        // When
+        Long jobId = service.createYoutubeExtractionJobV2(url, 1L, "nick", idempotencyKey);
+
+        // Then
+        assertEquals(existingJobId, jobId);
+        verify(dailyQuotaService, never()).consumeForUserOrThrow(any(), any());
+    }
+
+    @Test
+    @DisplayName("[V2] 추출 실패 시 쿼터 환불 및 Job 상태 FAILED 변경 테스트")
+    void processYoutubeExtractionAsyncV2_Failure_Refund() {
+        // Given
+        Long jobId = 1L;
+        String url = "https://www.youtube.com/watch?v=fail";
+        // 상태 변화를 추적하기 위해 필드값이 채워진 객체 생성
+        RecipeGenerationJob job = RecipeGenerationJob.builder()
+                .id(jobId)
+                .userId(100L)
+                .status(JobStatus.PENDING)
+                .build();
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        // 의도적 예외 발생
+        when(ytDlpService.getVideoDataFull(any())).thenThrow(new RuntimeException("yt-dlp error"));
+
+        RecipeExtractionService service = new RecipeExtractionService(
+                ytDlpService, grokClientService, geminiMultimodalService, recipeService,
+                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
+                youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
+                Executors.newSingleThreadExecutor(), asyncImageService, objectMapper
+        );
+
+        // When
+        service.processYoutubeExtractionAsyncV2(jobId, url, 100L, "nick");
+
+        // Then
+        assertEquals(JobStatus.FAILED, job.getStatus()); // 이제 정상적으로 FAILED 검증됨
+        verify(dailyQuotaService, times(1)).refund(eq(100L), eq(QuotaType.YOUTUBE_EXTRACTION), eq(true));
     }
 }
