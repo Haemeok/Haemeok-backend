@@ -1,11 +1,10 @@
 package com.jdc.recipe_service.domain.entity;
 
+import com.jdc.recipe_service.domain.entity.common.BaseCreateTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -16,7 +15,7 @@ import java.time.LocalDateTime;
 )
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class CookingRecord {
+public class CookingRecord extends BaseCreateTimeEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -56,7 +55,4 @@ public class CookingRecord {
     @Column(name = "total_calories", precision = 10, scale = 3)
     private BigDecimal totalCalories;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 }
