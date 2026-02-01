@@ -4,6 +4,8 @@ import com.jdc.recipe_service.domain.entity.CookingRecord;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -67,7 +69,7 @@ SELECT
     (SELECT did_cook_today FROM CookedTodayInfo) AS cooked_today
 FROM DUAL
 """, nativeQuery = true)
-    List<Object[]> findStreakAndTodayFlag(@Param("userId") Long userId);
+    List<Object[]> findStreakAndTodayFlag(@Param("userId") Long userId, @Param("date") LocalDate date);
 
     List<CookingRecord> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
             Long userId, LocalDateTime start, LocalDateTime end

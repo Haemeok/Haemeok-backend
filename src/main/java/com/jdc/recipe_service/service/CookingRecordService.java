@@ -153,7 +153,7 @@ public class CookingRecordService {
     @Transactional(readOnly = true)
     public CookingStreakDto getCookingStreakInfo(Long userId) {
 
-        var rows = repo.findStreakAndTodayFlag(userId);
+        var rows = repo.findStreakAndTodayFlag(userId, LocalDate.now());
         if (rows.isEmpty()) {
             return new CookingStreakDto(0, false);
         }
