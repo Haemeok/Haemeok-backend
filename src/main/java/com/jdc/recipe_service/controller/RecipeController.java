@@ -3,9 +3,7 @@ package com.jdc.recipe_service.controller;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
+import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.Role;
@@ -169,6 +167,32 @@ public class RecipeController {
                 userDetails.getUser().getId(),
                 userDetails.getUser().getNickname()
         );
+    }
+
+    @PostMapping("/extract/v2")
+    @Operation(summary = "[V2] 유튜브 추출 요청", description = "유튜브 링크 백그라운드 추출 테스트용 API입니다.")
+    public ResponseEntity<JobIdResponse> extractYoutubeRecipeV2(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestParam String url,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Long userId = userDetails.getUser().getId();
+        String nickname = userDetails.getUser().getNickname();
+
+        Long jobId = recipeExtractionService.createYoutubeExtractionJobV2(url, userId, nickname, idempotencyKey);
+        recipeExtractionService.processYoutubeExtractionAsyncV2(jobId, url, userId, nickname);
+
+        return ResponseEntity.ok(new JobIdResponse(jobId));
+    }
+
+    @GetMapping("/youtube/status/{jobId}")
+    @Operation(summary = "[V2] 유튜브 추출 상태 조회")
+    public ResponseEntity<JobStatusDto> getYoutubeJobStatus(@PathVariable Long jobId) {
+        return ResponseEntity.ok(recipeExtractionService.getJobStatus(jobId));
     }
 
     @GetMapping("/youtube/check")
