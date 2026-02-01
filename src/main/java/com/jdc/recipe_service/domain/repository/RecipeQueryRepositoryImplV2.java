@@ -62,7 +62,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
                         recipe.user.nickname,
                         recipe.user.profileImage,
                         recipe.createdAt,
-                        recipe.cookingTime,
+                        recipe.cookingTime.coalesce(0),
                         recipe.likeCount.coalesce(0L),
                         recipe.favoriteCount.coalesce(0L),
                         recipe.avgRating.coalesce(BigDecimal.ZERO),
