@@ -382,8 +382,13 @@ public class RecipeSearchServiceV2 {
         if (maxCost == null || maxCost < 0) {
             maxCost = Integer.MAX_VALUE;
         }
+        List<Long> excludedIds = recipeRepository.findTop10PopularRecipeIds(org.springframework.data.domain.PageRequest.of(0, 10));
 
-        Page<RecipeSimpleStaticDtoV2> page = recipeRepository.findBudgetRecipesStaticV2(maxCost, pageable);
+        if (excludedIds.isEmpty()) {
+            excludedIds.add(-1L);
+        }
+
+        Page<RecipeSimpleStaticDtoV2> page = recipeRepository.findBudgetRecipesStaticV2(maxCost, excludedIds, pageable);
 
         page.getContent().forEach(dto -> {
             dto.setImageUrl(generateImageUrl(dto.getImageUrl()));

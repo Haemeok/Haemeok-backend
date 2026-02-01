@@ -190,7 +190,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         FROM Recipe r
         WHERE r.isPrivate = false
           AND r.isAiGenerated = false
-        ORDER BY r.weeklyLikeCount DESC, r.createdAt DESC
+        ORDER BY (COALESCE(r.weeklyLikeCount, 0) + COALESCE(r.weeklyFavoriteCount, 0)) DESC, r.createdAt DESC
     """)
     Page<RecipeSimpleStaticDto> findPopularRecipesStaticV2(Pageable pageable);
 
@@ -231,6 +231,15 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("startDate") LocalDateTime startDate,
             Pageable pageable);
 
+    @Query("""
+        SELECT r.id
+        FROM Recipe r
+        WHERE r.isPrivate = false
+          AND r.isAiGenerated = false
+        ORDER BY (COALESCE(r.weeklyLikeCount, 0) + COALESCE(r.weeklyFavoriteCount, 0)) DESC, r.createdAt DESC
+    """)
+    List<Long> findTop10PopularRecipeIds(Pageable pageable);
+
     @SuppressWarnings("JpaQlInspection")
     @Query("""
         SELECT new com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2(
@@ -257,12 +266,14 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
           AND r.isAiGenerated = false
           AND r.totalIngredientCost <= :maxCost
           AND r.totalIngredientCost >= 1000
+          AND r.id NOT IN :excludedIds
         ORDER BY 
             ( (COALESCE(r.favoriteCount, 0) * 0.3) + (COALESCE(r.weeklyFavoriteCount, 0) * 0.7) ) DESC,
             r.createdAt DESC
         """)
     Page<RecipeSimpleStaticDtoV2> findBudgetRecipesStaticV2(
             @Param("maxCost") Integer maxCost,
+            @Param("excludedIds") List<Long> excludedIds,
             Pageable pageable);
 
 
