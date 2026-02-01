@@ -100,9 +100,13 @@ public class RecipeService {
         } else {
             boolean hasMain = req.getFiles() != null &&
                     req.getFiles().stream().anyMatch(f -> MAIN_IMAGE_SLOT.equals(f.getType()));
+
             if (!hasMain) {
                 throw new CustomException(ErrorCode.USER_RECIPE_IMAGE_REQUIRED);
             }
+
+            String mainImageKey = "images/recipes/" + recipe.getId() + "/main.webp";
+            recipe.updateImageKey(mainImageKey);
             recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
         }
         recipeRepository.save(recipe);
