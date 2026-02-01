@@ -73,7 +73,6 @@ public class YtDlpService {
             log.info("👉 로드된 키 개수: {}개", youtubeApiKeys.size());
             for (int i = 0; i < youtubeApiKeys.size(); i++) {
                 String key = youtubeApiKeys.get(i).trim();
-                // 보안상 앞 10자리만 출력 (AIzaSy... 확인용)
                 String masked = key.length() > 10 ? key.substring(0, 10) + "..." : key;
 
                 if (key.isBlank()) {
@@ -92,111 +91,134 @@ public class YtDlpService {
      * Public APIs: 오직 텍스트 데이터만 가져옵니다.
      * ========================================================= */
 
-    /**
-     * 유튜브 영상의 모든 텍스트 정보(제목, 설명, 댓글, 자막)를 추출합니다.
-     * 파일 다운로드를 하지 않으므로 매우 빠릅니다.
-     */
     public YoutubeFullDataDto getVideoDataFull(String anyYoutubeUrl) {
         NormalizedYoutube n = normalize(anyYoutubeUrl);
+        Path workDir = null;
 
-        MetaAndComment mc = extractMetaAndCommentsWithFallback(n.canonicalUrl);
+        try {
+            workDir = Files.createTempDirectory(Paths.get(tmpBaseDir), "yt-full-" + n.videoId);
 
-        SubtitleTexts subs = downloadKoreanSubtitlesWithFallback(n.canonicalUrl, n.videoId);
+            IntegratedData rawData = executeIntegratedExtraction(n.canonicalUrl, n.videoId, workDir);
 
-        return new YoutubeFullDataDto(
-                n.videoId,
-                n.canonicalUrl,
-                nullToEmpty(mc.title),
-                nullToEmpty(mc.description),
-                nullToEmpty(mc.comments),
-                nullToEmpty(subs.timecodedText),
-                nullToEmpty(subs.plainText),
-                nullToEmpty(mc.channelName),
-                nullToEmpty(mc.channelId),
-                nullToEmpty(mc.thumbnailUrl),
-                nullToEmpty(mc.channelProfileUrl),
-                mc.subscriberCount,
-                mc.viewCount
-        );
+            ChannelInfo channelInfo;
+            if (rawData.metaJson != null) {
+                channelInfo = fetchChannelMetadata(rawData.metaJson);
+            } else {
+                channelInfo = new ChannelInfo("", "", 0L, false);
+            }
+
+            return new YoutubeFullDataDto(
+                    n.videoId,
+                    n.canonicalUrl,
+                    nullToEmpty(rawData.title),
+                    nullToEmpty(rawData.description),
+                    nullToEmpty(rawData.comments),
+                    nullToEmpty(rawData.subtitles.timecodedText()),
+                    nullToEmpty(rawData.subtitles.plainText()),
+                    isBlank(channelInfo.name) ? nullToEmpty(rawData.channelName) : channelInfo.name,
+                    nullToEmpty(rawData.channelId),
+                    nullToEmpty(rawData.thumbnailUrl),
+                    channelInfo.profileUrl,
+                    channelInfo.subscriberCount,
+                    rawData.viewCount,
+                    rawData.duration
+            );
+
+        } catch (IOException e) {
+            log.error("❌ 임시 디렉토리 생성 실패 또는 I/O 에러", e);
+            throw new RuntimeException("Youtube processing failed", e);
+        } finally {
+            deleteDirQuietly(workDir);
+        }
     }
 
-
     /* =========================================================
-     * Internal Logic (Meta, Comment, Subtitle)
+     * Internal Logic: Integrated Execution
      * ========================================================= */
 
-    private MetaAndComment extractMetaAndCommentsWithFallback(String canonicalUrl) {
-        MetaAndComment bestResult = null;
+    /**
+     * yt-dlp 통합 실행 로직
+     * Fallback 클라이언트를 순회하며 성공할 때까지 시도합니다.
+     */
+    private IntegratedData executeIntegratedExtraction(String url, String videoId, Path workDir) {
+        IntegratedData bestResult = null;
 
         for (String client : CLIENT_FALLBACK) {
             try {
-                ExecResult metaRes = execForJson(buildMetaArgs(canonicalUrl, client), null);
-                JsonNode metaRoot = objectMapper.readTree(metaRes.stdout);
+                List<String> args = buildIntegratedArgs(url, client, workDir);
 
-                String title = optText(metaRoot, "title");
-                String desc = optText(metaRoot, "description");
-                String thumbnail = optText(metaRoot, "thumbnail");
-                String channelId = optText(metaRoot, "channel_id");
-                if (isBlank(channelId)) channelId = optText(metaRoot, "uploader_id");
-                Long viewCount = metaRoot.path("view_count").asLong(0);
+                ExecResult res = execForJson(args, workDir);
 
-                ChannelInfo channelInfo = fetchChannelMetadata(metaRoot);
+                JsonNode root = objectMapper.readTree(res.stdout);
 
-                ExecResult cRes = execForJson(buildCommentArgs(canonicalUrl, client, maxComments), null);
-                JsonNode cRoot = objectMapper.readTree(cRes.stdout);
+                Optional<Path> vttPath = findPreferredVtt(workDir, videoId);
+                SubtitleTexts subs = vttPath.isPresent() ? parseVtt(vttPath.get()) : new SubtitleTexts("", "");
 
                 StringBuilder commentsBuilder = new StringBuilder();
-                JsonNode comments = cRoot.get("comments");
-                if (comments != null && comments.isArray()) {
-                    for (JsonNode c : comments) {
+                JsonNode commentsNode = root.get("comments");
+                if (commentsNode != null && commentsNode.isArray()) {
+                    for (JsonNode c : commentsNode) {
                         String text = optText(c, "text");
                         if (!isBlank(text)) commentsBuilder.append("- ").append(text).append("\n");
                     }
                 }
 
-                MetaAndComment current = new MetaAndComment(
+                String title = optText(root, "title");
+                String desc = optText(root, "description");
+                String channelId = optText(root, "channel_id");
+                if (isBlank(channelId)) channelId = optText(root, "uploader_id");
+
+                String originalChannelName = optText(root, "channel");
+                if (isBlank(originalChannelName)) originalChannelName = optText(root, "uploader");
+
+                IntegratedData current = new IntegratedData(
                         title,
                         desc,
                         commentsBuilder.toString(),
-                        channelInfo.name(),
+                        subs,
+                        originalChannelName,
                         channelId,
-                        thumbnail,
-                        channelInfo.profileUrl(),
-                        channelInfo.subscriberCount(),
-                        viewCount
+                        optText(root, "thumbnail"),
+                        root.path("view_count").asLong(0),
+                        root.path("duration").asLong(0),
+                        root
                 );
 
-                log.info("[client={}] uploader='{}', channel='{}', uploader_id='{}', channel_id='{}'",
-                        client,
-                        optText(metaRoot, "uploader"),
-                        optText(metaRoot, "channel"),
-                        optText(metaRoot, "uploader_id"),
-                        optText(metaRoot, "channel_id"));
-
-                if ((!isBlank(current.title) || !isBlank(current.description)) && !isBlank(current.channelName)) {
-                    return current;
-                }
-
-                if (bestResult == null || isBetter(current, bestResult)) {
-                    bestResult = current;
-                }
+                log.info("✅ [1-Pass 성공] client={}, title={}, subs={}", client, shrink(title, 20), (subs.plainText.isEmpty() ? "없음" : "있음"));
+                return current;
 
             } catch (Exception e) {
-                log.error("💥 yt-dlp 실행 실패 (client={}): {}", client, e.getMessage());
+                log.warn("⚠️ yt-dlp 시도 실패 (client={}): {}", client, e.getMessage());
+                cleanDirectoryFiles(workDir);
             }
         }
-        return bestResult != null ? bestResult : new MetaAndComment("", "", "", "", "", "", "", 0L,0L);
+
+        return new IntegratedData("", "", "", new SubtitleTexts("", ""), "", "", "", 0L, 0L, null);
     }
 
-    private boolean isBetter(MetaAndComment a, MetaAndComment b) {
-        if (!isBlank(a.channelName) && isBlank(b.channelName)) return true;
-        if (isBlank(a.channelName) && !isBlank(b.channelName)) return false;
+    /**
+     * 비용 절감을 위한 핵심: 한 번에 모든 옵션을 때려박은 인자 리스트 생성
+     */
+    private List<String> buildIntegratedArgs(String url, String client, Path dir) {
+        List<String> a = buildBaseArgs();
 
-        int aText = (isBlank(a.title) ? 0 : 1) + (isBlank(a.description) ? 0 : 1);
-        int bText = (isBlank(b.title) ? 0 : 1) + (isBlank(b.description) ? 0 : 1);
-        if (aText != bText) return aText > bText;
+        a.add("--extractor-args");
+        a.add("youtube:player_client=" + client + ";max_comments=" + maxComments);
 
-        return !isBlank(a.thumbnailUrl) && isBlank(b.thumbnailUrl);
+        a.add("--dump-single-json");
+        a.add("--no-simulate");
+
+        a.add("--write-subs");
+        a.add("--write-auto-subs");
+        a.add("--sub-langs"); a.add(subtitleLangs);
+        a.add("--sub-format"); a.add("vtt");
+
+        a.add("-o"); a.add(dir.resolve("sub_%(id)s.%(ext)s").toString());
+
+        a.add("--skip-download");
+
+        a.add(url);
+        return a;
     }
 
     private ChannelInfo fetchChannelMetadata(JsonNode root) {
@@ -269,82 +291,6 @@ public class YtDlpService {
         return new ChannelInfo(fallbackName, "", fallbackSubscribers, false);
     }
 
-    private List<String> buildMetaArgs(String url, String client) {
-        List<String> a = buildBaseArgs();
-        a.add("--extractor-args");
-        a.add("youtube:player_client=" + client);
-        a.add("--dump-single-json");
-        a.add("--skip-download");
-        a.add(url);
-        return a;
-    }
-
-    private String pickChannelName(JsonNode root) {
-        String v = optText(root, "channel");
-        if (!v.isBlank()) return v;
-        v = optText(root, "uploader");
-        if (!v.isBlank()) return v;
-        v = optText(root, "channel_name");
-        if (!v.isBlank()) return v;
-        String handle = optText(root, "uploader_id");
-        if (handle.startsWith("@") && handle.length() > 1) {
-            v = handle.substring(1);
-        }
-        String channelId = optText(root, "channel_id");
-        if (!isBlank(channelId) && youtubeApiKeys != null && !youtubeApiKeys.isEmpty()) {
-            for (int i = 0; i < youtubeApiKeys.size(); i++) {
-                String currentKey = youtubeApiKeys.get(i).trim();
-                if (isBlank(currentKey)) continue;
-                try {
-                    String apiUrl = "https://youtube.googleapis.com/youtube/v3/channels?part=snippet&id=" + channelId + "&key=" + currentKey;
-
-                    String response = new String(new java.net.URL(apiUrl).openStream().readAllBytes(), StandardCharsets.UTF_8);
-                    JsonNode apiRoot = objectMapper.readTree(response);
-
-                    if (apiRoot.has("error")) {
-                        String errMsg = apiRoot.path("error").path("message").asText();
-                        log.warn("⚠️ YouTube API Key[{}] 실패: {} -> 다음 키 시도...", i, errMsg);
-                        continue;
-                    }
-
-                    JsonNode items = apiRoot.path("items");
-                    if (items.isArray() && items.size() > 0) {
-                        String realName = optText(items.get(0).path("snippet"), "title");
-                        if (!isBlank(realName)) {
-                            log.info("✅ YouTube API 성공 (Key index: {}): {}", i, realName);
-                            return realName;
-                        }
-                    }
-                    break;
-
-                } catch (Exception e) {
-                    log.warn("⚠️ YouTube API 호출 중 예외 발생 (Key index: {}): {}", i, e.getMessage());
-                }
-            }
-        }
-
-        return isBlank(v) ? optText(root, "uploader_id") : v;
-    }
-
-    private SubtitleTexts downloadKoreanSubtitlesWithFallback(String url, String videoId) {
-        Path workDir = null;
-        try {
-            workDir = Files.createTempDirectory(Paths.get(tmpBaseDir), "yt-sub-");
-            for (String client : CLIENT_FALLBACK) {
-                try {
-                    execForJson(buildSubtitleArgs(url, client, workDir), workDir);
-                    Optional<Path> vtt = findPreferredVtt(workDir, videoId);
-                    if (vtt.isPresent()) return parseVtt(vtt.get());
-                } catch (Exception ignored) {}
-            }
-            return new SubtitleTexts("", "");
-        } catch (IOException e) {
-            return new SubtitleTexts("", "");
-        } finally {
-            if (workDir != null) deleteDirQuietly(workDir);
-        }
-    }
-
     /* =========================================================
      * exec (JSON Only)
      * ========================================================= */
@@ -390,6 +336,8 @@ public class YtDlpService {
             );
 
         } catch (Exception e) {
+            log.error("💥 yt-dlp 실행 중 치명적 오류 발생! 명령: {}", args);
+            log.error("💥 원인:", e);
             throw new RuntimeException("yt-dlp execution failed", e);
         }
     }
@@ -537,6 +485,13 @@ public class YtDlpService {
      * Utils / Builders
      * ========================================================= */
 
+    private void cleanDirectoryFiles(Path dir) {
+        if (dir == null) return;
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
+            for (Path p : ds) Files.deleteIfExists(p);
+        } catch (IOException ignored) {}
+    }
+
     private NormalizedYoutube normalize(String url) {
         if (url == null) throw new IllegalArgumentException("URL null");
         String u = url.trim();
@@ -567,31 +522,6 @@ public class YtDlpService {
             a.add("--js-runtimes");
             a.add(jsRuntimes);
         }
-        return a;
-    }
-
-    private List<String> buildCommentArgs(String url, String client, int max) {
-        List<String> a = buildBaseArgs();
-        a.add("--extractor-args");
-        a.add("youtube:player_client=" + client + ";max_comments=" + max);
-        a.add("--get-comments");
-        a.add("--dump-single-json");
-        a.add("--skip-download");
-        a.add(url);
-        return a;
-    }
-
-    private List<String> buildSubtitleArgs(String url, String client, Path dir) {
-        List<String> a = buildBaseArgs();
-        a.add("--extractor-args");
-        a.add("youtube:player_client=" + client);
-        a.add("--write-subs");
-        a.add("--write-auto-subs");
-        a.add("--sub-langs"); a.add(subtitleLangs);
-        a.add("--sub-format"); a.add("vtt");
-        a.add("--skip-download");
-        a.add("-o"); a.add(dir.resolve("sub_%(id)s.%(ext)s").toString());
-        a.add(url);
         return a;
     }
 
@@ -712,19 +642,20 @@ public class YtDlpService {
      * DTOs
      * ========================================================= */
 
-    public record NormalizedYoutube(String videoId, String canonicalUrl) {}
-
-    private record MetaAndComment(
+    private record IntegratedData(
             String title,
             String description,
             String comments,
+            SubtitleTexts subtitles,
             String channelName,
             String channelId,
             String thumbnailUrl,
-            String channelProfileUrl,
-            Long subscriberCount,
-            Long viewCount
+            Long viewCount,
+            Long duration,
+            JsonNode metaJson
     ) {}
+
+    public record NormalizedYoutube(String videoId, String canonicalUrl) {}
 
     private record ChannelInfo(String name, String profileUrl, Long subscriberCount, boolean isApiUsed) {}
 
@@ -755,6 +686,7 @@ public class YtDlpService {
             String thumbnailUrl,
             String channelProfileUrl,
             Long youtubeSubscriberCount,
-            Long viewCount
+            Long viewCount,
+            Long duration
     ) {}
 }
