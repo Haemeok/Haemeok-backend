@@ -132,6 +132,25 @@ public class RecipeService {
                     recipe.getId(), totalCost, marketPrice);
         }
 
+        if (sourceType != RecipeSourceType.AI && sourceType != RecipeSourceType.YOUTUBE) {
+            if (req.getFiles() != null) {
+                for (FileInfoRequest file : req.getFiles()) {
+                    if (file.getType() != null && file.getType().startsWith("step") && file.getStepIndex() != null) {
+                        int stepIdx = file.getStepIndex();
+
+                        String stepImageKey = "images/recipes/" + recipe.getId() + "/step_" + stepIdx + ".webp";
+
+                        if (dto.getSteps() != null) {
+                            dto.getSteps().stream()
+                                    .filter(s -> s.getStepNumber() == stepIdx)
+                                    .findFirst()
+                                    .ifPresent(s -> s.setImageKey(stepImageKey));
+                        }
+                    }
+                }
+            }
+        }
+
         recipeStepService.saveAll(recipe, dto.getSteps());
         recipeTagService.saveAll(recipe, dto.getTags());
 
