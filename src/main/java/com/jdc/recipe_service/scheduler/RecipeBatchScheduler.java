@@ -40,7 +40,7 @@ public class RecipeBatchScheduler {
     private static final String PATH_ODD = SEEDS_PATH + "odd/";
     private static final String PATH_EVEN = SEEDS_PATH + "even/";
 
-    private static final int DAILY_FILE_LIMIT = 5;
+    private static final int DAILY_FILE_LIMIT = 3;
 
     /**
      * [스케줄러] 매일 새벽 4시 실행 (기본 5개)
