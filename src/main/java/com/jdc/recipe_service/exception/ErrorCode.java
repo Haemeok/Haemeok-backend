@@ -70,6 +70,7 @@ public enum ErrorCode {
     DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "906", "데이터 무결성 제약조건 위반입니다."),
     INVALID_URL_FORMAT(HttpStatus.BAD_REQUEST, "907", "지원하지 않는 URL입니다. 유튜브 링크만 입력해 주세요."),
     TIMEOUT_ERROR(HttpStatus.REQUEST_TIMEOUT, "908", "요청 처리 시간이 초과되었습니다."),
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "909", "요청한 리소스를 찾을 수 없습니다."),
 
     // --- Search (950) ---
     SEARCH_FAILURE(HttpStatus.INTERNAL_SERVER_ERROR, "950", "검색 처리 중 오류가 발생했습니다."),
