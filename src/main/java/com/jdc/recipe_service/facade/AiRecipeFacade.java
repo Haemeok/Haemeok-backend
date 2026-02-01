@@ -263,8 +263,8 @@ public class AiRecipeFacade {
             updateProgress(job, JobStatus.IN_PROGRESS, 80);
 
             try {
-                log.info("🎨 이미지 생성 시작 (동기 대기 모드)");
-                asyncImageService.generateAndUploadAiImage(recipeId, true).join();
+                log.info("🎨 이미지 생성 시작 (동기 실행)");
+                asyncImageService.generateAndUploadAiImage(recipeId, true);
                 log.info("✅ 이미지 생성 완료");
             } catch (Exception e) {
                 log.warn("⚠️ 이미지 생성 중 오류 발생 (레시피는 유지): {}", e.getMessage());

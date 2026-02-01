@@ -147,8 +147,7 @@ public class AsyncImageService {
 
     private record RecipePromptData(Long userId, String prompt) {}
 
-    @Async("imageGenerationExecutor")
-    public CompletableFuture<String> generateAndUploadAiImage(Long recipeId, boolean sendNotification) {
+    public String generateAndUploadAiImage(Long recipeId, boolean sendNotification) {
         log.info("▶ [AsyncImageService] Gemini 이미지 생성 시작, recipeId={}", recipeId);
 
         try {
@@ -242,7 +241,7 @@ public class AsyncImageService {
                 log.info("🔕 알림 발송 생략 (설정값 false)");
             }
 
-            return CompletableFuture.completedFuture(fullUrl);
+            return fullUrl;
 
         } catch (Exception e) {
             log.error("❌ [AsyncImageService] 이미지 생성 실패, recipeId={}", recipeId, e);
@@ -269,7 +268,7 @@ public class AsyncImageService {
                 deferredResultHolder.completeAll(recipeId, ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
             }
 
-            return CompletableFuture.failedFuture(e);
+            throw new RuntimeException(e);
         }
     }
 
