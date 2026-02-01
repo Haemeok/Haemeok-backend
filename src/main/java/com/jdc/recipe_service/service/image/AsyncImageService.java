@@ -22,6 +22,7 @@ import org.hashids.Hashids;
 import org.hibernate.Hibernate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -146,7 +147,8 @@ public class AsyncImageService {
 
     private record RecipePromptData(Long userId, String prompt) {}
 
-    public String generateAndUploadAiImage(Long recipeId, boolean sendNotification) {
+    @Async("imageGenerationExecutor")
+    public CompletableFuture<String> generateAndUploadAiImage(Long recipeId, boolean sendNotification) {
         log.info("▶ [AsyncImageService] Gemini 이미지 생성 시작, recipeId={}", recipeId);
 
         try {
@@ -240,7 +242,7 @@ public class AsyncImageService {
                 log.info("🔕 알림 발송 생략 (설정값 false)");
             }
 
-            return fullUrl;
+            return CompletableFuture.completedFuture(fullUrl);
 
         } catch (Exception e) {
             log.error("❌ [AsyncImageService] 이미지 생성 실패, recipeId={}", recipeId, e);
@@ -267,7 +269,7 @@ public class AsyncImageService {
                 deferredResultHolder.completeAll(recipeId, ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
             }
 
-            throw new RuntimeException(e);
+            return CompletableFuture.failedFuture(e);
         }
     }
 
