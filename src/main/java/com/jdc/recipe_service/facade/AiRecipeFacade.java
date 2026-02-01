@@ -1,16 +1,14 @@
 package com.jdc.recipe_service.facade;
 
-import com.jdc.recipe_service.domain.dto.recipe.AiRecipeRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
+import com.jdc.recipe_service.domain.dto.recipe.*;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
-import com.jdc.recipe_service.domain.type.AiRecipeConcept;
-import com.jdc.recipe_service.domain.type.QuotaType;
-import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.domain.entity.RecipeGenerationJob;
+import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
+import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.DailyQuotaService;
@@ -29,7 +27,10 @@ import com.jdc.recipe_service.util.prompt.NutritionPromptBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.context.request.async.DeferredResult;
 
@@ -44,6 +45,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class AiRecipeFacade {
+
+    private final RecipeRepository recipeRepository;
+    private final RecipeGenerationJobRepository jobRepository;
 
     private final GrokClientService grokClientService;
     private final GeminiClientService geminiClientService;
@@ -144,6 +148,168 @@ public class AiRecipeFacade {
             dailyQuotaService.refund(userId, QuotaType.AI_GENERATION, usedToken);
             throw e;
         }
+    }
+
+    // =================================================================================
+    // [V2] 신규 비동기 + 멱등성 방식 (불사신 로직)
+    // =================================================================================
+
+    /**
+     * [Phase 1] V2 작업 접수
+     * - Idempotency Key를 확인하여 중복 작업을 방지하고 Job ID를 반환합니다.
+     */
+    @Transactional
+    public Long createAiGenerationJobV2(RecipeWithImageUploadRequest request, AiRecipeConcept concept, Long userId, String idempotencyKey) {
+        if (request.getAiRequest() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "AI 요청 정보가 없습니다.");
+        }
+
+        Optional<RecipeGenerationJob> existingJob = jobRepository.findByIdempotencyKey(idempotencyKey);
+        if (existingJob.isPresent()) {
+            RecipeGenerationJob job = existingJob.get();
+            log.info("♻️ [V2] 기존 작업 재사용 - Key: {}, JobID: {}", idempotencyKey, job.getId());
+            return job.getId();
+        }
+
+        dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.AI_GENERATION);
+
+        RecipeGenerationJob job = RecipeGenerationJob.builder()
+                .userId(userId)
+                .jobType(JobType.AI_GENERATION)
+                .status(JobStatus.PENDING)
+                .progress(0)
+                .idempotencyKey(idempotencyKey)
+                .build();
+
+        jobRepository.save(job);
+        log.info("🆕 [V2] 신규 작업 생성 - JobID: {}", job.getId());
+
+        return job.getId();
+    }
+
+    /**
+     * [Phase 2] V2 비동기 처리 (백그라운드)
+     * - 서버가 끝까지 책임지고 수행합니다.
+     */
+    @Async("recipeExtractionExecutor")
+    public void processAiGenerationAsyncV2(Long jobId, RecipeWithImageUploadRequest request, AiRecipeConcept concept, Long userId) {
+        RecipeGenerationJob job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        if (job.getStatus() == JobStatus.COMPLETED) return;
+
+        try {
+            updateProgress(job, JobStatus.IN_PROGRESS, 0);
+
+            AiRecipeRequestDto aiReq = request.getAiRequest();
+            aiReq.setUserId(userId);
+            UserSurveyDto survey = surveyService.getSurvey(userId);
+            applySurveyInfoToAiRequest(aiReq, survey);
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 10);
+
+            RecipeCreateRequestDto generatedDto;
+
+            switch (concept) {
+                case INGREDIENT_FOCUS -> {
+                    String systemPrompt = ingredientBuilder.buildPrompt(aiReq);
+                    String userTrigger = "위 정보를 바탕으로 레시피 JSON을 생성해줘.";
+                    generatedDto = grokClientService.generateRecipeJson(systemPrompt, userTrigger).join();
+                }
+                case COST_EFFECTIVE -> {
+                    String systemPrompt = costBuilder.buildPrompt(aiReq);
+                    String userTrigger = "위 조건에 맞춰 JSON 결과만 출력해.";
+                    generatedDto = grokClientService.generateRecipeJson(systemPrompt, userTrigger).join();
+                }
+                case NUTRITION_BALANCE -> {
+                    generatedDto = processNutritionLogic(aiReq);
+                }
+                case FINE_DINING -> {
+                    FineDiningPromptBuilder.FineDiningPrompt promptResult = fineDiningBuilder.buildPrompt(aiReq);
+                    generatedDto = geminiClientService.generateRecipeJson(
+                            promptResult.getSystemInstruction(),
+                            promptResult.getUserMessage()
+                    ).join();
+                }
+                default -> throw new IllegalArgumentException("Unknown Concept");
+            }
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 60);
+
+            generatedDto.setIngredients(correctIngredientUnits(generatedDto.getIngredients()));
+
+            for (RecipeStepRequestDto step : generatedDto.getSteps()) {
+                if (step.getAction() != null) {
+                    String key = actionImageService.generateImageKey(concept, step.getAction());
+                    step.updateImageKey(key);
+                }
+            }
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 70);
+
+            RecipeWithImageUploadRequest processingRequest = RecipeWithImageUploadRequest.builder()
+                    .aiRequest(aiReq)
+                    .recipe(generatedDto)
+                    .files(request.getFiles())
+                    .build();
+
+            PresignedUrlResponse savedResponse = recipeService.createRecipeAndGenerateUrls(
+                    processingRequest, userId, RecipeSourceType.AI, concept
+            );
+
+            Long recipeId = savedResponse.getRecipeId();
+            job.setResultRecipeId(recipeId);
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 80);
+
+            try {
+                log.info("🎨 이미지 생성 시작 (동기 대기 모드)");
+                asyncImageService.generateAndUploadAiImage(recipeId, true).join();
+                log.info("✅ 이미지 생성 완료");
+            } catch (Exception e) {
+                log.warn("⚠️ 이미지 생성 중 오류 발생 (레시피는 유지): {}", e.getMessage());
+            }
+
+            updateProgress(job, JobStatus.COMPLETED, 100);
+
+        } catch (Exception e) {
+            log.error("V2 생성 실패 JobID: {}", jobId, e);
+            job.setErrorMessage(e.getMessage());
+            updateProgress(job, JobStatus.FAILED, 0);
+
+            dailyQuotaService.refund(userId, QuotaType.AI_GENERATION, true);
+        }
+    }
+
+    /**
+     * [Phase 3] V2 상태 조회 (Polling)
+     */
+    @Transactional(readOnly = true)
+    public JobStatusDto getJobStatus(Long jobId) {
+        RecipeGenerationJob job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        Long recipeId = job.getResultRecipeId();
+
+        if (job.getStatus() == JobStatus.COMPLETED && recipeId != null) {
+            if (!recipeRepository.existsById(recipeId)) {
+                recipeId = null;
+            }
+        }
+
+        return JobStatusDto.builder()
+                .jobId(job.getId())
+                .status(job.getStatus())
+                .resultRecipeId(recipeId)
+                .errorMessage(job.getErrorMessage())
+                .progress(job.getProgress())
+                .build();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateProgress(RecipeGenerationJob job, JobStatus status, int progress) {
+        job.updateProgress(status, progress);
+        jobRepository.saveAndFlush(job);
     }
 
     private RecipeCreateRequestDto processNutritionLogic(AiRecipeRequestDto aiReq) {
