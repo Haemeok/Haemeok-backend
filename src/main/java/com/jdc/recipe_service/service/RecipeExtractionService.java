@@ -1,19 +1,20 @@
 package com.jdc.recipe_service.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.entity.YoutubeRecommendation;
 import com.jdc.recipe_service.domain.entity.YoutubeTargetChannel;
+import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
-import com.jdc.recipe_service.domain.type.ActivityLogType;
-import com.jdc.recipe_service.domain.type.QuotaType;
-import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
@@ -24,8 +25,10 @@ import com.jdc.recipe_service.util.DeferredResultHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.request.async.DeferredResult;
@@ -50,6 +53,7 @@ public class RecipeExtractionService {
     private static final int MAX_CMT_CHARS     = 1_000;
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
     private static final Set<String> SPECIAL_QTY = Set.of("약간");
+    private static final long MAX_VIDEO_DURATION_SECONDS = 20 * 60;
 
     private static final List<String> NOISE_KEYWORDS = List.of(
             // 1. 기존 먹방/브이로그
@@ -74,7 +78,9 @@ public class RecipeExtractionService {
             "라이브", "live", "다시보기", "full ver"
     );
 
-    private static final Pattern TIMESTAMP_PATTERN = Pattern.compile("\\d{1,2}:\\d{2}");
+    private static final Pattern TIMESTAMP_PATTERN = Pattern.compile(
+            "(?i)(\\d{1,2}:\\d{2}|\\d{1,2}\\s?(분|min)|\\d{1,2}\\s?(초|sec))"
+    );
 
     private static final Pattern YOUTUBE_URL_PATTERN = Pattern.compile(
             "(?i)^(https?://)?(www\\.)?(youtube\\.com|youtu\\.be)/.+$"
@@ -107,6 +113,7 @@ public class RecipeExtractionService {
     private final RecipeActivityService recipeActivityService;
 
     private final RecipeRepository recipeRepository;
+    private final RecipeGenerationJobRepository jobRepository;
     private final YoutubeTargetChannelRepository youtubeTargetChannelRepository;
     private final YoutubeRecommendationRepository youtubeRecommendationRepository;
 
@@ -127,7 +134,7 @@ public class RecipeExtractionService {
             RecipeService recipeService,
             DailyQuotaService dailyQuotaService, RecipeActivityService recipeActivityService,
             RecipeRepository recipeRepository,
-            RecipeFavoriteService recipeFavoriteService,
+            RecipeFavoriteService recipeFavoriteService, RecipeGenerationJobRepository jobRepository,
             YoutubeTargetChannelRepository youtubeTargetChannelRepository,
             YoutubeRecommendationRepository youtubeRecommendationRepository,
             TransactionTemplate transactionTemplate,
@@ -143,6 +150,7 @@ public class RecipeExtractionService {
         this.recipeActivityService = recipeActivityService;
         this.recipeRepository = recipeRepository;
         this.recipeFavoriteService = recipeFavoriteService;
+        this.jobRepository = jobRepository;
         this.youtubeTargetChannelRepository = youtubeTargetChannelRepository;
         this.youtubeRecommendationRepository = youtubeRecommendationRepository;
         this.transactionTemplate = transactionTemplate;
@@ -358,6 +366,7 @@ public class RecipeExtractionService {
         String channelProfileUrl = "";
         Long subscriberCount = 0L;
         Long videoViewCount = 0L;
+        Long videoDuration = 0L;
         boolean useUrlFallback = false;
 
         try {
@@ -373,6 +382,7 @@ public class RecipeExtractionService {
             channelProfileUrl = nullToEmpty(videoData.channelProfileUrl());
             subscriberCount = videoData.youtubeSubscriberCount();
             videoViewCount = videoData.viewCount();
+            videoDuration = videoData.duration();
 
             String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
@@ -426,6 +436,12 @@ public class RecipeExtractionService {
             }
 
             if (useUrlFallback || recipeDto == null) {
+
+                if (videoDuration > MAX_VIDEO_DURATION_SECONDS) {
+                    log.warn("🚫 영상 길이 초과 ({}초). 텍스트 정보 부족 및 Gemini 영상 분석 불가로 중단.", videoDuration);
+                    throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
+                            "텍스트 정보가 부족하며, 영상이 너무 길어(20분 초과) AI 심층 분석을 진행할 수 없습니다.");
+                }
                 log.info("🎥 [멀티모달 모드] Step 1: Gemini 초안 생성 시작");
 
                 String promptWithHint = getExtractionPrompt() + "\n\n" +
@@ -542,10 +558,10 @@ public class RecipeExtractionService {
                     return processActualExtractionLogic(safeVideoUrl, userId, key, nickname);
                 } finally {
                 }
-            }, extractionExecutor).orTimeout(5, TimeUnit.MINUTES);
+            }, extractionExecutor).orTimeout(10, TimeUnit.MINUTES);
         });
 
-        long timeout = 300000L;
+        long timeout = 600000L;
         DeferredResult<ResponseEntity<PresignedUrlResponse>> deferredResult = new DeferredResult<>(timeout);
 
         deferredResult.onTimeout(() -> {
@@ -584,6 +600,283 @@ public class RecipeExtractionService {
         });
 
         return deferredResult;
+    }
+
+    @Transactional
+    public Long createYoutubeExtractionJobV2(String videoUrl, Long userId, String nickname, String idempotencyKey) {
+        if (!YOUTUBE_URL_PATTERN.matcher(videoUrl).matches()) {
+            throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
+        }
+
+        Optional<RecipeGenerationJob> existingJob = jobRepository.findByIdempotencyKey(idempotencyKey);
+        if (existingJob.isPresent()) {
+            log.info("♻️ [Youtube V2] 기존 작업 재사용 - Key: {}, JobID: {}", idempotencyKey, existingJob.get().getId());
+            return existingJob.get().getId();
+        }
+
+        dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION);
+
+        RecipeGenerationJob job = RecipeGenerationJob.builder()
+                .userId(userId)
+                .jobType(JobType.YOUTUBE_EXTRACTION)
+                .status(JobStatus.PENDING)
+                .progress(0)
+                .idempotencyKey(idempotencyKey)
+                .build();
+
+        jobRepository.save(job);
+        log.info("🆕 [Youtube V2] 신규 추출 작업 생성 - JobID: {}", job.getId());
+
+        return job.getId();
+    }
+
+    /**
+     * [Phase 2] 비동기 처리 (백그라운드 실행)
+     */
+    @Async("recipeExtractionExecutor")
+    public void processYoutubeExtractionAsyncV2(Long jobId, String videoUrl, Long userId, String nickname) {
+        RecipeGenerationJob job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        if (job.getStatus() == JobStatus.COMPLETED) return;
+
+        try {
+            updateProgress(job, JobStatus.IN_PROGRESS, 5);
+
+            String videoId = extractVideoId(videoUrl);
+
+            PresignedUrlResponse response = processActualExtractionLogicV2(videoUrl, userId, videoId, nickname, job);
+
+            job.setResultRecipeId(response.getRecipeId());
+            updateProgress(job, JobStatus.COMPLETED, 100);
+
+            try {
+                addFavoriteToUser(userId, response.getRecipeId());
+                recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
+            } catch (Exception e) {
+                log.warn("⚠️ 후속 처리 실패: {}", e.getMessage());
+            }
+
+        } catch (Exception e) {
+            log.error("❌ [Youtube V2] 추출 실패 JobID: {}", jobId, e);
+            job.setErrorMessage(e.getMessage());
+            updateProgress(job, JobStatus.FAILED, 0);
+
+            dailyQuotaService.refund(userId, QuotaType.YOUTUBE_EXTRACTION, true);
+        }
+    }
+
+    /**
+     * [Phase 3] 상태 조회 (Polling)
+     */
+    @Transactional(readOnly = true)
+    public JobStatusDto getJobStatus(Long jobId) {
+        RecipeGenerationJob job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        Long recipeId = job.getResultRecipeId();
+
+        if (job.getStatus() == JobStatus.COMPLETED && recipeId != null) {
+            if (!recipeRepository.existsById(recipeId)) {
+                recipeId = null;
+            }
+        }
+
+        return JobStatusDto.builder()
+                .jobId(job.getId())
+                .status(job.getStatus())
+                .resultRecipeId(recipeId)
+                .errorMessage(job.getErrorMessage())
+                .progress(job.getProgress())
+                .build();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateProgress(RecipeGenerationJob job, JobStatus status, int progress) {
+        job.updateProgress(status, progress);
+        jobRepository.saveAndFlush(job);
+    }
+
+    /**
+     * V2 전용 내부 로직: 쿼터 차감 없이 수행 + 중복 시 성공(환불) 처리
+     */
+    private PresignedUrlResponse processActualExtractionLogicV2(String videoUrl, Long userId, String videoId, String nickname, RecipeGenerationJob job) {
+        updateProgress(job, JobStatus.IN_PROGRESS, 10);
+
+        boolean shorts = isShortsUrl(videoUrl);
+        String storageUrl = buildStorageYoutubeUrl(videoId, shorts);
+        String watchUrl  = buildStorageYoutubeUrl(videoId, false);
+        String shortsUrl = buildStorageYoutubeUrl(videoId, true);
+
+        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(watchUrl)
+                .or(() -> recipeRepository.findByYoutubeUrl(shortsUrl));
+
+        if (existingRecipe.isPresent()) {
+            log.info("♻️ [V2] 기존 레시피 발견 (URL). 쿼터 환불 및 즉시 완료.");
+            dailyQuotaService.refund(userId, QuotaType.YOUTUBE_EXTRACTION, true);
+            return handleExistingRecipe(existingRecipe.get()).join();
+        }
+
+        String title = "제목 미상";
+        String description = "";
+        String comments = "";
+        String scriptPlain = "";
+        String channelName = "";
+        String channelId = "";
+        String originalVideoTitle = "";
+        String thumbnailUrl = "";
+        String channelProfileUrl = "";
+        Long subscriberCount = 0L;
+        Long videoViewCount = 0L;
+        Long videoDuration = 0L;
+        boolean useUrlFallback = false;
+
+        try {
+            YtDlpService.YoutubeFullDataDto videoData = ytDlpService.getVideoDataFull(videoUrl);
+            title = nullToEmpty(videoData.title());
+            description = cap(nullToEmpty(videoData.description()), MAX_DESC_CHARS);
+            comments = cap(nullToEmpty(videoData.comments()), MAX_CMT_CHARS);
+            scriptPlain = cap(nullToEmpty(videoData.scriptTimecoded()), MAX_SCRIPT_CHARS);
+            channelName = nullToEmpty(videoData.channelName());
+            channelId = nullToEmpty(videoData.channelId());
+            originalVideoTitle = nullToEmpty(videoData.title());
+            thumbnailUrl = nullToEmpty(videoData.thumbnailUrl());
+            channelProfileUrl = nullToEmpty(videoData.channelProfileUrl());
+            subscriberCount = videoData.youtubeSubscriberCount();
+            videoViewCount = videoData.viewCount();
+            videoDuration = videoData.duration();
+
+            String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
+
+            Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
+            if (existingRecipeCanonical.isPresent()) {
+                log.info("♻️ [V2] 기존 레시피 발견 (Canonical). 쿼터 환불 및 즉시 완료.");
+                dailyQuotaService.refund(userId, QuotaType.YOUTUBE_EXTRACTION, true);
+                return handleExistingRecipe(existingRecipeCanonical.get()).join();
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ yt-dlp 실패 -> Gemini 모드 전환: {}", safeMsg(e));
+            useUrlFallback = true;
+        }
+
+        updateProgress(job, JobStatus.IN_PROGRESS, 30);
+
+        RecipeCreateRequestDto recipeDto = null;
+
+        try {
+            String fullContext = cap(("""
+            영상 URL: %s
+            영상 제목: %s
+            영상 설명: %s
+            고정/인기 댓글: %s
+            자막: %s
+            """).formatted(storageUrl, title,
+                    emptyToPlaceholder(description, "(없음)"),
+                    emptyToPlaceholder(comments, "(없음)"),
+                    emptyToPlaceholder(scriptPlain, "(없음)")
+            ), MAX_CONTEXT_CHARS);
+
+            if (!useUrlFallback && isTextSufficient(description, comments, scriptPlain)) {
+                log.info("✅ [텍스트 모드] Step 1: 초안 생성 시작");
+                try {
+                    recipeDto = grokClientService.generateRecipeStep1(getExtractionPrompt(), fullContext).join();
+
+                    if (isRecipeResultGarbage(recipeDto)) {
+                        log.warn("📉 Grok 분석 실패: 결과물 품질 미달. Gemini로 재시도.");
+                        useUrlFallback = true;
+                        recipeDto = null;
+                    } else if (recipeDto != null && Boolean.FALSE.equals(recipeDto.getIsRecipe())) {
+                        throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 아님: " + recipeDto.getNonRecipeReason());
+                    } else if (recipeDto == null || !Boolean.TRUE.equals(recipeDto.getIsRecipe())) {
+                        useUrlFallback = true;
+                        recipeDto = null;
+                    }
+                } catch (Exception e) {
+                    useUrlFallback = true;
+                }
+            } else {
+                useUrlFallback = true;
+            }
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 50);
+
+            if (useUrlFallback || recipeDto == null) {
+                if (videoDuration > MAX_VIDEO_DURATION_SECONDS) {
+                    throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
+                            "텍스트 정보가 부족하며, 영상이 너무 길어(20분 초과) AI 심층 분석을 진행할 수 없습니다.");
+                }
+                log.info("🎥 [멀티모달 모드] Step 1: Gemini 초안 생성 시작");
+
+                String promptWithHint = getExtractionPrompt() + "\n\n" +
+                        "## [참고용 텍스트 데이터]\n" +
+                        "아래 텍스트는 영상의 설명, 댓글, 자막입니다. " +
+                        "영상을 분석할 때 이 내용을 '강력한 힌트'로 참고하되, " +
+                        "타임라인(Timeline)은 반드시 영상 화면을 보고 실제 조리 시점을 기준으로 작성하세요.\n\n" +
+                        fullContext;
+
+                recipeDto = geminiMultimodalService.generateRecipeFromYoutubeUrl(promptWithHint, title, storageUrl).join();
+
+                if (recipeDto == null || !Boolean.TRUE.equals(recipeDto.getIsRecipe())) {
+                    throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 아님/생성실패");
+                }
+            }
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 60);
+
+            logJson("STEP 1: Draft Recipe Created", recipeDto);
+            log.info("⚡ [병렬 처리 시작] 재료 정제 + 이미지 생성");
+
+            String refineSystemPrompt = "너는 식재료 데이터 정제 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라.";
+            CompletableFuture<List<RecipeIngredientRequestDto>> ingredientTask =
+                    grokClientService.refineIngredientsOnly(refineSystemPrompt, recipeDto.getIngredients());
+
+            CompletableFuture<String> imageTask = asyncImageService.generateImageFromDto(recipeDto, OFFICIAL_RECIPE_USER_ID)
+                    .exceptionally(ex -> {
+                        log.warn("⚠️ 이미지 생성 실패 (병렬 처리 중): {}", ex.getMessage());
+                        return null;
+                    });
+
+            CompletableFuture.allOf(ingredientTask, imageTask).join();
+
+            List<RecipeIngredientRequestDto> refinedIngredients = ingredientTask.join();
+            String generatedImageUrl = imageTask.join();
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 85);
+
+            if (generatedImageUrl != null && !generatedImageUrl.isBlank()) {
+                String s3Key = extractS3Key(generatedImageUrl);
+                recipeDto.setImageKey(s3Key);
+                recipeDto.setImageStatus(com.jdc.recipe_service.domain.type.RecipeImageStatus.READY);
+            }
+
+            recipeDto.setIngredients(refinedIngredients);
+            recipeDto.setYoutubeUrl(storageUrl);
+            recipeDto.setYoutubeChannelName(channelName);
+            recipeDto.setYoutubeChannelId(channelId);
+            recipeDto.setYoutubeVideoTitle(originalVideoTitle);
+            recipeDto.setYoutubeThumbnailUrl(thumbnailUrl);
+            recipeDto.setYoutubeChannelProfileUrl(channelProfileUrl);
+            recipeDto.setYoutubeSubscriberCount(subscriberCount);
+            recipeDto.setYoutubeVideoViewCount(videoViewCount);
+
+            mergeDuplicateIngredientsByNameAndUnit(recipeDto);
+
+            updateProgress(job, JobStatus.IN_PROGRESS, 90);
+
+            PresignedUrlResponse response = saveRecipeTransactional(recipeDto, OFFICIAL_RECIPE_USER_ID, userId);
+
+            log.info("💾 [V2] 신규 생성 완료: ID={}, UserID={}", response.getRecipeId(), userId);
+            return response;
+
+        } catch (CustomException e) {
+            if (e.getErrorCode() == ErrorCode.INVALID_INPUT_VALUE) {
+                log.warn("🚫 레시피 아님 판정: {}", e.getMessage());
+            }
+            throw e;
+        } catch (Exception e) {
+            log.warn("❌ V2 로직 내부 오류: {}", safeMsg(e));
+            throw new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED);
+        }
     }
 
     @Scheduled(cron = "0 0 4 * * *")
@@ -766,14 +1059,19 @@ public class RecipeExtractionService {
 
         if (combinedText.length() < 50) return false;
 
-        boolean hasIngredientSignal = INGREDIENT_KEYWORD_PATTERN.matcher(combinedText).find()
+        boolean hasIngredient = INGREDIENT_KEYWORD_PATTERN.matcher(combinedText).find()
                 || UNIT_PATTERN.matcher(combinedText).find();
+        boolean hasAction = STEP_ACTION_PATTERN.matcher(combinedText).find();
 
-        boolean hasActionSignal = STEP_ACTION_PATTERN.matcher(combinedText).find();
+        boolean hasSubtitleData = scriptPlain != null && scriptPlain.length() > 50;
 
-        boolean hasTimestamp = TIMESTAMP_PATTERN.matcher(combinedText).find();
+        if (hasIngredient && hasAction) {
+            if (hasSubtitleData) return true;
 
-        return hasIngredientSignal && hasActionSignal && hasTimestamp;
+            if (TIMESTAMP_PATTERN.matcher(combinedText).find()) return true;
+        }
+
+        return false;
     }
 
     private boolean isSpecialQty(String q) {
