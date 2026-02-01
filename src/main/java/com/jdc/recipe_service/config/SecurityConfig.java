@@ -237,7 +237,9 @@ public class SecurityConfig {
                                 "/api/recipes/popular",
                                 "/api/recipes/budget",
                                 "/api/recipes/youtube/check",
-                                "/api/recipes/youtube/recommend"
+                                "/api/recipes/youtube/recommend",
+                                "/api/recipes/youtube/status/**",
+                                "/api/recipes/ai/status/**"
                         ).permitAll()
 
                         // [추가된 부분] POST
@@ -254,7 +256,9 @@ public class SecurityConfig {
                                 "/api/comments/*/like",
                                 "/api/recipes",
                                 "/api/recipes/ai",
+                                "/api/recipes/ai/v2",
                                 "/api/recipes/extract",
+                                "/api/recipes/extract/v2",
                                 "/api/recipes/*/presigned-urls",
                                 "/api/recipes/*/like",
                                 "/api/recipes/*/favorite",

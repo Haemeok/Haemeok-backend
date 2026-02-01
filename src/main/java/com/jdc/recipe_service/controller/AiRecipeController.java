@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.domain.dto.recipe.JobIdResponse;
+import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
@@ -50,5 +52,29 @@ public class AiRecipeController {
                 concept,
                 userDetails.getUser().getId()
         );
+    }
+
+    @PostMapping("/v2")
+    @Operation(summary = "[V2] AI 레시피 생성 요청 (비동기)", description = "아이폰 백그라운드 끊김 해결을 위한 비동기 API입니다.")
+    public ResponseEntity<JobIdResponse> generateAiRecipeV2(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestParam AiRecipeConcept concept,
+            @RequestBody @Valid RecipeWithImageUploadRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (userDetails == null) throw new CustomException(ErrorCode.UNAUTHORIZED);
+        Long userId = userDetails.getUser().getId();
+
+        Long jobId = aiRecipeFacade.createAiGenerationJobV2(request, concept, userId, idempotencyKey);
+
+        aiRecipeFacade.processAiGenerationAsyncV2(jobId, request, concept, userId);
+
+        return ResponseEntity.ok(new JobIdResponse(jobId));
+    }
+
+    @GetMapping("/status/{jobId}")
+    @Operation(summary = "AI 생성 상태 조회 (Polling)", description = "진행률과 최종 생성된 레시피 ID를 확인합니다.")
+    public ResponseEntity<JobStatusDto> getAiJobStatus(@PathVariable Long jobId) {
+        return ResponseEntity.ok(aiRecipeFacade.getJobStatus(jobId));
     }
 }
