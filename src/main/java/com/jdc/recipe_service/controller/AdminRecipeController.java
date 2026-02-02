@@ -123,7 +123,7 @@ public class AdminRecipeController {
 
     @PostMapping("/{recipeId}/regenerate-image")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> regenerateRecipeImage(@PathVariable Long recipeId) {
+    public ResponseEntity<String> regenerateRecipeImage(@DecodeId Long recipeId) {
         recipeImageService.regenerateAndApplyImage(recipeId);
         return ResponseEntity.ok("이미지 재생성 작업이 백그라운드에서 시작되었습니다.");
     }
