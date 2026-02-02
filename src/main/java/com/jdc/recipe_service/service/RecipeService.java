@@ -260,7 +260,7 @@ public class RecipeService {
                 DishType.fromDisplayName(dto.getDishType()),
                 dto.getCookingTime(),
                 newImageKey,
-                dto.getYoutubeUrl(),
+                (dto.getYoutubeUrl() != null && !dto.getYoutubeUrl().isBlank()) ? dto.getYoutubeUrl() : recipe.getYoutubeUrl(),
                 tools,
                 dto.getServings(),
                 newTotalIngredientCost,
