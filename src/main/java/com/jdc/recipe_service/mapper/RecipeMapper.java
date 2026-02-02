@@ -5,6 +5,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeNutritionDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.type.DishType;
 
@@ -58,22 +59,41 @@ public class RecipeMapper {
                 .dishType(recipe.getDishType().getDisplayName())
                 .cookingTime(recipe.getCookingTime())
                 .servings(recipe.getServings())
-                .ingredients(recipe.getIngredients().stream()
+                .ingredients(recipe.getIngredients() != null ? recipe.getIngredients().stream()
                         .map(ri -> RecipeIngredientRequestDto.builder()
-                                .name(ri.getCustomName())
-                                .quantity(ri.getQuantity())
-                                .customUnit(ri.getCustomUnit())
+                                .name(resolveIngredientName(ri))
+                                .quantity(ri.getQuantity() != null ? ri.getQuantity() : "")
+                                .customUnit(resolveIngredientUnit(ri))
                                 .build())
-                        .toList())
-                .steps(recipe.getSteps().stream()
+                        .toList() : Collections.emptyList())
+                .steps(recipe.getSteps() != null ? recipe.getSteps().stream()
                         .map(rs -> RecipeStepRequestDto.builder()
                                 .stepNumber(rs.getStepNumber())
                                 .instruction(rs.getInstruction())
                                 .action(rs.getAction())
                                 .timeline(rs.getTimeline())
                                 .build())
-                        .toList())
+                        .toList() : Collections.emptyList())
                 .build();
     }
 
+    private static String resolveIngredientName(RecipeIngredient ri) {
+        if (ri.getCustomName() != null && !ri.getCustomName().isBlank()) {
+            return ri.getCustomName();
+        }
+        if (ri.getIngredient() != null && ri.getIngredient().getName() != null) {
+            return ri.getIngredient().getName();
+        }
+        return "";
+    }
+
+    private static String resolveIngredientUnit(RecipeIngredient ri) {
+        if (ri.getCustomUnit() != null && !ri.getCustomUnit().isBlank()) {
+            return ri.getCustomUnit();
+        }
+        if (ri.getUnit() != null) {
+            return ri.getUnit();
+        }
+        return "";
+    }
 }
