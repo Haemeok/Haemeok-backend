@@ -35,10 +35,7 @@ import org.springframework.web.context.request.async.DeferredResult;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -124,6 +121,10 @@ public class RecipeExtractionService {
     private final ObjectMapper objectMapper;
 
     private final ConcurrentHashMap<String, CompletableFuture<PresignedUrlResponse>> extractionTasks = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, CompletableFuture<Long>> processingTasks = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, Set<Long>> passengersMap = new ConcurrentHashMap<>();
 
     private final AtomicBoolean isRefreshing = new AtomicBoolean(false);
 
@@ -640,29 +641,86 @@ public class RecipeExtractionService {
 
         if (job.getStatus() == JobStatus.COMPLETED) return;
 
+        String videoId = extractVideoId(videoUrl);
+        if (videoId == null || videoId.isBlank()) {
+            handleAsyncError(job, userId, new CustomException(ErrorCode.INVALID_URL_FORMAT));
+            return;
+        }
+
         try {
             updateProgress(job, JobStatus.IN_PROGRESS, 5);
 
-            String videoId = extractVideoId(videoUrl);
+            passengersMap.computeIfAbsent(videoId, k -> ConcurrentHashMap.newKeySet()).add(jobId);
 
-            PresignedUrlResponse response = processActualExtractionLogicV2(videoUrl, userId, videoId, nickname, job);
+            CompletableFuture<Long> sharedTask = processingTasks.computeIfAbsent(videoId, key -> {
+                log.info("🚌 [버스 출발] 운전사(Job: {})가 AI 작업을 시작합니다. VideoID: {}", jobId, key);
 
-            job.setResultRecipeId(response.getRecipeId());
+                return CompletableFuture.supplyAsync(() -> {
+                    try {
+                        PresignedUrlResponse response = processActualExtractionLogicV2(videoUrl, userId, key, nickname, job);
+                        return response.getRecipeId();
+                    } finally {
+                        processingTasks.remove(key);
+                        passengersMap.remove(key); // 운행 종료 후 명단 파기
+                        log.info("🏁 [종점 도착] 작업 완료. 맵 정리: {}", key);
+                    }
+                }, extractionExecutor);
+            });
+
+            Long resultRecipeId = sharedTask.join();
+
+            job.setResultRecipeId(resultRecipeId);
             updateProgress(job, JobStatus.COMPLETED, 100);
 
             try {
-                addFavoriteToUser(userId, response.getRecipeId());
+                addFavoriteToUser(userId, resultRecipeId);
                 recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
             } catch (Exception e) {
                 log.warn("⚠️ 후속 처리 실패: {}", e.getMessage());
             }
 
         } catch (Exception e) {
-            log.error("❌ [Youtube V2] 추출 실패 JobID: {}", jobId, e);
-            job.setErrorMessage(e.getMessage());
-            updateProgress(job, JobStatus.FAILED, 0);
+            Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+            handleAsyncError(job, userId, (Exception) cause);
+        } finally {
+            Set<Long> passengers = passengersMap.get(videoId);
+            if (passengers != null) passengers.remove(jobId);
+        }
+    }
 
+    private void handleAsyncError(RecipeGenerationJob job, Long userId, Exception e) {
+        log.error("❌ [Youtube V2] 추출 실패 JobID: {}", job.getId(), e);
+
+        ErrorCode errorCode = resolveErrorCode(e);
+        String clientMsg = resolveClientErrorMessage(e, errorCode);
+
+        job.setErrorMessage(errorCode.getCode() + "::" + clientMsg);
+        updateProgress(job, JobStatus.FAILED, 0);
+
+        if (errorCode != ErrorCode.INVALID_INPUT_VALUE) {
+            log.info("💸 시스템 오류로 쿼터 환불 (UserID: {})", userId);
             dailyQuotaService.refund(userId, QuotaType.YOUTUBE_EXTRACTION, true);
+        } else {
+            log.info("🚫 '레시피 아님' 판정이므로 쿼터 환불 X (UserID: {})", userId);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void broadcastProgress(String videoId, JobStatus status, int progress) {
+        Set<Long> passengers = passengersMap.get(videoId);
+
+        if (passengers != null && !passengers.isEmpty()) {
+            log.info("📢 [방송] 승객 {}명에게 진행률 {}% 전파 (IDs: {})", passengers.size(), progress, passengers);
+
+            List<RecipeGenerationJob> jobs = jobRepository.findAllById(passengers);
+            for (RecipeGenerationJob pJob : jobs) {
+                // 이미 끝난 Job은 건드리지 않음
+                if (pJob.getStatus() != JobStatus.COMPLETED && pJob.getStatus() != JobStatus.FAILED) {
+                    pJob.updateProgress(status, progress);
+                }
+            }
+            jobRepository.saveAll(jobs);
+            jobRepository.flush();
         }
     }
 
@@ -675,18 +733,26 @@ public class RecipeExtractionService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
 
         Long recipeId = job.getResultRecipeId();
-
         if (job.getStatus() == JobStatus.COMPLETED && recipeId != null) {
-            if (!recipeRepository.existsById(recipeId)) {
-                recipeId = null;
-            }
+            if (!recipeRepository.existsById(recipeId)) recipeId = null;
+        }
+
+        String fullError = job.getErrorMessage();
+        String code = null;
+        String msg = fullError;
+
+        if (job.getStatus() == JobStatus.FAILED && fullError != null && fullError.contains("::")) {
+            String[] parts = fullError.split("::", 2);
+            code = parts[0];
+            msg = parts[1];
         }
 
         return JobStatusDto.builder()
                 .jobId(job.getId())
                 .status(job.getStatus())
                 .resultRecipeId(recipeId)
-                .errorMessage(job.getErrorMessage())
+                .errorCode(code)
+                .errorMessage(msg)
                 .progress(job.getProgress())
                 .build();
     }
@@ -701,7 +767,12 @@ public class RecipeExtractionService {
      * V2 전용 내부 로직: 쿼터 차감 없이 수행 + 중복 시 성공(환불) 처리
      */
     private PresignedUrlResponse processActualExtractionLogicV2(String videoUrl, Long userId, String videoId, String nickname, RecipeGenerationJob job) {
-        updateProgress(job, JobStatus.IN_PROGRESS, 10);
+        long startTime = System.currentTimeMillis();
+        broadcastProgress(videoId, JobStatus.IN_PROGRESS, 10);
+
+        if (videoId == null || videoId.isBlank() || "null".equals(videoId)) {
+            throw new CustomException(ErrorCode.INVALID_URL_FORMAT, "유튜브 영상 ID를 추출할 수 없습니다.");
+        }
 
         boolean shorts = isShortsUrl(videoUrl);
         String storageUrl = buildStorageYoutubeUrl(videoId, shorts);
@@ -731,6 +802,7 @@ public class RecipeExtractionService {
         Long videoDuration = 0L;
         boolean useUrlFallback = false;
 
+        long metadataStart = System.currentTimeMillis();
         try {
             YtDlpService.YoutubeFullDataDto videoData = ytDlpService.getVideoDataFull(videoUrl);
             title = nullToEmpty(videoData.title());
@@ -758,11 +830,14 @@ public class RecipeExtractionService {
             log.warn("⚠️ yt-dlp 실패 -> Gemini 모드 전환: {}", safeMsg(e));
             useUrlFallback = true;
         }
+        long metadataEnd = System.currentTimeMillis();
+        log.info("⏱️ [Performance] 영상 메타데이터 추출(yt-dlp) 소요 시간: {}ms", (metadataEnd - metadataStart));
 
-        updateProgress(job, JobStatus.IN_PROGRESS, 30);
+        broadcastProgress(videoId, JobStatus.IN_PROGRESS, 30);
 
         RecipeCreateRequestDto recipeDto = null;
 
+        long textGenStart = System.currentTimeMillis();
         try {
             String fullContext = cap(("""
             영상 URL: %s
@@ -792,13 +867,14 @@ public class RecipeExtractionService {
                         recipeDto = null;
                     }
                 } catch (Exception e) {
+                    if (e instanceof CustomException) throw e;
                     useUrlFallback = true;
                 }
             } else {
                 useUrlFallback = true;
             }
 
-            updateProgress(job, JobStatus.IN_PROGRESS, 50);
+            broadcastProgress(videoId, JobStatus.IN_PROGRESS, 50);
 
             if (useUrlFallback || recipeDto == null) {
                 if (videoDuration > MAX_VIDEO_DURATION_SECONDS) {
@@ -820,11 +896,14 @@ public class RecipeExtractionService {
                     throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "레시피 아님/생성실패");
                 }
             }
+            long textGenEnd = System.currentTimeMillis();
+            log.info("⏱️ [Performance] AI 텍스트 분석 및 생성 소요 시간: {}ms", (textGenEnd - textGenStart));
 
-            updateProgress(job, JobStatus.IN_PROGRESS, 60);
+            broadcastProgress(videoId, JobStatus.IN_PROGRESS, 60);
 
             logJson("STEP 1: Draft Recipe Created", recipeDto);
             log.info("⚡ [병렬 처리 시작] 재료 정제 + 이미지 생성");
+            long parallelStart = System.currentTimeMillis();
 
             String refineSystemPrompt = "너는 식재료 데이터 정제 AI다. 창의성을 배제하고 오직 규격 준수에만 집중하라.";
             CompletableFuture<List<RecipeIngredientRequestDto>> ingredientTask =
@@ -841,7 +920,9 @@ public class RecipeExtractionService {
             List<RecipeIngredientRequestDto> refinedIngredients = ingredientTask.join();
             String generatedImageUrl = imageTask.join();
 
-            updateProgress(job, JobStatus.IN_PROGRESS, 85);
+            long parallelEnd = System.currentTimeMillis();
+            log.info("⏱️ [Performance] 병렬 작업(이미지+재료정제) 소요 시간: {}ms", (parallelEnd - parallelStart));
+            broadcastProgress(videoId, JobStatus.IN_PROGRESS, 85);
 
             if (generatedImageUrl != null && !generatedImageUrl.isBlank()) {
                 String s3Key = extractS3Key(generatedImageUrl);
@@ -861,10 +942,14 @@ public class RecipeExtractionService {
 
             mergeDuplicateIngredientsByNameAndUnit(recipeDto);
 
-            updateProgress(job, JobStatus.IN_PROGRESS, 90);
+            broadcastProgress(videoId, JobStatus.IN_PROGRESS, 90);
 
+            long saveStart = System.currentTimeMillis();
             PresignedUrlResponse response = saveRecipeTransactional(recipeDto, OFFICIAL_RECIPE_USER_ID, userId);
+            long saveEnd = System.currentTimeMillis();
+            log.info("⏱️ [Performance] DB 저장 소요 시간: {}ms", (saveEnd - saveStart));
 
+            log.info("✅ [Performance] 전체 유튜브 추출 총 소요 시간: {}ms", (System.currentTimeMillis() - startTime));
             log.info("💾 [V2] 신규 생성 완료: ID={}, UserID={}", response.getRecipeId(), userId);
             return response;
 
@@ -1166,6 +1251,21 @@ public class RecipeExtractionService {
         } catch (Exception e) {
             return 0.0;
         }
+    }
+
+    private ErrorCode resolveErrorCode(Exception e) {
+        if (e instanceof CustomException ce) return ce.getErrorCode();
+        if (e instanceof java.util.concurrent.TimeoutException ||
+                (e.getMessage() != null && (e.getMessage().contains("TimeOut") || e.getMessage().contains("504")))) {
+            return ErrorCode.INTERNAL_SERVER_ERROR;
+        }
+        return ErrorCode.INTERNAL_SERVER_ERROR;
+    }
+
+    private String resolveClientErrorMessage(Exception e, ErrorCode code) {
+        if (e instanceof CustomException) return e.getMessage();
+        if (code == ErrorCode.INTERNAL_SERVER_ERROR) return "AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.";
+        return "일시적인 시스템 오류가 발생했습니다.";
     }
 
 
