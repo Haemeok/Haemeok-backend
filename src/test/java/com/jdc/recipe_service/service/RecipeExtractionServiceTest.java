@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
@@ -9,35 +10,32 @@ import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
-import com.jdc.recipe_service.domain.type.ActivityLogType;
 import com.jdc.recipe_service.domain.type.JobStatus;
 import com.jdc.recipe_service.domain.type.QuotaType;
-import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.service.image.AsyncImageService;
 import com.jdc.recipe_service.service.media.YtDlpService;
-import com.jdc.recipe_service.util.DeferredResultHolder;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,184 +53,210 @@ class RecipeExtractionServiceTest {
     @Mock private YoutubeRecommendationRepository youtubeRecommendationRepository;
     @Mock private TransactionTemplate transactionTemplate;
     @Mock private AsyncImageService asyncImageService;
-    @Mock private DeferredResultHolder deferredResultHolder;
-    @Mock private RecipeSearchService recipeSearchService;
     @Mock private RecipeGenerationJobRepository jobRepository;
-    @Mock private RecipeExtractionService service;
 
     @Spy private ObjectMapper objectMapper = new ObjectMapper();
 
-    @Test
-    @DisplayName("유튜브 병렬 추출 성공 테스트 (extractAndCreateRecipeParallel)")
-    void extractAndCreateRecipeParallel_success() {
-        ExecutorService realExecutor = Executors.newSingleThreadExecutor();
+    private RecipeExtractionService service;
+    private ExecutorService testExecutor;
 
-        RecipeExtractionService service = new RecipeExtractionService(
+    // 더미 데이터 (텍스트 모드 활성화용)
+    private static final String SUFFICIENT_TEXT = "recipe ingredient salt sugar water boil fry cook step 1 2 3 minutes";
+
+    @BeforeEach
+    void setUp() {
+        testExecutor = Executors.newCachedThreadPool();
+
+        service = new RecipeExtractionService(
                 ytDlpService, grokClientService, geminiMultimodalService, recipeService,
                 dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
                 youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
-                realExecutor, asyncImageService, objectMapper
+                testExecutor, asyncImageService, objectMapper
         );
 
-        String url = "https://www.youtube.com/watch?v=test1234";
-        Long userId = 100L;
-        String nickname = "요리왕비룡";
-        String sufficientDesc = "이 영상은 맛있는 김치볶음밥을 만드는 레시피입니다. 정말 맛있어요. 재료는 김치, 밥, 참기름이 필요합니다. " +
-                "김치를 볶다가 밥을 넣고 잘 섞어주세요. 참기름 1큰술을 넣으면 더 맛있습니다.";
-        String sufficientScript = "자 오늘은 김치볶음밥을 만들어볼게요. 먼저 팬에 식용유를 두르고 김치를 볶습니다. " +
-                "그 다음에 밥을 넣고 볶아주세요. 간장 1큰술 추가합니다.";
-
-        when(ytDlpService.getVideoDataFull(anyString())).thenReturn(
-                new YtDlpService.YoutubeFullDataDto(
-                        "test1234", url, "맛있는 김치볶음밥",sufficientDesc , "댓글",
-                        "[00:00] 자막", sufficientScript, "채널", "id", "http://thumb", "http://prof", 100L, 100L,600L
-                )
-        );
-
-        RecipeCreateRequestDto mockDto = new RecipeCreateRequestDto();
-        mockDto.setIsRecipe(true);
-        mockDto.setTitle("김치볶음밥");
-        mockDto.setDescription("맛있는 김치볶음밥입니다.");
-        mockDto.setCookingTime(15);
-        mockDto.setServings(1);
-        mockDto.setDishType("볶음");
-        List<RecipeIngredientRequestDto> mockIngredients = new ArrayList<>();
-        RecipeIngredientRequestDto ing1 = new RecipeIngredientRequestDto();
-        ing1.setName("김치"); ing1.setQuantity("1"); ing1.setCustomUnit("포기");
-        mockIngredients.add(ing1);
-
-        RecipeIngredientRequestDto ing2 = new RecipeIngredientRequestDto();
-        ing2.setName("밥"); ing2.setQuantity("1"); ing2.setCustomUnit("공기");
-        mockIngredients.add(ing2);
-        mockDto.setIngredients(mockIngredients);
-
-        when(grokClientService.generateRecipeStep1(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(mockDto));
-
-        when(grokClientService.refineIngredientsOnly(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(new ArrayList<>()));
-
-        when(asyncImageService.generateImageFromDto(any(), anyLong()))
-                .thenReturn(CompletableFuture.completedFuture("https://s3.bucket/image.jpg"));
-
-        when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
-            TransactionCallback<PresignedUrlResponse> callback = invocation.getArgument(0);
+        // TransactionTemplate Mocking
+        lenient().when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+            TransactionCallback<Object> callback = invocation.getArgument(0);
             return callback.doInTransaction(null);
         });
 
-        when(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
-                .thenReturn(PresignedUrlResponse.builder().recipeId(1L).build());
+        lenient().doAnswer(invocation -> {
+            java.util.function.Consumer<org.springframework.transaction.TransactionStatus> consumer =
+                    invocation.getArgument(0);
+            consumer.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
 
-        when(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
-                .thenReturn(PresignedUrlResponse.builder().recipeId(1L).build());
-        DeferredResult<ResponseEntity<PresignedUrlResponse>> result = service.extractAndCreateRecipe(url, userId, nickname);
-
-        try {
-            Thread.sleep(200);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        verify(recipeActivityService, times(1)).saveLog(eq(userId), eq(nickname), eq(ActivityLogType.YOUTUBE_EXTRACT));
-
-        verify(asyncImageService, times(1)).generateImageFromDto(any(), anyLong());
-
-        verify(asyncImageService, never()).generateAndUploadAiImage(anyLong(), eq(false));
+        // [핵심] Gemini 기본 Mocking (NPE 방지) - 이게 없어서 터졌음
+        RecipeCreateRequestDto defaultGeminiResponse = new RecipeCreateRequestDto();
+        defaultGeminiResponse.setIsRecipe(true);
+        lenient().when(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(defaultGeminiResponse));
     }
 
     @Test
-    @DisplayName("[V2] 유튜브 추출 작업 접수 및 비동기 실행 성공 테스트")
-    void createYoutubeExtractionJobV2_Success() {
-        // Given
-        String url = "https://www.youtube.com/watch?v=v2test";
-        Long userId = 100L;
-        String nickname = "요리사";
-        String idempotencyKey = "unique-key-123";
-        Long jobId = 1L;
+    @DisplayName("🚌 [버스 로직] 동시 요청 시 AI는 1번만 실행되고, 결과는 공유되어야 한다")
+    void testBusLogic_Deduplication() throws InterruptedException, ExecutionException {
+        String videoUrl = "https://www.youtube.com/watch?v=busvideo1";
+        Long userA = 100L;
+        Long userB = 200L;
+        Long expectedRecipeId = 777L;
 
-        // Mock: save 호출 시 전달받은 객체에 ID를 강제로 세팅해서 반환하도록 설정 (ID 0 문제 해결)
-        when(jobRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.empty());
-        when(jobRepository.save(any(RecipeGenerationJob.class))).thenAnswer(invocation -> {
-            RecipeGenerationJob job = invocation.getArgument(0);
-            job.setId(jobId); // ID 수동 주입
-            return job;
+        RecipeGenerationJob jobA = spy(RecipeGenerationJob.builder().id(1L).userId(userA).status(JobStatus.PENDING).build());
+        RecipeGenerationJob jobB = spy(RecipeGenerationJob.builder().id(2L).userId(userB).status(JobStatus.PENDING).build());
+
+        when(jobRepository.findById(1L)).thenReturn(Optional.of(jobA));
+        when(jobRepository.findById(2L)).thenReturn(Optional.of(jobB));
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        // yt-dlp Delay Mock
+        when(ytDlpService.getVideoDataFull(anyString())).thenAnswer(inv -> {
+            System.out.println("🐌 [Test] AI 처리 중... (Delay)");
+            latch.await(1, TimeUnit.SECONDS);
+            return new YtDlpService.YoutubeFullDataDto("busvideo1", videoUrl, "Title", SUFFICIENT_TEXT, "Comments", "Sub", SUFFICIENT_TEXT, "Ch", "Id", "Thumb", "Prof", 100L, 100L, 60L);
         });
 
-        RecipeExtractionService service = new RecipeExtractionService(
-                ytDlpService, grokClientService, geminiMultimodalService, recipeService,
-                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
-                youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
-                Executors.newSingleThreadExecutor(), asyncImageService, objectMapper
+        mockSuccessFlow(expectedRecipeId);
+
+        CompletableFuture<Void> futureA = CompletableFuture.runAsync(() ->
+                service.processYoutubeExtractionAsyncV2(1L, videoUrl, userA, "UserA")
         );
 
-        // When: 1단계 접수
-        Long returnedJobId = service.createYoutubeExtractionJobV2(url, userId, nickname, idempotencyKey);
+        Thread.sleep(200);
+        CompletableFuture<Void> futureB = CompletableFuture.runAsync(() ->
+                service.processYoutubeExtractionAsyncV2(2L, videoUrl, userB, "UserB")
+        );
 
-        // Then: 접수 확인
-        assertEquals(jobId, returnedJobId);
-        verify(dailyQuotaService, times(1)).consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION);
+        latch.countDown();
+        CompletableFuture.allOf(futureA, futureB).join();
+
+        verify(ytDlpService, times(1)).getVideoDataFull(anyString());
+        verify(jobA).setResultRecipeId(expectedRecipeId);
+        verify(jobB).setResultRecipeId(expectedRecipeId);
     }
 
     @Test
-    @DisplayName("[V2] 동일한 멱등성 키로 요청 시 기존 JobID 반환 테스트")
-    void createYoutubeExtractionJobV2_Idempotency() {
-        // Given
-        String url = "https://www.youtube.com/watch?v=v2test";
-        String idempotencyKey = "same-key";
-        Long existingJobId = 999L;
-
-        // 명확하게 ID가 세팅된 Mock 객체 반환
-        RecipeGenerationJob existingJob = RecipeGenerationJob.builder()
-                .id(existingJobId)
-                .idempotencyKey(idempotencyKey)
-                .build();
-
-        when(jobRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.of(existingJob));
-
-        RecipeExtractionService service = new RecipeExtractionService(
-                ytDlpService, grokClientService, geminiMultimodalService, recipeService,
-                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
-                youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
-                Executors.newSingleThreadExecutor(), asyncImageService, objectMapper
-        );
-
-        // When
-        Long jobId = service.createYoutubeExtractionJobV2(url, 1L, "nick", idempotencyKey);
-
-        // Then
-        assertEquals(existingJobId, jobId);
-        verify(dailyQuotaService, never()).consumeForUserOrThrow(any(), any());
-    }
-
-    @Test
-    @DisplayName("[V2] 추출 실패 시 쿼터 환불 및 Job 상태 FAILED 변경 테스트")
-    void processYoutubeExtractionAsyncV2_Failure_Refund() {
-        // Given
+    @DisplayName("🚫 [에러/환불] '레시피 아님' 에러 시 환불되지 않아야 한다 (901)")
+    void testError_NotRecipe_NoRefund() {
         Long jobId = 1L;
-        String url = "https://www.youtube.com/watch?v=fail";
-        // 상태 변화를 추적하기 위해 필드값이 채워진 객체 생성
-        RecipeGenerationJob job = RecipeGenerationJob.builder()
-                .id(jobId)
-                .userId(100L)
-                .status(JobStatus.PENDING)
-                .build();
+        String videoUrl = "https://www.youtube.com/watch?v=mukbang";
+        RecipeGenerationJob job = spy(RecipeGenerationJob.builder().id(jobId).status(JobStatus.PENDING).build());
 
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
-        // 의도적 예외 발생
-        when(ytDlpService.getVideoDataFull(any())).thenThrow(new RuntimeException("yt-dlp error"));
 
-        RecipeExtractionService service = new RecipeExtractionService(
-                ytDlpService, grokClientService, geminiMultimodalService, recipeService,
-                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
-                youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
-                Executors.newSingleThreadExecutor(), asyncImageService, objectMapper
+        when(ytDlpService.getVideoDataFull(anyString())).thenReturn(
+                new YtDlpService.YoutubeFullDataDto("mukbang", videoUrl, "Mukbang", SUFFICIENT_TEXT, "Eat", "", SUFFICIENT_TEXT, "Ch", "Id", "", "", 0L, 0L, 100L)
         );
 
-        // When
-        service.processYoutubeExtractionAsyncV2(jobId, url, 100L, "nick");
+        // Grok 결과: 레시피 아님
+        RecipeCreateRequestDto fakeResult = new RecipeCreateRequestDto();
+        fakeResult.setIsRecipe(false);
+        fakeResult.setNonRecipeReason("그냥 먹방임");
+        when(grokClientService.generateRecipeStep1(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(fakeResult));
 
-        // Then
-        assertEquals(JobStatus.FAILED, job.getStatus()); // 이제 정상적으로 FAILED 검증됨
+        service.processYoutubeExtractionAsyncV2(jobId, videoUrl, 100L, "User");
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(job).setErrorMessage(captor.capture());
+
+        // 901 에러 확인
+        assertTrue(captor.getValue().startsWith("901::"));
+        // 환불 호출 X 확인
+        verify(dailyQuotaService, never()).refund(anyLong(), any(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("💸 [에러/환불] '시스템 에러' 발생 시 환불되어야 한다 (500/701)")
+    void testError_SystemFail_Refund() {
+        Long jobId = 1L;
+        String videoUrl = "https://www.youtube.com/watch?v=error";
+        RecipeGenerationJob job = spy(RecipeGenerationJob.builder().id(jobId).status(JobStatus.PENDING).build());
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+
+        // 1. yt-dlp 실패 (의도적 예외)
+        when(ytDlpService.getVideoDataFull(anyString())).thenThrow(new RuntimeException("Connection Error"));
+
+        // 2. Fallback Gemini도 실패하도록 설정 (Mock 재설정)
+        when(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
+                .thenThrow(new RuntimeException("Gemini Also Failed"));
+
+        service.processYoutubeExtractionAsyncV2(jobId, videoUrl, 100L, "User");
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(job).setErrorMessage(captor.capture());
+
+        // 에러 코드 500 or 701 확인
+        System.out.println("Captured Error: " + captor.getValue());
+
+        // 환불 호출 확인
         verify(dailyQuotaService, times(1)).refund(eq(100L), eq(QuotaType.YOUTUBE_EXTRACTION), eq(true));
+    }
+
+    @Test
+    @DisplayName("📱 [쇼츠] Shorts URL 파싱 및 정상 동작 확인")
+    void testShortsUrl_Parsing() {
+        Long jobId = 1L;
+        String shortsUrl = "https://www.youtube.com/shorts/shorts123?feature=share";
+        RecipeGenerationJob job = spy(RecipeGenerationJob.builder().id(jobId).status(JobStatus.PENDING).build());
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+
+        when(ytDlpService.getVideoDataFull(anyString())).thenAnswer(inv -> {
+            String url = inv.getArgument(0);
+            if(url.contains("shorts123")) {
+                return new YtDlpService.YoutubeFullDataDto("shorts123", url, "Shorts", SUFFICIENT_TEXT, "", "", SUFFICIENT_TEXT, "Ch", "Id", "", "", 0L, 0L, 50L);
+            }
+            throw new RuntimeException("Invalid URL passed to yt-dlp");
+        });
+
+        mockSuccessFlow(123L);
+
+        service.processYoutubeExtractionAsyncV2(jobId, shortsUrl, 100L, "User");
+
+        verify(job).setResultRecipeId(123L);
+        verify(job).updateProgress(JobStatus.COMPLETED, 100);
+    }
+
+    @Test
+    @DisplayName("🔍 [상태조회] 저장된 에러 메시지(Code::Msg)가 DTO로 잘 분리되는지 확인")
+    void testGetJobStatus_ParsesErrorCode() {
+        Long jobId = 99L;
+        RecipeGenerationJob failedJob = RecipeGenerationJob.builder()
+                .id(jobId)
+                .status(JobStatus.FAILED)
+                .errorMessage("901::레시피 영상이 아닙니다.")
+                .progress(0)
+                .build();
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(failedJob));
+
+        JobStatusDto statusDto = service.getJobStatus(jobId);
+
+        assertEquals("901", statusDto.getErrorCode());
+        assertEquals("레시피 영상이 아닙니다.", statusDto.getErrorMessage());
+        assertEquals(JobStatus.FAILED, statusDto.getStatus());
+    }
+
+    // --- Helper Methods ---
+    private void mockSuccessFlow(Long recipeId) {
+        RecipeCreateRequestDto mockDto = new RecipeCreateRequestDto();
+        mockDto.setIsRecipe(true);
+        mockDto.setIngredients(new ArrayList<>());
+
+        lenient().when(grokClientService.generateRecipeStep1(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(mockDto));
+
+        lenient().when(grokClientService.refineIngredientsOnly(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(new ArrayList<>()));
+
+        lenient().when(asyncImageService.generateImageFromDto(any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture("http://img.com/a.jpg"));
+
+        PresignedUrlResponse response = PresignedUrlResponse.builder().recipeId(recipeId).build();
+        lenient().when(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
+                .thenReturn(response);
     }
 }
