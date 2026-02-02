@@ -1,8 +1,8 @@
 package com.jdc.recipe_service.controller;
 
+import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.JobIdResponse;
 import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
-import com.jdc.recipe_service.domain.dto.recipe.RecipeDetailDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.AiRecipeConcept;
@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -74,7 +73,7 @@ public class AiRecipeController {
 
     @GetMapping("/status/{jobId}")
     @Operation(summary = "AI 생성 상태 조회 (Polling)", description = "진행률과 최종 생성된 레시피 ID를 확인합니다.")
-    public ResponseEntity<JobStatusDto> getAiJobStatus(@PathVariable Long jobId) {
+    public ResponseEntity<JobStatusDto> getAiJobStatus(@DecodeId Long jobId) {
         return ResponseEntity.ok(aiRecipeFacade.getJobStatus(jobId));
     }
 }

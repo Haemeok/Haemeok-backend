@@ -150,10 +150,6 @@ public class AiRecipeFacade {
         }
     }
 
-    // =================================================================================
-    // [V2] 신규 비동기 + 멱등성 방식 (불사신 로직)
-    // =================================================================================
-
     /**
      * [Phase 1] V2 작업 접수
      * - Idempotency Key를 확인하여 중복 작업을 방지하고 Job ID를 반환합니다.
@@ -193,6 +189,7 @@ public class AiRecipeFacade {
      */
     @Async("recipeExtractionExecutor")
     public void processAiGenerationAsyncV2(Long jobId, RecipeWithImageUploadRequest request, AiRecipeConcept concept, Long userId) {
+        long startTime = System.currentTimeMillis();
         RecipeGenerationJob job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
 
@@ -206,6 +203,7 @@ public class AiRecipeFacade {
             UserSurveyDto survey = surveyService.getSurvey(userId);
             applySurveyInfoToAiRequest(aiReq, survey);
 
+            long textGenStart = System.currentTimeMillis();
             updateProgress(job, JobStatus.IN_PROGRESS, 10);
 
             RecipeCreateRequestDto generatedDto;
@@ -234,7 +232,10 @@ public class AiRecipeFacade {
                 default -> throw new IllegalArgumentException("Unknown Concept");
             }
 
-            updateProgress(job, JobStatus.IN_PROGRESS, 60);
+            long textGenEnd = System.currentTimeMillis();
+            log.info("⏱️ [Performance] AI 텍스트 생성 소요 시간: {}ms", (textGenEnd - textGenStart));
+
+            long dbSaveStart = System.currentTimeMillis();
 
             generatedDto.setIngredients(correctIngredientUnits(generatedDto.getIngredients()));
 
@@ -244,8 +245,6 @@ public class AiRecipeFacade {
                     step.updateImageKey(key);
                 }
             }
-
-            updateProgress(job, JobStatus.IN_PROGRESS, 70);
 
             RecipeWithImageUploadRequest processingRequest = RecipeWithImageUploadRequest.builder()
                     .aiRequest(aiReq)
@@ -258,9 +257,12 @@ public class AiRecipeFacade {
             );
 
             Long recipeId = savedResponse.getRecipeId();
-            job.setResultRecipeId(recipeId);
 
-            updateProgress(job, JobStatus.IN_PROGRESS, 80);
+            long dbSaveEnd = System.currentTimeMillis();
+            log.info("⏱️ [Performance] DB 저장 및 가공 소요 시간: {}ms", (dbSaveEnd - dbSaveStart));
+
+            long imageGenStart = System.currentTimeMillis();
+            updateProgress(job, JobStatus.IN_PROGRESS, 75);
 
             try {
                 log.info("🎨 이미지 생성 시작 (동기 실행)");
@@ -270,7 +272,13 @@ public class AiRecipeFacade {
                 log.warn("⚠️ 이미지 생성 중 오류 발생 (레시피는 유지): {}", e.getMessage());
             }
 
+            long imageGenEnd = System.currentTimeMillis();
+            log.info("⏱️ [Performance] 이미지 생성 소요 시간: {}ms", (imageGenEnd - imageGenStart));
+
+            job.setResultRecipeId(recipeId);
+
             updateProgress(job, JobStatus.COMPLETED, 100);
+            log.info("✅ [Performance] 전체 작업 총 소요 시간: {}ms", (System.currentTimeMillis() - startTime));
 
         } catch (Exception e) {
             log.error("V2 생성 실패 JobID: {}", jobId, e);
