@@ -27,7 +27,6 @@ import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/recipes")
@@ -191,7 +190,7 @@ public class RecipeController {
 
     @GetMapping("/youtube/status/{jobId}")
     @Operation(summary = "[V2] 유튜브 추출 상태 조회")
-    public ResponseEntity<JobStatusDto> getYoutubeJobStatus(@PathVariable Long jobId) {
+    public ResponseEntity<JobStatusDto> getYoutubeJobStatus(@DecodeId Long jobId) {
         return ResponseEntity.ok(recipeExtractionService.getJobStatus(jobId));
     }
 
