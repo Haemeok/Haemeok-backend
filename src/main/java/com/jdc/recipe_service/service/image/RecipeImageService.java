@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,8 @@ public class RecipeImageService {
     private final S3Util s3Util;
     private final AsyncImageService asyncImageService;
     private final RecipeRepository recipeRepository;
+
+    private final TransactionTemplate transactionTemplate;
 
     @Transactional(readOnly = true)
     public List<RecipeImage> getImagesByRecipeId(Long recipeId) {
@@ -131,26 +134,58 @@ public class RecipeImageService {
         recipeImageRepository.deleteByFileKey(fileKey);
     }
 
-    @Transactional
+
+    /**
+     * [수정됨] 이미지 재생성 및 비동기 DB 업데이트
+     * - 외부 메서드에는 @Transactional을 뺍니다. (AI 생성 10초 동안 DB 커넥션을 물고 있을 필요가 없음)
+     */
     public void regenerateAndApplyImage(Long recipeId) {
-        Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+        RecipeCreateRequestDto recipeDto = transactionTemplate.execute(status -> {
+            Recipe recipe = recipeRepository.findById(recipeId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+            return RecipeMapper.toCreateDto(recipe);
+        });
 
-        RecipeCreateRequestDto recipeDto = RecipeMapper.toCreateDto(recipe);
+        Long userId = transactionTemplate.execute(status -> {
+            Recipe recipe = recipeRepository.findById(recipeId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+            return recipe.getUser().getId();
+        });
 
-        log.info("🎨 [Service] 레시피 ID {} 이미지 재생성 프로세스 시작", recipeId);
+        log.info("🎨 [Service] 레시피 ID {} 이미지 재생성 요청 (비동기)", recipeId);
 
-        asyncImageService.generateImageFromDto(recipeDto, recipe.getUser().getId())
+        asyncImageService.generateImageFromDto(recipeDto, userId)
                 .thenAccept(generatedImageUrl -> {
                     if (generatedImageUrl != null && !generatedImageUrl.contains("no_image")) {
                         String s3Key = extractS3Key(generatedImageUrl);
+                        log.info("✅ 이미지 생성 완료. DB 업데이트 시도: {}", s3Key);
 
-                        recipe.updateImageKey(s3Key);
-                        recipe.updateImageStatus(RecipeImageStatus.READY);
-                        recipeRepository.save(recipe);
-                        log.info("✅ 레시피 {} 이미지 업데이트 완료: {}", recipeId, s3Key);
+                        updateImageInfoInTransaction(recipeId, s3Key);
+                    } else {
+                        log.warn("⚠️ 생성 결과가 없거나 실패하여 업데이트를 중단합니다.");
                     }
+                })
+                .exceptionally(ex -> {
+                    log.error("❌ 이미지 재생성 중 에러 발생: {}", ex.getMessage());
+                    return null;
                 });
+    }
+
+    /**
+     * [수정됨] TransactionTemplate을 사용하여 확실하게 커밋
+     */
+    private void updateImageInfoInTransaction(Long recipeId, String s3Key) {
+        transactionTemplate.execute(status -> {
+            Recipe recipe = recipeRepository.findById(recipeId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+
+            recipe.updateImageKey(s3Key);
+            recipe.updateImageStatus(RecipeImageStatus.READY);
+
+            recipeRepository.save(recipe);
+            return null;
+        });
+        log.info("✅ 레시피 {} DB 업데이트 및 커밋 완료", recipeId);
     }
 
     /**
