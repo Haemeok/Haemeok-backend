@@ -751,8 +751,8 @@ public class RecipeExtractionService {
                 .jobId(job.getId())
                 .status(job.getStatus())
                 .resultRecipeId(recipeId)
-                .errorCode(code)
-                .errorMessage(msg)
+                .code(code)
+                .message(msg)
                 .progress(job.getProgress())
                 .build();
     }

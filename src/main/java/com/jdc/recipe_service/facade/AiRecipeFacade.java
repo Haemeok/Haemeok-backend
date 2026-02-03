@@ -309,7 +309,7 @@ public class AiRecipeFacade {
                 .jobId(job.getId())
                 .status(job.getStatus())
                 .resultRecipeId(recipeId)
-                .errorMessage(job.getErrorMessage())
+                .message(job.getErrorMessage())
                 .progress(job.getProgress())
                 .build();
     }

@@ -3,7 +3,6 @@ package com.jdc.recipe_service.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
-import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
@@ -12,8 +11,6 @@ import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
 import com.jdc.recipe_service.domain.type.JobStatus;
 import com.jdc.recipe_service.domain.type.QuotaType;
-import com.jdc.recipe_service.exception.CustomException;
-import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import com.jdc.recipe_service.service.image.AsyncImageService;
@@ -60,7 +57,6 @@ class RecipeExtractionServiceTest {
     private RecipeExtractionService service;
     private ExecutorService testExecutor;
 
-    // 더미 데이터 (텍스트 모드 활성화용)
     private static final String SUFFICIENT_TEXT = "recipe ingredient salt sugar water boil fry cook step 1 2 3 minutes";
 
     @BeforeEach
@@ -235,8 +231,8 @@ class RecipeExtractionServiceTest {
 
         JobStatusDto statusDto = service.getJobStatus(jobId);
 
-        assertEquals("901", statusDto.getErrorCode());
-        assertEquals("레시피 영상이 아닙니다.", statusDto.getErrorMessage());
+        assertEquals("901", statusDto.getCode());
+        assertEquals("레시피 영상이 아닙니다.", statusDto.getMessage());
         assertEquals(JobStatus.FAILED, statusDto.getStatus());
     }
 
