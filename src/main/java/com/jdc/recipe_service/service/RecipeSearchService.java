@@ -204,10 +204,12 @@ public class RecipeSearchService {
         List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
 
         List<Long> stepIds = steps.stream().map(RecipeStep::getId).toList();
-        Map<Long, List<RecipeStepIngredient>> ingredientsMap = recipeStepIngredientRepository
-                .findByStepIdIn(stepIds)
-                .stream()
-                .collect(Collectors.groupingBy(rsi -> rsi.getStep().getId()));
+        Map<Long, List<RecipeStepIngredient>> ingredientsMap =
+                stepIds.isEmpty()
+                        ? Map.of()
+                        : recipeStepIngredientRepository.findByStepIdIn(stepIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(rsi -> rsi.getStep().getId()));
 
         List<RecipeStepDto> stepsDto = steps.stream()
                 .map(step -> {
@@ -233,7 +235,9 @@ public class RecipeSearchService {
                 .sodium(basic.getSodium())
                 .build();
 
-        List<String> tools = new ArrayList<>(basic.getCookingTools());
+        List<String> tools = basic.getCookingTools() != null
+                ? new ArrayList<>(basic.getCookingTools())
+                : List.of();
 
         RecipeDetailDto.FineDiningInfo fineDiningInfo = null;
 
@@ -260,7 +264,9 @@ public class RecipeSearchService {
         return RecipeDetailDto.builder()
                 .id(recipeId)
                 .title(basic.getTitle())
-                .dishType(basic.getDishType().getDisplayName())
+                .dishType(basic.getDishType() != null
+                        ? basic.getDishType().getDisplayName()
+                        : null)
                 .description(basic.getDescription())
                 .cookingTime(basic.getCookingTime())
                 .ratingInfo(ratingInfo)

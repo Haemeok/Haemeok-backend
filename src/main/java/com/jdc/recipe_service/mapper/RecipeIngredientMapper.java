@@ -96,13 +96,13 @@ public class RecipeIngredientMapper {
         }
 
         return RecipeIngredientDto.builder()
-                .id(isCustom ? null : ingredient.getId())
-                .name(isCustom ? entity.getCustomName() : ingredient.getName())
+                .id(ingredient != null ? ingredient.getId() : null)
+                .name(ingredient != null ? ingredient.getName() : entity.getCustomName())
                 .quantity(formatQuantityForDisplay(entity.getQuantity()))
-                .unit(isCustom ? entity.getCustomUnit() : entity.getUnit())
+                .unit(ingredient != null ? entity.getUnit() : entity.getCustomUnit())
                 .price(totalPrice)
                 .calories(totalCalories)
-                .coupangLink(isCustom ? null : ingredient.getCoupangLink())
+                .coupangLink(ingredient != null ? ingredient.getCoupangLink() : null)
                 .build();
     }
 
