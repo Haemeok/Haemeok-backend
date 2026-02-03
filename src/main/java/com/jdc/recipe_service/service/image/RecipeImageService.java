@@ -182,7 +182,7 @@ public class RecipeImageService {
             recipe.updateImageKey(s3Key);
             recipe.updateImageStatus(RecipeImageStatus.READY);
 
-            recipeRepository.save(recipe);
+            recipeRepository.saveAndFlush(recipe);
             return null;
         });
         log.info("✅ 레시피 {} DB 업데이트 및 커밋 완료", recipeId);
