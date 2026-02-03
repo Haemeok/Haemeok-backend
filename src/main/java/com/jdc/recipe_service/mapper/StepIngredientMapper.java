@@ -41,11 +41,21 @@ public class StepIngredientMapper {
 
 
     public static RecipeStepIngredientDto toDto(RecipeStepIngredient entity) {
+        if (entity == null) return null;
+
         boolean isCustom = (entity.getIngredient() == null);
 
+        Long ingredientId = (!isCustom && entity.getIngredient() != null)
+                ? entity.getIngredient().getId()
+                : null;
+
+        String name = isCustom
+                ? entity.getCustomName()
+                : (entity.getIngredient() != null ? entity.getIngredient().getName() : null);
+
         return RecipeStepIngredientDto.builder()
-                .ingredientId(isCustom ? null : entity.getIngredient().getId())
-                .name(isCustom ? entity.getCustomName() : entity.getIngredient().getName())
+                .ingredientId(ingredientId)
+                .name(name)
                 .quantity(entity.getQuantity())
                 .unit(isCustom ? entity.getCustomUnit() : entity.getUnit())
                 .build();
