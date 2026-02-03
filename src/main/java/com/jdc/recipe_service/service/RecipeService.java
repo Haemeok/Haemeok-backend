@@ -104,6 +104,7 @@ public class RecipeService {
                 throw new CustomException(ErrorCode.USER_RECIPE_IMAGE_REQUIRED);
             }
             recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
+            recipe.updateImageStatus(RecipeImageStatus.PENDING);
         }
 
         recipeRepository.save(recipe);
@@ -442,6 +443,7 @@ public class RecipeService {
             } else {
                 recipe.updateIsPrivate(false);
             }*/
+            recipe.updateImageStatus(RecipeImageStatus.READY);
             recipe.updateIsPrivate(false);
         }
 
