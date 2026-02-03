@@ -671,8 +671,9 @@ public class RecipeExtractionService {
 
             completeJobInTransaction(jobId, resultRecipeId);
 
+            addFavoriteToUser(userId, resultRecipeId);
+
             try {
-                addFavoriteToUser(userId, resultRecipeId);
                 recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
             } catch (Exception e) {
                 log.warn("⚠️ 후속 처리 실패: {}", e.getMessage());
@@ -1112,9 +1113,30 @@ public class RecipeExtractionService {
     }
 
     private void addFavoriteToUser(Long userId, Long recipeId) {
-        transactionTemplate.executeWithoutResult(status -> {
-            recipeFavoriteService.addFavoriteIfNotExists(userId, recipeId);
-        });
+        int maxRetries = 5;
+
+        for (int i = 1; i <= maxRetries; i++) {
+            try {
+                transactionTemplate.executeWithoutResult(status -> {
+                    recipeFavoriteService.addFavoriteIfNotExists(userId, recipeId);
+                });
+                return;
+
+            } catch (Exception e) {
+                log.warn("⚠️ 즐겨찾기 추가 충돌(시도 {}/{}): UserID={}, RecipeID={}, Msg={}",
+                        i, maxRetries, userId, recipeId, e.getMessage());
+
+                if (i == maxRetries) {
+                    log.error("❌ 즐겨찾기 추가 최종 실패: DB 경합이 너무 심함.");
+                } else {
+                    try {
+                        Thread.sleep(100 + (i * 50));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        }
     }
 
     private PresignedUrlResponse saveRecipeTransactional(RecipeCreateRequestDto recipeDto, Long userId, Long extractorId) {

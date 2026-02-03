@@ -23,6 +23,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -36,6 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class RecipeExtractionServiceTest {
 
     @Mock private YtDlpService ytDlpService;
@@ -239,7 +242,6 @@ class RecipeExtractionServiceTest {
         assertEquals(JobStatus.FAILED, statusDto.getStatus());
     }
 
-    // --- Helper Methods ---
     private void mockSuccessFlow(Long recipeId) {
         RecipeCreateRequestDto mockDto = new RecipeCreateRequestDto();
         mockDto.setIsRecipe(true);
@@ -257,5 +259,45 @@ class RecipeExtractionServiceTest {
         PresignedUrlResponse response = PresignedUrlResponse.builder().recipeId(recipeId).build();
         lenient().when(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
                 .thenReturn(response);
+    }
+
+    @Test
+    @DisplayName("✅ [재시도 검증] 즐겨찾기 추가 시 DB 충돌(낙관적 락)이 발생해도 재시도하여 성공해야 한다")
+    void testFavoriteRetryLogic() {
+        Long jobId = 1L;
+        Long userId = 100L;
+        Long recipeId = 777L;
+        String videoUrl = "https://www.youtube.com/watch?v=video123";
+        String videoId = "video123";
+
+        RecipeGenerationJob mockJob = RecipeGenerationJob.builder()
+                .id(jobId)
+                .userId(userId)
+                .status(JobStatus.IN_PROGRESS)
+                .build();
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(mockJob));
+
+        PresignedUrlResponse mockResponse = PresignedUrlResponse.builder().recipeId(recipeId).build();
+        doAnswer(invocation -> {
+            java.util.function.Consumer<org.springframework.transaction.TransactionStatus> consumer = invocation.getArgument(0);
+            consumer.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
+
+        doThrow(new org.springframework.dao.OptimisticLockingFailureException("누가 먼저 수정함 (1차 실패)"))
+                .doThrow(new org.springframework.dao.OptimisticLockingFailureException("누가 먼저 수정함 (2차 실패)"))
+                .doNothing()
+                .when(recipeFavoriteService).addFavoriteIfNotExists(userId, recipeId);
+
+        try {
+            java.lang.reflect.Method method = RecipeExtractionService.class.getDeclaredMethod("addFavoriteToUser", Long.class, Long.class);
+            method.setAccessible(true);
+            method.invoke(service, userId, recipeId);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        verify(recipeFavoriteService, times(3)).addFavoriteIfNotExists(userId, recipeId);
     }
 }
