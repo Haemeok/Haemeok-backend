@@ -16,7 +16,7 @@ public class JobStatusDto {
     @JsonSerialize(using = HashIdConfig.HashIdSerializer.class)
     private Long resultRecipeId;
 
-    private String errorCode;
-    private String errorMessage;
+    private String code;
+    private String message;
     private int progress;
 }
