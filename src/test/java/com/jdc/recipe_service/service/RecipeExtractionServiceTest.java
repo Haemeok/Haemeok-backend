@@ -130,6 +130,9 @@ class RecipeExtractionServiceTest {
         verify(ytDlpService, times(1)).getVideoDataFull(anyString());
         verify(jobA).setResultRecipeId(expectedRecipeId);
         verify(jobB).setResultRecipeId(expectedRecipeId);
+
+        verify(recipeFavoriteService, times(1)).addFavoriteIfNotExists(userA, expectedRecipeId);
+        verify(recipeFavoriteService, times(1)).addFavoriteIfNotExists(userB, expectedRecipeId);
     }
 
     @Test

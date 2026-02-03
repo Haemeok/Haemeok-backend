@@ -661,7 +661,7 @@ public class RecipeExtractionService {
                         return response.getRecipeId();
                     } finally {
                         processingTasks.remove(key);
-                        passengersMap.remove(key); // 운행 종료 후 명단 파기
+                        passengersMap.remove(key);
                         log.info("🏁 [종점 도착] 작업 완료. 맵 정리: {}", key);
                     }
                 }, extractionExecutor);
@@ -669,8 +669,11 @@ public class RecipeExtractionService {
 
             Long resultRecipeId = sharedTask.join();
 
-            job.setResultRecipeId(resultRecipeId);
-            updateProgress(job, JobStatus.COMPLETED, 100);
+            RecipeGenerationJob freshJob = jobRepository.findById(jobId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+            freshJob.setResultRecipeId(resultRecipeId);
+            updateProgress(freshJob, JobStatus.COMPLETED, 100);
 
             try {
                 addFavoriteToUser(userId, resultRecipeId);
@@ -774,8 +777,7 @@ public class RecipeExtractionService {
             throw new CustomException(ErrorCode.INVALID_URL_FORMAT, "유튜브 영상 ID를 추출할 수 없습니다.");
         }
 
-        boolean shorts = isShortsUrl(videoUrl);
-        String storageUrl = buildStorageYoutubeUrl(videoId, shorts);
+        String storageUrl = buildStorageYoutubeUrl(videoId, false);
         String watchUrl  = buildStorageYoutubeUrl(videoId, false);
         String shortsUrl = buildStorageYoutubeUrl(videoId, true);
 
