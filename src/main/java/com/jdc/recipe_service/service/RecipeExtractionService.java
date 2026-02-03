@@ -669,11 +669,7 @@ public class RecipeExtractionService {
 
             Long resultRecipeId = sharedTask.join();
 
-            RecipeGenerationJob freshJob = jobRepository.findById(jobId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
-
-            freshJob.setResultRecipeId(resultRecipeId);
-            updateProgress(freshJob, JobStatus.COMPLETED, 100);
+            completeJobInTransaction(jobId, resultRecipeId);
 
             try {
                 addFavoriteToUser(userId, resultRecipeId);
@@ -1388,6 +1384,18 @@ public class RecipeExtractionService {
                 .count();
 
         return (double) badQuantityCount / ings.size() > 0.5;
+    }
+
+    private void completeJobInTransaction(Long jobId, Long resultRecipeId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            RecipeGenerationJob job = jobRepository.findById(jobId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+            job.setResultRecipeId(resultRecipeId);
+            job.updateProgress(JobStatus.COMPLETED, 100);
+
+            jobRepository.saveAndFlush(job);
+        });
     }
 }
 
