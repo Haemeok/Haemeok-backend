@@ -392,5 +392,5 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     void updateImageInfo(@Param("id") Long id, @Param("imageKey") String imageKey,
                          @Param("status") RecipeImageStatus status, @Param("isPrivate") Boolean isPrivate);
 
-    Optional<Recipe> findByYoutubeUrl(String youtubeUrl);
+    Optional<Recipe> findFirstByYoutubeUrl(String youtubeUrl);
 }

@@ -341,8 +341,8 @@ public class RecipeExtractionService {
         String watchUrl  = buildStorageYoutubeUrl(videoId, false);
         String shortsUrl = buildStorageYoutubeUrl(videoId, true);
 
-        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(watchUrl)
-                .or(() -> recipeRepository.findByYoutubeUrl(shortsUrl));
+        Optional<Recipe> existingRecipe = recipeRepository.findFirstByYoutubeUrl(watchUrl)
+                .or(() -> recipeRepository.findFirstByYoutubeUrl(shortsUrl));
 
         if (existingRecipe.isPresent()) {
             return handleExistingRecipe(existingRecipe.get()).join();
@@ -386,7 +386,7 @@ public class RecipeExtractionService {
             videoDuration = videoData.duration();
 
             String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
-            Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
+            Optional<Recipe> existingRecipeCanonical = recipeRepository.findFirstByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
                 dailyQuotaService.refundIfPolicyAllows(userId, QuotaType.YOUTUBE_EXTRACTION);
                 return handleExistingRecipe(existingRecipeCanonical.get()).join();
@@ -534,9 +534,9 @@ public class RecipeExtractionService {
         if (videoId == null) throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
 
         String canonicalUrl = convertToCanonical(videoId);
-        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(canonicalUrl)
-                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, true)))
-                .or(() -> recipeRepository.findByYoutubeUrl(buildStorageYoutubeUrl(videoId, false)));
+        Optional<Recipe> existingRecipe = recipeRepository.findFirstByYoutubeUrl(canonicalUrl)
+                .or(() -> recipeRepository.findFirstByYoutubeUrl(buildStorageYoutubeUrl(videoId, true)))
+                .or(() -> recipeRepository.findFirstByYoutubeUrl(buildStorageYoutubeUrl(videoId, false)));
 
         if (existingRecipe.isPresent()) {
             log.info("♻️ 이미 존재하는 레시피 발견. 생성 건너뜀. ID={}", existingRecipe.get().getId());
@@ -778,8 +778,8 @@ public class RecipeExtractionService {
         String watchUrl  = buildStorageYoutubeUrl(videoId, false);
         String shortsUrl = buildStorageYoutubeUrl(videoId, true);
 
-        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(watchUrl)
-                .or(() -> recipeRepository.findByYoutubeUrl(shortsUrl));
+        Optional<Recipe> existingRecipe = recipeRepository.findFirstByYoutubeUrl(watchUrl)
+                .or(() -> recipeRepository.findFirstByYoutubeUrl(shortsUrl));
 
         if (existingRecipe.isPresent()) {
             log.info("♻️ [V2] 기존 레시피 발견 (URL). 쿼터 환불 및 즉시 완료.");
@@ -819,7 +819,7 @@ public class RecipeExtractionService {
 
             String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
 
-            Optional<Recipe> existingRecipeCanonical = recipeRepository.findByYoutubeUrl(canonicalUrl);
+            Optional<Recipe> existingRecipeCanonical = recipeRepository.findFirstByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
                 log.info("♻️ [V2] 기존 레시피 발견 (Canonical). 쿼터 환불 및 즉시 완료.");
                 dailyQuotaService.refund(userId, QuotaType.YOUTUBE_EXTRACTION, true);
@@ -1098,7 +1098,7 @@ public class RecipeExtractionService {
         if (videoId == null) throw new CustomException(ErrorCode.INVALID_URL_FORMAT);
         String canonicalUrl = convertToCanonical(videoId);
 
-        Optional<Recipe> existingRecipe = recipeRepository.findByYoutubeUrl(canonicalUrl);
+        Optional<Recipe> existingRecipe = recipeRepository.findFirstByYoutubeUrl(canonicalUrl);
 
         return existingRecipe.map(Recipe::getId).orElse(null);
     }
