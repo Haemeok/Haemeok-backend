@@ -29,7 +29,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.*;
 
 @Service
@@ -270,6 +269,7 @@ public class RecipeIndexingService {
         var filteredIngredients = Optional.ofNullable(recipe.getIngredients())
                 .orElse(List.of())
                 .stream()
+                .filter(Objects::nonNull)
                 .filter(ri -> ri.getIngredient() != null)
                 .filter(ri -> !PANTRY_IDS.contains(ri.getIngredient().getId()))
                 .toList();
@@ -358,6 +358,9 @@ public class RecipeIndexingService {
                     Thread.currentThread().interrupt();
                     return;
                 }
+            } catch (Exception e) {
+                log.error("인덱싱 중 예상치 못한 오류 발생 ID: {}", recipeId, e);
+                return;
             }
         }
     }
