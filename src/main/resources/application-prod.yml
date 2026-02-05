@@ -154,3 +154,9 @@ apple:
   team-id: ${APPLE_TEAM_ID}
   key-id: ${APPLE_KEY_ID}
   private-key: ${APPLE_PRIVATE_KEY}
+
+coupang:
+  api:
+    access-key: ${COUPANG_ACCESS_KEY}
+    secret-key: ${COUPANG_SECRET_KEY}
+    sub-id: "recipe_app_batch_prod"

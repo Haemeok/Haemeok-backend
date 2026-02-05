@@ -85,6 +85,8 @@ jobs:
           APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
           GEMINI_CREDENTIALS: ${{ secrets.GEMINI_CREDENTIALS }}
           APP_TEST_LOGIN_ENABLED: ${{ secrets.APP_TEST_LOGIN_ENABLED }}
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
