@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.repository;
 
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -29,4 +30,26 @@ public interface RecipeIngredientRepository extends JpaRepository<RecipeIngredie
             "WHERE ri.ingredient IS NOT NULL " +
             "GROUP BY ri.ingredient.id")
     List<Object[]> countIngredientsUsage();
+
+    @Query("SELECT ri FROM RecipeIngredient ri " +
+            "WHERE ri.ingredient IS NULL " +
+            "AND ri.customLink IS NULL")
+    List<RecipeIngredient> findCustomIngredientsNeedLink(Pageable pageable);
+
+    @Query(value = "SELECT DISTINCT r.custom_name FROM recipe_ingredients r " +
+            "WHERE r.ingredient_id IS NULL " +
+            "AND r.custom_link IS NULL " +
+            "AND r.custom_name IS NOT NULL " +
+            "AND r.custom_name != '' " +
+            "LIMIT 30", nativeQuery = true)
+    List<String> findDistinctNamesNeedLink();
+
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query("UPDATE RecipeIngredient ri " +
+            "SET ri.customLink = :link " +
+            "WHERE ri.customName = :name " +
+            "AND ri.customLink IS NULL " +
+            "AND ri.ingredient IS NULL")
+    int updateLinkByCustomName(@Param("name") String name, @Param("link") String link);
 }

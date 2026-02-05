@@ -42,7 +42,7 @@ public class Ingredient {
     @Column(name = "english_name", length = 100)
     private String englishName;
 
-    @Column(name = "coupang_link", length = 1024, nullable = true)
+    @Column(name = "coupang_link", length = 2048, nullable = true)
     private String coupangLink;
 
     @Column(name = "coupang_link_updated_at", nullable = true)
@@ -72,8 +72,21 @@ public class Ingredient {
     @Builder.Default
     private Long usageCount = 0L;
 
+    @Column(name = "is_pantry")
+    @Builder.Default
+    private boolean isPantry = false;
+
     public void updateUsageCount(Long count) {
         this.usageCount = count;
+    }
+
+    public void updateCoupangLink(String link) {
+        this.coupangLink = link;
+        this.coupangLinkUpdatedAt = LocalDateTime.now();
+    }
+
+    public void markAsPantry() {
+        this.isPantry = true;
     }
 
 }
