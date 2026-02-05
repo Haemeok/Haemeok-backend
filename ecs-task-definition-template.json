@@ -52,7 +52,9 @@
         { "name": "APPLE_PRIVATE_KEY", "value": "${APPLE_PRIVATE_KEY}" },
         { "name": "APPLE_CLIENT_ID", "value": "${APPLE_CLIENT_ID}" },
         { "name": "GEMINI_CREDENTIALS", "value": "${GEMINI_CREDENTIALS}" },
-        { "name": "APP_TEST_LOGIN_ENABLED", "value": "${APP_TEST_LOGIN_ENABLED}" }
+        { "name": "APP_TEST_LOGIN_ENABLED", "value": "${APP_TEST_LOGIN_ENABLED}" },
+        { "name": "COUPANG_ACCESS_KEY", "value": "${COUPANG_ACCESS_KEY}" },
+        { "name": "COUPANG_SECRET_KEY", "value": "${COUPANG_SECRET_KEY}" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

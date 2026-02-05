@@ -105,6 +105,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
 	implementation 'org.hashids:hashids:1.0.3'
+
+	implementation 'commons-codec:commons-codec:1.16.1'
 }
 
 def querydslDir = layout.buildDirectory.dir("generated/querydsl").get().asFile
