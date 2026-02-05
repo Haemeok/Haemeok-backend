@@ -58,6 +58,18 @@ public class RecipeService {
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
     private static final int DEFAULT_MARGIN_PERCENT = 30;
 
+    private int calculateRealIngredientCount(List<RecipeIngredient> ingredients) {
+        if (ingredients == null || ingredients.isEmpty()) return 0;
+
+        return (int) ingredients.stream()
+                .filter(ri -> {
+                    if (ri.getIngredient() == null) return true;
+
+                    return !ri.getIngredient().isPantry();
+                })
+                .count();
+    }
+
     @Transactional
     public PresignedUrlResponse createRecipeAndGenerateUrls(
             RecipeWithImageUploadRequest req,
@@ -118,6 +130,10 @@ public class RecipeService {
         recipe.updateTotalIngredientCost(totalCost);
 
         List<RecipeIngredient> savedIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+
+        int realCount = calculateRealIngredientCount(savedIngredients);
+        recipe.updateTotalIngredientCount(realCount);
+
         calculateAndSetTotalNutrition(recipe, savedIngredients);
 
         int marketPrice = calculateMarketPrice(dto, totalCost);
@@ -282,6 +298,10 @@ public class RecipeService {
             recipe.updateTotalIngredientCost(newTotalCost);
 
             List<RecipeIngredient> currentIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+
+            int realCount = calculateRealIngredientCount(currentIngredients);
+            recipe.updateTotalIngredientCount(realCount);
+
             calculateAndSetTotalNutrition(recipe, currentIngredients);
 
             int newMarketPrice = PricingUtil.applyMargin(newTotalCost, DEFAULT_MARGIN_PERCENT);
@@ -383,6 +403,9 @@ public class RecipeService {
         List<RecipeIngredient> ingredients = recipeIngredientRepository.findByRecipeId(recipeId);
 
         calculateAndSetTotalNutrition(recipe, ingredients);
+
+        int realCount = calculateRealIngredientCount(ingredients);
+        recipe.updateTotalIngredientCount(realCount);
 
         recipeRepository.save(recipe);
 
