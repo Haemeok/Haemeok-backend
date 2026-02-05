@@ -189,6 +189,10 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "ai_analysis_status", length = 20)
     private String aiAnalysisStatus;
 
+    @Column(name = "total_ingredient_count")
+    @Builder.Default
+    private Integer totalIngredientCount = 0;
+
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice, String cookingTips,
@@ -317,6 +321,10 @@ public class Recipe extends BaseTimeEntity {
 
     public void setFineDiningDetails(FineDiningDetails fineDiningDetails) {
         this.fineDiningDetails = fineDiningDetails;
+    }
+
+    public void updateTotalIngredientCount(Integer count) {
+        this.totalIngredientCount = count;
     }
 
     public void setTags(Set<RecipeTag> tags) {

@@ -76,6 +76,9 @@ public class RecipeIngredient {
     @Builder.Default
     private BigDecimal customSodium = BigDecimal.ZERO;
 
+    @Column(name = "custom_link", length = 2048)
+    private String customLink;
+
     public void updateWithMapping(String name, String quantity, String unit,
                                   Ingredient master, Integer calculatedPrice,
                                   AdminIngredientUpdateDto dto) {
@@ -107,5 +110,9 @@ public class RecipeIngredient {
             this.customSugar = dto.getSugar() != null ? dto.getSugar() : BigDecimal.ZERO;
             this.customSodium = dto.getSodium() != null ? dto.getSodium() : BigDecimal.ZERO;
         }
+    }
+
+    public void updateCustomLink(String link) {
+        this.customLink = link;
     }
 }
