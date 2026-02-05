@@ -70,10 +70,16 @@ public class RecipeIngredientMapper {
         return builder.build();
     }
 
-
     public static RecipeIngredientDto toDto(RecipeIngredient entity) {
+        if (entity == null) return null;
+
         Ingredient ingredient = entity.getIngredient();
+
         boolean isCustom = (ingredient == null);
+
+        if (isCustom && entity.getCustomName() == null) {
+            return null;
+        }
 
         int totalPrice = Optional.ofNullable(entity.getPrice()).orElse(0);
 
@@ -90,7 +96,7 @@ public class RecipeIngredientMapper {
                 totalCalories = entity.getCustomCalorie().doubleValue();
             }
         } else {
-            if (ingredient != null && ingredient.getCalorie() != null && quantityValue != null) {
+            if (ingredient.getCalorie() != null && quantityValue != null) {
                 totalCalories = ingredient.getCalorie().doubleValue() * quantityValue;
             }
         }
@@ -106,10 +112,14 @@ public class RecipeIngredientMapper {
                 .build();
     }
 
-
-
     public static List<RecipeIngredientDto> toDtoList(List<RecipeIngredient> entities) {
-        return entities.stream().map(RecipeIngredientMapper::toDto).toList();
+        if (entities == null) {
+            return List.of();
+        }
+        return entities.stream()
+                .map(RecipeIngredientMapper::toDto)
+                .filter(dto -> dto != null)
+                .toList();
     }
 
     private static double parseQuantity(String quantityStr) {
