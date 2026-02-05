@@ -11,11 +11,10 @@ import com.jdc.recipe_service.domain.type.TagType;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.CaseBuilder;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.core.types.dsl.*;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.querydsl.core.types.dsl.NumberExpression;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -28,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+
 
 @RequiredArgsConstructor
 public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
@@ -536,39 +536,32 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     }
 
     @Override
-    public Page<Recipe> findByFridgeFallback(
-            List<Long> fridgeIds,
+    public Page<Recipe> searchRecipesByFridgeIngredients(
+            List<Long> userIngredientIds,
             List<RecipeType> types,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
+
         QRecipe recipe = QRecipe.recipe;
-        QRecipeIngredient ri = QRecipeIngredient.recipeIngredient;
-        QIngredient ing = QIngredient.ingredient;
-        QUser user = QUser.user;
+        QRecipeIngredient recipeIngredient = QRecipeIngredient.recipeIngredient;
+        QIngredient ingredient = QIngredient.ingredient;
 
-        BooleanBuilder typeCondition = filterByTypes(types);
-        Set<Long> pantryIds = com.jdc.recipe_service.opensearch.service.RecipeIndexingService.PANTRY_IDS;
+        NumberExpression<Double> matchRate = recipeIngredient.count().doubleValue()
+                .divide(recipe.totalIngredientCount.coalesce(1).doubleValue());
 
-        NumberExpression<Long> totalEssentialCount = ri.count();
-        NumberExpression<Long> myFridgeCount = new CaseBuilder()
-                .when(ing.id.in(fridgeIds)).then(1L)
-                .otherwise((Long) null)
-                .count();
-
-        var query = queryFactory
-                .select(recipe)
-                .from(recipe)
-                .join(recipe.user, user).fetchJoin()
-                .join(recipe.ingredients, ri)
-                .join(ri.ingredient, ing)
+        JPAQuery<Recipe> query = queryFactory
+                .selectFrom(recipe)
+                .join(recipe.ingredients, recipeIngredient)
+                .join(recipeIngredient.ingredient, ingredient)
                 .where(
+                        ingredient.id.in(userIngredientIds).and(ingredient.isPantry.isFalse()),
                         recipe.isPrivate.isFalse(),
-                        typeCondition,
-                        ing.id.notIn(pantryIds)
+                        typeFilter(types)
                 )
                 .groupBy(recipe.id)
-                .having(totalEssentialCount.eq(myFridgeCount))
-                .orderBy(getFallbackOrderSpecifiers(pageable));
+                .having(recipeIngredient.count().goe(1));
+
+        query.orderBy(matchRate.desc());
+        applySorting(query, pageable);
 
         List<Recipe> content = query
                 .offset(pageable.getOffset())
@@ -578,19 +571,20 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         long total = queryFactory
                 .select(recipe.id)
                 .from(recipe)
-                .join(recipe.ingredients, ri)
-                .join(ri.ingredient, ing)
+                .join(recipe.ingredients, recipeIngredient)
+                .join(recipeIngredient.ingredient, ingredient)
                 .where(
+                        ingredient.id.in(userIngredientIds).and(ingredient.isPantry.isFalse()),
                         recipe.isPrivate.isFalse(),
-                        typeCondition,
-                        ing.id.notIn(pantryIds)
+                        typeFilter(types)
                 )
                 .groupBy(recipe.id)
-                .having(totalEssentialCount.eq(myFridgeCount))
+                .having(recipeIngredient.count().goe(1))
                 .fetch().size();
 
         return new PageImpl<>(content, pageable, total);
     }
+
 
     private OrderSpecifier<?>[] getFallbackOrderSpecifiers(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
@@ -726,5 +720,38 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
             return path.goe(BigDecimal.valueOf(minVal));
         }
         return path.between(BigDecimal.valueOf(minVal), BigDecimal.valueOf(max));
+    }
+
+    private void applySorting(JPAQuery<Recipe> query, Pageable pageable) {
+        for (Sort.Order order : pageable.getSort()) {
+            PathBuilder<Recipe> pathBuilder = new PathBuilder<>(Recipe.class, "recipe");
+            query.orderBy(new OrderSpecifier(
+                    order.isAscending() ? Order.ASC : Order.DESC,
+                    pathBuilder.get(order.getProperty())
+            ));
+        }
+    }
+
+    private BooleanBuilder typeFilter(List<RecipeType> types) {
+        if (types == null || types.isEmpty()) {
+            return null;
+        }
+        QRecipe recipe = QRecipe.recipe;
+        BooleanBuilder builder = new BooleanBuilder();
+        for (RecipeType type : types) {
+            switch (type) {
+                case AI:
+                    builder.or(recipe.isAiGenerated.isTrue());
+                    break;
+                case YOUTUBE:
+                    builder.or(recipe.youtubeUrl.isNotNull().and(recipe.youtubeUrl.ne("")));
+                    break;
+                case USER:
+                    builder.or(recipe.isAiGenerated.isFalse()
+                            .and(recipe.youtubeUrl.isNull().or(recipe.youtubeUrl.eq(""))));
+                    break;
+            }
+        }
+        return builder;
     }
 }
