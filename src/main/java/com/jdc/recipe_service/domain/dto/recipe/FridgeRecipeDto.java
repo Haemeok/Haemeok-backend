@@ -1,4 +1,4 @@
-package com.jdc.recipe_service.opensearch.dto;
+package com.jdc.recipe_service.domain.dto.recipe;
 
 import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -18,9 +18,21 @@ public class FridgeRecipeDto extends RecipeSimpleDto {
     @Schema(description = "내 냉장고 재료와 겹치는 재료 이름 리스트")
     private List<String> matchedIngredients;
 
+    @Schema(description = "부족한 재료 이름과 구매 링크 리스트")
+    private List<MissingIngredientDto> missingIngredients;
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class MissingIngredientDto {
+        private String name;
+        private String coupangLink;
+    }
+
     public FridgeRecipeDto(
             RecipeSimpleDto simple,
-            List<String> matchedIngredients) {
+            List<String> matchedIngredients,
+            List<MissingIngredientDto> missingIngredients) {
         super(
                 simple.getId(),
                 simple.getTitle(),
@@ -47,5 +59,6 @@ public class FridgeRecipeDto extends RecipeSimpleDto {
         );
         this.setYoutube(simple.isYoutube());
         this.matchedIngredients = matchedIngredients;
+        this.missingIngredients = missingIngredients;
     }
 }

@@ -31,8 +31,8 @@ public interface RecipeQueryRepository {
             Pageable pageable
     );
 
-    Page<Recipe> findByFridgeFallback(
-            List<Long> fridgeIds,
+    Page<Recipe> searchRecipesByFridgeIngredients(
+            List<Long> userIngredientIds,
             List<RecipeType> types,
             Pageable pageable
     );
