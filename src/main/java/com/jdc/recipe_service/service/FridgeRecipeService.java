@@ -13,9 +13,7 @@ import com.jdc.recipe_service.domain.dto.recipe.FridgeRecipeDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,12 +44,12 @@ public class FridgeRecipeService {
     }
 
     @Transactional(readOnly = true)
-    public Page<FridgeRecipeDto> searchByFridge(Long userId, Pageable pageable, List<RecipeType> types) {
+    public Slice<FridgeRecipeDto> searchByFridge(Long userId, Pageable pageable, List<RecipeType> types) {
 
         List<RefrigeratorItem> myItems = fridgeRepo.findAllByUserId(userId);
 
         if (myItems.isEmpty()) {
-            return Page.empty(pageable);
+            return new SliceImpl<>(List.of(), pageable, false);
         }
 
         Set<Long> myIngredientIds = myItems.stream()
@@ -66,15 +64,15 @@ public class FridgeRecipeService {
 
         List<Long> searchIds = new ArrayList<>(myIngredientIds);
 
-        Page<Recipe> recipePage = recipeRepository.searchRecipesByFridgeIngredients(
+        Slice<Recipe> recipeSlice = recipeRepository.searchRecipesByFridgeIngredients(
                 searchIds, types, pageable
         );
 
-        if (recipePage.isEmpty()) {
-            return Page.empty(pageable);
+        if (recipeSlice.isEmpty()) {
+            return new SliceImpl<>(List.of(), pageable, false);
         }
 
-        List<Long> recipeIds = recipePage.getContent().stream()
+        List<Long> recipeIds = recipeSlice.getContent().stream()
                 .map(Recipe::getId)
                 .toList();
 
@@ -82,11 +80,11 @@ public class FridgeRecipeService {
                 .map(like -> like.getRecipe().getId())
                 .collect(Collectors.toSet());
 
-        List<FridgeRecipeDto> dtos = recipePage.getContent().stream()
+        List<FridgeRecipeDto> dtos = recipeSlice.getContent().stream()
                 .map(recipe -> convertToDto(recipe, myIngredientIds, myIngredientNames, likedRecipeIds))
                 .toList();
 
-        return new PageImpl<>(dtos, pageable, recipePage.getTotalElements());
+        return new SliceImpl<>(dtos, pageable, recipeSlice.hasNext());
     }
 
     /**

@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.type.RecipeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 
 import java.time.LocalDateTime;
@@ -31,7 +32,7 @@ public interface RecipeQueryRepository {
             Pageable pageable
     );
 
-    Page<Recipe> searchRecipesByFridgeIngredients(
+    Slice<Recipe> searchRecipesByFridgeIngredients(
             List<Long> userIngredientIds,
             List<RecipeType> types,
             Pageable pageable
