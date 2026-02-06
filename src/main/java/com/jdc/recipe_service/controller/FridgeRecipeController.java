@@ -23,7 +23,7 @@ public class FridgeRecipeController {
     private final FridgeRecipeService service;
 
     @GetMapping
-    public ResponseEntity<Page<FridgeRecipeDto>> findByFridge(
+    public ResponseEntity<Slice<FridgeRecipeDto>> findByFridge(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable,
@@ -39,7 +39,7 @@ public class FridgeRecipeController {
 
         Long userId = userDetails.getUser().getId();
 
-        Page<FridgeRecipeDto> result =
+        Slice<FridgeRecipeDto> result =
                 service.searchByFridge(userId, pageable, filterTypes);
 
         return ResponseEntity.ok(result);

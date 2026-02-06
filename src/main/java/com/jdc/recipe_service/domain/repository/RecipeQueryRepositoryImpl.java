@@ -17,10 +17,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.core.types.dsl.NumberExpression;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -28,7 +25,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
-import static com.jdc.recipe_service.domain.entity.QFineDiningDetails.fineDiningDetails;
 
 
 @RequiredArgsConstructor
@@ -538,7 +534,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     }
 
     @Override
-    public Page<Recipe> searchRecipesByFridgeIngredients(
+    public Slice<Recipe> searchRecipesByFridgeIngredients(
             List<Long> userIngredientIds,
             List<RecipeType> types,
             Pageable pageable) {
@@ -547,6 +543,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipeIngredient recipeIngredient = QRecipeIngredient.recipeIngredient;
         QIngredient ingredient = QIngredient.ingredient;
         QUser user = QUser.user;
+        QFineDiningDetails fineDiningDetails = QFineDiningDetails.fineDiningDetails;
 
         NumberExpression<Double> matchRate = recipeIngredient.count().doubleValue()
                 .divide(recipe.totalIngredientCount.coalesce(1).doubleValue());
@@ -565,29 +562,26 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .groupBy(recipe.id)
                 .having(recipeIngredient.count().goe(1));
 
-        query.orderBy(matchRate.desc());
-        applySorting(query, pageable);
+        OrderSpecifier<?> secondarySort = getSecondarySort(pageable);
 
+        query.orderBy(
+                matchRate.desc(),
+                secondarySort
+        );
+
+        int pageSize = pageable.getPageSize();
         List<Recipe> content = query
                 .offset(pageable.getOffset())
-                .limit(pageable.getPageSize())
+                .limit(pageSize + 1)
                 .fetch();
 
-        long total = queryFactory
-                .select(recipe.id)
-                .from(recipe)
-                .join(recipe.ingredients, recipeIngredient)
-                .join(recipeIngredient.ingredient, ingredient)
-                .where(
-                        ingredient.id.in(userIngredientIds).and(ingredient.isPantry.isFalse()),
-                        recipe.isPrivate.isFalse(),
-                        typeFilter(types)
-                )
-                .groupBy(recipe.id)
-                .having(recipeIngredient.count().goe(1))
-                .fetch().size();
+        boolean hasNext = false;
+        if (content.size() > pageSize) {
+            content.remove(pageSize);
+            hasNext = true;
+        }
 
-        return new PageImpl<>(content, pageable, total);
+        return new SliceImpl<>(content, pageable, hasNext);
     }
 
 
@@ -758,5 +752,28 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
             }
         }
         return builder;
+    }
+
+    private OrderSpecifier<?> getSecondarySort(Pageable pageable) {
+        if (pageable.getSort().isEmpty()) {
+            return QRecipe.recipe.createdAt.desc();
+        }
+
+        for (Sort.Order order : pageable.getSort()) {
+            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+
+            switch (order.getProperty()) {
+                case "likeCount":
+                    return new OrderSpecifier<>(direction, QRecipe.recipe.likeCount);
+                case "avgRating":
+                    return new OrderSpecifier<>(direction, QRecipe.recipe.avgRating);
+                case "favoriteCount":
+                    return new OrderSpecifier<>(direction, QRecipe.recipe.favoriteCount);
+                case "cookingTime":
+                    return new OrderSpecifier<>(direction, QRecipe.recipe.cookingTime);
+            }
+        }
+
+        return QRecipe.recipe.createdAt.desc();
     }
 }
