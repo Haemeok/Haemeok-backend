@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.recipe.*;
+import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
@@ -83,6 +84,8 @@ public class RecipeService {
                         ErrorCode.INVALID_INPUT_VALUE,
                         "레시피 생성 요청 데이터(dto)가 null입니다."
                 ));
+
+        deduplicateIngredients(dto.getIngredients());
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
         if (dto.getExtractorId() != null) {
@@ -294,6 +297,8 @@ public class RecipeService {
         int newTotalCost = prevTotalCost;
 
         if (Boolean.TRUE.equals(dto.getIsIngredientsModified())) {
+            deduplicateIngredients(dto.getIngredients());
+
             newTotalCost = recipeIngredientService.updateIngredientsFromUser(recipe, dto.getIngredients());
             recipe.updateTotalIngredientCost(newTotalCost);
 
@@ -618,6 +623,50 @@ public class RecipeService {
         } catch (Exception e) {
             return BigDecimal.ZERO;
         }
+    }
+
+    private void deduplicateIngredients(List<RecipeIngredientRequestDto> ingredients) {
+        if (ingredients == null || ingredients.isEmpty()) return;
+
+        Map<String, RecipeIngredientRequestDto> mergedMap = new LinkedHashMap<>();
+
+        for (RecipeIngredientRequestDto current : ingredients) {
+            if (current.getName() == null || current.getName().isBlank()) continue;
+
+            String key = current.getName().trim().toLowerCase();
+
+            if (mergedMap.containsKey(key)) {
+                RecipeIngredientRequestDto existing = mergedMap.get(key);
+
+                BigDecimal qty1 = parseQuantityToBigDecimal(existing.getQuantity());
+                BigDecimal qty2 = parseQuantityToBigDecimal(current.getQuantity());
+
+                BigDecimal totalQty = qty1.add(qty2);
+
+                String mergedQuantityStr = totalQty.stripTrailingZeros().toPlainString();
+
+                RecipeIngredientRequestDto mergedDto = RecipeIngredientRequestDto.builder()
+                        .name(existing.getName())
+                        .quantity(mergedQuantityStr)
+                        .customUnit(existing.getCustomUnit())
+                        .customPrice(existing.getCustomPrice())
+                        .customCalories(existing.getCustomCalories())
+                        .customCarbohydrate(existing.getCustomCarbohydrate())
+                        .customProtein(existing.getCustomProtein())
+                        .customFat(existing.getCustomFat())
+                        .customSugar(existing.getCustomSugar())
+                        .customSodium(existing.getCustomSodium())
+                        .build();
+
+                mergedMap.put(key, mergedDto);
+
+            } else {
+                mergedMap.put(key, current);
+            }
+        }
+
+        ingredients.clear();
+        ingredients.addAll(mergedMap.values());
     }
 
     private <T> T resolve(RecipeNutritionDto dto, Function<RecipeNutritionDto, T> getter, T currentValue) {
