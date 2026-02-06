@@ -28,6 +28,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static com.jdc.recipe_service.domain.entity.QFineDiningDetails.fineDiningDetails;
+
 
 @RequiredArgsConstructor
 public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
@@ -544,12 +546,15 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipe recipe = QRecipe.recipe;
         QRecipeIngredient recipeIngredient = QRecipeIngredient.recipeIngredient;
         QIngredient ingredient = QIngredient.ingredient;
+        QUser user = QUser.user;
 
         NumberExpression<Double> matchRate = recipeIngredient.count().doubleValue()
                 .divide(recipe.totalIngredientCount.coalesce(1).doubleValue());
 
         JPAQuery<Recipe> query = queryFactory
                 .selectFrom(recipe)
+                .leftJoin(recipe.user, user).fetchJoin()
+                .leftJoin(recipe.fineDiningDetails, fineDiningDetails).fetchJoin()
                 .join(recipe.ingredients, recipeIngredient)
                 .join(recipeIngredient.ingredient, ingredient)
                 .where(

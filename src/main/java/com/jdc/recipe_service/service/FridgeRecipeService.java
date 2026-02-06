@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -45,9 +46,7 @@ public class FridgeRecipeService {
     }
 
     @Transactional(readOnly = true)
-    public Page<FridgeRecipeDto> searchByFridge(Long userId,
-                                                Pageable pageable,
-                                                List<RecipeType> types) {
+    public Page<FridgeRecipeDto> searchByFridge(Long userId, Pageable pageable, List<RecipeType> types) {
 
         List<RefrigeratorItem> myItems = fridgeRepo.findAllByUserId(userId);
 
@@ -61,8 +60,8 @@ public class FridgeRecipeService {
 
         Set<String> myIngredientNames = myItems.stream()
                 .map(item -> item.getIngredient().getName())
-                .filter(name -> name != null)
-                .map(name -> name.trim().replace(" ", ""))
+                .filter(Objects::nonNull)
+                .map(this::normalizeName)
                 .collect(Collectors.toSet());
 
         List<Long> searchIds = new ArrayList<>(myIngredientIds);
@@ -75,99 +74,106 @@ public class FridgeRecipeService {
             return Page.empty(pageable);
         }
 
-        List<Long> recipeIds = recipePage.getContent().stream().map(Recipe::getId).toList();
+        List<Long> recipeIds = recipePage.getContent().stream()
+                .map(Recipe::getId)
+                .toList();
+
         Set<Long> likedRecipeIds = recipeLikeRepository.findByUserIdAndRecipeIdIn(userId, recipeIds).stream()
                 .map(like -> like.getRecipe().getId())
                 .collect(Collectors.toSet());
 
-        List<FridgeRecipeDto> dtos = recipePage.getContent().stream().map(recipe -> {
+        List<FridgeRecipeDto> dtos = recipePage.getContent().stream()
+                .map(recipe -> convertToDto(recipe, myIngredientIds, myIngredientNames, likedRecipeIds))
+                .toList();
 
-            List<String> matchedIngredients = new ArrayList<>();
-            List<FridgeRecipeDto.MissingIngredientDto> missingIngredients = new ArrayList<>();
+        return new PageImpl<>(dtos, pageable, recipePage.getTotalElements());
+    }
 
-            for (RecipeIngredient ri : recipe.getIngredients()) {
-                Ingredient ing = ri.getIngredient();
+    /**
+     * DTO 변환 로직 분리 (가독성 및 유지보수성 향상)
+     */
+    private FridgeRecipeDto convertToDto(Recipe recipe, Set<Long> myIngredientIds, Set<String> myIngredientNames, Set<Long> likedRecipeIds) {
+        List<String> matchedIngredients = new ArrayList<>();
+        List<FridgeRecipeDto.MissingIngredientDto> missingIngredients = new ArrayList<>();
 
-                if (ing != null && ing.isPantry()) {
-                    continue;
-                }
+        for (RecipeIngredient ri : recipe.getIngredients()) {
+            Ingredient ing = ri.getIngredient();
 
-                boolean isMatched = false;
-                String displayName = null;
-                String displayLink = null;
+            if (ing != null && ing.isPantry()) {
+                continue;
+            }
 
-                if (ing != null) {
-                    displayName = ing.getName();
+            boolean isMatched = false;
+            String displayName;
+            String displayLink = null;
 
-                    if (myIngredientIds.contains(ing.getId())) {
-                        isMatched = true;
-                    } else {
-                        String cleanName = ing.getName().trim().replace(" ", "");
-                        if (myIngredientNames.contains(cleanName)) {
-                            isMatched = true;
-                        }
-                    }
-
-                    if (!isMatched) {
-                        if (ri.getCustomLink() != null && !ri.getCustomLink().isEmpty()) {
-                            displayLink = ri.getCustomLink();
-                        } else {
-                            displayLink = ing.getCoupangLink();
-                        }
-                    }
+            if (ing != null) {
+                displayName = ing.getName();
+                if (myIngredientIds.contains(ing.getId())) {
+                    isMatched = true;
                 }
                 else {
-                    displayName = ri.getCustomName();
-                    if (displayName == null) continue;
-
-                    String cleanName = displayName.trim().replace(" ", "");
-                    if (myIngredientNames.contains(cleanName)) {
+                    if (myIngredientNames.contains(normalizeName(ing.getName()))) {
                         isMatched = true;
-                    }
-
-                    if (!isMatched) {
-                        displayLink = ri.getCustomLink();
                     }
                 }
 
-                if (isMatched) {
-                    matchedIngredients.add(displayName);
-                } else {
-                    missingIngredients.add(new FridgeRecipeDto.MissingIngredientDto(displayName, displayLink));
+                if (!isMatched) {
+                    displayLink = (ri.getCustomLink() != null && !ri.getCustomLink().isEmpty())
+                            ? ri.getCustomLink() : ing.getCoupangLink();
+                }
+            } else {
+                displayName = ri.getCustomName();
+                if (displayName == null) continue;
+
+                if (myIngredientNames.contains(normalizeName(displayName))) {
+                    isMatched = true;
+                }
+
+                if (!isMatched) {
+                    displayLink = ri.getCustomLink();
                 }
             }
 
-            boolean isYoutube = recipe.getYoutubeUrl() != null && !recipe.getYoutubeUrl().isEmpty();
+            if (isMatched) {
+                matchedIngredients.add(displayName);
+            } else {
+                missingIngredients.add(new FridgeRecipeDto.MissingIngredientDto(displayName, displayLink));
+            }
+        }
 
-            RecipeSimpleDto simpleDto = RecipeSimpleDto.builder()
-                    .id(recipe.getId())
-                    .title(recipe.getTitle())
-                    .imageUrl(generateImageUrl(recipe.getImageKey()))
-                    .authorId(recipe.getUser().getId())
-                    .authorName(recipe.getUser().getNickname())
-                    .profileImage(recipe.getUser().getProfileImage())
-                    .createdAt(recipe.getCreatedAt())
-                    .favoriteCount(recipe.getFavoriteCount())
-                    .likeCount(recipe.getLikeCount())
-                    .likedByCurrentUser(likedRecipeIds.contains(recipe.getId()))
-                    .cookingTime(recipe.getCookingTime())
-                    .youtubeChannelName(recipe.getYoutubeChannelName())
-                    .youtubeChannelId(recipe.getYoutubeChannelId())
-                    .youtubeVideoTitle(recipe.getYoutubeVideoTitle())
-                    .youtubeThumbnailUrl(recipe.getYoutubeThumbnailUrl())
-                    .youtubeChannelProfileUrl(recipe.getYoutubeChannelProfileUrl())
-                    .youtubeSubscriberCount(recipe.getYoutubeSubscriberCount())
-                    .youtubeVideoViewCount(recipe.getYoutubeVideoViewCount())
-                    .avgRating(recipe.getAvgRating())
-                    .ratingCount(recipe.getRatingCount())
-                    .isYoutube(isYoutube)
-                    .isAiGenerated(recipe.isAiGenerated())
-                    .build();
+        boolean isYoutube = recipe.getYoutubeUrl() != null && !recipe.getYoutubeUrl().isEmpty();
 
-            return new FridgeRecipeDto(simpleDto, matchedIngredients, missingIngredients);
+        RecipeSimpleDto simpleDto = RecipeSimpleDto.builder()
+                .id(recipe.getId())
+                .title(recipe.getTitle())
+                .imageUrl(generateImageUrl(recipe.getImageKey()))
+                .authorId(recipe.getUser().getId())
+                .authorName(recipe.getUser().getNickname())
+                .profileImage(recipe.getUser().getProfileImage())
+                .createdAt(recipe.getCreatedAt())
+                .favoriteCount(recipe.getFavoriteCount())
+                .likeCount(recipe.getLikeCount())
+                .likedByCurrentUser(likedRecipeIds.contains(recipe.getId()))
+                .cookingTime(recipe.getCookingTime())
+                .youtubeChannelName(recipe.getYoutubeChannelName())
+                .youtubeChannelId(recipe.getYoutubeChannelId())
+                .youtubeVideoTitle(recipe.getYoutubeVideoTitle())
+                .youtubeThumbnailUrl(recipe.getYoutubeThumbnailUrl())
+                .youtubeChannelProfileUrl(recipe.getYoutubeChannelProfileUrl())
+                .youtubeSubscriberCount(recipe.getYoutubeSubscriberCount())
+                .youtubeVideoViewCount(recipe.getYoutubeVideoViewCount())
+                .avgRating(recipe.getAvgRating())
+                .ratingCount(recipe.getRatingCount())
+                .isYoutube(isYoutube)
+                .isAiGenerated(recipe.isAiGenerated())
+                .build();
 
-        }).toList();
+        return new FridgeRecipeDto(simpleDto, matchedIngredients, missingIngredients);
+    }
 
-        return new PageImpl<>(dtos, pageable, recipePage.getTotalElements());
+    private String normalizeName(String name) {
+        if (name == null) return "";
+        return name.trim().replace(" ", "");
     }
 }
