@@ -22,7 +22,7 @@ public class IngredientLinkBatchScheduler {
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final CoupangApiClient coupangApiClient;
 
-    @Scheduled(cron = "0 0 6 * * *")
+    //@Scheduled(cron = "0 0 6 * * *")
     public int updateAllIngredientLinks() {
         log.info("========== [배치 시작] 정규 재료 API 업데이트 ==========");
 
@@ -53,7 +53,7 @@ public class IngredientLinkBatchScheduler {
         return successCount;
     }
 
-    @Scheduled(cron = "0 * * * * *")
+    //@Scheduled(cron = "0 * * * * *")
     public int updateCustomIngredientsContinuous() {
         List<String> targetNames = recipeIngredientRepository.findDistinctNamesNeedLink();
 
