@@ -124,9 +124,26 @@ public class RecipeSearchServiceV2 {
                 .map(rt -> rt.getTag().getDisplayName())
                 .toList();
 
-        List<RecipeIngredientDto> ingredients = RecipeIngredientMapper.toDtoList(
-                recipeIngredientRepository.findByRecipeId(recipeId)
-        );
+        List<RecipeIngredient> ingredientEntities = recipeIngredientRepository.findByRecipeId(recipeId);
+
+        List<RecipeIngredientDto> ingredients = RecipeIngredientMapper.toDtoList(ingredientEntities);
+
+        for (int i = 0; i < ingredients.size(); i++) {
+            RecipeIngredient entity = ingredientEntities.get(i);
+            RecipeIngredientDto dto = ingredients.get(i);
+
+            if (entity.getIngredient() != null) {
+                dto.setCoupangLink(entity.getIngredient().getCoupangLink());
+            } else {
+                String link = entity.getCustomLink();
+
+                if (StringUtils.hasText(link) && !"NONE".equals(link)) {
+                    dto.setCoupangLink(link);
+                } else {
+                    dto.setCoupangLink(null);
+                }
+            }
+        }
 
         double rawTotal = ingredients.stream()
                 .mapToDouble(i -> i.getCalories() != null ? i.getCalories() : 0.0)

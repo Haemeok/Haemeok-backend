@@ -10,6 +10,7 @@ import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepDto;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.RecipeIngredient;
 import com.jdc.recipe_service.domain.entity.RecipeStep;
 import com.jdc.recipe_service.domain.entity.RecipeStepIngredient;
 import com.jdc.recipe_service.domain.repository.*;
@@ -35,6 +36,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -197,9 +199,26 @@ public class RecipeSearchService {
                 .map(rt -> rt.getTag().getDisplayName())
                 .toList();
 
-        List<RecipeIngredientDto> ingredients = RecipeIngredientMapper.toDtoList(
-                recipeIngredientRepository.findByRecipeId(recipeId)
-        );
+        List<RecipeIngredient> ingredientEntities = recipeIngredientRepository.findByRecipeId(recipeId);
+
+        List<RecipeIngredientDto> ingredients = RecipeIngredientMapper.toDtoList(ingredientEntities);
+
+        for (int i = 0; i < ingredients.size(); i++) {
+            RecipeIngredient entity = ingredientEntities.get(i);
+            RecipeIngredientDto dto = ingredients.get(i);
+
+            if (entity.getIngredient() != null) {
+                dto.setCoupangLink(entity.getIngredient().getCoupangLink());
+            } else {
+                String link = entity.getCustomLink();
+
+                if (StringUtils.hasText(link) && !"NONE".equals(link)) {
+                    dto.setCoupangLink(link);
+                } else {
+                    dto.setCoupangLink(null);
+                }
+            }
+        }
 
         List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepNumber(recipeId);
 
