@@ -2,13 +2,10 @@ package com.jdc.recipe_service.domain.dto.recipe.ingredient;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 
-@Getter
+@Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor

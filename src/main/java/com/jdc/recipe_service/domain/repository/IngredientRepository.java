@@ -20,4 +20,6 @@ public interface IngredientRepository
 
     @Query("SELECT i.name FROM Ingredient i WHERE i.name IN :names")
     Set<String> findAllNamesByNameIn(@Param("names") List<String> names);
+
+    List<Ingredient> findTop20ByCoupangLinkIsNullOrderByIdAsc();
 }

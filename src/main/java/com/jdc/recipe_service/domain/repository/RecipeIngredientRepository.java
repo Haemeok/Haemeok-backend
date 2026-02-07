@@ -36,13 +36,12 @@ public interface RecipeIngredientRepository extends JpaRepository<RecipeIngredie
             "AND ri.customLink IS NULL")
     List<RecipeIngredient> findCustomIngredientsNeedLink(Pageable pageable);
 
-    @Query(value = "SELECT DISTINCT r.custom_name FROM recipe_ingredients r " +
-            "WHERE r.ingredient_id IS NULL " +
-            "AND r.custom_link IS NULL " +
-            "AND r.custom_name IS NOT NULL " +
-            "AND r.custom_name != '' " +
-            "LIMIT 30", nativeQuery = true)
-    List<String> findDistinctNamesNeedLink();
+    @Query("SELECT DISTINCT r.customName FROM RecipeIngredient r " +
+            "WHERE r.ingredient IS NULL " +
+            "AND r.customLink IS NULL " +
+            "AND r.customName IS NOT NULL " +
+            "AND r.customName <> ''")
+    List<String> findDistinctNamesNeedLink(Pageable pageable);
 
     @Modifying(clearAutomatically = true)
     @Transactional
