@@ -103,6 +103,24 @@ public class CoupangApiClient {
         }
     }
 
+    public String getSearchPageDeepLink(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return null;
+        }
+
+        try {
+            String encodedKeyword = URLEncoder.encode(keyword, StandardCharsets.UTF_8);
+
+            String rawSearchUrl = "https://www.coupang.com/np/search?component=&q=" + encodedKeyword;
+
+            return createDeepLink(rawSearchUrl);
+
+        } catch (Exception e) {
+            log.error("검색 페이지 딥링크 생성 실패 [keyword={}]: {}", keyword, e.getMessage());
+            return null;
+        }
+    }
+
     private JsonNode callSearchApi(String keyword) {
         try {
             String encodedKeyword = URLEncoder.encode(keyword, StandardCharsets.UTF_8);
