@@ -7,6 +7,8 @@ import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,39 +55,70 @@ public class IngredientLinkBatchScheduler {
         return successCount;
     }
 
-    //@Scheduled(cron = "0 * * * * *")
+    @Scheduled(cron = "0 * * * * *")
     public int updateCustomIngredientsContinuous() {
-        List<String> targetNames = recipeIngredientRepository.findDistinctNamesNeedLink();
+
+        Pageable limit = PageRequest.of(0, 50);
+        List<String> targetNames = recipeIngredientRepository.findDistinctNamesNeedLink(limit);
 
         if (targetNames.isEmpty()) return 0;
 
-        log.info("[커스텀재료] 고유 이름 {}개 처리 시작", targetNames.size());
+        log.info("[커스텀재료] 고속 배치 시작 (대상: {}개)", targetNames.size());
         int successRows = 0;
 
         for (String name : targetNames) {
             try {
-                String link = coupangApiClient.searchLandingUrl(name);
+                String link = coupangApiClient.getSearchPageDeepLink(name);
 
                 if (link != null && !link.isEmpty()) {
                     int count = recipeIngredientRepository.updateLinkByCustomName(name, link);
                     successRows += count;
-                    log.debug("업데이트 성공 [{}]: {}개 행 적용됨", name, count);
                 } else {
-                    recipeIngredientRepository.updateLinkByCustomName(name, "NONE");
-                    log.info("검색 결과 없음 처리 [{}]: NONE 저장", name);
+                    log.warn("링크 생성 실패: {}", name);
                 }
 
-                Thread.sleep(1500);
+                Thread.sleep(1000);
 
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
             } catch (Exception e) {
-                log.error("커스텀 재료 처리 중 에러 [{}]: {}", name, e.getMessage());
+                log.error("배치 중단: {}", e.getMessage());
+                break;
+            }
+        }
+        return successRows;
+    }
+
+    @Scheduled(cron = "0 0/10 * * * *")
+    public int updateMissingIngredientLinks() {
+
+        List<Ingredient> ingredients = ingredientRepository.findTop20ByCoupangLinkIsNullOrderByIdAsc();
+
+        if (ingredients.isEmpty()) return 0;
+
+        log.info("========== [정규 재료] 링크 보충 시작 (대상: {}개) ==========", ingredients.size());
+        int successCount = 0;
+
+        for (Ingredient ingredient : ingredients) {
+            try {
+                String link = coupangApiClient.searchProductUrl(ingredient.getName());
+
+                if (link != null && !link.isEmpty()) {
+                    ingredient.updateCoupangLink(link);
+                    successCount++;
+                } else {
+                    ingredient.updateCoupangLink("NONE");
+                }
+
+                ingredientRepository.save(ingredient);
+
+                Thread.sleep(3000);
+
+            } catch (Exception e) {
+                log.error("정규 재료 API 에러: {}", e.getMessage());
+                break;
             }
         }
 
-        return successRows;
+        return successCount;
     }
 
     @Transactional
