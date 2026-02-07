@@ -51,12 +51,12 @@ public class UserVisitInterceptor implements HandlerInterceptor {
 
         String key = "visit:" + today + ":" + userId;
 
-        if (Boolean.FALSE.equals(redisTemplate.hasKey(key))) {
+        Boolean isFirstVisit = redisTemplate.opsForValue()
+                .setIfAbsent(key, "1", 1, TimeUnit.DAYS);
+
+        if (Boolean.TRUE.equals(isFirstVisit)) {
             log.info("📈 새로운 DAU 집계: UserID={}", userId);
-
             userActivityService.saveUserVisit(userId, osType);
-
-            redisTemplate.opsForValue().set(key, "1", 1, TimeUnit.DAYS);
         }
 
         return true;
