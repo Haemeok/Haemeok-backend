@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
@@ -46,7 +47,7 @@ public class UserVisitInterceptor implements HandlerInterceptor {
             osType = osType.substring(0, 20);
         }
 
-        String today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String today = LocalDate.now(ZoneId.of("Asia/Seoul")).format(DateTimeFormatter.BASIC_ISO_DATE);
 
         String key = "visit:" + today + ":" + userId;
 

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Slf4j
 @Service
@@ -21,9 +22,11 @@ public class UserActivityService {
         try {
             Long userId = Long.parseLong(userIdString);
 
+            LocalDate todayKst = LocalDate.now(ZoneId.of("Asia/Seoul"));
+
             UserDailyAccess access = UserDailyAccess.builder()
                     .userId(userId)
-                    .accessDate(LocalDate.now())
+                    .accessDate(todayKst)
                     .osType(osType)
                     .build();
 
