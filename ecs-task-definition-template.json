@@ -15,6 +15,13 @@
           "protocol": "tcp"
         }
       ],
+      "mountPoints": [
+        {
+          "sourceVolume": "cookies-volume",
+          "containerPath": "/home/ec2-user/cookies",
+          "readOnly": true
+        }
+      ],
       "environment": [
         { "name": "DB_URL", "value": "${DB_URL}" },
         { "name": "DB_USERNAME", "value": "${DB_USERNAME}" },
@@ -63,6 +70,14 @@
           "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }
+      }
+    }
+  ],
+  "volumes": [
+    {
+      "name": "cookies-volume",
+      "host": {
+        "sourcePath": "/home/ec2-user/cookies"
       }
     }
   ],
