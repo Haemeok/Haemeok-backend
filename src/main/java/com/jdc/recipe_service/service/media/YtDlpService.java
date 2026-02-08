@@ -26,6 +26,15 @@ public class YtDlpService {
             "(?:youtu\\.be/|youtube\\.com/(?:watch\\?v=|shorts/|embed/))([a-zA-Z0-9_-]{11})"
     );
 
+    private final Random random = new Random();
+
+    private static final List<String> COOKIE_FILES = List.of(
+            "/home/ec2-user/cookies/cookies_1.txt",
+            "/home/ec2-user/cookies/cookies_2.txt",
+            "/home/ec2-user/cookies/cookies_3.txt",
+            "/home/ec2-user/cookies/cookies_4.txt"
+    );
+
     private static final List<String> CLIENT_FALLBACK = List.of("android", "web", "ios");
 
     @Value("${app.ytdlp.path:yt-dlp}")
@@ -60,32 +69,6 @@ public class YtDlpService {
 
     @Value("#{'${youtube.api-keys:}'.split(',')}")
     private List<String> youtubeApiKeys;
-
-    @jakarta.annotation.PostConstruct
-    public void logYoutubeApiKeys() {
-        log.info("==================================================");
-        log.info("🎥 [DEBUG] YouTube API Key 설정 확인");
-
-        if (youtubeApiKeys == null || youtubeApiKeys.isEmpty() || (youtubeApiKeys.size() == 1 && youtubeApiKeys.get(0).isBlank())) {
-            log.error("❌ YouTube API Key 리스트가 비어있습니다! (환경변수 YOUTUBE_API_KEYS 확인 필요)");
-            log.error("👉 현재 설정값: {}", youtubeApiKeys);
-        } else {
-            log.info("👉 로드된 키 개수: {}개", youtubeApiKeys.size());
-            for (int i = 0; i < youtubeApiKeys.size(); i++) {
-                String key = youtubeApiKeys.get(i).trim();
-                String masked = key.length() > 10 ? key.substring(0, 10) + "..." : key;
-
-                if (key.isBlank()) {
-                    log.warn("⚠️ Key[{}] 는 빈 문자열입니다!", i);
-                } else if (!key.startsWith("AIzaSy")) {
-                    log.warn("⚠️ Key[{}] 형식이 수상합니다 (AIzaSy로 시작 안함): {}", i, masked);
-                } else {
-                    log.info("✅ Key[{}] 정상 로드: {}", i, masked);
-                }
-            }
-        }
-        log.info("==================================================");
-    }
 
     /* =========================================================
      * Public APIs: 오직 텍스트 데이터만 가져옵니다.
@@ -137,87 +120,133 @@ public class YtDlpService {
      * ========================================================= */
 
     /**
-     * yt-dlp 통합 실행 로직
-     * Fallback 클라이언트를 순회하며 성공할 때까지 시도합니다.
+     * ✅ [업그레이드] yt-dlp 통합 실행 로직
+     * 전략: 1차 시도(No Cookie) -> 실패 시 2차 시도(With Cookie)
      */
     private IntegratedData executeIntegratedExtraction(String url, String videoId, Path workDir) {
-        IntegratedData bestResult = null;
-
         for (String client : CLIENT_FALLBACK) {
             try {
-                List<String> args = buildIntegratedArgs(url, client, workDir);
-
+                List<String> args = buildIntegratedArgs(url, client, workDir, false);
                 ExecResult res = execForJson(args, workDir);
-
-                JsonNode root = objectMapper.readTree(res.stdout);
-
-                Optional<Path> vttPath = findPreferredVtt(workDir, videoId);
-                SubtitleTexts subs = vttPath.isPresent() ? parseVtt(vttPath.get()) : new SubtitleTexts("", "");
-
-                StringBuilder commentsBuilder = new StringBuilder();
-                JsonNode commentsNode = root.get("comments");
-                if (commentsNode != null && commentsNode.isArray()) {
-                    for (JsonNode c : commentsNode) {
-                        String text = optText(c, "text");
-                        if (!isBlank(text)) commentsBuilder.append("- ").append(text).append("\n");
-                    }
-                }
-
-                String title = optText(root, "title");
-                String desc = optText(root, "description");
-                String channelId = optText(root, "channel_id");
-                if (isBlank(channelId)) channelId = optText(root, "uploader_id");
-
-                String originalChannelName = optText(root, "channel");
-                if (isBlank(originalChannelName)) originalChannelName = optText(root, "uploader");
-
-                IntegratedData current = new IntegratedData(
-                        title,
-                        desc,
-                        commentsBuilder.toString(),
-                        subs,
-                        originalChannelName,
-                        channelId,
-                        optText(root, "thumbnail"),
-                        root.path("view_count").asLong(0),
-                        root.path("duration").asLong(0),
-                        root
-                );
-
-                log.info("✅ [1-Pass 성공] client={}, title={}, subs={}", client, shrink(title, 20), (subs.plainText.isEmpty() ? "없음" : "있음"));
-                return current;
+                return parseAndReturnResult(res, client, workDir, videoId);
 
             } catch (Exception e) {
-                log.warn("⚠️ yt-dlp 시도 실패 (client={}): {}", client, e.getMessage());
+                log.warn("⚠️ 1차 시도 실패 (쿠키X, Proxy O, client={}): {}", client, e.getMessage());
                 cleanDirectoryFiles(workDir);
+
+                try {
+                    log.info("🔄 2차 시도 시작 (쿠키O, Proxy X, client={})", client);
+
+                    List<String> retryArgs = buildIntegratedArgs(url, client, workDir, true);
+                    ExecResult retryRes = execForJson(retryArgs, workDir);
+
+                    IntegratedData result = parseAndReturnResult(retryRes, client, workDir, videoId);
+                    log.info("🎉 2차 시도 성공 (With Cookie & No Proxy)!");
+                    return result;
+
+                } catch (Exception e2) {
+                    log.error("❌ 2차 시도(쿠키O)도 실패: {}", e2.getMessage());
+                    cleanDirectoryFiles(workDir);
+                }
+            }
+        }
+        return new IntegratedData("", "", "", new SubtitleTexts("", ""), "", "", "", 0L, 0L, null);
+    }
+
+    /**
+     * 실행 결과를 파싱하여 IntegratedData 객체로 변환하는 헬퍼 메서드
+     */
+    private IntegratedData parseAndReturnResult(ExecResult res, String client, Path workDir, String videoId) throws Exception {
+        JsonNode root = objectMapper.readTree(res.stdout);
+
+        Optional<Path> vttPath = findPreferredVtt(workDir, videoId);
+        SubtitleTexts subs = vttPath.isPresent() ? parseVtt(vttPath.get()) : new SubtitleTexts("", "");
+
+        StringBuilder commentsBuilder = new StringBuilder();
+        JsonNode commentsNode = root.get("comments");
+        if (commentsNode != null && commentsNode.isArray()) {
+            for (JsonNode c : commentsNode) {
+                String text = optText(c, "text");
+                if (!isBlank(text)) commentsBuilder.append("- ").append(text).append("\n");
             }
         }
 
-        return new IntegratedData("", "", "", new SubtitleTexts("", ""), "", "", "", 0L, 0L, null);
+        String title = optText(root, "title");
+        String desc = optText(root, "description");
+        String channelId = optText(root, "channel_id");
+        if (isBlank(channelId)) channelId = optText(root, "uploader_id");
+
+        String originalChannelName = optText(root, "channel");
+        if (isBlank(originalChannelName)) originalChannelName = optText(root, "uploader");
+
+        log.info("✅ [추출 성공] client={}, title={}, subs={}", client, shrink(title, 20), (subs.plainText.isEmpty() ? "없음" : "있음"));
+
+        return new IntegratedData(
+                title,
+                desc,
+                commentsBuilder.toString(),
+                subs,
+                originalChannelName,
+                channelId,
+                optText(root, "thumbnail"),
+                root.path("view_count").asLong(0),
+                root.path("duration").asLong(0),
+                root
+        );
     }
 
     /**
      * 비용 절감을 위한 핵심: 한 번에 모든 옵션을 때려박은 인자 리스트 생성
      */
-    private List<String> buildIntegratedArgs(String url, String client, Path dir) {
-        List<String> a = buildBaseArgs();
+    private List<String> buildIntegratedArgs(String url, String client, Path dir, boolean useCookie) {
+        List<String> a = buildBaseArgs(!useCookie);
+
+        if (useCookie) {
+            String randomCookieFile = COOKIE_FILES.get(random.nextInt(COOKIE_FILES.size()));
+            if (Files.exists(Paths.get(randomCookieFile))) {
+                a.add("--cookies");
+                a.add(randomCookieFile);
+                log.info("🍪 [Cookie] 적용됨 (Proxy OFF): {}", randomCookieFile);
+            } else {
+                log.warn("⚠️ 쿠키 파일을 찾을 수 없음: {}", randomCookieFile);
+            }
+        }
 
         a.add("--extractor-args");
         a.add("youtube:player_client=" + client + ";max_comments=" + maxComments);
-
         a.add("--dump-single-json");
         a.add("--no-simulate");
-
         a.add("--write-subs");
         a.add("--write-auto-subs");
         a.add("--sub-langs"); a.add(subtitleLangs);
         a.add("--sub-format"); a.add("vtt");
-
         a.add("-o"); a.add(dir.resolve("sub_%(id)s.%(ext)s").toString());
-
         a.add("--skip-download");
-
         a.add(url);
+        return a;
+    }
+
+    private List<String> buildBaseArgs(boolean useProxy) {
+        List<String> a = new ArrayList<>();
+        a.add(ytdlpPath);
+        a.add("--ignore-config");
+        a.add("--no-playlist");
+        a.add("--cache-dir"); a.add(cacheDir);
+        a.add("--user-agent"); a.add(userAgent);
+
+        if (useProxy && proxyUrl != null && !proxyUrl.isBlank()) {
+            a.add("--proxy");
+            a.add(proxyUrl);
+        }
+
+        if (enableRemoteComponents) {
+            a.add("--remote-components");
+            a.add("ejs:github");
+        }
+        if (jsRuntimes != null && !jsRuntimes.isBlank()) {
+            a.add("--js-runtimes");
+            a.add(jsRuntimes);
+        }
         return a;
     }
 
@@ -499,30 +528,6 @@ public class YtDlpService {
         if (!m.find()) throw new IllegalArgumentException("유효하지 않은 URL");
         String id = m.group(1);
         return new NormalizedYoutube(id, "https://www.youtube.com/watch?v=" + id);
-    }
-
-    private List<String> buildBaseArgs() {
-        List<String> a = new ArrayList<>();
-        a.add(ytdlpPath);
-        a.add("--ignore-config");
-        a.add("--no-playlist");
-        a.add("--cache-dir"); a.add(cacheDir);
-        a.add("--user-agent"); a.add(userAgent);
-
-        if (proxyUrl != null && !proxyUrl.isBlank()) {
-            a.add("--proxy");
-            a.add(proxyUrl);
-        }
-
-        if (enableRemoteComponents) {
-            a.add("--remote-components");
-            a.add("ejs:github");
-        }
-        if (jsRuntimes != null && !jsRuntimes.isBlank()) {
-            a.add("--js-runtimes");
-            a.add(jsRuntimes);
-        }
-        return a;
     }
 
     private Optional<Path> findPreferredVtt(Path dir, String videoId) throws IOException {

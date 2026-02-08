@@ -33,7 +33,7 @@ public class GeminiMultimodalService {
     private static final String MODEL_ID = "gemini-3-flash-preview";
 
     private static final String BASE_URL = "https://generativelanguage.googleapis.com";
-    private static final Duration GENERATE_TIMEOUT = Duration.ofSeconds(300);
+    private static final Duration GENERATE_TIMEOUT = Duration.ofSeconds(600);
 
     public GeminiMultimodalService(ObjectMapper objectMapper) {
         this.webClient = WebClient.builder()
