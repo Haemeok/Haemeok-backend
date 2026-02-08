@@ -50,7 +50,7 @@ public class RecipeExtractionService {
     private static final int MAX_CMT_CHARS     = 1_000;
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
     private static final Set<String> SPECIAL_QTY = Set.of("약간");
-    private static final long MAX_VIDEO_DURATION_SECONDS = 20 * 60;
+    private static final long MAX_VIDEO_DURATION_SECONDS = 70 * 60;
 
     private static final List<String> NOISE_KEYWORDS = List.of(
             // 1. 기존 먹방/브이로그
@@ -562,7 +562,7 @@ public class RecipeExtractionService {
             }, extractionExecutor).orTimeout(10, TimeUnit.MINUTES);
         });
 
-        long timeout = 600000L;
+        long timeout = 900000L;
         DeferredResult<ResponseEntity<PresignedUrlResponse>> deferredResult = new DeferredResult<>(timeout);
 
         deferredResult.onTimeout(() -> {
@@ -689,7 +689,7 @@ public class RecipeExtractionService {
     }
 
     private void handleAsyncError(RecipeGenerationJob job, Long userId, Exception e) {
-        log.error("❌ [Youtube V2] 추출 실패 JobID: {}", job.getId(), e);
+        log.error("❌ [Youtube V2] 추출 실패 JobID: {} - 원인: {}", job.getId(), e.getMessage(), e);
 
         ErrorCode errorCode = resolveErrorCode(e);
         String clientMsg = resolveClientErrorMessage(e, errorCode);
@@ -878,7 +878,7 @@ public class RecipeExtractionService {
             if (useUrlFallback || recipeDto == null) {
                 if (videoDuration > MAX_VIDEO_DURATION_SECONDS) {
                     throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
-                            "텍스트 정보가 부족하며, 영상이 너무 길어(20분 초과) AI 심층 분석을 진행할 수 없습니다.");
+                            "텍스트 정보가 부족하며, 영상이 너무 길어(60분 초과) AI 심층 분석을 진행할 수 없습니다.");
                 }
                 log.info("🎥 [멀티모달 모드] Step 1: Gemini 초안 생성 시작");
 
