@@ -239,7 +239,7 @@ public class UserService {
 
         Page<Recipe> recipesPage;
         if (isOwner) {
-            recipesPage = recipeRepository.findByUserId(targetUserId, pageable);
+            recipesPage = recipeRepository.findCompletedRecipesByUserId(targetUserId, pageable);
         } else {
             recipesPage = recipeRepository.findByUserIdAndIsPrivateFalse(targetUserId, pageable);
         }

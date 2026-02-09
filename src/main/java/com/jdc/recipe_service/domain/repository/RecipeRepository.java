@@ -393,4 +393,14 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                          @Param("status") RecipeImageStatus status, @Param("isPrivate") Boolean isPrivate);
 
     Optional<Recipe> findFirstByYoutubeUrl(String youtubeUrl);
+
+    List<Recipe> findAllByYoutubeUrlIsNotNull();
+
+    @EntityGraph(attributePaths = {"fineDiningDetails"})
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.user.id = :userId
+              AND (r.isAiGenerated = false OR r.imageKey IS NOT NULL)
+            """)
+    Page<Recipe> findCompletedRecipesByUserId(@Param("userId") Long userId, Pageable pageable);
 }
