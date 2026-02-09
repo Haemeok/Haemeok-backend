@@ -148,7 +148,7 @@ resilience4j:
   timelimiter:
     instances:
       aiGenerate:
-        timeout-duration: 300s
+        timeout-duration: 600s
 
 apple:
   team-id: ${APPLE_TEAM_ID}
