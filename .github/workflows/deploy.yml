@@ -87,6 +87,7 @@ jobs:
           APP_TEST_LOGIN_ENABLED: ${{ secrets.APP_TEST_LOGIN_ENABLED }}
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
           COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+          LEMON_WEBHOOK_SECRET: ${{ secrets.LEMON_WEBHOOK_SECRET }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:

@@ -69,3 +69,6 @@ app:
     # 한 번 429 뜬 지역을 몇 ms 동안 제외할지 (여기선 30초)
     credentials: ${GEMINI_CREDENTIALS}
     cooldown-ms: 30000
+
+lemonsqueezy:
+  webhook-secret: ${LEMON_WEBHOOK_SECRET}
