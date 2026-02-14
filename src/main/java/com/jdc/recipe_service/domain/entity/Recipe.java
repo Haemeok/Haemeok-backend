@@ -276,6 +276,24 @@ public class Recipe extends BaseTimeEntity {
         this.youtubeVideoViewCount = videoViewCount;
     }
 
+    public void updateYoutubeStats(Long viewCount, Long subscriberCount, String channelId) {
+        this.youtubeVideoViewCount = viewCount;
+        if (subscriberCount != null) this.youtubeSubscriberCount = subscriberCount;
+        if (channelId != null) this.youtubeChannelId = channelId;
+    }
+
+    public void updateYoutubeSubscriberCount(Long subscriberCount){
+        this.youtubeSubscriberCount = subscriberCount;
+    }
+
+    public void updateYoutubeVideoViewCount(Long viewCount){
+        this.youtubeVideoViewCount = viewCount;
+    }
+
+    public void updateYoutubeChannelId(String channelId){
+        this.youtubeChannelId = channelId;
+    }
+
     public void updateExtractorId(Long extractorId) {
         this.extractorId = extractorId;
     }
