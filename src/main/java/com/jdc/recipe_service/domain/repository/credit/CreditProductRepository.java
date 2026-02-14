@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.domain.repository.credit;
 
 import com.jdc.recipe_service.domain.entity.credit.CreditProduct;
+import com.jdc.recipe_service.domain.type.credit.CreditType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -11,5 +12,5 @@ public interface CreditProductRepository extends JpaRepository<CreditProduct, Lo
 
     Optional<CreditProduct> findByName(String name);
 
-    List<CreditProduct> findAllByIsActiveTrueOrderByCreditAmountAsc();
+    List<CreditProduct> findAllByTypeAndIsActiveTrueOrderByCreditAmountAsc(CreditType type);
 }
