@@ -48,6 +48,8 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/ws/notifications/**").permitAll()
 
+                            .requestMatchers("/api/webhooks/**").permitAll()
+
                             .requestMatchers("/api/notifications/**").authenticated()
                             .requestMatchers("/api/notification-preferences/**").authenticated()
 
@@ -86,6 +88,8 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.GET,
                                     "/api/me",
                                     "/api/me/favorites",
+                                    "/api/products",
+                                    "/api/credits/history",
                                     "/api/me/fridge/items",
                                     "/api/me/fridge/items/ids",
                                     "/api/me/calendar/**",
@@ -177,6 +181,8 @@ public class SecurityConfig {
                         .requestMatchers("/test-ws.html").permitAll()
                         .requestMatchers(HttpMethod.POST, "/login/oauth2/code/**").permitAll()
 
+                        .requestMatchers("/api/webhooks/**").permitAll()
+
                         // WebSocket 핸드쉐이크 & SockJS 엔드포인트
                         .requestMatchers("/ws/notifications/**").permitAll()
 
@@ -203,6 +209,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/me",
                                 "/api/me/favorites",
+                                "/api/products",
+                                "/api/credits/history",
                                 "/api/me/fridge/items",
                                 "/api/me/fridge/items/ids",
                                 "/api/me/calendar/**",
