@@ -34,6 +34,9 @@ public class UserResponseDTO {
     private int aiToken;
     private int youtubeToken;
 
+    private int subscriptionCredit;
+    private int cashCredit;
+
     public void updateQuotas(int aiQuota, int youtubeQuota) {
         this.remainingAiQuota = aiQuota;
         this.remainingYoutubeQuota = youtubeQuota;
@@ -42,5 +45,10 @@ public class UserResponseDTO {
     public void updateTokens(int youtubeToken, int aiToken) {
         this.youtubeToken = youtubeToken;
         this.aiToken = aiToken;
+    }
+
+    public void updateCredits(int sub, int cash) {
+        this.subscriptionCredit = sub;
+        this.cashCredit = cash;
     }
 }

@@ -15,6 +15,7 @@ import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.UserMapper;
+import com.jdc.recipe_service.service.credit.UserCreditService;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +40,7 @@ public class UserService {
     private final RecipeRepository recipeRepository;
     private final S3Util s3Util;
     private final DailyQuotaService dailyQuotaService;
+    private final UserCreditService userCreditService;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -155,6 +157,13 @@ public class UserService {
         dto.updateQuotas(aiQuota, youtubeQuota);
 
         dto.updateTokens(user.getYoutubeToken(), user.getAiToken());
+
+        Map<String, Integer> creditMap = userCreditService.getCreditSummary(id);
+
+        dto.updateCredits(
+                creditMap.get("subscription"),
+                creditMap.get("cash")
+        );
 
         return dto;
     }
