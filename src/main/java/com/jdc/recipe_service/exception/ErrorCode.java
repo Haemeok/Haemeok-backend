@@ -77,7 +77,14 @@ public enum ErrorCode {
     INGREDIENT_SEARCH_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "951", "재료 검색 처리 중 오류가 발생했습니다."),
     INGREDIENT_FALLBACK_SEARCH_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "952", "재료 대체 검색 처리 중 오류가 발생했습니다."),
     FRIDGE_RECIPE_SEARCH_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "953", "냉장고 기반 레시피 조회 중 오류가 발생했습니다."),
-    ;
+
+    // --- Payment & Credit (1000) ---
+    PAYMENT_REQUIRED(HttpStatus.PAYMENT_REQUIRED, "1001", "보유한 크레딧이 부족합니다. 충전 후 이용해 주세요."),
+    WEBHOOK_VERIFICATION_FAILED(HttpStatus.UNAUTHORIZED, "1002", "웹훅 서명 검증에 실패했습니다."),
+    WEBHOOK_HANDLING_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "1003", "웹훅 이벤트 처리 중 오류가 발생했습니다."),
+    INVALID_PAYMENT_PRODUCT(HttpStatus.BAD_REQUEST, "1004", "유효하지 않은 결제 상품(Variant ID)입니다."),
+    CREDIT_TRANSACTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "1005", "크레딧 지급/차감 처리에 실패했습니다."),
+    REFERRAL_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "1006", "이번 달 친구 초대 보상 한도를 초과했습니다.");
 
     private final HttpStatus status;
     private final String code;

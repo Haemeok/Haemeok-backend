@@ -62,6 +62,16 @@ public class User extends BaseTimeEntity {
     @Builder.Default
     private int aiToken = 0;
 
+    @Column(name = "referral_code", length = 20, unique = true)
+    private String referralCode;
+
+    @Column(name = "monthly_invite_count", nullable = false)
+    @Builder.Default
+    private int monthlyInviteCount = 0;
+
+    @Column(length = 512)
+    private String customerPortalUrl;
+
     public void updateProfile(String nickname, String profileImage, String introduction) {
         if (nickname     != null) this.nickname     = nickname;
         if (profileImage != null) this.profileImage = profileImage;
@@ -105,5 +115,23 @@ public class User extends BaseTimeEntity {
             return true;
         }
         return false;
+    }
+
+    public void increaseInviteCount() {
+        this.monthlyInviteCount++;
+    }
+
+    public void resetMonthlyInviteCount() {
+        this.monthlyInviteCount = 0;
+    }
+
+    public void generateReferralCode() {
+        if (this.referralCode == null) {
+            this.referralCode = java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        }
+    }
+
+    public void updateCustomerPortalUrl(String portalUrl) {
+        this.customerPortalUrl = portalUrl;
     }
 }
