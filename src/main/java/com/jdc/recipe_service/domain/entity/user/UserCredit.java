@@ -1,5 +1,6 @@
-package com.jdc.recipe_service.domain.entity;
+package com.jdc.recipe_service.domain.entity.user;
 
+import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.type.credit.CreditType;
 import jakarta.persistence.*;
@@ -34,7 +35,7 @@ public class UserCredit extends BaseTimeEntity {
     @Column(name = "original_amount", nullable = false)
     private int originalAmount;
 
-    @Column(name = "transaction_id", length = 100)
+    @Column(name = "transaction_id", length = 100, unique = true)
     private String transactionId;
 
     @Column(name = "expires_at", nullable = false)

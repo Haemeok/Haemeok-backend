@@ -88,6 +88,7 @@ jobs:
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
           COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
           LEMON_WEBHOOK_SECRET: ${{ secrets.LEMON_WEBHOOK_SECRET }}
+          LEMON_API_KEY: ${{ secrets.LEMON_API_KEY }}
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:

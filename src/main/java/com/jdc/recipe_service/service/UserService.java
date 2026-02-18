@@ -15,7 +15,7 @@ import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.UserMapper;
-import com.jdc.recipe_service.service.credit.UserCreditService;
+import com.jdc.recipe_service.service.user.UserCreditService;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

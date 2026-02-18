@@ -42,6 +42,14 @@ public class CreditHistory extends BaseTimeEntity {
     private String description;
 
     // 결제 ID (레몬스퀴즈 Order ID 등) - 없으면 null
-    @Column(name = "transaction_id")
+    @Column(name = "transaction_id", unique = true)
     private String transactionId;
+
+    // 2. [추적용] 어떤 요청 때문에 크레딧이 나갔는지 기록
+    @Column(name = "ref_type", length = 50)
+    private String referenceType;
+
+    // 예: recipe_generation_requests 테이블의 ID (1023번 요청)
+    @Column(name = "ref_id")
+    private Long referenceId;
 }

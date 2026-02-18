@@ -7,4 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CreditHistoryRepository extends JpaRepository<CreditHistory, Long> {
     Page<CreditHistory> findAllByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    boolean existsByTransactionId(String transactionId);
 }

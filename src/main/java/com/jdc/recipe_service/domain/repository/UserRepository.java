@@ -30,4 +30,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE User u SET u.aiToken = u.aiToken + :amount WHERE u.id IN :userIds")
     int bulkAddAiToken(@Param("userIds") List<Long> userIds, @Param("amount") int amount);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE User u SET u.monthlyInviteCount = 0")
+    void resetAllMonthlyInviteCounts();
 }

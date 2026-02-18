@@ -13,4 +13,6 @@ public interface CreditProductRepository extends JpaRepository<CreditProduct, Lo
     Optional<CreditProduct> findByName(String name);
 
     List<CreditProduct> findAllByTypeAndIsActiveTrueOrderByCreditAmountAsc(CreditType type);
+
+    Optional<CreditProduct> findByLemonSqueezyVariantUuid(String uuid);
 }
