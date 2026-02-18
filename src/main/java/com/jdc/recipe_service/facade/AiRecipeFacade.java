@@ -5,7 +5,7 @@ import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientReque
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
-import com.jdc.recipe_service.domain.entity.RecipeGenerationJob;
+import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.*;

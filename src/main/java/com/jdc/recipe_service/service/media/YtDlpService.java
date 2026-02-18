@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service.media;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -678,6 +679,7 @@ public class YtDlpService {
         }
     }
 
+    @Builder
     public record YoutubeFullDataDto(
             String videoId,
             String canonicalUrl,

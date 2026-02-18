@@ -1,15 +1,19 @@
-package com.jdc.recipe_service.service.credit;
+package com.jdc.recipe_service.service.product;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.entity.credit.CreditProduct;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.entity.user.UserSubscription;
 import com.jdc.recipe_service.domain.repository.credit.CreditProductRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.repository.user.UserCreditRepository;
+import com.jdc.recipe_service.domain.repository.user.UserSubscriptionRepository;
+import com.jdc.recipe_service.domain.type.product.SubscriptionStatus;
 import com.jdc.recipe_service.domain.type.credit.CreditType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.service.user.UserCreditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hashids.Hashids;
@@ -32,18 +36,15 @@ import java.util.Objects;
 public class LemonSqueezyWebhookService {
 
     private final UserCreditService userCreditService;
-
     private final UserRepository userRepository;
     private final CreditProductRepository creditProductRepository;
     private final UserCreditRepository userCreditRepository;
+    private final UserSubscriptionRepository userSubscriptionRepository;
     private final ObjectMapper objectMapper;
-
     private final Hashids hashids;
 
     @Value("${lemonsqueezy.webhook-secret:}")
     private String WEBHOOK_SECRET;
-
-    private static final int SUBSCRIPTION_GRACE_PERIOD_DAYS = 5;
 
     public void validateWebhookSignature(String signature, String payload) {
         if (signature == null || signature.isBlank()) {
@@ -104,7 +105,7 @@ public class LemonSqueezyWebhookService {
             String orderId = data.path("id").asText();
             String status = attributes.path("status").asText();
 
-            if (userCreditRepository.existsByTransactionId(orderId)) {
+            if (userCreditRepository.findByTransactionId(orderId).isPresent()) {
                 log.info("♻️ 이미 처리된 웹훅입니다. (OrderId={})", orderId);
                 return;
             }
@@ -113,22 +114,27 @@ public class LemonSqueezyWebhookService {
                     && product.getType() == CreditType.SUBSCRIPTION) {
 
                 String portalUrl = attributes.path("urls").path("customer_portal").asText();
-
-                if (portalUrl != null && !portalUrl.isBlank()) {
-                    user.updateCustomerPortalUrl(portalUrl);
-                }
-
                 String renewsAtStr = attributes.path("renews_at").asText();
-                LocalDateTime nextBillingDate;
+                long subId = attributes.path("subscription_id").asLong();
 
+                LocalDateTime nextBillingDate;
                 if (renewsAtStr != null && !renewsAtStr.isBlank()) {
                     nextBillingDate = LocalDateTime.ofInstant(Instant.parse(renewsAtStr), ZoneId.systemDefault());
                 } else {
                     nextBillingDate = LocalDateTime.now().plusDays(product.getValidDays());
                 }
 
-                LocalDateTime realExpiresAt = nextBillingDate.plusDays(SUBSCRIPTION_GRACE_PERIOD_DAYS);
+                UserSubscription subscription = userSubscriptionRepository.findByUserId(user.getId())
+                        .orElse(UserSubscription.builder()
+                                .user(user)
+                                .status(SubscriptionStatus.NONE)
+                                .build());
 
+                subscription.activate(subId, String.valueOf(variantId), portalUrl, nextBillingDate);
+
+                userSubscriptionRepository.save(subscription);
+
+                LocalDateTime realExpiresAt = nextBillingDate.plusDays(5);
                 int totalAmount = product.getCreditAmount() + product.getBonusAmount();
 
                 userCreditService.grantCredit(user, CreditType.SUBSCRIPTION, totalAmount, realExpiresAt, orderId);

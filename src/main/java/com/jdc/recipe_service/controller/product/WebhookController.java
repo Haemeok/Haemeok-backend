@@ -1,6 +1,6 @@
-package com.jdc.recipe_service.controller;
+package com.jdc.recipe_service.controller.product;
 
-import com.jdc.recipe_service.service.credit.LemonSqueezyWebhookService;
+import com.jdc.recipe_service.service.product.LemonSqueezyWebhookService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

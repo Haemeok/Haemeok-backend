@@ -1,8 +1,9 @@
-package com.jdc.recipe_service.domain.entity;
+package com.jdc.recipe_service.domain.entity.recipe;
 
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.type.JobStatus;
 import com.jdc.recipe_service.domain.type.JobType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeDisplayMode;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -43,6 +44,10 @@ public class RecipeGenerationJob extends BaseTimeEntity {
 
     @Column(unique = true)
     private String idempotencyKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "display_mode")
+    private RecipeDisplayMode displayMode;
 
     public void updateProgress(JobStatus status, int progress) {
         this.status = status;
