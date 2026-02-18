@@ -81,7 +81,9 @@ public class SecurityConfig {
                                     "/api/v2/recipes/**",
                                     "/api/recipes/popular",
                                     "/api/recipes/budget",
-                                    "/api/recipes/youtube/recommend"
+                                    "/api/recipes/youtube/recommend",
+                                    "/api/dev/recipes/ai/status/**",
+                                    "/api/dev/recipes/youtube/status/**"
                             ).permitAll()
 
                             // 3) 보호된 GET (JWT 필요)
@@ -121,7 +123,10 @@ public class SecurityConfig {
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/private",
                                     "/api/recipes/*/finalize",
-                                    "/api/ws-ticket"
+                                    "/api/ws-ticket",
+                                    "/api/subscriptions/upgrade",
+                                    "/api/dev/recipes/ai",
+                                    "/api/dev/recipes/youtube/extract"
                             ).authenticated()
 
                             // 5) 보호된 PUT
@@ -247,7 +252,9 @@ public class SecurityConfig {
                                 "/api/recipes/youtube/check",
                                 "/api/recipes/youtube/recommend",
                                 "/api/recipes/youtube/status/**",
-                                "/api/recipes/ai/status/**"
+                                "/api/recipes/ai/status/**",
+                                "/api/dev/recipes/ai/status/**",
+                                "/api/dev/recipes/youtube/status/**"
                         ).permitAll()
 
                         // [추가된 부분] POST
@@ -279,7 +286,10 @@ public class SecurityConfig {
                                 "/api/token/logout/all",
                                 "/api/recipes/*/private",
                                 "/api/recipes/*/finalize",
-                                "/api/ws-ticket"
+                                "/api/ws-ticket",
+                                "/api/subscriptions/upgrade",
+                                "/api/dev/recipes/ai",
+                                "/api/dev/recipes/youtube/extract"
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
