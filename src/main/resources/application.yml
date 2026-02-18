@@ -72,3 +72,4 @@ app:
 
 lemonsqueezy:
   webhook-secret: ${LEMON_WEBHOOK_SECRET}
+  api-key: ${LEMON_API_KEY}

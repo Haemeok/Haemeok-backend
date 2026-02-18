@@ -27,6 +27,9 @@ public class CreditProduct extends BaseTimeEntity {
     @Column(name = "ls_variant_id", nullable = false, unique = true)
     private Long lemonSqueezyVariantId;
 
+    @Column(name = "ls_variant_uuid", nullable = false)
+    private String lemonSqueezyVariantUuid;
+
     // 결제 시 지급할 크레딧 양 (예: 10, 50)
     @Column(nullable = false)
     private int creditAmount;

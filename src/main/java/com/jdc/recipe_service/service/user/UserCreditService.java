@@ -1,10 +1,10 @@
-package com.jdc.recipe_service.service.credit;
+package com.jdc.recipe_service.service.user;
 
 import com.jdc.recipe_service.domain.dto.credit.CreditHistoryResponseDto;
 import com.jdc.recipe_service.domain.entity.credit.CreditHistory;
 import com.jdc.recipe_service.domain.entity.credit.CreditProduct;
 import com.jdc.recipe_service.domain.entity.User;
-import com.jdc.recipe_service.domain.entity.UserCredit;
+import com.jdc.recipe_service.domain.entity.user.UserCredit;
 import com.jdc.recipe_service.domain.repository.credit.CreditHistoryRepository;
 import com.jdc.recipe_service.domain.repository.credit.CreditProductRepository;
 import com.jdc.recipe_service.domain.repository.user.UserCreditRepository;
@@ -36,15 +36,21 @@ public class UserCreditService {
     private final CreditProductRepository creditProductRepository;
 
     /**
-     * [사용] 크레딧 차감 (대량 차감 지원)
-     * usage: 차감할 크레딧 양 (예: 1, 3, 5)
-     * 우선순위(구독->보너스->무료->유료)대로 여러 티켓에서 순차 차감합니다.
+     * [사용] 크레딧 차감 (대량 차감 지원 + 중복 방지 + 추적성)
+     * usage: 차감할 크레딧 양
+     * refType: 사용처 구분 (예: "RECIPE_GEN")
+     * refId: 사용처 ID (예: 1023)
+     * transactionId: 중복 방지 키
      */
     @Transactional
-    public void useCredit(Long userId, int usage) {
-        if (usage <= 0) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "차감할 크레딧은 0보다 커야 합니다.");
+    public void useCredit(Long userId, int usage, String refType, Long refId, String transactionId) {
+        if (transactionId != null && creditHistoryRepository.existsByTransactionId(transactionId)) {
+            log.warn("♻️ 이미 처리된 크레딧 차감 요청입니다. (TxId={})", transactionId);
+            return;
         }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         List<UserCredit> credits = userCreditRepository.findUseableCredits(userId, PageRequest.of(0, 100));
 
@@ -73,31 +79,54 @@ public class UserCreditService {
         }
 
         saveHistory(
-                credits.get(0).getUser(),
+                user,
                 -usage,
                 CreditTransactionType.USE,
-                usage + " 크레딧 사용",
-                null
+                usage + " 크레딧 사용 (" + refType + ":" + refId + ")",
+                transactionId,
+                refType,
+                refId
         );
     }
 
     @Transactional
-    public void refundCredit(Long userId, int amount) {
+    public void refundCredit(Long userId, int amount, String customDesc, String refType, Long refId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        grantCredit(user, CreditType.BONUS, amount, 30, "SYSTEM_REFUND_AI_FAILURE");
+        String txId = "REFUND_" + refType + "_" + refId + "_" + System.currentTimeMillis();
+        UserCredit credit = UserCredit.builder()
+                .user(user)
+                .creditType(CreditType.BONUS)
+                .amount(amount)
+                .originalAmount(amount)
+                .transactionId(txId)
+                .expiresAt(LocalDateTime.now().plusDays(30))
+                .build();
+        userCreditRepository.save(credit);
 
-        log.info("↺ 크레딧 환불 완료: UserID={}, Amount={}", userId, amount);
+        saveHistory(
+                user,
+                amount,
+                CreditTransactionType.REFUND,
+                customDesc,
+                txId,
+                refType,
+                refId
+        );
+
+        log.info("↺ 크레딧 환불 처리 완료: UserID={}, Amount={}, Reason={}", userId, amount, customDesc);
     }
-
     /**
-     * [지급 V1] 만료일 직접 지정 (Webhook용)
-     * - 레몬스퀴즈가 계산해준 정확한 '다음 갱신일(renews_at)'을 사용하기 위해 필요함.
-     * - 30일/31일/윤달 여부를 백엔드에서 계산하지 않고 PG사 기준을 따름.
+     * [지급 V1] 만료일 직접 지정
      */
     @Transactional
     public void grantCredit(User user, CreditType type, int amount, LocalDateTime expiresAt, String transactionId) {
+        if (transactionId != null && userCreditRepository.findByTransactionId(transactionId).isPresent()) {
+            log.warn("♻️ 이미 지급된 트랜잭션입니다. (TxId={})", transactionId);
+            return;
+        }
+
         UserCredit credit = UserCredit.builder()
                 .user(user)
                 .creditType(type)
@@ -115,13 +144,13 @@ public class UserCreditService {
             case BONUS, BASIC -> CreditTransactionType.BONUS;
         };
 
-        saveHistory(user, amount, txType, type.getDescription() + " 지급", transactionId);
+        saveHistory(user, amount, txType, type.getDescription() + " 지급", transactionId, null, null);
+
         log.info("💰 크레딧 지급: UserID={}, Type={}, Amount={}, Expires={}", user.getId(), type, amount, expiresAt);
     }
 
     /**
      * [지급 V2] 일수 지정 (이벤트/수동지급용)
-     * - 기존 코드를 유지하기 위한 오버로딩 메서드
      */
     @Transactional
     public void grantCredit(User user, CreditType type, int amount, int validDays, String transactionId) {
@@ -133,8 +162,7 @@ public class UserCreditService {
     }
 
     /**
-     * [신규] 회원가입 축하 무료 크레딧 지급 (BASIC)
-     * - 가입 직후 Controller에서 호출
+     * [신규] 회원가입 축하 무료 크레딧 지급
      */
     @Transactional
     public void grantWelcomeCredit(User user) {
@@ -144,7 +172,7 @@ public class UserCreditService {
         int amount = (welcomeProduct != null) ? welcomeProduct.getCreditAmount() : 10;
         int days   = (welcomeProduct != null) ? welcomeProduct.getValidDays() : 365;
 
-        grantCredit(user, CreditType.BASIC, amount, days, "WELCOME_GIFT");
+        grantCredit(user, CreditType.BASIC, amount, days, "WELCOME_GIFT_" + user.getId());
 
         log.info("🎁 신규 가입 축하금 지급: User={}, Amount={}", user.getId(), amount);
     }
@@ -165,7 +193,7 @@ public class UserCreditService {
         User newUser = userRepository.findById(newUserId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        grantCredit(newUser, CreditType.BONUS, 3, 30, "WELCOME_BONUS");
+        grantCredit(newUser, CreditType.BONUS, 3, 30, "WELCOME_BONUS_" + newUserId);
 
         if (inviter.getMonthlyInviteCount() < 5) {
             grantCredit(inviter, CreditType.BONUS, 3, 30, "REFERRAL_REWARD_" + newUserId);
@@ -175,9 +203,6 @@ public class UserCreditService {
         }
     }
 
-    /**
-     * [챌린지] 요리 인증 시 페이백
-     */
     @Transactional
     public void processChallengePayback(Long userId, Long recipeId) {
         User user = userRepository.findById(userId)
@@ -186,9 +211,6 @@ public class UserCreditService {
         grantCredit(user, CreditType.BONUS, 1, 30, "CHALLENGE_PAYBACK_" + recipeId);
     }
 
-    /**
-     * [조회] 유저의 총 보유 크레딧 (화면 표시용)
-     */
     @Transactional(readOnly = true)
     public int getUserCreditBalance(Long userId) {
         return userCreditRepository.calculateTotalBalance(userId);
@@ -196,11 +218,9 @@ public class UserCreditService {
 
     /**
      * [관리자용] 결제 환불 시 크레딧 회수
-     * - Order ID로 정확하게 찾아서 회수 (최적화 적용됨)
      */
     @Transactional
     public void revokeCredit(Long userId, String transactionId) {
-        // DB에서 바로 조회 (Stream 필터링 제거로 성능 향상)
         UserCredit targetCredit = userCreditRepository.findByTransactionId(transactionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND, "해당 결제 건으로 지급된 크레딧이 없습니다."));
 
@@ -221,7 +241,9 @@ public class UserCreditService {
                 -revokeAmount,
                 CreditTransactionType.REFUND,
                 "관리자 직권 환불/회수 (결제ID: " + transactionId + ")",
-                transactionId
+                transactionId,
+                "ADMIN_REVOKE",
+                null
         );
 
         log.info("👮‍♂️ 관리자 환불 처리 완료: UserID={}, TransactionID={}, 회수량={}", userId, transactionId, revokeAmount);
@@ -244,7 +266,9 @@ public class UserCreditService {
         return Map.of("subscription", subAmount, "cash", cashAmount);
     }
 
-    private void saveHistory(User user, int amount, CreditTransactionType type, String desc, String txId) {
+    private void saveHistory(User user, int amount, CreditTransactionType type, String desc,
+                             String txId, String refType, Long refId) {
+
         int currentBalance = getUserCreditBalance(user.getId());
 
         CreditHistory history = CreditHistory.builder()
@@ -254,6 +278,8 @@ public class UserCreditService {
                 .transactionType(type)
                 .description(desc)
                 .transactionId(txId)
+                .referenceType(refType)
+                .referenceId(refId)
                 .build();
 
         creditHistoryRepository.save(history);

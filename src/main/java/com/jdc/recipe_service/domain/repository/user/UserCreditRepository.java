@@ -1,6 +1,6 @@
 package com.jdc.recipe_service.domain.repository.user;
 
-import com.jdc.recipe_service.domain.entity.UserCredit;
+import com.jdc.recipe_service.domain.entity.user.UserCredit;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
