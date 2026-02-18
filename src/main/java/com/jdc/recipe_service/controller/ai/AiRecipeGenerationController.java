@@ -62,7 +62,7 @@ public class AiRecipeGenerationController {
 
     @GetMapping("/status/{jobId}")
     @Operation(summary = "생성 작업 상태 조회", description = "Job ID를 통해 생성 진행률과 결과를 조회합니다.")
-    public ResponseEntity<JobStatusDto> getAiJobStatus(@PathVariable @DecodeId Long jobId) {
+    public ResponseEntity<JobStatusDto> getAiJobStatus(@DecodeId Long jobId) {
         return ResponseEntity.ok(aiRecipeGenerationService.getJobStatus(jobId));
     }
 }
