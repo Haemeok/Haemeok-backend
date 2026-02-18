@@ -3,6 +3,9 @@ package com.jdc.recipe_service.domain.entity;
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
@@ -19,10 +22,13 @@ import java.util.Set;
 @Table(
         name = "recipes",
         indexes = {
-                @Index(name = "idx_user_id", columnList = "user_id"),
-                @Index(name = "idx_recipe_weekly_like", columnList = "weekly_like_count"),
-                @Index(name = "idx_recipe_avg_rating", columnList = "avg_rating DESC"),
-                @Index(name = "idx_recipe_like_count", columnList = "like_count DESC")
+                @Index(name = "idx_recipes_user_created", columnList = "user_id, created_at"),
+                @Index(name = "idx_recipes_public_weekly_like",
+                        columnList = "lifecycle_status, visibility, listing_status, weekly_like_count DESC"),
+                @Index(name = "idx_recipes_public_avg_rating",
+                        columnList = "lifecycle_status, visibility, listing_status, avg_rating DESC"),
+                @Index(name = "idx_recipes_public_like_count",
+                        columnList = "lifecycle_status, visibility, listing_status, like_count DESC")
         }
 )
 @Getter
@@ -51,6 +57,21 @@ public class Recipe extends BaseTimeEntity {
 
     @Column(name = "cooking_time")
     private Integer cookingTime;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_status", nullable = false, length = 20)
+    @Builder.Default
+    private RecipeLifecycleStatus lifecycleStatus = RecipeLifecycleStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    @Builder.Default
+    private RecipeVisibility visibility = RecipeVisibility.PUBLIC;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "listing_status", nullable = false, length = 20)
+    @Builder.Default
+    private RecipeListingStatus listingStatus = RecipeListingStatus.LISTED;
 
     @Column(name = "avg_rating", precision = 3, scale = 2)
     @Builder.Default
@@ -113,6 +134,7 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Set<String> cookingTools = new HashSet<>();
 
+    // AI 생성 여부 (기존 유지. 나중에 RecipeSource로 대체 가능)
     @Column(name = "is_ai_generated")
     @Builder.Default
     private boolean isAiGenerated = false;
@@ -351,5 +373,13 @@ public class Recipe extends BaseTimeEntity {
 
     public void setIngredients(List<RecipeIngredient> ingredients) {
         this.ingredients = ingredients;
+    }
+
+    public void updateVisibility(RecipeVisibility visibility) {
+        this.visibility = visibility;
+    }
+
+    public void updateListingStatus(RecipeListingStatus listingStatus) {
+        this.listingStatus = listingStatus;
     }
 }

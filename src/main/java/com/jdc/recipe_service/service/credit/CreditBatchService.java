@@ -2,6 +2,7 @@ package com.jdc.recipe_service.service.credit;
 
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.UserRepository;
+import com.jdc.recipe_service.service.user.UserCreditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

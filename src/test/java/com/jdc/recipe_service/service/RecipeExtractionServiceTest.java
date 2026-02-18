@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
-import com.jdc.recipe_service.domain.entity.RecipeGenerationJob;
+import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;

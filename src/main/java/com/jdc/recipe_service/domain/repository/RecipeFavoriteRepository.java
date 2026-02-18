@@ -21,6 +21,8 @@ public interface RecipeFavoriteRepository extends JpaRepository<RecipeFavorite, 
     @EntityGraph(attributePaths = {"recipe", "recipe.user"})
     Page<RecipeFavorite> findByUserId(Long userId, Pageable pageable);
 
+    boolean existsByUserIdAndRecipeId(Long userId, Long recipeId);
+
     boolean existsByRecipeIdAndUserId(Long recipeId, Long userId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

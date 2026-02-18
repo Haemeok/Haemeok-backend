@@ -2,7 +2,7 @@ package com.jdc.recipe_service.controller.credit;
 
 import com.jdc.recipe_service.domain.dto.credit.CreditHistoryResponseDto;
 import com.jdc.recipe_service.security.CustomUserDetails;
-import com.jdc.recipe_service.service.credit.UserCreditService;
+import com.jdc.recipe_service.service.user.UserCreditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

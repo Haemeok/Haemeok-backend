@@ -106,7 +106,17 @@ public class RecipeService {
         }
 
         if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
-            recipe.updateIsPrivate(false);
+            boolean isPrivate = (dto.getIsPrivate() != null) ? dto.getIsPrivate() : false;
+            recipe.updateIsPrivate(isPrivate);
+
+            if (dto.getVisibility() != null) {
+                recipe.updateVisibility(dto.getVisibility());
+            }
+
+            if (dto.getListingStatus() != null) {
+                recipe.updateListingStatus(dto.getListingStatus());
+            }
+
             if (dto.getImageStatus() != null) {
                 recipe.updateImageStatus(dto.getImageStatus());
             } else {

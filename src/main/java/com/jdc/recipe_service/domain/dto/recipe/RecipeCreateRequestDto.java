@@ -3,6 +3,9 @@ package com.jdc.recipe_service.domain.dto.recipe;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
@@ -31,6 +34,10 @@ public class RecipeCreateRequestDto {
     private Integer cookingTime;
     private String imageKey;
     private RecipeImageStatus imageStatus;
+
+    private RecipeVisibility visibility;
+    private RecipeListingStatus listingStatus;
+    private RecipeLifecycleStatus lifecycleStatus;
 
     private String youtubeUrl;
     private String youtubeChannelName;
