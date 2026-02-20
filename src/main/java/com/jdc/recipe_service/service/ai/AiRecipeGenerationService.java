@@ -28,6 +28,7 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.RecipeActivityService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.SurveyService;
+import com.jdc.recipe_service.service.image.RecipeImageMatchingService;
 import com.jdc.recipe_service.service.user.UserCreditService;
 import com.jdc.recipe_service.service.image.AsyncImageService;
 import com.jdc.recipe_service.util.ActionImageService;
@@ -77,6 +78,7 @@ public class AiRecipeGenerationService {
     private final UnitService unitService;
     private final AsyncImageService asyncImageService;
     private final RecipeActivityService recipeActivityService;
+    private final RecipeImageMatchingService recipeImageMatchingService;
 
     private final IngredientFocusPromptBuilder ingredientBuilder;
     private final CostEffectivePromptBuilder costBuilder;
@@ -207,11 +209,25 @@ public class AiRecipeGenerationService {
             generatedDto.setListingStatus(RecipeListingStatus.LISTED);
         } else {
             log.info("📝 텍스트 모드(또는 실패) -> RESTRICTED / UNLISTED");
-            generatedDto.setImageKey(null);
-            generatedDto.setImageStatus(null);
+
+            DishType currentDishType = DishType.fromDisplayName(generatedDto.getDishType());
+
+            String matchedImageKey = recipeImageMatchingService.findMatchingImageKey(
+                    generatedDto.getImageMatchKeywords(), currentDishType);
+
+            if (matchedImageKey != null) {
+                log.info("✨ [이미지 매칭] 기존 썸네일 획득 성공: {}", matchedImageKey);
+                generatedDto.setImageKey(matchedImageKey);
+            } else {
+                String defaultCategoryImage = recipeImageMatchingService.getDefaultImageKeyForDishType(
+                        generatedDto.getDishType());
+                log.info("⚠️ [매칭 실패] 카테고리별 기본 이미지를 적용합니다: {}", defaultCategoryImage);
+                generatedDto.setImageKey(defaultCategoryImage);
+            }
 
             // TODO: 여기서 [키워드 검색 이미지 / 기본 이미지] 매칭 로직이 들어갈 자리입니다.
 
+            generatedDto.setImageStatus(RecipeImageStatus.READY);
             generatedDto.setVisibility(RecipeVisibility.RESTRICTED);
             generatedDto.setListingStatus(RecipeListingStatus.UNLISTED);
         }

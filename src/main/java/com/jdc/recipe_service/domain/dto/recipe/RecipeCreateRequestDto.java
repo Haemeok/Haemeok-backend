@@ -64,6 +64,7 @@ public class RecipeCreateRequestDto {
 
     private List<ComponentResponseDto> components;
     private PlatingResponseDto plating;
+    private List<String> imageMatchKeywords;
 
     @Getter @Setter
     @NoArgsConstructor
