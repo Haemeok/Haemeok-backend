@@ -4,6 +4,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDto;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.projection.RecipeSitemapProjection;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import jakarta.persistence.QueryHint;
@@ -403,4 +404,30 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
               AND (r.isAiGenerated = false OR r.imageKey IS NOT NULL)
             """)
     Page<Recipe> findCompletedRecipesByUserId(@Param("userId") Long userId, Pageable pageable);
+
+    @Query("SELECT COUNT(r) FROM Recipe r " +
+            "WHERE REPLACE(r.title, ' ', '') LIKE %:keyword% " +
+            "AND r.dishType = :dishType " +
+            "AND r.imageKey IS NOT NULL " +
+            "AND r.isPrivate = false")
+    long countCandidateRecipes(
+            @Param("keyword") String keyword,
+            @Param("dishType") DishType dishType);
+
+    @Query("SELECT r FROM Recipe r " +
+            "WHERE REPLACE(r.title, ' ', '') LIKE %:keyword% " +
+            "AND r.dishType = :dishType " +
+            "AND r.imageKey IS NOT NULL " +
+            "AND r.isPrivate = false")
+    Page<Recipe> findCandidateRecipesByKeywordAndDishType(
+            @Param("keyword") String keyword,
+            @Param("dishType") DishType dishType,
+            Pageable pageable);
+
+    @Query("SELECT r.id as id, r.updatedAt as updatedAt " +
+            "FROM Recipe r " +
+            "WHERE r.lifecycleStatus = 'ACTIVE' " +
+            "  AND r.visibility = 'PUBLIC' " +
+            "  AND r.listingStatus = 'LISTED'")
+    List<RecipeSitemapProjection> findAllForSitemap();
 }

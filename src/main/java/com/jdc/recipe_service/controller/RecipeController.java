@@ -4,8 +4,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.*;
+import com.jdc.recipe_service.domain.dto.recipe.sitemap.RecipeSitemapResponseDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
-import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.Role;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -14,6 +15,7 @@ import com.jdc.recipe_service.service.RecipeExtractionService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import com.jdc.recipe_service.service.media.YtDlpService;
+import com.jdc.recipe_service.service.sitemap.RecipeSitemapService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +39,7 @@ public class RecipeController {
     private final RecipeService recipeService;
     private final RecipeAnalysisService recipeAnalysisService;
     private final RecipeExtractionService recipeExtractionService;
+    private final RecipeSitemapService recipeSitemapService;
 
     @PostMapping
     @Operation(summary = "레시피 직접 등록 + 이미지 Presigned URL 발급", description = "사용자가 직접 입력한 레시피 정보를 저장하고, 이미지를 업로드할 Presigned URL을 발급합니다.")
@@ -219,4 +222,10 @@ public class RecipeController {
             @JsonSerialize(using = HashIdConfig.HashIdSerializer.class)
             Long recipeId
     ) {}
+
+    @GetMapping("/sitemap")
+    public ResponseEntity<List<RecipeSitemapResponseDto>> getRecipesForSitemap() {
+        List<RecipeSitemapResponseDto> sitemapData = recipeSitemapService.getSitemapData();
+        return ResponseEntity.ok(sitemapData);
+    }
 }
