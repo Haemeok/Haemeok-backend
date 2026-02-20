@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-class ConcurrencyRealTest {
+class ConcurrencyIntegrationTest {
 
     @Autowired
     private YoutubeRecipeExtractionService youtubeService;
