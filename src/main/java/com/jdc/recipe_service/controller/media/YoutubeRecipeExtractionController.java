@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
 import com.jdc.recipe_service.domain.type.recipe.RecipeDisplayMode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.media.YoutubeRecipeExtractionService;
+import com.jdc.recipe_service.service.media.YoutubeUrlCheckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @Tag(name = "Youtube Recipe API", description = "유튜브 레시피 추출용 API")
 @RestController
 @RequestMapping("/api/dev/recipes/youtube")
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 public class YoutubeRecipeExtractionController {
 
     private final YoutubeRecipeExtractionService youtubeRecipeExtractionService;
+    private final YoutubeUrlCheckService youtubeUrlCheckService;
 
     @PostMapping("/extract")
     @Operation(summary = "[V2] 유튜브 추출 요청", description = "기존과 동일한 응답 구조를 유지하며, 프리미엄 옵션에 따라 크레딧 차감 및 이미지 생성이 결정됩니다.")
@@ -50,5 +54,19 @@ public class YoutubeRecipeExtractionController {
     @Operation(summary = "[V2] 유튜브 추출 상태 조회")
     public ResponseEntity<JobStatusDto> getYoutubeJobStatus(@Parameter(description = "인코딩된 Job ID") @DecodeId Long jobId) {
         return ResponseEntity.ok(youtubeRecipeExtractionService.getJobStatus(jobId));
+    }
+
+    @GetMapping("/check")
+    @Operation(summary = "유튜브 이미지 레시피 존재 여부 확인", description = "입력한 URL로 이미 '이미지 레시피'가 등록되어 있는지 빠르게 확인합니다.")
+    public ResponseEntity<?> checkYoutubeRecipeExistence(
+            @Parameter(description = "유튜브 영상 URL", required = true)
+            @RequestParam("url") String url) {
+
+        Long recipeId = youtubeUrlCheckService.checkUrlExistence(url);
+
+        return ResponseEntity.ok(Map.of(
+                "exists", recipeId != null,
+                "recipeId", recipeId != null ? recipeId : ""
+        ));
     }
 }
