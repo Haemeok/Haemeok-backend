@@ -5,6 +5,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
+import com.jdc.recipe_service.domain.dto.url.YoutubeExtractionResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
@@ -28,6 +29,7 @@ import com.jdc.recipe_service.service.RecipeActivityService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
+import com.jdc.recipe_service.service.image.RecipeImageMatchingService;
 import com.jdc.recipe_service.service.user.UserCreditService;
 import com.jdc.recipe_service.service.image.AsyncImageService;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +92,7 @@ public class YoutubeRecipeExtractionService {
     private final RecipeService recipeService;
     private final RecipeActivityService recipeActivityService;
     private final UserCreditService userCreditService;
+    private final RecipeImageMatchingService recipeImageMatchingService;
 
     private final RecipeRepository recipeRepository;
     private final RecipeAccessRepository recipeAccessRepository;
@@ -111,7 +114,7 @@ public class YoutubeRecipeExtractionService {
             GrokClientService grokClientService,
             GeminiMultimodalService geminiMultimodalService,
             RecipeService recipeService,
-            RecipeActivityService recipeActivityService, UserCreditService userCreditService,
+            RecipeActivityService recipeActivityService, UserCreditService userCreditService, RecipeImageMatchingService recipeImageMatchingService,
             RecipeRepository recipeRepository,
             RecipeAccessRepository recipeAccessRepository, RecipeYoutubeInfoRepository recipeYoutubeInfoRepository,
             UserRepository userRepository,
@@ -126,6 +129,7 @@ public class YoutubeRecipeExtractionService {
         this.recipeService = recipeService;
         this.recipeActivityService = recipeActivityService;
         this.userCreditService = userCreditService;
+        this.recipeImageMatchingService = recipeImageMatchingService;
         this.recipeRepository = recipeRepository;
         this.recipeAccessRepository = recipeAccessRepository;
         this.recipeYoutubeInfoRepository = recipeYoutubeInfoRepository;
@@ -183,7 +187,8 @@ public class YoutubeRecipeExtractionService {
               "steps": [...],
               "tags": ["태그1","태그2","태그3"],
               "marketPrice": 1500,
-              "cookingTips": "문장으로 3-5개 팁 (불릿 금지)"
+              "cookingTips": "문장으로 3-5개 팁 (불릿 금지)",
+              "imageMatchKeywords": ["샘플요리이름", "간략샘플요리이름"]
             }
             
             ### 필드별 규칙
@@ -292,6 +297,20 @@ public class YoutubeRecipeExtractionService {
             - **[필수]** 만약 영상에 다른 버전의 레시피가 소개되었다면, 여기서 "영상에서는 ~하는 방법도 소개하고 있습니다"라고 한 줄로 언급하라.
             - 자연스러운 문장으로 이어서 작성
             
+            **imageMatchKeywords:**
+                - 목적: 네가 생성한 "title" 필드의 값에서 기존 요리 사진을 검색하기 위한 핵심 단어 2개를 추출하여 배열에 담습니다.
+                - [1] 수식어 완벽 제거: 조리시간(5분), 인명/브랜드(업소용), 감성어/형용사(초간단, 맛있는, 매콤) 등 요리의 본질과 무관한 단어는 100% 제거합니다.
+                - [2] ★핵심 재료 보존 원칙★: 키워드에는 반드시 '요리의 정체성이 되는 재료명'이 포함되어야 합니다. "찌개", "조림", "볶음", "무침", "덮밥" 같은 광범위한 요리 형태 단어만 단독으로 추출하는 것을 절대 금지합니다.
+                - [3] 2단어 추출 전략:
+                    - 1순위: [모든 핵심 재료 + 조리법]이 포함된 정확한 메뉴명
+                    - 2순위: 서브 재료를 하나 빼거나 가장 메인이 되는 [핵심 주재료 + 조리법] 조합 (만약 뺄 서브 재료가 없다면, 요리의 핵심 식재료 1개만 단독 명사로 적습니다.)
+                - [추출 예시 (Few-Shot)]
+                    - 입력: "10분 완성 초간단 두부계란덮밥" -> 출력: ["두부계란덮밥", "두부덮밥"]
+                    - 입력: "업소용 고등어 무조림" -> 출력: ["고등어무조림", "고등어조림"]
+                    - 입력: "깊고 고소한 삼겹살 김치찌개" -> 출력: ["삼겹살김치찌개", "김치찌개"]
+                    - 입력: "5분 초간단 참치마요 깻잎쌈" -> 출력: ["참치마요깻잎쌈", "깻잎쌈"]
+                    - 입력: "과메기 굴 우럭 돼지 보쌈" -> 출력: ["과메기보쌈", "보쌈"]
+            
             ## 실행 순서
             1. 레시피 영상 판별
             2. isRecipe=false면 즉시 종료
@@ -386,10 +405,13 @@ public class YoutubeRecipeExtractionService {
             });
 
             Long resultRecipeId = sharedTask.join();
-
             completeJobInTransaction(jobId, resultRecipeId);
 
-            registerRecipeToUser(userId, resultRecipeId);
+            boolean isPremiumRecipe = recipeRepository.findById(resultRecipeId)
+                    .map(r -> r.getVisibility() == RecipeVisibility.PUBLIC && r.getListingStatus() == RecipeListingStatus.LISTED)
+                    .orElse(false);
+
+            registerRecipeToUser(userId, resultRecipeId, mode, isPremiumRecipe);
 
             Set<Long> passengers = passengersMap.get(busKey);
             if (passengers != null) {
@@ -426,18 +448,28 @@ public class YoutubeRecipeExtractionService {
 
         if (existingRecipe.isPresent()) {
             Recipe r = existingRecipe.get();
-            boolean isExistingSufficient = (mode != RecipeDisplayMode.IMAGE_MODE) || !r.getIsPrivate();
+            boolean isPremiumRecipe = (r.getVisibility() == RecipeVisibility.PUBLIC && r.getListingStatus() == RecipeListingStatus.LISTED);
 
-            if (isExistingSufficient) {
-                log.info("♻️ [V2] 기존 레시피 재사용 가능 (Mode: {}). 크레딧 환불.", mode);
-                CreditCost costType = (mode == RecipeDisplayMode.IMAGE_MODE) ? CreditCost.YOUTUBE_SUMMARY_IMAGE : CreditCost.YOUTUBE_SUMMARY_TEXT;
-                int cost = getCostFromDb(costType);
-                String refundReason = "기존 레시피 재사용 환불 (Recipe ID: " + r.getId() + ")";
-                userCreditService.refundCredit(userId, cost, refundReason, "EXISTING_RECIPE", r.getId());
+            if (mode == RecipeDisplayMode.TEXT_MODE) {
+                if (isPremiumRecipe) {
+                    log.info("텍스트 요청인데 이미 이미지 레시피 있음 -> 환불 후 즉시 반환");
+                    int cost = getCostFromDb(CreditCost.YOUTUBE_SUMMARY_TEXT);
+                    userCreditService.refundCredit(userId, cost, "이미지 레시피 존재로 인한 무료 제공", "EXISTING_RECIPE", r.getId());
+                    return handleExistingRecipe(r, job.getId(), userId, true, false).join();
+                } else {
+                    log.info("♻️ 기존 텍스트 레시피 재사용 -> 연산 없이 즉시 반환 (토큰 소모)");
+                    return handleExistingRecipe(r, job.getId(), userId, false, true).join();
+                }
+            }
 
-                return handleExistingRecipe(r, job.getId(),userId).join();
-            } else {
-                log.info("🆙 [Upgrade] 기존 레시피가 있으나 상위 모드({})를 요청하여 새로 생성합니다.", mode);
+            if (mode == RecipeDisplayMode.IMAGE_MODE) {
+                if (isPremiumRecipe && !r.getIsPrivate()) {
+                    log.info("♻️ [이미지 모드] 기존 이미지 레시피 재사용 -> 환불 후 반환");
+                    int cost = getCostFromDb(CreditCost.YOUTUBE_SUMMARY_IMAGE);
+                    userCreditService.refundCredit(userId, cost, "기존 이미지 레시피 재사용 환불", "EXISTING_RECIPE", r.getId());
+                    return handleExistingRecipe(r, job.getId(), userId, true,false).join();
+                }
+                log.info("🆕 [신규 생성] 기존 텍스트 레시피가 있지만 이미지 모드이므로 새로 생성 진행");
             }
         }
 
@@ -477,12 +509,28 @@ public class YoutubeRecipeExtractionService {
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findFirstByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
                 Recipe r = existingRecipeCanonical.get();
-                log.info("♻️ [V2] Canonical URL로 기존 레시피 발견. 환불 처리.");
-                CreditCost costType = (mode == RecipeDisplayMode.IMAGE_MODE) ? CreditCost.YOUTUBE_SUMMARY_IMAGE : CreditCost.YOUTUBE_SUMMARY_TEXT;
-                int cost = getCostFromDb(costType);
-                String refundReason = "Canonical URL 중복 레시피 재사용 환불 (ID: " + r.getId() + ")";
-                userCreditService.refundCredit(userId, cost, refundReason, "EXISTING_RECIPE", r.getId());
-                return handleExistingRecipe(existingRecipeCanonical.get(), job.getId(),userId).join();
+                boolean isPremiumRecipe = (r.getVisibility() == RecipeVisibility.PUBLIC && r.getListingStatus() == RecipeListingStatus.LISTED);
+
+                if (mode == RecipeDisplayMode.TEXT_MODE) {
+                    if (isPremiumRecipe) {
+                        log.info("Canonical 중복 - 이미지 레시피 존재로 환불");
+                        int cost = getCostFromDb(CreditCost.YOUTUBE_SUMMARY_TEXT);
+                        userCreditService.refundCredit(userId, cost, "이미지 레시피 존재로 인한 무료 제공", "EXISTING_RECIPE", r.getId());
+                        return handleExistingRecipe(r, job.getId(), userId, true, false).join();
+                    } else {
+                        log.info("♻️Canonical 중복 - 텍스트 레시피 존재로 연산 생략 (토큰 소모)");
+                        return handleExistingRecipe(r, job.getId(), userId, false, true).join();
+                    }
+                }
+
+                if (mode == RecipeDisplayMode.IMAGE_MODE) {
+                    if (isPremiumRecipe && !r.getIsPrivate()) {
+                        log.info("♻️ [이미지 모드] Canonical 중복 - 이미지 레시피 존재로 환불");
+                        int cost = getCostFromDb(CreditCost.YOUTUBE_SUMMARY_IMAGE);
+                        userCreditService.refundCredit(userId, cost, "기존 이미지 레시피 재사용 환불", "EXISTING_RECIPE", r.getId());
+                        return handleExistingRecipe(r, job.getId(), userId, true,false).join();
+                    }
+                }
             }
 
         } catch (Exception e) {
@@ -594,18 +642,30 @@ public class YoutubeRecipeExtractionService {
 
             recipeDto.setVisibility(RecipeVisibility.PUBLIC);
             recipeDto.setListingStatus(RecipeListingStatus.LISTED);
-            recipeDto.setLifecycleStatus(RecipeLifecycleStatus.ACTIVE);
         } else {
             log.info("📝 텍스트 모드 유지 -> RESTRICTED / UNLISTED 모드");
-            recipeDto.setImageKey(null);
-            recipeDto.setImageStatus(null);
 
             // TODO: 여기서 [키워드 검색 이미지 / 기본 이미지] 매칭 로직이 들어갈 자리입니다.
+            DishType currentDishType = DishType.fromDisplayName(recipeDto.getDishType());
 
+            String matchedImageKey = recipeImageMatchingService.findMatchingImageKey(
+                    recipeDto.getImageMatchKeywords(), currentDishType);
+
+            if (matchedImageKey != null) {
+                log.info("✨ [이미지 매칭] 기존 썸네일 획득 성공: {}", matchedImageKey);
+                recipeDto.setImageKey(matchedImageKey);
+            } else {
+                String defaultCategoryImage = recipeImageMatchingService.getDefaultImageKeyForDishType(
+                        recipeDto.getDishType());
+                log.info("⚠️ [매칭 실패] 카테고리별 기본 이미지를 적용합니다: {}", defaultCategoryImage);
+                recipeDto.setImageKey(defaultCategoryImage);
+            }
+
+            recipeDto.setImageStatus(RecipeImageStatus.READY);
             recipeDto.setVisibility(RecipeVisibility.RESTRICTED);
             recipeDto.setListingStatus(RecipeListingStatus.UNLISTED);
-            recipeDto.setLifecycleStatus(RecipeLifecycleStatus.ACTIVE);
         }
+        recipeDto.setLifecycleStatus(RecipeLifecycleStatus.ACTIVE);
 
         broadcastProgress(busKey, JobStatus.IN_PROGRESS, 90);
 
@@ -779,24 +839,34 @@ public class YoutubeRecipeExtractionService {
         }
     }
 
-    private CompletableFuture<PresignedUrlResponse> handleExistingRecipe(Recipe recipe, Long jobId, Long userId) {
+    private CompletableFuture<PresignedUrlResponse> handleExistingRecipe(
+            Recipe recipe, Long jobId, Long userId, boolean isRefunded, boolean shouldGrantAccess) {
+
         completeJobInTransaction(jobId, recipe.getId());
 
-        registerRecipeToUser(userId, recipe.getId());
+        if (shouldGrantAccess) {
+            grantRecipeOwnership(userId, recipe.getId(), RecipeAccessRole.VIEWER);
+            log.info("🔐 [권한 기록] 유저 {}에게 레시피 {} 조회 권한 부여", userId, recipe.getId());
+        }
 
-        PresignedUrlResponse response = PresignedUrlResponse.builder()
+        autoAddFavorite(userId, recipe.getId());
+
+        PresignedUrlResponse response = YoutubeExtractionResponse.youtubeBuilder()
                 .recipeId(recipe.getId())
                 .uploads(Collections.emptyList())
                 .created(false)
+                .refunded(isRefunded)
                 .build();
 
         return CompletableFuture.completedFuture(response);
     }
 
-    private void registerRecipeToUser(Long userId, Long recipeId) {
+    private void registerRecipeToUser(Long userId, Long recipeId, RecipeDisplayMode mode, boolean isPremiumRecipe) {
         if (userId == null || recipeId == null) return;
 
-        grantRecipeOwnership(userId, recipeId, RecipeAccessRole.VIEWER);
+        if (mode == RecipeDisplayMode.TEXT_MODE && !isPremiumRecipe) {
+            grantRecipeOwnership(userId, recipeId, RecipeAccessRole.VIEWER);
+        }
 
         autoAddFavorite(userId, recipeId);
     }
@@ -805,12 +875,26 @@ public class YoutubeRecipeExtractionService {
         Set<Long> passengers = passengersMap.get(busKey);
         if (passengers != null && !passengers.isEmpty()) {
             List<RecipeGenerationJob> jobs = jobRepository.findAllById(passengers);
+
+            Recipe recipe = recipeRepository.findById(recipeId).orElse(null);
+            // 여기서도 PUBLIC & LISTED 검사!
+            boolean isPremiumRecipe = (recipe != null && recipe.getVisibility() == RecipeVisibility.PUBLIC && recipe.getListingStatus() == RecipeListingStatus.LISTED);
+
             for (RecipeGenerationJob pJob : jobs) {
                 if (pJob.getStatus() != JobStatus.COMPLETED) {
                     pJob.setResultRecipeId(recipeId);
                     pJob.updateProgress(JobStatus.COMPLETED, 100);
                 }
-                registerRecipeToUser(pJob.getUserId(), recipeId);
+
+                if (pJob.getDisplayMode() == RecipeDisplayMode.TEXT_MODE && isPremiumRecipe) {
+                    int cost = getCostFromDb(CreditCost.YOUTUBE_SUMMARY_TEXT);
+                    userCreditService.refundCredit(pJob.getUserId(), cost, "이미지 레시피 무료 제공 (합승 환불)", "EXISTING_RECIPE", recipeId);
+                }
+                else if (pJob.getDisplayMode() == RecipeDisplayMode.TEXT_MODE && !isPremiumRecipe) {
+                    grantRecipeOwnership(pJob.getUserId(), recipeId, RecipeAccessRole.VIEWER);
+                }
+
+                autoAddFavorite(pJob.getUserId(), recipeId);
             }
             jobRepository.saveAll(jobs);
         }
