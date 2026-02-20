@@ -5,7 +5,7 @@ import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientReque
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeIngredient;
-import com.jdc.recipe_service.domain.type.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 
 import java.math.BigDecimal;
 import java.util.List;

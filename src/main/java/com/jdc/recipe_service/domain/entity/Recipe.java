@@ -3,12 +3,11 @@ package com.jdc.recipe_service.domain.entity;
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
+import com.jdc.recipe_service.domain.type.recipe.*;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 
@@ -134,6 +133,12 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Set<String> cookingTools = new HashSet<>();
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", length = 20, nullable = false)
+    @ColumnDefault("'USER'")
+    @Builder.Default
+    private RecipeSourceType source = RecipeSourceType.USER;
+
     // AI 생성 여부 (기존 유지. 나중에 RecipeSource로 대체 가능)
     @Column(name = "is_ai_generated")
     @Builder.Default
@@ -214,6 +219,9 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "total_ingredient_count")
     @Builder.Default
     private Integer totalIngredientCount = 0;
+
+    @Column(name = "image_match_keywords", length = 100)
+    private String imageMatchKeywords;
 
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
@@ -381,5 +389,15 @@ public class Recipe extends BaseTimeEntity {
 
     public void updateListingStatus(RecipeListingStatus listingStatus) {
         this.listingStatus = listingStatus;
+    }
+
+    public void updateSourceType(RecipeSourceType source) {
+        this.source = source;
+    }
+
+    public void updateImageMatchKeywords(List<String> keywords) {
+        if (keywords != null && !keywords.isEmpty()) {
+            this.imageMatchKeywords = String.join(",", keywords);
+        }
     }
 }

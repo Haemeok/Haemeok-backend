@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
 import com.jdc.recipe_service.event.UserRecipeCreatedEvent;
 import com.jdc.recipe_service.exception.CustomException;
@@ -88,10 +89,14 @@ public class RecipeService {
         deduplicateIngredients(dto.getIngredients());
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
+        recipe.updateImageMatchKeywords(dto.getImageMatchKeywords());
+
         if (dto.getExtractorId() != null) {
             recipe.updateExtractorId(dto.getExtractorId());
         }
         recipe.updateAiGenerated(sourceType == RecipeSourceType.AI);
+
+        recipe.updateSourceType(sourceType);
 
         if (sourceType == RecipeSourceType.YOUTUBE) {
             recipe.updateYoutubeInfo(
