@@ -5,9 +5,11 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,5 +33,11 @@ public interface UserCreditRepository extends JpaRepository<UserCredit, Long> {
     @Query("SELECT COALESCE(SUM(uc.amount), 0) FROM UserCredit uc WHERE uc.user.id = :userId AND uc.amount > 0 AND uc.expiresAt > CURRENT_TIMESTAMP")
     Integer calculateTotalBalance(@Param("userId") Long userId);
 
-    boolean existsByTransactionId(String transactionId);
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE UserCredit uc SET uc.expiresAt = :newExpiry " +
+            "WHERE uc.user.id = :userId " +
+            "AND uc.creditType = 'SUBSCRIPTION' " +
+            "AND uc.amount > 0 " +
+            "AND uc.expiresAt > CURRENT_TIMESTAMP")
+    void updateSubscriptionExpiry(@Param("userId") Long userId, @Param("newExpiry") LocalDateTime newExpiry);
 }

@@ -50,11 +50,12 @@ public class SubscriptionService {
         headers.set("Authorization", "Bearer " + lemonApiKey);
         headers.set("Content-Type", "application/vnd.api+json");
         headers.set("Accept", "application/vnd.api+json");
+        headers.set("X-HTTP-Method-Override", "PATCH");
 
         Map<String, Object> attributes = new HashMap<>();
         attributes.put("variant_id", targetNumericId);
         attributes.put("invoice_immediately", true);
-        attributes.put("disable_prorations", false);
+        attributes.put("disable_prorations", true);
 
         Map<String, Object> data = new HashMap<>();
         data.put("type", "subscriptions");
@@ -66,7 +67,7 @@ public class SubscriptionService {
 
         try {
             log.info("구독 업그레이드 요청: User={}, NewVariant={}", userId, targetNumericId);
-            restTemplate.exchange(url, HttpMethod.PATCH, new HttpEntity<>(body, headers), String.class);
+            restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
         } catch (Exception e) {
             log.error("업그레이드 API 호출 실패", e);
             throw new RuntimeException("업그레이드 실패: " + e.getMessage());

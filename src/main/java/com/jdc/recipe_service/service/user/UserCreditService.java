@@ -266,6 +266,12 @@ public class UserCreditService {
         return Map.of("subscription", subAmount, "cash", cashAmount);
     }
 
+    @Transactional
+    public void syncSubscriptionExpiry(Long userId, LocalDateTime newExpiry) {
+        userCreditRepository.updateSubscriptionExpiry(userId, newExpiry);
+        log.info("📅 유저 {}의 기존 구독 크레딧 만료일이 {}로 연장되었습니다.", userId, newExpiry);
+    }
+
     private void saveHistory(User user, int amount, CreditTransactionType type, String desc,
                              String txId, String refType, Long refId) {
 
