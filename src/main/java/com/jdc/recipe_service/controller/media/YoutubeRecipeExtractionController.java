@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hashids.Hashids;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +28,7 @@ public class YoutubeRecipeExtractionController {
 
     private final YoutubeRecipeExtractionService youtubeRecipeExtractionService;
     private final YoutubeUrlCheckService youtubeUrlCheckService;
+    private final Hashids hashids;
 
     @PostMapping("/extract")
     @Operation(summary = "[V2] 유튜브 추출 요청", description = "기존과 동일한 응답 구조를 유지하며, 프리미엄 옵션에 따라 크레딧 차감 및 이미지 생성이 결정됩니다.")
@@ -66,7 +68,7 @@ public class YoutubeRecipeExtractionController {
 
         return ResponseEntity.ok(Map.of(
                 "exists", recipeId != null,
-                "recipeId", recipeId != null ? recipeId : ""
+                "recipeId", recipeId != null ? hashids.encode(recipeId) : ""
         ));
     }
 }
