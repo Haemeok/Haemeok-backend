@@ -9,11 +9,13 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.keyword.KeywordService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hashids.Hashids;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -27,12 +29,14 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OpenSearchService {
 
     private final RecipeRepository recipeRepository;
@@ -59,6 +63,7 @@ public class OpenSearchService {
                     .query(bool)
                     .from((int) pg.getOffset())
                     .size(pg.getPageSize())
+                    .timeout(new TimeValue(3, TimeUnit.SECONDS))
                     .fetchSource(false);
 
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
@@ -98,6 +103,7 @@ public class OpenSearchService {
             return new PageImpl<>(list, pg, hits.getTotalHits().value);
 
         } catch (IOException e) {
+            log.error("🚨 V1 OpenSearch 조회 중 오류 발생! 검색조건: {}, 정렬조건: {}", cond, pg.getSort(), e);
             throw new CustomException(
                     ErrorCode.SEARCH_FAILURE,
                     "OpenSearch 조회 실패: " + e.getMessage()
@@ -113,6 +119,7 @@ public class OpenSearchService {
                     .query(bool)
                     .from((int) pg.getOffset())
                     .size(pg.getPageSize())
+                    .timeout(new TimeValue(3, TimeUnit.SECONDS))
                     .fetchSource(false);
 
             if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
@@ -148,6 +155,7 @@ public class OpenSearchService {
             return new PageImpl<>(list, pg, hits.getTotalHits().value);
 
         } catch (IOException e) {
+            log.error("🚨 V2 OpenSearch 조회 중 오류 발생! 검색조건: {}, 정렬조건: {}", cond, pg.getSort(), e);
             throw new CustomException(ErrorCode.SEARCH_FAILURE, "OpenSearch 조회 실패: " + e.getMessage());
         }
     }
