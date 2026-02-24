@@ -333,6 +333,22 @@ public class RecipeService {
             recipe.updateMarketPrice(marketPrice);
         }
 
+        if (req.getFiles() != null) {
+            for (FileInfoRequest file : req.getFiles()) {
+                if (file.getType() != null && file.getType().startsWith("step") && file.getStepIndex() != null) {
+                    int stepIdx = file.getStepIndex();
+                    String stepImageKey = "images/recipes/" + recipe.getId() + "/step_" + stepIdx + ".webp";
+
+                    if (dto.getSteps() != null) {
+                        dto.getSteps().stream()
+                                .filter(s -> s.getStepNumber() == stepIdx)
+                                .findFirst()
+                                .ifPresent(s -> s.setImageKey(stepImageKey));
+                    }
+                }
+            }
+        }
+
         recipeStepService.updateStepsFromUser(recipe, dto.getSteps());
         recipeTagService.updateTags(recipe, dto.getTags());
 
