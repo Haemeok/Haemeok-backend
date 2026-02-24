@@ -79,8 +79,10 @@ public class RecipeStepService {
             if (ai) {
                 String key = actionImageService.generateImageKey(AiRecipeConcept.INGREDIENT_FOCUS, dto.getAction());
                 step.updateStepImageKey(key);
-            }else {
-                step.updateStepImageKey(dto.getImageKey());
+            } else {
+                if (dto.getImageKey() != null && !dto.getImageKey().isBlank()) {
+                    step.updateStepImageKey(dto.getImageKey());
+                }
             }
             updateStepIngredients(step, dto.getIngredients(), riMap);
         }
@@ -107,7 +109,9 @@ public class RecipeStepService {
             } else {
                 step.updateInstruction(dto.getInstruction());
             }
-            step.updateStepImageKey(dto.getImageKey());
+            if (dto.getImageKey() != null && !dto.getImageKey().isBlank()) {
+                step.updateStepImageKey(dto.getImageKey());
+            }
             recipeStepRepository.save(step);
             updateStepIngredients(step, dto.getIngredients(), riMap);
         }
