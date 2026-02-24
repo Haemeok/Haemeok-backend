@@ -106,17 +106,16 @@ public class RecipeSearchService {
             return searchWithQuerydslSortedByDynamicField(condition, pageable, "avgRating", ratingSort.getDirection(), userId);
         }
 
-        boolean useOpenSearch = shouldUseOpenSearch(condition);
-
-        if (useOpenSearch) {
-            Page<RecipeSimpleDto> page = openSearchService.searchRecipes(condition, pageable, userId);
-            return addLikeInfoToPage(page, userId);
-        } else {
-            if (condition.getIngredientIds() != null && !condition.getIngredientIds().isEmpty()) {
-                return searchByIncludedIngredients(condition, pageable, userId);
-            } else {
-                return searchWithQuerydsl(condition, pageable, userId);
+        if (shouldUseOpenSearch(condition)) {
+            try {
+                Page<RecipeSimpleDto> page = openSearchService.searchRecipes(condition, pageable, userId);
+                return addLikeInfoToPage(page, userId);
+            } catch (Exception e) {
+                log.warn("⚠️ OpenSearch 검색 실패. QueryDSL로 대체 검색합니다. 원인: {}", e.getMessage());
+                return executeFallbackSearch(condition, pageable, userId);
             }
+        } else {
+            return executeFallbackSearch(condition, pageable, userId);
         }
     }
 
@@ -457,6 +456,14 @@ public class RecipeSearchService {
             default -> Comparator.comparing(RecipeSimpleDto::getCreatedAt);
         };
         recipes.sort(order.isAscending() ? comparator : comparator.reversed());
+    }
+
+    private Page<RecipeSimpleDto> executeFallbackSearch(RecipeSearchCondition condition, Pageable pageable, Long userId) {
+        if (condition.getIngredientIds() != null && !condition.getIngredientIds().isEmpty()) {
+            return searchByIncludedIngredients(condition, pageable, userId);
+        } else {
+            return searchWithQuerydsl(condition, pageable, userId);
+        }
     }
 
 }

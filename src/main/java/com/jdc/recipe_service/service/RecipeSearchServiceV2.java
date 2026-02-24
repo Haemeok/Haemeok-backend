@@ -265,7 +265,12 @@ public class RecipeSearchServiceV2 {
     public Page<RecipeSimpleStaticDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
         if (shouldUseOpenSearch(condition)) {
             log.info("V2 API: Using OpenSearch");
-            return openSearchService.searchRecipesV2(condition, pageable, userId);
+            try {
+                return openSearchService.searchRecipesV2(condition, pageable, userId);
+            } catch (Exception e) {
+                log.warn("⚠️ OpenSearch(V2) 검색 실패. QueryDSL로 대체 검색합니다. 원인: {}", e.getMessage());
+                return searchWithQuerydslV2(condition, pageable, userId);
+            }
         } else {
             log.info("V2 API: Using QueryDSL");
             return searchWithQuerydslV2(condition, pageable, userId);
