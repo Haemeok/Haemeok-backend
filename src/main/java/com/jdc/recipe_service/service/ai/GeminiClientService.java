@@ -32,7 +32,7 @@ public class GeminiClientService {
     private String geminiApiKey;
 
     private static final String GCP_PROJECT_ID = "gen-lang-client-0326396795";
-    private static final String GEMINI_MODEL_ID = "gemini-3.1-pro-preview";
+    private static final String GEMINI_MODEL_ID = "gemini-3-flash-preview";
 
     private static final String GEMINI_API_URL =
             "https://aiplatform.googleapis.com/v1/projects/" + GCP_PROJECT_ID +
