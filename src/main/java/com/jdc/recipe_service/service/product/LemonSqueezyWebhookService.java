@@ -105,17 +105,23 @@ public class LemonSqueezyWebhookService {
             String orderId = data.path("id").asText();
             String status = attributes.path("status").asText();
 
-            if (userCreditRepository.findByTransactionId(orderId).isPresent()) {
-                log.info("♻️ 이미 처리된 웹훅입니다. (OrderId={})", orderId);
-                return;
-            }
-
             if (("subscription_created".equals(eventName) || "subscription_payment_success".equals(eventName))
                     && product.getType() == CreditType.SUBSCRIPTION) {
 
+                if (userCreditRepository.findByTransactionId(orderId).isPresent()) {
+                    log.info("♻️ 이미 처리된 웹훅입니다. (OrderId={})", orderId);
+                    return;
+                }
+
                 String portalUrl = attributes.path("urls").path("customer_portal").asText();
                 String renewsAtStr = attributes.path("renews_at").asText();
-                long subId = attributes.path("subscription_id").asLong();
+
+                long subId;
+                if ("subscription_created".equals(eventName)) {
+                    subId = Long.parseLong(data.path("id").asText());
+                } else {
+                    subId = attributes.path("subscription_id").asLong();
+                }
 
                 LocalDateTime nextBillingDate;
                 if (renewsAtStr != null && !renewsAtStr.isBlank()) {
@@ -137,6 +143,8 @@ public class LemonSqueezyWebhookService {
                 LocalDateTime realExpiresAt = nextBillingDate.plusDays(5);
                 int totalAmount = product.getCreditAmount() + product.getBonusAmount();
 
+                userCreditService.syncSubscriptionExpiry(user.getId(), realExpiresAt);
+
                 userCreditService.grantCredit(user, CreditType.SUBSCRIPTION, totalAmount, realExpiresAt, orderId);
 
                 log.info("✅ 구독 갱신 완료: User={}, 만료일(여유포함)={}", userId, realExpiresAt);
@@ -145,12 +153,50 @@ public class LemonSqueezyWebhookService {
             else if ("order_created".equals(eventName) && "paid".equals(status)
                     && product.getType() == CreditType.PAID) {
 
+                if (userCreditRepository.findByTransactionId(orderId).isPresent()) {
+                    log.info("♻️ 이미 처리된 웹훅입니다. (OrderId={})", orderId);
+                    return;
+                }
+
                 int totalAmount = product.getCreditAmount() + product.getBonusAmount();
                 LocalDateTime expireDate = LocalDateTime.now().plusYears(5);
 
                 userCreditService.grantCredit(user, product.getType(), totalAmount, expireDate, orderId);
 
                 log.info("✅ 충전 완료: User={}, 양={}", userId, totalAmount);
+            }
+
+            else if ("subscription_payment_failed".equals(eventName)) {
+                userSubscriptionRepository.findByUserId(userId).ifPresent(sub -> {
+                    sub.updateStatus(SubscriptionStatus.PAST_DUE);
+                    userSubscriptionRepository.save(sub);
+                });
+                log.warn("🚨 결제 실패 웹훅: User={}, OrderId={}", userId, orderId);
+            }
+
+            else if ("subscription_cancelled".equals(eventName) || "subscription_expired".equals(eventName)) {
+                userSubscriptionRepository.findByUserId(userId).ifPresent(sub -> {
+                    sub.updateStatus(SubscriptionStatus.CANCELED);
+                    userSubscriptionRepository.save(sub);
+                });
+                log.info("🚫 구독 해지/만료 웹훅: User={}", userId);
+            }
+
+            else if ("order_refunded".equals(eventName)) {
+                if (userCreditRepository.findByTransactionId(orderId + "_REFUND").isPresent()) {
+                    log.info("♻️ 이미 처리된 환불입니다. (OrderId={})", orderId + "_REFUND");
+                    return;
+                }
+
+                userSubscriptionRepository.findByUserId(userId).ifPresent(sub -> {
+                    sub.updateStatus(SubscriptionStatus.CANCELED);
+                    userSubscriptionRepository.save(sub);
+                });
+
+                int refundAmount = -(product.getCreditAmount() + product.getBonusAmount());
+                userCreditService.grantCredit(user, product.getType(), refundAmount, LocalDateTime.now(), orderId + "_REFUND");
+
+                log.error("💸 환불 처리 완료: User={}, 회수 크레딧={}", userId, refundAmount);
             }
 
         } catch (CustomException e) {

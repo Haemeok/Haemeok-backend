@@ -51,4 +51,8 @@ public class UserSubscription extends BaseTimeEntity {
     public void cancel() {
         this.status = SubscriptionStatus.CANCELED;
     }
+
+    public void updateStatus(SubscriptionStatus status) {
+        this.status = status;
+    }
 }
