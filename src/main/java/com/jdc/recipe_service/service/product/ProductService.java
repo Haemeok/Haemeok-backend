@@ -42,7 +42,10 @@ public class ProductService {
 
         String encodedUserId = hashids.encode(userId);
 
-        List<CreditProduct> products = creditProductRepository.findAll();
+        List<CreditProduct> products = creditProductRepository.findAll().stream()
+                .filter(CreditProduct::isActive)
+                .filter(p -> p.getType() == CreditType.SUBSCRIPTION || p.getType() == CreditType.PAID)
+                .toList();
 
         LocalDateTime nextBillingDate = (subscription != null) ? subscription.getNextBillingDate() : null;
 
@@ -68,8 +71,13 @@ public class ProductService {
                             dynamicUrl = checkoutUrl;
                         }
                     }
+                    LocalDateTime displayBillingDate = isCurrentPlan ? nextBillingDate : null;
 
-                    return ProductResponseDto.from(product, dynamicUrl, portalUrl, isSubscribed, isCurrentPlan, nextBillingDate);
+                    return ProductResponseDto.from(product, dynamicUrl, portalUrl,
+                            isCurrentPlan,
+                            isCurrentPlan,
+                            displayBillingDate
+                    );
                 })
                 .toList();
     }

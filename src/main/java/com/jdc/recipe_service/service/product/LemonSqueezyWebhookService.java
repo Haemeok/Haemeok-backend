@@ -95,7 +95,12 @@ public class LemonSqueezyWebhookService {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-            long variantId = attributes.path("variant_id").asLong();
+            long variantId;
+            if (attributes.has("first_order_item")) {
+                variantId = attributes.path("first_order_item").path("variant_id").asLong();
+            } else {
+                variantId = attributes.path("variant_id").asLong();
+            }
             CreditProduct product = creditProductRepository.findByLemonSqueezyVariantId(variantId)
                     .orElseThrow(() -> {
                         log.error("❌ 등록되지 않은 상품 결제됨! VariantID: {}", variantId);
@@ -188,10 +193,12 @@ public class LemonSqueezyWebhookService {
                     return;
                 }
 
-                userSubscriptionRepository.findByUserId(userId).ifPresent(sub -> {
-                    sub.updateStatus(SubscriptionStatus.CANCELED);
-                    userSubscriptionRepository.save(sub);
-                });
+                if (product.getType() == CreditType.SUBSCRIPTION) {
+                    userSubscriptionRepository.findByUserId(userId).ifPresent(sub -> {
+                        sub.updateStatus(SubscriptionStatus.CANCELED);
+                        userSubscriptionRepository.save(sub);
+                    });
+                }
 
                 int refundAmount = -(product.getCreditAmount() + product.getBonusAmount());
                 userCreditService.grantCredit(user, product.getType(), refundAmount, LocalDateTime.now(), orderId + "_REFUND");
