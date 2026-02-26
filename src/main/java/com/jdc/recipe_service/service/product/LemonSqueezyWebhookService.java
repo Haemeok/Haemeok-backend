@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.entity.credit.CreditProduct;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.entity.user.UserCredit;
 import com.jdc.recipe_service.domain.entity.user.UserSubscription;
 import com.jdc.recipe_service.domain.repository.credit.CreditProductRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
@@ -201,7 +202,12 @@ public class LemonSqueezyWebhookService {
                 }
 
                 int refundAmount = -(product.getCreditAmount() + product.getBonusAmount());
-                userCreditService.grantCredit(user, product.getType(), refundAmount, LocalDateTime.now(), orderId + "_REFUND");
+
+                LocalDateTime refundExpiresAt = userCreditRepository.findByTransactionId(orderId)
+                        .map(UserCredit::getExpiresAt)
+                        .orElse(LocalDateTime.now().plusYears(5));
+
+                userCreditService.grantCredit(user, product.getType(), refundAmount, refundExpiresAt, orderId + "_REFUND");
 
                 log.error("💸 환불 처리 완료: User={}, 회수 크레딧={}", userId, refundAmount);
             }
