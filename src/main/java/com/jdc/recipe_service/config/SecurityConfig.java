@@ -126,7 +126,6 @@ public class SecurityConfig {
                                     "/api/recipes/*/private",
                                     "/api/recipes/*/finalize",
                                     "/api/ws-ticket",
-                                    "/api/subscriptions/upgrade",
                                     "/api/dev/recipes/ai",
                                     "/api/dev/recipes/youtube/extract"
                             ).authenticated()
@@ -291,7 +290,6 @@ public class SecurityConfig {
                                 "/api/recipes/*/private",
                                 "/api/recipes/*/finalize",
                                 "/api/ws-ticket",
-                                "/api/subscriptions/upgrade",
                                 "/api/dev/recipes/ai",
                                 "/api/dev/recipes/youtube/extract"
                         ).authenticated()

@@ -12,6 +12,7 @@ import org.hashids.Hashids;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -35,63 +36,40 @@ public class ProductService {
 
         String currentVariantId = (subscription != null) ? subscription.getLemonSqueezyVariantId() : null;
 
-        boolean currentIsUnlimited = false;
-        int currentCreditAmount = 0;
+        String portalUrl = (isSubscribed && subscription.getCustomerPortalUrl() != null)
+                ? subscription.getCustomerPortalUrl()
+                : DEFAULT_PORTAL_URL;
 
-        List<CreditProduct> products = creditProductRepository.findAllByTypeAndIsActiveTrueOrderByCreditAmountAsc(CreditType.SUBSCRIPTION);
-
-        if (isSubscribed && currentVariantId != null) {
-            CreditProduct currentProduct = products.stream()
-                    .filter(p -> String.valueOf(p.getLemonSqueezyVariantId()).equals(currentVariantId))
-                    .findFirst()
-                    .orElse(null);
-
-            if (currentProduct != null) {
-                currentIsUnlimited = currentProduct.isUnlimited();
-                currentCreditAmount = currentProduct.getCreditAmount();
-            }
-        }
-
-        String portalUrl = (isSubscribed)
-                ? ((subscription.getCustomerPortalUrl() != null) ? subscription.getCustomerPortalUrl() : DEFAULT_PORTAL_URL)
-                : null;
         String encodedUserId = hashids.encode(userId);
 
-        final boolean myUnlimited = currentIsUnlimited;
-        final int myCredit = currentCreditAmount;
+        List<CreditProduct> products = creditProductRepository.findAll();
+
+        LocalDateTime nextBillingDate = (subscription != null) ? subscription.getNextBillingDate() : null;
 
         return products.stream()
                 .map(product -> {
                     boolean isCurrentPlan = isSubscribed &&
                             String.valueOf(product.getLemonSqueezyVariantId()).equals(currentVariantId);
-                    boolean isUpgrade = false;
 
-                    if (isSubscribed && !isCurrentPlan) {
-                        if (!myUnlimited && product.isUnlimited()) {
-                            isUpgrade = true;
-                        } else if (!myUnlimited && !product.isUnlimited() && product.getCreditAmount() > myCredit) {
-                            isUpgrade = true;
-                        }
-                    }
+                    String checkoutUrl = STORE_URL + "/buy/" + product.getLemonSqueezyVariantUuid()
+                            + "?checkout[custom][user_id]=" + encodedUserId
+                            + "&_=" + System.currentTimeMillis();
 
                     String dynamicUrl;
 
-                    if (isCurrentPlan) {
-                        dynamicUrl = null;
-                    } else if (isSubscribed) {
-                        if (isUpgrade) {
-                            dynamicUrl = "API_UPGRADE";
-                        } else {
-                            dynamicUrl = portalUrl;
-                        }
+                    if (product.getType() == CreditType.PAID) {
+                        dynamicUrl = checkoutUrl;
                     } else {
-                        String nonce = String.valueOf(System.currentTimeMillis());
-                        dynamicUrl = STORE_URL + "/buy/" + product.getLemonSqueezyVariantUuid()
-                                + "?checkout[custom][user_id]=" + encodedUserId
-                                + "&_=" + nonce;
+                        if (isCurrentPlan) {
+                            dynamicUrl = null;
+                        } else if (isSubscribed) {
+                            dynamicUrl = portalUrl;
+                        } else {
+                            dynamicUrl = checkoutUrl;
+                        }
                     }
 
-                    return ProductResponseDto.from(product, dynamicUrl, portalUrl, isSubscribed, isCurrentPlan);
+                    return ProductResponseDto.from(product, dynamicUrl, portalUrl, isSubscribed, isCurrentPlan, nextBillingDate);
                 })
                 .toList();
     }
