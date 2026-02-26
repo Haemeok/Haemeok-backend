@@ -4,6 +4,8 @@ import com.jdc.recipe_service.domain.entity.credit.CreditProduct;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Builder
 public class ProductResponseDto {
@@ -16,8 +18,9 @@ public class ProductResponseDto {
     private String customerPortalUrl;
     private boolean isSubscribed;
     private boolean isCurrentPlan;
+    private LocalDateTime nextBillingDate;
 
-    public static ProductResponseDto from(CreditProduct product, String fullCheckoutUrl, String customerPortalUrl, boolean isSubscribed, boolean isCurrentPlan) {
+    public static ProductResponseDto from(CreditProduct product, String fullCheckoutUrl, String customerPortalUrl, boolean isSubscribed, boolean isCurrentPlan, LocalDateTime nextBillingDate) {
         return ProductResponseDto.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -28,6 +31,7 @@ public class ProductResponseDto {
                 .customerPortalUrl(customerPortalUrl)
                 .isSubscribed(isSubscribed)
                 .isCurrentPlan(isCurrentPlan)
+                .nextBillingDate(nextBillingDate)
                 .build();
     }
 }

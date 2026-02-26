@@ -491,20 +491,26 @@ public class YoutubeRecipeExtractionService {
 
         try {
             videoData = ytDlpService.getVideoDataFull(videoUrl);
+        } catch (Exception e) {
+            log.warn("⚠️ yt-dlp 데이터 추출 에러: {}", safeMsg(e));
+            videoData = YtDlpService.YoutubeFullDataDto.builder().build();
+            useUrlFallback = true;
+        }
 
-            title = nullToEmpty(videoData.title());
-            description = cap(nullToEmpty(videoData.description()), MAX_DESC_CHARS);
-            comments = cap(nullToEmpty(videoData.comments()), MAX_CMT_CHARS);
-            scriptPlain = cap(nullToEmpty(videoData.scriptTimecoded()), MAX_SCRIPT_CHARS);
-            channelName = nullToEmpty(videoData.channelName());
-            channelId = nullToEmpty(videoData.channelId());
-            originalVideoTitle = nullToEmpty(videoData.title());
-            thumbnailUrl = nullToEmpty(videoData.thumbnailUrl());
-            channelProfileUrl = nullToEmpty(videoData.channelProfileUrl());
-            subscriberCount = videoData.youtubeSubscriberCount();
-            videoViewCount = videoData.viewCount();
-            videoDuration = videoData.duration();
+        title = nullToEmpty(videoData.title());
+        description = cap(nullToEmpty(videoData.description()), MAX_DESC_CHARS);
+        comments = cap(nullToEmpty(videoData.comments()), MAX_CMT_CHARS);
+        scriptPlain = cap(nullToEmpty(videoData.scriptTimecoded()), MAX_SCRIPT_CHARS);
+        channelName = nullToEmpty(videoData.channelName());
+        channelId = nullToEmpty(videoData.channelId());
+        originalVideoTitle = nullToEmpty(videoData.title());
+        thumbnailUrl = nullToEmpty(videoData.thumbnailUrl());
+        channelProfileUrl = nullToEmpty(videoData.channelProfileUrl());
+        subscriberCount = videoData.youtubeSubscriberCount();
+        videoViewCount = videoData.viewCount();
+        videoDuration = videoData.duration();
 
+        try {
             String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
             Optional<Recipe> existingRecipeCanonical = recipeRepository.findFirstByYoutubeUrl(canonicalUrl);
             if (existingRecipeCanonical.isPresent()) {
