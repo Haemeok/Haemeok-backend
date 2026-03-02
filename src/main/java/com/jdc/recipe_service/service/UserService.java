@@ -64,7 +64,7 @@ public class UserService {
 
         String extension = getFileExtension(contentType);
 
-        String key = String.format("images/profiles/%d/%s%s", userId, UUID.randomUUID(), extension);
+        String key = String.format("original/images/profiles/%d/%s%s", userId, UUID.randomUUID(), extension);
 
         String presignedUrl = s3Util.createPresignedUrl(key, contentType);
 
@@ -96,13 +96,15 @@ public class UserService {
         user.updateProfile(dto.getNickname(), null, dto.getIntroduction());
 
         if (dto.getProfileImageKey() != null) {
-            String key = dto.getProfileImageKey();
-            if (key.isBlank()) {
+            String uploadedKey = dto.getProfileImageKey();
+            if (uploadedKey.isBlank()) {
                 user.updateProfile(null, null, null);
                 user.updateProfileImageKey(null);
             } else {
-                user.updateProfileImageKey(key);
-                user.updateProfile(null, generateImageUrl(key), null);
+                String finalKey = uploadedKey.replaceFirst("^original/", "");
+                finalKey = changeExtensionToWebp(finalKey);
+                user.updateProfileImageKey(finalKey);
+                user.updateProfile(null, generateImageUrl(finalKey), null);
             }
         }
 
@@ -281,6 +283,15 @@ public class UserService {
         );
 
         return dtoPage;
+    }
+
+    private String changeExtensionToWebp(String key) {
+        if (key == null) return null;
+        int lastDotIndex = key.lastIndexOf('.');
+        if (lastDotIndex != -1) {
+            return key.substring(0, lastDotIndex) + ".webp";
+        }
+        return key + ".webp";
     }
 
 }
