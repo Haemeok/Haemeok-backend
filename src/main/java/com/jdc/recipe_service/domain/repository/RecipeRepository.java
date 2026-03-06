@@ -328,21 +328,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("status") String status
     );
 
-    @Query("""
-            SELECT r.id
-            FROM Recipe r
-            WHERE r.isPrivate = false
-              AND r.isAiGenerated = false
-            ORDER BY r.avgRating DESC, r.createdAt DESC
-            """)
-    Page<Long> findCandidateIdsForRecommendation(Pageable pageable);
-
     @EntityGraph(attributePaths = {
             "user",
-            "tags",
-            "tags.tag",
-            "ingredients",
-            "ingredients.ingredient",
             "fineDiningDetails"
     })
     @Query("""
@@ -367,13 +354,15 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             """)
     Optional<Recipe> findForRecommendationById(@Param("recipeId") Long recipeId);
 
-    @Query("""
+    @Query(value = """
             SELECT r.id
-            FROM Recipe r
-            WHERE r.isPrivate = false
-              AND r.isAiGenerated = false
-            """)
-    List<Long> findAllPublicRecipeIds();
+            FROM recipes r
+            WHERE r.is_private = false
+              AND r.is_ai_generated = false
+            ORDER BY RAND()
+            LIMIT 100
+            """, nativeQuery = true)
+    List<Long> findRandomPublicRecipeIds();
 
     @Query("""
             SELECT r.id
