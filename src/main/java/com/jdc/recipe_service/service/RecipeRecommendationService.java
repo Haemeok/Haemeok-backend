@@ -117,9 +117,9 @@ public class RecipeRecommendationService {
         List<Long> candidateIds = recipeRepository.findIdsByDishTypeIn(targetDishTypes);
 
         if (candidateIds.size() < 50) {
-            List<Long> allIds = recipeRepository.findAllPublicRecipeIds();
+            List<Long> randomIds = recipeRepository.findRandomPublicRecipeIds();
             Set<Long> uniqueIds = new HashSet<>(candidateIds);
-            uniqueIds.addAll(allIds);
+            uniqueIds.addAll(randomIds);
             candidateIds = new ArrayList<>(uniqueIds);
         }
 
