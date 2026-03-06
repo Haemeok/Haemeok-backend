@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.config;
 
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,6 +10,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -51,6 +53,7 @@ public class AsyncConfig {
         exec.setQueueCapacity(50);
 
         exec.setThreadNamePrefix("Async-General-");
+        exec.setTaskDecorator(new ContextCopyingDecorator());
         exec.initialize();
         return exec;
     }
@@ -59,13 +62,20 @@ public class AsyncConfig {
     static class ContextCopyingDecorator implements TaskDecorator {
         @Override
         public Runnable decorate(Runnable runnable) {
-            SecurityContext context = SecurityContextHolder.getContext();
+            SecurityContext securityContext = SecurityContextHolder.getContext();
+            Map<String, String> mdcContext = MDC.getCopyOfContextMap();
+
             return () -> {
                 try {
-                    SecurityContextHolder.setContext(context);
+                    SecurityContextHolder.setContext(securityContext);
+                    if (mdcContext != null) {
+                        MDC.setContextMap(mdcContext);
+                    }
+
                     runnable.run();
                 } finally {
                     SecurityContextHolder.clearContext();
+                    MDC.clear();
                 }
             };
         }

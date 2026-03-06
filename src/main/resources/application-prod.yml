@@ -8,10 +8,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   security:
     oauth2:
@@ -125,12 +125,15 @@ youtube:
 
 logging:
   level:
-    com.jdc.recipe_service: DEBUG
+    com.jdc.recipe_service: INFO
     com.jdc.recipe_service.service.RecipeSearchService: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: INFO
-    org.springframework.web.reactive.function.client: DEBUG
+    org.hibernate.SQL: ERROR
+    org.hibernate.type.descriptor.sql.BasicBinder: ERROR
+    org.springframework.web.reactive.function.client: INFO
     root: INFO
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%15.15t] [%X{traceId}] %-40.40logger{39} : %m%n"
 
 resilience4j:
   retry:
