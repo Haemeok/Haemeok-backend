@@ -37,7 +37,9 @@ public class RecipeIngredientService {
         int totalCost = 0;
 
         Map<String, Ingredient> ingredientMap = ingredientRepository.findAll().stream()
-                .collect(Collectors.toMap(i -> i.getName().toLowerCase().trim(), Function.identity()));
+                .collect(Collectors.toMap(
+                        i -> i.getName().toLowerCase().replaceAll("\\s+", ""),
+                        Function.identity(), (a, b) -> a));
 
         for (RecipeIngredientRequestDto dto : dtos) {
             if (dto.getName() == null || dto.getName().isBlank()) {
@@ -47,7 +49,7 @@ public class RecipeIngredientService {
                 log.warn("경고: AI가 생성한 재료 '" + dto.getName() + "'의 단위 정보(customUnit)가 누락되었습니다.");
             }
 
-            String nameKey = dto.getName().toLowerCase().trim();
+            String nameKey = dto.getName().toLowerCase().replaceAll("\\s+", "");
             double quantity;
             try {
                 quantity = parseQuantity(dto.getQuantity());

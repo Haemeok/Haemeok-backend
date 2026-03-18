@@ -55,7 +55,7 @@ public class YoutubeRecipeExtractionService {
     private static final int MAX_CONTEXT_CHARS = 100_000;
     private static final int MAX_SCRIPT_CHARS  = 80_000;
     private static final int MAX_DESC_CHARS    = 10_000;
-    private static final int MAX_CMT_CHARS     = 1_000;
+    private static final int MAX_CMT_CHARS     = 3_000;
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
     private static final Set<String> SPECIAL_QTY = Set.of("약간");
     private static final long MAX_VIDEO_DURATION_SECONDS = 70 * 60;
@@ -85,6 +85,15 @@ public class YoutubeRecipeExtractionService {
                     "넣|볶|끓|굽|튀기|섞|다지|채썰|썰|자르|데치|삶|찌|무치|부치|재우|간하|손질|씻|헹구|" +
                     "chop|mix|boil|fry|stir|bake|roast|grill|simmer|poach|slice|mince|dice)"
     );
+
+    /** 자막 한 줄에 숫자+단위가 있으면 재료·양 후보로 분류 (예: "간장 1큰술", "양파 1개") */
+    private static final Pattern NUMBER_UNIT_IN_LINE = Pattern.compile(
+            "\\d+\\s*[./]?\\s*\\d*\\s*(큰술|작은술|스푼|티스푼|종이컵|국자|개|마리|g|kg|ml|봉지|줌|쪽|알|장|컵|꼬집|약간|적당량|tbsp|tsp|cup|oz)\\b|" +
+                    "\\b(약간|적당량|조금)"
+    );
+
+    /** 전처리 결과: 자막 문장 + 재료·양 언급 구간(LLM이 재료 추출 시 최우선 참고) */
+    private record ScriptPreprocessResult(String plainScript, String ingredientHintBlock) {}
 
     private final YtDlpService ytDlpService;
     private final GrokClientService grokClientService;
@@ -144,13 +153,15 @@ public class YoutubeRecipeExtractionService {
 
     private String getExtractionPrompt() {
         return """
-            당신은 레시피 추출 AI입니다. 오직 유효한 JSON만 출력하세요.
+            당신은 레시피 **추출** AI입니다. 입력된 자막·설명·댓글에 **실제로 나온 내용만** 꺼내서 구조화합니다. 오직 유효한 JSON만 출력하세요.
             
             ## 최우선 규칙
             - 단일 JSON 객체만 출력 (마크다운, 코드펜스, 설명 절대 금지)
             - timeline과 nonRecipeReason만 null 허용
             - 모든 숫자 필드는 0 이상 (빈 문자열, null 금지)
-            - 영상에 없는 정보는 절대 창작 금지
+            - 입력에 없는 새로운 식재료를 임의로 지어내지 마라. 없는 재료 창작 금지.
+            - [단위 규격화 예외 조항] 단, 수량과 단위에 한해서는 '추론 및 변환'을 적극 허용하며 필수다. 자막에 "톡톡", "약간", "적당히" 같은 모호한 표현이 있다면 그대로 적지 말고, 반드시 당신의 요리 상식을 동원해 구체적인 숫자와 시스템 표준 단위(큰술, 작은술 등)로 변환하라. (예: "후추 톡톡" -> quantity: "0.1", unit: "작은술")
+            - 입력에 "[재료·양 언급 구간]"이 있으면, 추출의 최우선 근거로 삼되, 수량과 단위는 위 규칙에 맞게 숫자로 가공해서 적어라.
             
             ## 1단계: 레시피 판별
             조리법이 아니면 즉시 반환:
@@ -209,12 +220,16 @@ public class YoutubeRecipeExtractionService {
             6. 소스 분해: 양념장 만드는 장면 있으면 간장/설탕/식초 등 모두 분리
             7. 부재료 포착: 파/깨/참기름/후추 등 조리 중 추가하는 것 누락 금지
             **8. [중요] 총 합계 작성: 조리 과정 중 재료를 여러 번 나눠 넣더라도, ingredients 리스트에는 요리 전체에 사용된 '총 합계량'을 계산하여 적어라. (예: 고기 밑간에 1스푼, 소스에 2스푼을 썼다면 ingredients에는 3스푼으로 기재)**
-            
+            9. [🚨필수 플래그🚨]: 영상(설명/댓글/자막)에 수량이 정확히 언급되었다면 `isEstimated: false`로 기재하라. 만약 수량이 정확히 나오지 않아 네가 상식에 맞게 **추론하여 적은 수량**이라면 반드시 `isEstimated: true`로 기재하라.
+            **10. [기본 재료 필수 포함] 마늘, 물, 소금, 대파, 깨, 참기름, 식용유 등 기본 양념·재료도 영상에서 조금이라도 언급되거나 사용되면 반드시 포함하라. '당연한 재료'라고 생략하면 안 된다.**
+            **11. [설명글 체크리스트] 영상 설명글에 재료 목록이 있으면 그것을 기준 체크리스트로 삼아 한 항목씩 대조하라. 설명글 재료가 하나라도 빠지면 실패다.**
+            **12. [자막 전체 스캔] 조리 시작부터 마무리·플레이팅 단계까지 자막 전체를 스캔하라. 후반부에 짧게 등장한 재료(마무리용 오일, 토핑, 고명 등)도 반드시 포함하라.**
+
             예시:
             [
-              { "name": "돼지고기", "quantity": "300", "unit": "g" },
-              { "name": "간장", "quantity": "2", "unit": "큰술" },
-              { "name": "깨", "quantity": "약간", "unit": "약간" }
+              { "name": "돼지고기", "quantity": "300", "unit": "g", "isEstimated": false },
+              { "name": "간장", "quantity": "2", "unit": "큰술", "isEstimated": false },
+              { "name": "통깨", "quantity": "1", "unit": "큰술", "isEstimated": true }
             ]
             
             **steps** - 극도로 상세한 지시문 작성:
@@ -548,24 +563,41 @@ public class YoutubeRecipeExtractionService {
         broadcastProgress(busKey, JobStatus.IN_PROGRESS, 30);
         RecipeCreateRequestDto recipeDto = null;
 
-        String fullContext = cap(("""
+        ScriptPreprocessResult scriptPreprocess = preprocessScriptForExtraction(scriptPlain);
+        String plainScriptForContext = cap(scriptPreprocess.plainScript(), MAX_SCRIPT_CHARS);
+        String ingredientHintBlock = scriptPreprocess.ingredientHintBlock().isBlank()
+                ? "(재료·양 언급 구간 없음)"
+                : "[재료·양 언급 구간] — 아래 문장에서 재료와 수량을 최우선으로 추출하라.\n" + scriptPreprocess.ingredientHintBlock();
+
+        String ingHighlight = buildIngredientHighlightSection(description, comments);
+        String fullContext = cap(ingHighlight + ("""
         영상 URL: %s
         영상 제목: %s
         영상 설명: %s
         고정/인기 댓글: %s
-        자막: %s
+
+        %s
+
+        [자막 전문]
+        %s
         """).formatted(
                 buildStorageYoutubeUrl(videoId, false),
                 title,
                 emptyToPlaceholder(description, "(없음)"),
                 emptyToPlaceholder(comments, "(없음)"),
-                emptyToPlaceholder(scriptPlain, "(없음)")
+                ingredientHintBlock,
+                emptyToPlaceholder(plainScriptForContext, "(없음)")
         ), MAX_CONTEXT_CHARS);
 
         if (!useUrlFallback && isTextSufficient(description, comments, scriptPlain)) {
-            log.info("✅ [텍스트 모드] Step 1: Grok 초안 생성");
+            log.info("✅ [텍스트 모드] Step 1: Grok 초안 생성 (자막 전처리 적용)");
             try {
                 recipeDto = grokClientService.generateRecipeStep1(getExtractionPrompt(), fullContext).join();
+
+                if (recipeDto != null && recipeDto.getIngredients() != null) {
+                    String sourceForValidation = scriptPreprocess.ingredientHintBlock() + " " + scriptPreprocess.plainScript() + " " + description + " " + comments;
+                    validateIngredientsAgainstSource(recipeDto.getIngredients(), sourceForValidation);
+                }
 
                 if (isRecipeResultGarbage(recipeDto)) {
                     log.warn("📉 Grok 품질 미달 -> Fallback");
@@ -906,6 +938,57 @@ public class YoutubeRecipeExtractionService {
         }
     }
 
+    /**
+     * 자막 전처리: 순수 문장 리스트, 재료·양 언급 줄만 따로 블록으로 추출.
+     * LLM 호출 수는 그대로 두고, 입력 품질만 올려서 추출 정확도를 높인다.
+     */
+    private ScriptPreprocessResult preprocessScriptForExtraction(String rawScript) {
+        if (rawScript == null || rawScript.isBlank()) {
+            return new ScriptPreprocessResult("", "");
+        }
+        String[] lines = rawScript.split("\\r?\\n");
+        List<String> plainLines = new ArrayList<>();
+        List<String> ingredientLines = new ArrayList<>();
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+            if (trimmed.startsWith("WEBVTT") || trimmed.startsWith("NOTE") || trimmed.contains("-->")) continue;
+
+            String content = trimmed.replaceAll("<[^>]+>", "").replace("&nbsp;", " ").trim();
+            if (content.isEmpty()) continue;
+
+            plainLines.add(content);
+            if (UNIT_PATTERN.matcher(content).find() || NUMBER_UNIT_IN_LINE.matcher(content).find()
+                    || INGREDIENT_KEYWORD_PATTERN.matcher(content).find()) {
+                ingredientLines.add(content);
+            }
+        }
+
+        String plainScript = String.join("\n", plainLines);
+        String ingredientBlock = ingredientLines.isEmpty() ? "" : String.join("\n", ingredientLines);
+        if (log.isDebugEnabled() && !ingredientBlock.isEmpty()) {
+            log.debug("📋 [재료·양 구간] {}줄 추출", ingredientLines.size());
+        }
+        return new ScriptPreprocessResult(plainScript, ingredientBlock);
+    }
+
+    /**
+     * LLM이 준 재료가 원문(자막/설명)에 실제로 등장하는지 규칙 기반 검사. 의심 건만 로그.
+     */
+    private void validateIngredientsAgainstSource(List<RecipeIngredientRequestDto> ingredients, String sourceText) {
+        if (ingredients == null || sourceText == null || sourceText.isBlank()) return;
+        String lower = sourceText.toLowerCase();
+        for (RecipeIngredientRequestDto ing : ingredients) {
+            if (ing == null || ing.getName() == null) continue;
+            String name = ing.getName().trim().toLowerCase();
+            if (name.length() < 2) continue;
+            if (!lower.contains(name)) {
+                log.warn("⚠️ [검증] 원문에 없는 재료명 가능성: '{}' (hallucination 체크)", ing.getName());
+            }
+        }
+    }
+
     private boolean isTextSufficient(String description, String comments, String scriptPlain) {
         String combinedText = (nullToEmpty(description) + " " + nullToEmpty(comments) + " " + nullToEmpty(scriptPlain)).toLowerCase();
         if (combinedText.length() < 50) return false;
@@ -997,6 +1080,59 @@ public class YoutubeRecipeExtractionService {
     private String extractVideoId(String url) {
         Matcher matcher = Pattern.compile("(?<=watch\\?v=|/videos/|embed\\/|youtu.be\\/|\\/v\\/|\\/e\\/|watch\\?v%3D|watch\\?feature=player_embedded&v=|%2Fvideos%2F|embed%5C%2F|youtu.be%2F|%2Fv%2F|shorts\\/)[^#\\&\\?\\n]*").matcher(url);
         return matcher.find() ? matcher.group().trim() : null;
+    }
+
+    private String buildIngredientHighlightSection(String description, String comments) {
+        List<String> lines = new ArrayList<>();
+        parseIngredientBlock(nullToEmpty(description), lines);
+        parseIngredientBlock(nullToEmpty(comments), lines);
+
+        if (lines.isEmpty()) return "";
+
+        return "🔴 [최우선 재료 목록 — 아래 항목은 반드시 모두 ingredients에 포함하라]\n"
+                + String.join("\n", lines) + "\n\n";
+    }
+
+    private void parseIngredientBlock(String text, List<String> result) {
+        if (text == null || text.isBlank()) return;
+        String[] lines = text.split("\\r?\\n");
+
+        java.util.regex.Pattern sectionStart = java.util.regex.Pattern.compile(
+                "(?i)^[\\s\\-*•✔️]*\\s*(재료|ingredient|준비물|필요한\\s*재료|사용\\s*재료|materials?)\\s*[:(（]?\\s*$");
+        java.util.regex.Pattern sectionEnd = java.util.regex.Pattern.compile(
+                "(?i)^[\\s\\-*•]*\\s*(만드는\\s*법|만들기|조리법|레시피|순서|방법|how\\s+to|direction|instruction|step|과정)\\s*[:(]?\\s*$");
+        java.util.regex.Pattern ingLine = java.util.regex.Pattern.compile(
+                "^[\\-*•·✔✅▶→►]\\s*.+|.+\\s+\\d[\\d./]*\\s*(큰술|작은술|스푼|티스푼|컵|종이컵|국자|개|마리|g|kg|ml|L|cc|봉지|봉|팩|줌|쪽|알|장|꼬집|약간|적당량|조금|T|t|tbsp|tsp|cup|oz|lb)\\b|.+\\s+\\d[\\d./]*\\s*$");
+        java.util.regex.Pattern nonIng = java.util.regex.Pattern.compile("^(https?://|#[^\\s]+$|[\\s\\-_=]+$)");
+
+        boolean inSection = false;
+        int emptyCount = 0;
+
+        for (String line : lines) {
+            String s = line.strip();
+            if (sectionStart.matcher(s).matches()) { inSection = true; emptyCount = 0; continue; }
+            if (inSection && sectionEnd.matcher(s).matches()) break;
+            if (inSection) {
+                if (s.isEmpty()) { if (++emptyCount >= 3) break; continue; }
+                emptyCount = 0;
+                if (!nonIng.matcher(s).find()) addIngredientLine(s, result);
+            } else {
+                if (!s.isEmpty() && ingLine.matcher(s).find() && !nonIng.matcher(s).find())
+                    addIngredientLine(s, result);
+            }
+        }
+    }
+
+    private void addIngredientLine(String line, List<String> result) {
+        if (line.contains(",") && line.matches(".*\\d.*")) {
+            String target = line.contains(":") ? line.substring(line.indexOf(':') + 1) : line;
+            String[] parts = target.split(",");
+            if (parts.length > 1) {
+                for (String p : parts) { if (!p.isBlank()) result.add(p.strip()); }
+                return;
+            }
+        }
+        result.add(line);
     }
 
     private String buildStorageYoutubeUrl(String videoId, boolean shorts) {

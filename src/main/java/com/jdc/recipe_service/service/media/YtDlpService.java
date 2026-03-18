@@ -59,10 +59,10 @@ public class YtDlpService {
     @Value("${app.ytdlp.userAgent:Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1}")
     private String userAgent;
 
-    @Value("${app.ytdlp.subtitleLangs:ko-orig,ko}")
+    @Value("${app.ytdlp.subtitleLangs:ko-orig,ko,en}")
     private String subtitleLangs;
 
-    @Value("${app.ytdlp.maxComments:1}")
+    @Value("${app.ytdlp.maxComments:3}")
     private int maxComments;
 
     @Value("${app.ytdlp.proxy:}")
@@ -165,20 +165,31 @@ public class YtDlpService {
 
         StringBuilder commentsBuilder = new StringBuilder();
         JsonNode commentsNode = root.get("comments");
+
         if (commentsNode != null && commentsNode.isArray()) {
             for (JsonNode c : commentsNode) {
-                String text = optText(c, "text");
-                if (!isBlank(text)) commentsBuilder.append("- ").append(text).append("\n");
+                boolean isPinned = c.path("is_pinned").asBoolean(false);
+                boolean isUploader = c.path("author_is_uploader").asBoolean(false);
+
+                if (isPinned || isUploader) {
+                    String text = extractCommentText(c);
+                    if (!isBlank(text)) {
+                        commentsBuilder.append("[크리에이터 레시피]:\n").append(text).append("\n");
+                        break;
+                    }
+                }
             }
         }
 
         String title = optText(root, "title");
-        String desc = optText(root, "description");
+        String desc = optDescription(root);
         String channelId = optText(root, "channel_id");
         if (isBlank(channelId)) channelId = optText(root, "uploader_id");
 
         String originalChannelName = optText(root, "channel");
         if (isBlank(originalChannelName)) originalChannelName = optText(root, "uploader");
+
+        String thumbnailUrl = optThumbnailUrl(root);
 
         log.info("✅ [추출 성공] client={}, title={}, subs={}", client, shrink(title, 20), (subs.plainText.isEmpty() ? "없음" : "있음"));
 
@@ -189,7 +200,7 @@ public class YtDlpService {
                 subs,
                 originalChannelName,
                 channelId,
-                optText(root, "thumbnail"),
+                thumbnailUrl,
                 root.path("view_count").asLong(0),
                 root.path("duration").asLong(0),
                 root
@@ -217,6 +228,7 @@ public class YtDlpService {
         a.add("youtube:player_client=" + client + ";max_comments=" + maxComments);
         a.add("--dump-single-json");
         a.add("--no-simulate");
+        a.add("--write-comments");
         a.add("--write-subs");
         a.add("--write-auto-subs");
         a.add("--sub-langs"); a.add(subtitleLangs);
@@ -233,7 +245,7 @@ public class YtDlpService {
         a.add("--ignore-config");
         a.add("--no-playlist");
         a.add("--cache-dir"); a.add(cacheDir);
-        a.add("--user-agent"); a.add(userAgent);
+        //a.add("--user-agent"); a.add(userAgent);
 
         if (useProxy && proxyUrl != null && !proxyUrl.isBlank()) {
             a.add("--proxy");
@@ -576,9 +588,21 @@ public class YtDlpService {
             }
         }
 
+        String rawPlainText = plain.toString().trim();
+        String[] words = rawPlainText.split("\\s+");
+        StringBuilder dedupPlain = new StringBuilder();
+        String lastWord = "";
+
+        for (String w : words) {
+            if (!w.equals(lastWord)) {
+                dedupPlain.append(w).append(" ");
+                lastWord = w;
+            }
+        }
+
         return new SubtitleTexts(
                 timecoded.toString().trim(),
-                plain.toString().trim()
+                dedupPlain.toString().trim()
         );
     }
 
@@ -616,6 +640,55 @@ public class YtDlpService {
             return "";
         }
         return n.asText();
+    }
+
+    /**
+     * yt-dlp/유튜브 댓글 구조 대응.
+     * - 최상위 "text", "content", "message"
+     * - nested "runs" (유튜브 API: [{ "text": "..." }])
+     */
+    private String extractCommentText(JsonNode c) {
+        if (c == null) return "";
+        for (String key : List.of("text", "content", "message")) {
+            String v = optText(c, key);
+            if (!isBlank(v)) return v;
+        }
+        JsonNode runs = c.get("runs");
+        if (runs != null && runs.isArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode r : runs) {
+                String t = optText(r, "text");
+                if (!isBlank(t)) sb.append(t);
+            }
+            if (sb.length() > 0) return sb.toString();
+        }
+        return "";
+    }
+
+    /**
+     * 클라이언트별로 description 필드가 비어 있거나 다른 키로 올 수 있음. 여러 후보 시도.
+     */
+    private String optDescription(JsonNode root) {
+        for (String key : List.of("description", "full_description", "summary")) {
+            String v = optText(root, key);
+            if (!isBlank(v)) return v;
+        }
+        return "";
+    }
+
+    /**
+     * yt-dlp는 thumbnail(문자열) 또는 thumbnails(배열) 반환 가능. 배열이면 마지막(고해상도) URL 사용.
+     */
+    private String optThumbnailUrl(JsonNode root) {
+        String single = optText(root, "thumbnail");
+        if (!isBlank(single)) return single;
+        JsonNode arr = root.get("thumbnails");
+        if (arr != null && arr.isArray() && arr.size() > 0) {
+            JsonNode last = arr.get(arr.size() - 1);
+            String url = optText(last, "url");
+            if (!isBlank(url)) return url;
+        }
+        return "";
     }
 
     private boolean isBlank(String s) {
