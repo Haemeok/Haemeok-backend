@@ -261,7 +261,7 @@ public class RecipeSearchServiceV2 {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = CustomException.class)
     public Page<RecipeSimpleStaticDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
         if (shouldUseOpenSearch(condition)) {
             log.info("V2 API: Using OpenSearch");

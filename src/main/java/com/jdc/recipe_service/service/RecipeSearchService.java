@@ -93,7 +93,7 @@ public class RecipeSearchService {
         return listUrl.replace(".webp", "_detail.webp");
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = CustomException.class)
     public Page<RecipeSimpleDto> searchRecipes(RecipeSearchCondition condition, Pageable pageable, Long userId) {
 
         Sort.Order likeSort = pageable.getSort().getOrderFor("likeCount");
