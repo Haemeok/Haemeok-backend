@@ -104,19 +104,25 @@ public class AuthService {
         OAuth2AuthorizationCodeGrantRequest grantRequest =
                 new OAuth2AuthorizationCodeGrantRequest(clientRegistration, new OAuth2AuthorizationExchange(authRequest, authResponse));
 
+        OAuth2AccessTokenResponse tokenResponse;
         try {
-            OAuth2AccessTokenResponse tokenResponse = accessTokenResponseClient.getTokenResponse(grantRequest);
+            tokenResponse = accessTokenResponseClient.getTokenResponse(grantRequest);
+        } catch (Exception e) {
+            log.error("[AuthService] 토큰 교환 실패 (provider={}, redirectUri={}, exceptionType={}, message={})",
+                    registrationId, redirectUri, e.getClass().getSimpleName(), e.getMessage());
+            throw e;
+        }
 
+        try {
             OAuth2UserRequest userRequest = new OAuth2UserRequest(
                     clientRegistration,
                     tokenResponse.getAccessToken(),
                     tokenResponse.getAdditionalParameters()
             );
-
             return customOAuth2UserService.loadUser(userRequest);
-
         } catch (Exception e) {
-            log.error("[AuthService] OAuth2 token exchange failed for provider: {}", registrationId, e);
+            log.error("[AuthService] 유저 정보 조회/저장 실패 (provider={}, exceptionType={}, message={})",
+                    registrationId, e.getClass().getSimpleName(), e.getMessage());
             throw e;
         }
     }
