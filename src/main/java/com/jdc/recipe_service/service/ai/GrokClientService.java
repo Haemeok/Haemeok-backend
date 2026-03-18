@@ -50,9 +50,15 @@ public class GrokClientService {
         log.info("Grok 1단계: 자연스러운 레시피 생성 호출");
 
         String userContent = """
-                다음은 요리 영상의 제목, 설명, 댓글, 자막입니다.
-                이를 분석해서 맛있고 자연스러운 레시피를 만들어줘.
-                
+                아래 영상 데이터에서 레시피를 추출하세요.
+
+                【필수 체크리스트 순서 — 이 순서를 반드시 따르라】
+                ① 영상 설명글에 재료 목록이 있으면 먼저 그 목록을 모두 ingredients에 넣어라.
+                ② **[재료·양 언급 구간]** 항목을 하나씩 대조해 빠진 재료를 추가하라.
+                ③ 자막 전체(시작~마무리)를 스캔해 ①②에 없는 재료를 추가로 포함하라.
+                ④ 위 3단계를 마친 뒤 최종 ingredients를 출력하라. 단 하나의 재료도 빠뜨리지 마라.
+                입력에 실제로 나온 재료·수량만 추출하세요. 없는 내용은 지어내지 마세요.
+
                 입력:
                 %s
                 """.formatted(fullContext);
@@ -67,12 +73,15 @@ public class GrokClientService {
             List<String> allNames = rawIngredients.stream().map(i -> i.getName().trim()).toList();
             List<Ingredient> dbIngredients = ingredientRepository.findAllByNameIn(allNames);
             Map<String, String> dbUnitMap = dbIngredients.stream()
-                    .collect(Collectors.toMap(Ingredient::getName, Ingredient::getUnit, (a, b) -> a));
+                    .collect(Collectors.toMap(
+                            i -> i.getName().toLowerCase().replaceAll("\\s+", ""),
+                            Ingredient::getUnit, (a, b) -> a));
 
             StringBuilder ingredientReport = new StringBuilder();
             for (var ing : rawIngredients) {
                 String name = ing.getName().trim();
-                String dbUnit = dbUnitMap.get(name);
+                String normalizedName = name.toLowerCase().replaceAll("\\s+", "");
+                String dbUnit = dbUnitMap.get(normalizedName);
                 if (dbUnit != null) {
                     ingredientReport.append(String.format("- [DB보유] '%s': 표준 단위 '%s'로 변환.\n", name, dbUnit));
                 } else {
@@ -106,6 +115,7 @@ public class GrokClientService {
                        - 단위(`unit`)는 보고서에 적힌 '표준 단위'로 수정하세요.
 
                     3. **공통 수량 규칙**:
+                       - **입력 JSON에 이미 적힌 수량(quantity)을 함부로 바꾸거나, 추측으로 새 수치를 만들지 마라.** 단위 변환(국자→큰술 등)을 할 때만 비례하여 수치를 조정한다.
                        - "반 개", "한 줌" 같은 텍스트는 "0.5", "30" 같은 **숫자**로 무조건 변환하세요.
                        - **수량(quantity)은 소수점 둘째 자리 이상 나올 경우, 첫째 자리에서 반올림하여 인간이 읽기 편한 숫자(예: 0.5, 1.5, 10 등)로 변환하세요.**
                        - **[핵심 원칙: 물리적 총량 보존의 법칙 (Conservation of Absolute Quantity)]**:
@@ -118,6 +128,8 @@ public class GrokClientService {
                        (예: "간장 1 국자" -> 너의 상식상 국자는 숟가락 5개 분량이므로 -> "5 큰술"로 계산해서 적을 것.)
                        - 단위(`unit`)는 보고서에 적힌 '표준 단위'로 통일하세요.
                     
+                    4. **[핵심] 기존 플래그 보존**:
+                       - 입력받은 JSON에 있는 `isEstimated` 필드의 값(true 또는 false)은 절대 지우지 말고 출력 JSON에 그대로 똑같이 유지하세요.
                     
                     [입력 JSON]
                     %s
@@ -167,7 +179,7 @@ public class GrokClientService {
     public CompletableFuture<RecipeCreateRequestDto> generateRecipeJson(String systemContent, String userContent) {
         log.info("Grok API 레시피 생성 호출");
 
-        return callGrokApi(systemContent, userContent, 3000, 0.3)
+        return callGrokApi(systemContent, userContent, 8000, 0.3)
                 .flatMap(jsonString -> {
                     try {
                         String normalizedJson = normalizeFields(jsonString);

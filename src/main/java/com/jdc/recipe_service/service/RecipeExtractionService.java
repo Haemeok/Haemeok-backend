@@ -47,7 +47,7 @@ public class RecipeExtractionService {
     private static final int MAX_CONTEXT_CHARS = 100_000;
     private static final int MAX_SCRIPT_CHARS  = 80_000;
     private static final int MAX_DESC_CHARS    = 10_000;
-    private static final int MAX_CMT_CHARS     = 1_000;
+    private static final int MAX_CMT_CHARS     = 3_000;
     private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
     private static final Set<String> SPECIAL_QTY = Set.of("약간");
     private static final long MAX_VIDEO_DURATION_SECONDS = 70 * 60;
@@ -226,6 +226,10 @@ public class RecipeExtractionService {
             6. 소스 분해: 양념장 만드는 장면 있으면 간장/설탕/식초 등 모두 분리
             7. 부재료 포착: 파/깨/참기름/후추 등 조리 중 추가하는 것 누락 금지
             **8. [중요] 총 합계 작성: 조리 과정 중 재료를 여러 번 나눠 넣더라도, ingredients 리스트에는 요리 전체에 사용된 '총 합계량'을 계산하여 적어라. (예: 고기 밑간에 1스푼, 소스에 2스푼을 썼다면 ingredients에는 3스푼으로 기재)**
+            **9. [절대 생략 금지] 재료가 20개 이상이더라도 잘라내지 마라. 영상에 등장한 모든 재료를 빠짐없이 나열하라.**
+            **10. [기본 재료 필수 포함] 마늘, 물, 소금, 대파, 깨, 참기름, 식용유 등 기본 양념·재료도 영상에서 조금이라도 언급되거나 사용되면 반드시 포함하라. '당연한 재료'라고 생략하면 안 된다.**
+            **11. [설명글 체크리스트] 영상 설명글에 재료 목록이 있으면 그것을 기준 체크리스트로 삼아 한 항목씩 대조하라. 설명글 재료가 하나라도 빠지면 실패다.**
+            **12. [자막 전체 스캔] 조리 시작부터 마무리·플레이팅 단계까지 자막 전체를 스캔하라. 후반부에 짧게 등장한 재료(마무리용 오일, 토핑, 고명 등)도 반드시 포함하라.**
             
             예시:
             [
@@ -397,7 +401,8 @@ public class RecipeExtractionService {
         }
 
         try {
-            String fullContext = cap(("""
+            String ingHighlight = buildIngredientHighlightSection(description, comments);
+            String fullContext = cap(ingHighlight + ("""
             영상 URL: %s
             영상 제목: %s
             영상 설명: %s
@@ -838,7 +843,8 @@ public class RecipeExtractionService {
 
         long textGenStart = System.currentTimeMillis();
         try {
-            String fullContext = cap(("""
+            String ingHighlight = buildIngredientHighlightSection(description, comments);
+            String fullContext = cap(ingHighlight + ("""
             영상 URL: %s
             영상 제목: %s
             영상 설명: %s
@@ -1301,6 +1307,65 @@ public class RecipeExtractionService {
 
     private String nullToEmpty(String s) { return s == null ? "" : s; }
     private String emptyToPlaceholder(String s, String placeholder) { return (s == null || s.isBlank()) ? placeholder : s; }
+
+    /**
+     * 설명글/댓글에서 재료 목록 블록을 파싱하여 프롬프트 최상단 강조 섹션으로 반환.
+     * 재료 섹션 키워드("재료", "ingredients" 등) 이후 라인을 수집하고,
+     * 콤마 구분 재료는 개별 항목으로 분리.
+     */
+    private String buildIngredientHighlightSection(String description, String comments) {
+        List<String> lines = new ArrayList<>();
+        parseIngredientBlock(nullToEmpty(description), lines);
+        parseIngredientBlock(nullToEmpty(comments), lines);
+
+        if (lines.isEmpty()) return "";
+
+        return "🔴 [최우선 재료 목록 — 아래 항목은 반드시 모두 ingredients에 포함하라]\n"
+                + String.join("\n", lines) + "\n\n";
+    }
+
+    private void parseIngredientBlock(String text, List<String> result) {
+        if (text == null || text.isBlank()) return;
+        String[] lines = text.split("\\r?\\n");
+
+        java.util.regex.Pattern sectionStart = java.util.regex.Pattern.compile(
+                "(?i)^[\\s\\-*•✔️]*\\s*(재료|ingredient|준비물|필요한\\s*재료|사용\\s*재료|materials?)\\s*[:(（]?\\s*$");
+        java.util.regex.Pattern sectionEnd = java.util.regex.Pattern.compile(
+                "(?i)^[\\s\\-*•]*\\s*(만드는\\s*법|만들기|조리법|레시피|순서|방법|how\\s+to|direction|instruction|step|과정)\\s*[:(]?\\s*$");
+        java.util.regex.Pattern ingLine = java.util.regex.Pattern.compile(
+                "^[\\-*•·✔✅▶→►]\\s*.+|.+\\s+\\d[\\d./]*\\s*(큰술|작은술|스푼|티스푼|컵|종이컵|국자|개|마리|g|kg|ml|L|cc|봉지|봉|팩|줌|쪽|알|장|꼬집|약간|적당량|조금|T|t|tbsp|tsp|cup|oz|lb)\\b|.+\\s+\\d[\\d./]*\\s*$");
+        java.util.regex.Pattern nonIng = java.util.regex.Pattern.compile("^(https?://|#[^\\s]+$|[\\s\\-_=]+$)");
+
+        boolean inSection = false;
+        int emptyCount = 0;
+
+        for (String line : lines) {
+            String s = line.strip();
+            if (sectionStart.matcher(s).matches()) { inSection = true; emptyCount = 0; continue; }
+            if (inSection && sectionEnd.matcher(s).matches()) break;
+            if (inSection) {
+                if (s.isEmpty()) { if (++emptyCount >= 3) break; continue; }
+                emptyCount = 0;
+                if (!nonIng.matcher(s).find()) addIngredientLine(s, result);
+            } else {
+                if (!s.isEmpty() && ingLine.matcher(s).find() && !nonIng.matcher(s).find())
+                    addIngredientLine(s, result);
+            }
+        }
+    }
+
+    private void addIngredientLine(String line, List<String> result) {
+        // "소스 : 간장 4T, 맛술 2T" → ["간장 4T", "맛술 2T"]
+        if (line.contains(",") && line.matches(".*\\d.*")) {
+            String target = line.contains(":") ? line.substring(line.indexOf(':') + 1) : line;
+            String[] parts = target.split(",");
+            if (parts.length > 1) {
+                for (String p : parts) { if (!p.isBlank()) result.add(p.strip()); }
+                return;
+            }
+        }
+        result.add(line);
+    }
 
     private String cap(String s, int max) {
         if (s == null) return "";
