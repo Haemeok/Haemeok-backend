@@ -13,6 +13,8 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+import org.springframework.dao.DataIntegrityViolationException;
+
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -123,6 +125,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         User user = userRepository.findByProviderAndOauthId(provider, p.oauthId)
                 .map(existingUser -> {
+                    log.info("[OAuth2] 기존 유저 로그인: provider={}, userId={}", provider, existingUser.getId());
                     if (existingUser.getEmail() == null && p.email != null && !p.email.isBlank()) {
                         existingUser.updateEmail(p.email);
                         return userRepository.save(existingUser);
@@ -130,18 +133,27 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     return existingUser;
                 })
                 .orElseGet(() -> {
+                    log.info("[OAuth2] 신규 유저 가입 시도: provider={}, oauthId={}", provider, p.oauthId);
                     String nicknameBase = (p.baseName == null || p.baseName.isBlank()) ? provider : p.baseName;
                     String nickname = makeUniqueNickname(nicknameBase);
                     String randomProfile = randomDefaultProfileImageUrl();
 
-                    return userRepository.save(User.builder()
-                            .provider(provider)
-                            .oauthId(p.oauthId)
-                            .email(p.email)
-                            .nickname(nickname)
-                            .role(Role.USER)
-                            .profileImage(randomProfile)
-                            .build());
+                    try {
+                        User saved = userRepository.saveAndFlush(User.builder()
+                                .provider(provider)
+                                .oauthId(p.oauthId)
+                                .email(p.email)
+                                .nickname(nickname)
+                                .role(Role.USER)
+                                .profileImage(randomProfile)
+                                .build());
+                        log.info("[OAuth2] 신규 유저 가입 완료: provider={}, userId={}", provider, saved.getId());
+                        return saved;
+                    } catch (DataIntegrityViolationException e) {
+                        log.warn("[OAuth2] 동시 가입 충돌 감지, 기존 유저 조회로 폴백: provider={}, oauthId={}", provider, p.oauthId);
+                        return userRepository.findByProviderAndOauthId(provider, p.oauthId)
+                                .orElseThrow(() -> new IllegalStateException("유저 저장 및 조회 모두 실패: provider=" + provider));
+                    }
                 });
 
         return new CustomOAuth2User(user, oAuth2User.getAttributes());
