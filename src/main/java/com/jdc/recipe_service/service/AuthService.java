@@ -108,9 +108,20 @@ public class AuthService {
         try {
             tokenResponse = accessTokenResponseClient.getTokenResponse(grantRequest);
         } catch (Exception e) {
-            log.error("[AuthService] 토큰 교환 실패 (provider={}, redirectUri={}, exceptionType={}, message={})",
-                    registrationId, redirectUri, e.getClass().getSimpleName(), e.getMessage());
-            throw e;
+            log.warn("[AuthService] 토큰 교환 1차 실패, 1초 후 재시도 (provider={}, error={})",
+                    registrationId, e.getMessage());
+            try {
+                Thread.sleep(1000);
+                tokenResponse = accessTokenResponseClient.getTokenResponse(grantRequest);
+                log.info("[AuthService] 토큰 교환 재시도 성공 (provider={})", registrationId);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw e;
+            } catch (Exception retryEx) {
+                log.error("[AuthService] 토큰 교환 최종 실패 (provider={}, redirectUri={}, exceptionType={}, message={})",
+                        registrationId, redirectUri, retryEx.getClass().getSimpleName(), retryEx.getMessage());
+                throw retryEx;
+            }
         }
 
         try {

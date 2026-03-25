@@ -21,6 +21,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.converter.FormHttpMessageConverter;
+import org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter;
 
 import java.util.Arrays;
 
@@ -358,7 +362,19 @@ public class SecurityConfig {
     }
     @Bean
     public OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient() {
-        return new DefaultAuthorizationCodeTokenResponseClient();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(10000);
+
+        RestTemplate restTemplate = new RestTemplate(factory);
+        restTemplate.setMessageConverters(Arrays.asList(
+                new FormHttpMessageConverter(),
+                new OAuth2AccessTokenResponseHttpMessageConverter()
+        ));
+
+        DefaultAuthorizationCodeTokenResponseClient client = new DefaultAuthorizationCodeTokenResponseClient();
+        client.setRestOperations(restTemplate);
+        return client;
     }
     /*
     @Bean
