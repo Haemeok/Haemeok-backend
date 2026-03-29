@@ -39,9 +39,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RecipeServiceTest {
@@ -128,48 +129,51 @@ class RecipeServiceTest {
     @Test
     @DisplayName("createRecipeAndGenerateUrls: 정상 입력 시 PresignedUrlResponse 반환")
     void createRecipe_success() throws Exception {
-        when(userRepository.findById(author.getId()))
-                .thenReturn(Optional.of(author));
+        // Given
+        given(userRepository.findById(author.getId()))
+                .willReturn(Optional.of(author));
 
-        doAnswer(invocation -> {
+        willAnswer(invocation -> {
             Recipe toSave = invocation.getArgument(0);
             Field idField = Recipe.class.getDeclaredField("id");
             idField.setAccessible(true);
             idField.set(toSave, 555L);
             return toSave;
-        }).when(recipeRepository).save(any(Recipe.class));
+        }).given(recipeRepository).save(any(Recipe.class));
 
-        when(recipeIngredientService.saveAll(any(Recipe.class), anyList(), eq(RecipeSourceType.USER)))
-                .thenReturn(0);
+        given(recipeIngredientService.saveAll(any(Recipe.class), anyList(), eq(RecipeSourceType.USER)))
+                .willReturn(0);
 
-        when(recipeIngredientRepository.findByRecipeId(anyLong()))
-                .thenReturn(Collections.emptyList());
+        given(recipeIngredientRepository.findByRecipeId(anyLong()))
+                .willReturn(Collections.emptyList());
 
-        doNothing().when(recipeStepService).saveAll(any(Recipe.class), anyList());
-        doNothing().when(recipeTagService).saveAll(any(Recipe.class), anyList());
+        willDoNothing().given(recipeStepService).saveAll(any(Recipe.class), anyList());
+        willDoNothing().given(recipeTagService).saveAll(any(Recipe.class), anyList());
 
-        when(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
-                .thenReturn(Collections.emptyList());
+        given(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
+                .willReturn(Collections.emptyList());
 
         Recipe fullRecipe = Recipe.builder()
                 .id(555L)
                 .user(author)
                 .title("신규 레시피")
                 .build();
-        when(recipeRepository.findWithAllRelationsById(555L))
-                .thenReturn(Optional.of(fullRecipe));
+        given(recipeRepository.findWithAllRelationsById(555L))
+                .willReturn(Optional.of(fullRecipe));
 
         RecipeWithImageUploadRequest requestWithFile = RecipeWithImageUploadRequest.builder()
                 .recipe(createDto)
                 .files(nonEmptyFiles)
                 .build();
 
+        // When
         PresignedUrlResponse response = recipeService.createRecipeAndGenerateUrls(
                 requestWithFile, author.getId(), RecipeSourceType.USER, null);
 
-        assertNotNull(response);
-        assertEquals(555L, response.getRecipeId());
-        assertTrue(response.getUploads().isEmpty());
+        // Then
+        assertThat(response).isNotNull();
+        assertThat(response.getRecipeId()).isEqualTo(555L);
+        assertThat(response.getUploads()).isEmpty();
 
         verify(userRepository, times(1)).findById(author.getId());
         verify(recipeRepository, times(1)).save(any(Recipe.class));
@@ -187,8 +191,9 @@ class RecipeServiceTest {
     @Test
     @DisplayName("createRecipeAndGenerateUrls: main 타입 파일 없이 요청 시 USER_RECIPE_IMAGE_REQUIRED 예외")
     void createRecipe_noMainFile_throwsImageRequired() {
-        when(userRepository.findById(author.getId()))
-                .thenReturn(Optional.of(author));
+        // Given
+        given(userRepository.findById(author.getId()))
+                .willReturn(Optional.of(author));
 
         createDto.setIsPrivate(null);
 
@@ -197,10 +202,10 @@ class RecipeServiceTest {
                 .files(emptyFiles)
                 .build();
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.createRecipeAndGenerateUrls(requestWithoutFile, author.getId(), RecipeSourceType.USER, null);
-        });
-        assertEquals(ErrorCode.USER_RECIPE_IMAGE_REQUIRED, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> recipeService.createRecipeAndGenerateUrls(requestWithoutFile, author.getId(), RecipeSourceType.USER, null))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.USER_RECIPE_IMAGE_REQUIRED));
 
         verify(userRepository, times(1)).findById(author.getId());
         verifyNoInteractions(recipeRepository);
@@ -209,17 +214,18 @@ class RecipeServiceTest {
     @Test
     @DisplayName("createRecipeAndGenerateUrls: 사용자 없는 경우 USER_NOT_FOUND 예외")
     void createRecipe_userNotFound_throwsException() {
-        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+        // Given
+        given(userRepository.findById(999L)).willReturn(Optional.empty());
 
         RecipeWithImageUploadRequest request = RecipeWithImageUploadRequest.builder()
                 .recipe(createDto)
                 .files(emptyFiles)
                 .build();
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.createRecipeAndGenerateUrls(request, 999L, RecipeSourceType.USER, null);
-        });
-        assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> recipeService.createRecipeAndGenerateUrls(request, 999L, RecipeSourceType.USER, null))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND));
 
         verify(userRepository, times(1)).findById(999L);
         verifyNoMoreInteractions(recipeRepository);
@@ -228,14 +234,15 @@ class RecipeServiceTest {
     @Test
     @DisplayName("updateUserRecipe: 정상 수정 시 PresignedUrlResponse 반환")
     void updateRecipe_success() {
+        // Given
         Recipe existing = Recipe.builder()
                 .id(100L)
                 .user(author)
                 .title("기존 레시피")
                 .build();
-        when(recipeRepository.findWithUserById(100L)).thenReturn(Optional.of(existing));
-        when(recipeRepository.findWithAllRelationsById(100L))
-                .thenReturn(Optional.of(existing));
+        given(recipeRepository.findWithUserById(100L)).willReturn(Optional.of(existing));
+        given(recipeRepository.findWithAllRelationsById(100L))
+                .willReturn(Optional.of(existing));
 
         RecipeUpdateRequestDto updateDto = RecipeUpdateRequestDto.builder()
                 .title("수정된 레시피")
@@ -252,27 +259,29 @@ class RecipeServiceTest {
                 .files(nonEmptyFiles)
                 .build();
 
-        when(recipeIngredientService.updateIngredientsFromUser(eq(existing), anyList()))
-                .thenReturn(0);
+        given(recipeIngredientService.updateIngredientsFromUser(eq(existing), anyList()))
+                .willReturn(0);
 
-        when(recipeIngredientRepository.findByRecipeId(anyLong()))
-                .thenReturn(Collections.emptyList());
+        given(recipeIngredientRepository.findByRecipeId(anyLong()))
+                .willReturn(Collections.emptyList());
 
-        doNothing().when(recipeStepService).updateStepsFromUser(eq(existing), anyList());
-        doNothing().when(recipeTagService).updateTags(eq(existing), anyList());
+        willDoNothing().given(recipeStepService).updateStepsFromUser(eq(existing), anyList());
+        willDoNothing().given(recipeTagService).updateTags(eq(existing), anyList());
 
-        doNothing().when(recipeAnalysisService).analyzeRecipeAsync(anyLong());
-        doNothing().when(recipeIndexingService).indexRecipeSafelyWithRetry(100L);
+        willDoNothing().given(recipeAnalysisService).analyzeRecipeAsync(anyLong());
+        willDoNothing().given(recipeIndexingService).indexRecipeSafelyWithRetry(100L);
 
-        when(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
-                .thenReturn(Collections.emptyList());
+        given(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
+                .willReturn(Collections.emptyList());
 
+        // When
         PresignedUrlResponse response = recipeService.updateUserRecipe(
                 100L, author.getId(), updateRequest);
 
-        assertNotNull(response);
-        assertEquals(100L, response.getRecipeId());
-        assertTrue(response.getUploads().isEmpty());
+        // Then
+        assertThat(response).isNotNull();
+        assertThat(response.getRecipeId()).isEqualTo(100L);
+        assertThat(response.getUploads()).isEmpty();
 
         verify(recipeRepository, times(1)).findWithUserById(100L);
         verify(recipeIngredientService, times(1))
@@ -289,17 +298,18 @@ class RecipeServiceTest {
     @Test
     @DisplayName("updateUserRecipe: 존재하지 않는 레시피 수정 시 RECIPE_NOT_FOUND 예외")
     void updateRecipe_notFound_throwsException() {
-        when(recipeRepository.findWithUserById(2000L)).thenReturn(Optional.empty());
+        // Given
+        given(recipeRepository.findWithUserById(2000L)).willReturn(Optional.empty());
 
         RecipeUpdateWithImageRequest dummyRequest = RecipeUpdateWithImageRequest.builder()
                 .recipe(RecipeUpdateRequestDto.builder().build())
                 .files(emptyFiles)
                 .build();
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.updateUserRecipe(2000L, author.getId(), dummyRequest);
-        });
-        assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> recipeService.updateUserRecipe(2000L, author.getId(), dummyRequest))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
         verify(recipeRepository, times(1)).findWithUserById(2000L);
         verifyNoMoreInteractions(recipeIngredientService, recipeStepService, recipeTagService);
@@ -308,24 +318,25 @@ class RecipeServiceTest {
     @Test
     @DisplayName("updateUserRecipe: 소유자가 아닌 사용자가 수정 시 RECIPE_ACCESS_DENIED 예외")
     void updateRecipe_notOwner_throwsException() {
+        // Given
         User otherUser = User.builder().id(99L).build();
         Recipe existing = Recipe.builder()
                 .id(300L)
                 .user(otherUser)
                 .title("남의 레시피")
                 .build();
-        when(recipeRepository.findWithUserById(300L))
-                .thenReturn(Optional.of(existing));
+        given(recipeRepository.findWithUserById(300L))
+                .willReturn(Optional.of(existing));
 
         RecipeUpdateWithImageRequest dummyRequest = RecipeUpdateWithImageRequest.builder()
                 .recipe(RecipeUpdateRequestDto.builder().build()) // 빈 UpdateDto
                 .files(emptyFiles)
                 .build();
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.updateUserRecipe(300L, author.getId(), dummyRequest);
-        });
-        assertEquals(ErrorCode.RECIPE_ACCESS_DENIED, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> recipeService.updateUserRecipe(300L, author.getId(), dummyRequest))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_ACCESS_DENIED));
 
         verify(recipeRepository, times(1)).findWithUserById(300L);
         verifyNoMoreInteractions(recipeIngredientService, recipeStepService, recipeTagService);
@@ -334,25 +345,29 @@ class RecipeServiceTest {
     @Test
     @DisplayName("deleteRecipe: 정상 삭제 시 recipeId 반환")
     void deleteRecipe_success() {
+        // Given
         Recipe existing = Recipe.builder()
                 .id(400L)
                 .user(author)
                 .title("삭제할 레시피")
                 .build();
-        when(recipeRepository.findWithUserById(400L)).thenReturn(Optional.of(existing));
+        given(recipeRepository.findWithUserById(400L)).willReturn(Optional.of(existing));
 
-        doNothing().when(recipeImageService).deleteImagesByRecipeId(400L);
-        doNothing().when(recipeLikeService).deleteByRecipeId(400L);
-        doNothing().when(recipeFavoriteService).deleteByRecipeId(400L);
-        doNothing().when(commentService).deleteAllByRecipeId(400L);
-        doNothing().when(recipeStepService).deleteAllByRecipeId(400L);
-        doNothing().when(recipeIngredientService).deleteAllByRecipeId(400L);
-        doNothing().when(recipeTagService).deleteAllByRecipeId(400L);
-        doNothing().when(recipeIndexingService).deleteRecipeSafelyWithRetry(400L);
-        doNothing().when(recipeRatingRepository).deleteByRecipeId(400L);
+        willDoNothing().given(recipeImageService).deleteImagesByRecipeId(400L);
+        willDoNothing().given(recipeLikeService).deleteByRecipeId(400L);
+        willDoNothing().given(recipeFavoriteService).deleteByRecipeId(400L);
+        willDoNothing().given(commentService).deleteAllByRecipeId(400L);
+        willDoNothing().given(recipeStepService).deleteAllByRecipeId(400L);
+        willDoNothing().given(recipeIngredientService).deleteAllByRecipeId(400L);
+        willDoNothing().given(recipeTagService).deleteAllByRecipeId(400L);
+        willDoNothing().given(recipeIndexingService).deleteRecipeSafelyWithRetry(400L);
+        willDoNothing().given(recipeRatingRepository).deleteByRecipeId(400L);
 
+        // When
         Long result = recipeService.deleteRecipe(400L, author.getId());
-        assertEquals(400L, result);
+
+        // Then
+        assertThat(result).isEqualTo(400L);
 
         verify(recipeRepository, times(1)).findWithUserById(400L);
         verify(recipeImageService, times(1)).deleteImagesByRecipeId(400L);
@@ -370,12 +385,13 @@ class RecipeServiceTest {
     @Test
     @DisplayName("deleteRecipe: 존재하지 않는 레시피 삭제 시 RECIPE_NOT_FOUND 예외")
     void deleteRecipe_notFound_throwsException() {
-        when(recipeRepository.findWithUserById(500L)).thenReturn(Optional.empty());
+        // Given
+        given(recipeRepository.findWithUserById(500L)).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.deleteRecipe(500L, author.getId());
-        });
-        assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> recipeService.deleteRecipe(500L, author.getId()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
         verify(recipeRepository, times(1)).findWithUserById(500L);
         verifyNoMoreInteractions(recipeImageService, recipeLikeService, recipeFavoriteService,
@@ -385,19 +401,20 @@ class RecipeServiceTest {
     @Test
     @DisplayName("deleteRecipe: 소유자가 아닌 사용자가 삭제 시 RECIPE_ACCESS_DENIED 예외")
     void deleteRecipe_notOwner_throwsException() {
+        // Given
         User otherUser = User.builder().id(77L).build();
         Recipe existing = Recipe.builder()
                 .id(600L)
                 .user(otherUser)
                 .title("남의 레시피")
                 .build();
-        when(recipeRepository.findWithUserById(600L))
-                .thenReturn(Optional.of(existing));
+        given(recipeRepository.findWithUserById(600L))
+                .willReturn(Optional.of(existing));
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.deleteRecipe(600L, author.getId());
-        });
-        assertEquals(ErrorCode.RECIPE_ACCESS_DENIED, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> recipeService.deleteRecipe(600L, author.getId()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_ACCESS_DENIED));
 
         verify(recipeRepository, times(1)).findWithUserById(600L);
         verifyNoMoreInteractions(recipeImageService, recipeLikeService, recipeFavoriteService,
@@ -407,6 +424,7 @@ class RecipeServiceTest {
     @Test
     @DisplayName("togglePrivacy: 일반 사용자 레시피 공개/비공개 전환 성공")
     void togglePrivacy_success() {
+        // Given
         Recipe recipe = Recipe.builder()
                 .id(123L)
                 .user(author)
@@ -415,10 +433,13 @@ class RecipeServiceTest {
                 .imageKey("image.jpg")
                 .build();
 
-        when(recipeRepository.findWithUserById(123L)).thenReturn(Optional.of(recipe));
+        given(recipeRepository.findWithUserById(123L)).willReturn(Optional.of(recipe));
 
+        // When
         boolean result = recipeService.togglePrivacy(123L, author.getId());
-        assertFalse(result);
+
+        // Then
+        assertThat(result).isFalse();
 
         verify(recipeRepository).findWithUserById(123L);
     }
@@ -426,6 +447,7 @@ class RecipeServiceTest {
     @Test
     @DisplayName("togglePrivacy: AI 레시피가 이미지 없이 공개되려 할 때 예외")
     void togglePrivacy_aiRecipeWithoutImage_throws() {
+        // Given
         Recipe recipe = Recipe.builder()
                 .id(124L)
                 .user(author)
@@ -434,45 +456,45 @@ class RecipeServiceTest {
                 .imageKey(null)
                 .build();
 
-        when(recipeRepository.findWithUserById(124L)).thenReturn(Optional.of(recipe));
+        given(recipeRepository.findWithUserById(124L)).willReturn(Optional.of(recipe));
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            recipeService.togglePrivacy(124L, author.getId());
-        });
-
-        assertEquals(ErrorCode.CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> recipeService.togglePrivacy(124L, author.getId()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE));
     }
 
     @Test
     @DisplayName("createRecipeAndGenerateUrls: AI 레시피 생성 시 로그가 정상적으로 저장되는지 검증")
     void createAiRecipe_logsActivity() {
+        // Given
         Long userId = author.getId();
         String nickname = author.getNickname();
         AiRecipeConcept concept = AiRecipeConcept.FINE_DINING;
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(author));
+        given(userRepository.findById(userId)).willReturn(Optional.of(author));
 
-        doAnswer(inv -> {
+        willAnswer(inv -> {
             Recipe r = inv.getArgument(0);
             Field id = Recipe.class.getDeclaredField("id");
             id.setAccessible(true);
             id.set(r, 777L);
             return r;
-        }).when(recipeRepository).save(any(Recipe.class));
+        }).given(recipeRepository).save(any(Recipe.class));
 
-        when(recipeIngredientService.saveAll(any(), any(), eq(RecipeSourceType.AI))).thenReturn(10000);
-        when(recipeIngredientRepository.findByRecipeId(any())).thenReturn(Collections.emptyList());
-        when(recipeRepository.findWithAllRelationsById(any())).thenReturn(Optional.of(Recipe.builder().user(author).id(777L).build()));
+        given(recipeIngredientService.saveAll(any(), any(), eq(RecipeSourceType.AI))).willReturn(10000);
+        given(recipeIngredientRepository.findByRecipeId(any())).willReturn(Collections.emptyList());
+        given(recipeRepository.findWithAllRelationsById(any())).willReturn(Optional.of(Recipe.builder().user(author).id(777L).build()));
 
         RecipeWithImageUploadRequest request = RecipeWithImageUploadRequest.builder()
                 .recipe(createDto)
                 .files(nonEmptyFiles)
                 .build();
 
-
+        // When
         recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.AI, concept);
 
-
+        // Then
         verify(recipeActivityService, times(1)).saveLog(
                 eq(userId),
                 eq(nickname),
@@ -483,28 +505,31 @@ class RecipeServiceTest {
     @Test
     @DisplayName("createRecipeAndGenerateUrls: 유저 직접 생성 시에는 로그가 저장되지 않아야 함")
     void createUserRecipe_doesNotLog() {
+        // Given
         Long userId = author.getId();
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(author));
-        doAnswer(inv -> {
+        given(userRepository.findById(userId)).willReturn(Optional.of(author));
+        willAnswer(inv -> {
             Recipe r = inv.getArgument(0);
             Field id = Recipe.class.getDeclaredField("id");
             id.setAccessible(true);
             id.set(r, 888L);
             return r;
-        }).when(recipeRepository).save(any(Recipe.class));
+        }).given(recipeRepository).save(any(Recipe.class));
 
-        when(recipeIngredientService.saveAll(any(), any(), eq(RecipeSourceType.USER))).thenReturn(5000);
-        when(recipeIngredientRepository.findByRecipeId(any())).thenReturn(Collections.emptyList());
-        when(recipeRepository.findWithAllRelationsById(any())).thenReturn(Optional.of(Recipe.builder().user(author).id(888L).build()));
+        given(recipeIngredientService.saveAll(any(), any(), eq(RecipeSourceType.USER))).willReturn(5000);
+        given(recipeIngredientRepository.findByRecipeId(any())).willReturn(Collections.emptyList());
+        given(recipeRepository.findWithAllRelationsById(any())).willReturn(Optional.of(Recipe.builder().user(author).id(888L).build()));
 
         RecipeWithImageUploadRequest request = RecipeWithImageUploadRequest.builder()
                 .recipe(createDto)
                 .files(nonEmptyFiles)
                 .build();
 
+        // When
         recipeService.createRecipeAndGenerateUrls(request, userId, RecipeSourceType.USER, null);
 
+        // Then
         verify(recipeActivityService, never()).saveLog(any(), any(), any());
     }
 

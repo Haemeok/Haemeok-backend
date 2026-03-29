@@ -36,8 +36,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RecipeSearchServiceTest {
@@ -114,189 +115,110 @@ class RecipeSearchServiceTest {
     @Test
     @DisplayName("getRecipeDetail: 존재하는 레시피 ID인 경우, 올바른 DTO 반환")
     void getRecipeDetail_Success() {
+        // Given
         ReflectionTestUtils.setField(sampleRecipe, "likeCount", 10L);
+        given(recipeRepository.findWithUserById(existingId)).willReturn(Optional.of(sampleRecipe));
+        given(recipeLikeRepository.existsByRecipeIdAndUserId(existingId, userId)).willReturn(true);
+        given(recipeFavoriteRepository.existsByRecipeIdAndUserId(existingId, userId)).willReturn(false);
+        given(recipeRatingService.getMyRating(existingId, userId)).willReturn(5.0);
+        given(recipeRatingService.getRatingCount(existingId)).willReturn(20L);
 
-        // 1) recipeRepository.findWithUserById(existingId) 모킹
-        when(recipeRepository.findWithUserById(existingId))
-                .thenReturn(Optional.of(sampleRecipe));
-
-        // 2) 좋아요·즐겨찾기 정보 모킹
-        when(recipeLikeRepository.existsByRecipeIdAndUserId(existingId, userId)).thenReturn(true);
-        when(recipeFavoriteRepository.existsByRecipeIdAndUserId(existingId, userId)).thenReturn(false);
-
-        // 3) RatingService 모킹
-        when(recipeRatingService.getMyRating(existingId, userId)).thenReturn(5.0);
-        when(recipeRatingService.getRatingCount(existingId)).thenReturn(20L);
-
-        // 4) 태그 목록 모킹
         RecipeTag tagEntity = RecipeTag.builder()
-                .id(1L)
-                .recipe(sampleRecipe)
-                .tag(TagType.QUICK)
-                .build();
-        when(recipeTagRepository.findByRecipeId(existingId))
-                .thenReturn(List.of(tagEntity));
+                .id(1L).recipe(sampleRecipe).tag(TagType.QUICK).build();
+        given(recipeTagRepository.findByRecipeId(existingId)).willReturn(List.of(tagEntity));
 
-        // 5) 재료 목록 모킹
         RecipeIngredient ingrEntity = RecipeIngredient.builder()
-                .id(1L)
-                .recipe(sampleRecipe)
-                .ingredient(null)
-                .quantity("2")
-                .unit("개")
-                .price(2000)
-                .customName("감자")
-                .customPrice(1000)
-                .customUnit("개")
-                .build();
-        when(recipeIngredientRepository.findByRecipeId(existingId))
-                .thenReturn(List.of(ingrEntity));
+                .id(1L).recipe(sampleRecipe).ingredient(null)
+                .quantity("2").unit("개").price(2000)
+                .customName("감자").customPrice(1000).customUnit("개").build();
+        given(recipeIngredientRepository.findByRecipeId(existingId)).willReturn(List.of(ingrEntity));
 
-        RecipeIngredientDto ingrDto = new RecipeIngredientDto(
-                1L, "감자", "2", "개", 2000,1.0, null
-        );
+        RecipeIngredientDto ingrDto = new RecipeIngredientDto(1L, "감자", "2", "개", 2000, 1.0, null);
+
         try (MockedStatic<RecipeIngredientMapper> ingrMapper = Mockito.mockStatic(RecipeIngredientMapper.class)) {
-            ingrMapper.when(() ->
-                    RecipeIngredientMapper.toDtoList(List.of(ingrEntity))
-            ).thenReturn(List.of(ingrDto));
+            ingrMapper.when(() -> RecipeIngredientMapper.toDtoList(List.of(ingrEntity))).thenReturn(List.of(ingrDto));
 
-            // 6) 단계 목록 모킹
             RecipeStep stepEntity = RecipeStep.builder()
-                    .id(1L)
-                    .recipe(sampleRecipe)
-                    .stepNumber(1)
-                    .instruction("손질")
-                    .imageKey("step-img-key")
-                    .action(null)
-                    .build();
+                    .id(1L).recipe(sampleRecipe).stepNumber(1)
+                    .instruction("손질").imageKey("step-img-key").action(null).build();
             stepEntity.getStepIngredients().clear();
-            when(recipeStepRepository.findByRecipeIdOrderByStepNumber(existingId))
-                    .thenReturn(List.of(stepEntity));
+            given(recipeStepRepository.findByRecipeIdOrderByStepNumber(existingId)).willReturn(List.of(stepEntity));
 
-            // generateImageUrl(...) 오버라이드: "step-img-key" 요청 시 stepImageUrl 리턴
             String stepImageUrl = "https://bucket.region.amazonaws.com/step-img-key";
             doReturn(stepImageUrl).when(spyService).generateImageUrl("step-img-key");
 
-            RecipeStepIngredientDto usedIngrDto = new RecipeStepIngredientDto(
-                    1L, "감자", "2", "개"
-            );
+            RecipeStepIngredientDto usedIngrDto = new RecipeStepIngredientDto(1L, "감자", "2", "개");
             try (MockedStatic<StepIngredientMapper> stepIngrMapper = Mockito.mockStatic(StepIngredientMapper.class)) {
-                stepIngrMapper.when(() ->
-                        StepIngredientMapper.toDtoList(stepEntity.getStepIngredients())
-                ).thenReturn(List.of(usedIngrDto));
+                stepIngrMapper.when(() -> StepIngredientMapper.toDtoList(stepEntity.getStepIngredients()))
+                        .thenReturn(List.of(usedIngrDto));
 
-                RecipeStepDto stepDto = new RecipeStepDto(
-                        1,
-                        "손질",
-                        stepImageUrl,
-                        "step-img-key",
-                        null,
-                        null,
-                        List.of(usedIngrDto)
-                );
+                RecipeStepDto stepDto = new RecipeStepDto(1, "손질", stepImageUrl, "step-img-key", null, null, List.of(usedIngrDto));
                 try (MockedStatic<RecipeStepMapper> stepMapper = Mockito.mockStatic(RecipeStepMapper.class)) {
-                    stepMapper.when(() ->
-                            RecipeStepMapper.toDto(stepEntity, List.of(usedIngrDto), stepImageUrl, "step-img-key")
-                    ).thenReturn(stepDto);
-
-                    // 7) CommentService 모킹
-                    CommentUserDto authorDtoComment = CommentUserDto.builder()
-                            .id(2L)
-                            .nickname("commenter")
-                            .profileImage("http://profile.commenter")
-                            .build();
+                    stepMapper.when(() -> RecipeStepMapper.toDto(stepEntity, List.of(usedIngrDto), stepImageUrl, "step-img-key"))
+                            .thenReturn(stepDto);
 
                     CommentDto commentDto = CommentDto.builder()
-                            .id(1L)
-                            .content("댓글 내용")
-                            .createdAt(LocalDateTime.of(2025, 6, 2, 0, 0))
-                            .author(authorDtoComment)
-                            .likeCount(0)
-                            .likedByCurrentUser(false)
-                            .replyCount(0)
-                            .build();
+                            .id(1L).content("댓글 내용").createdAt(LocalDateTime.of(2025, 6, 2, 0, 0))
+                            .author(CommentUserDto.builder().id(2L).nickname("commenter").profileImage("http://profile.commenter").build())
+                            .likeCount(0).likedByCurrentUser(false).replyCount(0).build();
+                    given(commentService.getTop3CommentsWithLikes(existingId, userId)).willReturn(List.of(commentDto));
+                    given(recipeCommentRepository.countByRecipeId(existingId)).willReturn(1L);
 
-                    when(commentService.getTop3CommentsWithLikes(existingId, userId))
-                            .thenReturn(List.of(commentDto));
-                    when(recipeCommentRepository.countByRecipeId(existingId)).thenReturn(1L);
-
-                    // 8) UserMapper 모킹
                     UserDto authorDto = UserDto.builder()
-                            .id(sampleRecipe.getUser().getId())
-                            .nickname("author")
-                            .profileImage("http://profile.test")
-                            .build();
+                            .id(sampleRecipe.getUser().getId()).nickname("author").profileImage("http://profile.test").build();
                     try (MockedStatic<UserMapper> userMapper = Mockito.mockStatic(UserMapper.class)) {
-                        userMapper.when(() ->
-                                UserMapper.toSimpleDto(sampleRecipe.getUser())
-                        ).thenReturn(authorDto);
+                        userMapper.when(() -> UserMapper.toSimpleDto(sampleRecipe.getUser())).thenReturn(authorDto);
 
-                        // --- 실제 서비스 호출 (스파이 사용) ---
+                        // When
                         RecipeDetailDto actual = spyService.getRecipeDetail(existingId, userId);
 
-                        // DTO 기본 필드 검증
-                        assertNotNull(actual);
-                        assertEquals(existingId, actual.getId());
-                        assertEquals("테스트 레시피", actual.getTitle());
-                        assertEquals("레시피 설명", actual.getDescription());
+                        // Then
+                        assertThat(actual).isNotNull();
+                        assertThat(actual.getId()).isEqualTo(existingId);
+                        assertThat(actual.getTitle()).isEqualTo("테스트 레시피");
+                        assertThat(actual.getDescription()).isEqualTo("레시피 설명");
+                        assertThat(actual.isPrivate()).isFalse();
+                        assertThat(actual.isAiGenerated()).isFalse();
+                        assertThat(actual.getLikeCount()).isEqualTo(10L);
+                        assertThat(actual.isLikedByCurrentUser()).isTrue();
+                        assertThat(actual.isFavoriteByCurrentUser()).isFalse();
 
-                        // private=false → 접근 가능
-                        assertFalse(actual.isPrivate());
-                        assertFalse(actual.isAiGenerated());
-
-                        // 좋아요·즐겨찾기 정보
-                        assertEquals(10L, actual.getLikeCount());
-                        assertTrue(actual.isLikedByCurrentUser());
-                        assertFalse(actual.isFavoriteByCurrentUser());
-
-                        // RatingInfo 검증
                         RecipeRatingInfoDto ratingInfo = actual.getRatingInfo();
-                        assertNotNull(ratingInfo);
-                        assertEquals(BigDecimal.valueOf(4.5), ratingInfo.getAvgRating());
-                        assertEquals(5L, ratingInfo.getMyRating());
-                        assertEquals(20L, ratingInfo.getRatingCount());
+                        assertThat(ratingInfo).isNotNull();
+                        assertThat(ratingInfo.getAvgRating()).isEqualTo(BigDecimal.valueOf(4.5));
+                        assertThat(ratingInfo.getMyRating()).isEqualTo(5L);
+                        assertThat(ratingInfo.getRatingCount()).isEqualTo(20L);
 
-                        // author 검증
-                        assertNotNull(actual.getAuthor());
-                        assertEquals("author", actual.getAuthor().getNickname());
+                        assertThat(actual.getAuthor()).isNotNull();
+                        assertThat(actual.getAuthor().getNickname()).isEqualTo("author");
+                        assertThat(actual.getTags()).hasSize(1);
+                        assertThat(actual.getTags().get(0)).isEqualTo(TagType.QUICK.getDisplayName());
 
-                        // tags: TagType.QUICK → displayName
-                        assertEquals(1, actual.getTags().size());
-                        assertEquals(TagType.QUICK.getDisplayName(), actual.getTags().get(0));
-
-                        // ingredients
-                        assertEquals(1, actual.getIngredients().size());
+                        assertThat(actual.getIngredients()).hasSize(1);
                         RecipeIngredientDto actIngr = actual.getIngredients().get(0);
-                        assertEquals(1L, actIngr.getId());
-                        assertEquals("감자", actIngr.getName());
-                        assertEquals("2", actIngr.getQuantity());
-                        assertEquals("개", actIngr.getUnit());
-                        assertEquals(2000, actIngr.getPrice());
+                        assertThat(actIngr.getId()).isEqualTo(1L);
+                        assertThat(actIngr.getName()).isEqualTo("감자");
+                        assertThat(actIngr.getQuantity()).isEqualTo("2");
+                        assertThat(actIngr.getUnit()).isEqualTo("개");
+                        assertThat(actIngr.getPrice()).isEqualTo(2000);
 
-                        // steps
-                        assertEquals(1, actual.getSteps().size());
+                        assertThat(actual.getSteps()).hasSize(1);
                         RecipeStepDto actStep = actual.getSteps().get(0);
-                        assertEquals(1, actStep.getStepNumber());
-                        assertEquals("손질", actStep.getInstruction());
-                        assertEquals(stepImageUrl, actStep.getStepImageUrl());
-                        assertEquals(1, actStep.getIngredients().size());
-                        assertEquals("감자", actStep.getIngredients().get(0).getName());
+                        assertThat(actStep.getStepNumber()).isEqualTo(1);
+                        assertThat(actStep.getInstruction()).isEqualTo("손질");
+                        assertThat(actStep.getStepImageUrl()).isEqualTo(stepImageUrl);
+                        assertThat(actStep.getIngredients()).hasSize(1);
+                        assertThat(actStep.getIngredients().get(0).getName()).isEqualTo("감자");
 
-                        // comments
-                        assertEquals(1, actual.getComments().size());
-                        assertEquals("댓글 내용", actual.getComments().get(0).getContent());
-                        assertEquals(1L, actual.getCommentCount());
+                        assertThat(actual.getComments()).hasSize(1);
+                        assertThat(actual.getComments().get(0).getContent()).isEqualTo("댓글 내용");
+                        assertThat(actual.getCommentCount()).isEqualTo(1L);
+                        assertThat(actual.getTotalIngredientCost()).isEqualTo(2000);
+                        assertThat(actual.getMarketPrice()).isEqualTo(5000);
+                        assertThat(actual.getSavings()).isEqualTo(3000);
+                        assertThat(actual.getCreatedAt()).isNotNull();
+                        assertThat(actual.getUpdatedAt()).isNotNull();
 
-                        // cost·price·savings
-                        assertEquals(2000, actual.getTotalIngredientCost());
-                        assertEquals(5000, actual.getMarketPrice());
-                        assertEquals(3000, actual.getSavings());
-
-                        // createdAt·updatedAt: 널이 아니어야 함
-                        assertNotNull(actual.getCreatedAt());
-                        assertNotNull(actual.getUpdatedAt());
-
-                        // 내부 호출 verify
                         verify(recipeRepository, times(1)).findWithUserById(existingId);
                         verify(recipeLikeRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
                         verify(recipeFavoriteRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
@@ -304,8 +226,7 @@ class RecipeSearchServiceTest {
                         verify(recipeRatingService, times(1)).getRatingCount(existingId);
                         verify(recipeTagRepository, times(1)).findByRecipeId(existingId);
                         verify(recipeIngredientRepository, times(1)).findByRecipeId(existingId);
-                        verify(recipeStepRepository, times(1))
-                                .findByRecipeIdOrderByStepNumber(existingId);
+                        verify(recipeStepRepository, times(1)).findByRecipeIdOrderByStepNumber(existingId);
                         verify(spyService, times(1)).generateImageUrl("step-img-key");
                         verify(commentService, times(1)).getTop3CommentsWithLikes(existingId, userId);
                         verify(recipeCommentRepository, times(1)).countByRecipeId(existingId);
@@ -318,13 +239,13 @@ class RecipeSearchServiceTest {
     @Test
     @DisplayName("getRecipeDetail: 없는 ID 조회 시, RECIPE_NOT_FOUND 예외 발생")
     void getRecipeDetail_NotFound() {
-        when(recipeRepository.findWithUserById(missingId))
-                .thenReturn(Optional.empty());
+        // Given
+        given(recipeRepository.findWithUserById(missingId)).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            spyService.getRecipeDetail(missingId, userId);
-        });
-        assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> spyService.getRecipeDetail(missingId, userId))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
         verify(recipeRepository, times(1)).findWithUserById(missingId);
         verifyNoMoreInteractions(
@@ -341,17 +262,14 @@ class RecipeSearchServiceTest {
     @Test
     @DisplayName("getRecipeDetail: PRIVATE 상태의 레시피를 다른 사용자가 조회 시, RECIPE_PRIVATE_ACCESS_DENIED 예외 발생")
     void getRecipeDetail_PrivateRecipe_OtherUser_throwException() {
-        // sampleRecipe의 isPrivate를 true로 변경
+        // Given
         sampleRecipe.updateIsPrivate(true);
+        given(recipeRepository.findWithUserById(existingId)).willReturn(Optional.of(sampleRecipe));
 
-        when(recipeRepository.findWithUserById(existingId))
-                .thenReturn(Optional.of(sampleRecipe));
-
-        // 작성자(user.id=2L)와 조회자(userId=100L)가 다르므로 예외 발생
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            spyService.getRecipeDetail(existingId, userId);
-        });
-        assertEquals(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> spyService.getRecipeDetail(existingId, userId))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED));
 
         verify(recipeRepository, times(1)).findWithUserById(existingId);
         verifyNoMoreInteractions(
@@ -372,9 +290,11 @@ class RecipeSearchServiceTest {
         Pageable pageable = Pageable.unpaged();
         Long currentUserId = 1L;
 
+        // Given
         Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
-        when(recipeRepository.findPopularRecipesSince(any(), any())).thenReturn(mockPage);
+        given(recipeRepository.findPopularRecipesSince(any(), any())).willReturn(mockPage);
 
+        // When
         spyService.getPopularRecipes(period, pageable, currentUserId);
 
         verify(recipeRepository, times(1)).findPopularRecipesSince(any(LocalDateTime.class), eq(pageable));
@@ -389,13 +309,12 @@ class RecipeSearchServiceTest {
         Pageable pageable = Pageable.unpaged();
         Long currentUserId = 1L;
 
+        // Given
         Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
-        when(recipeRepository.findBudgetRecipes(any(), any())).thenReturn(mockPage);
+        given(recipeRepository.findBudgetRecipes(any(), any())).willReturn(mockPage);
+        doReturn(mockPage).when(spyService).addLikeInfoToPage(any(), eq(currentUserId));
 
-        doReturn(mockPage)
-                .when(spyService)
-                .addLikeInfoToPage(any(), eq(currentUserId));
-
+        // When
         spyService.getBudgetRecipes(maxCost, pageable, currentUserId);
 
         verify(recipeRepository, times(1)).findBudgetRecipes(eq(maxCost), eq(pageable));
@@ -405,7 +324,8 @@ class RecipeSearchServiceTest {
     @Test
     @DisplayName("searchRecipes: Querydsl 사용 시, RecipeSearchCondition 객체가 Repository로 올바르게 전달되는지 확인")
     void searchRecipes_Querydsl_WithMaxCostAndSorting() {
-        when(searchProperties.getEngine()).thenReturn("querydsl");
+        // Given
+        given(searchProperties.getEngine()).willReturn("querydsl");
 
         String q = "파스타";
         Integer maxCost = 20000;
@@ -417,17 +337,13 @@ class RecipeSearchServiceTest {
         cond.setMaxCost(maxCost);
 
         Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
-        when(recipeRepository.search(any(RecipeSearchCondition.class), eq(pageable), eq(userId)))
-                .thenReturn(mockPage);
+        given(recipeRepository.search(any(RecipeSearchCondition.class), eq(pageable), eq(userId))).willReturn(mockPage);
 
+        // When
         recipeSearchService.searchRecipes(cond, pageable, userId);
 
-        verify(recipeRepository, times(1)).search(
-                eq(cond),
-                eq(pageable),
-                eq(userId)
-        );
-
-        assertEquals("파스타", cond.getTitle());
+        // Then
+        verify(recipeRepository, times(1)).search(eq(cond), eq(pageable), eq(userId));
+        assertThat(cond.getTitle()).isEqualTo("파스타");
     }
 }

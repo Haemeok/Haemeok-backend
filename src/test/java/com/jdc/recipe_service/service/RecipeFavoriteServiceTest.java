@@ -17,8 +17,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RecipeFavoriteServiceTest {
@@ -45,21 +46,24 @@ class RecipeFavoriteServiceTest {
     @Test
     @DisplayName("toggleFavorite: 이미 즐겨찾기 되어 있으면 삭제 후 false 반환")
     void toggleFavorite_existingFavorite_returnsFalse() {
+        // Given
         // 1) favoriteRepository.findByUserIdAndRecipeId(...) 가 Optional.of(...) 리턴
         RecipeFavorite existing = RecipeFavorite.builder()
                 .id(100L)
                 .user(user)
                 .recipe(recipe)
                 .build();
-        when(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.of(existing));
+        given(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.of(existing));
 
         // 2) delete(...) 호출 시 아무 일 없음
-        doNothing().when(favoriteRepository).delete(existing);
+        willDoNothing().given(favoriteRepository).delete(existing);
 
+        // When
         boolean result = favoriteService.toggleFavorite(user.getId(), recipe.getId());
 
-        assertFalse(result);
+        // Then
+        assertThat(result).isFalse();
         verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(favoriteRepository, times(1)).delete(existing);
         // 유저/레시피 조회는 호출되지 않아야 함
@@ -69,44 +73,48 @@ class RecipeFavoriteServiceTest {
     @Test
     @DisplayName("toggleFavorite: 즐겨찾기 기록이 없으면 새로 저장 후 true 반환")
     void toggleFavorite_noFavorite_savesAndReturnsTrue() {
+        // Given
         // 1) findByUserIdAndRecipeId -> Optional.empty()
-        when(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.empty());
+        given(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.empty());
 
         // 2) userRepository.findById -> user
-        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
         // 3) recipeRepository.findById -> recipe
-        when(recipeRepository.findById(recipe.getId())).thenReturn(Optional.of(recipe));
+        given(recipeRepository.findById(recipe.getId())).willReturn(Optional.of(recipe));
 
         // 4) save(...) 호출 시 그대로 RecipeFavorite 객체 리턴
         ArgumentCaptor<RecipeFavorite> captor = ArgumentCaptor.forClass(RecipeFavorite.class);
-        when(favoriteRepository.save(captor.capture()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        given(favoriteRepository.save(captor.capture()))
+                .willAnswer(invocation -> invocation.getArgument(0));
 
+        // When
         boolean result = favoriteService.toggleFavorite(user.getId(), recipe.getId());
 
-        assertTrue(result);
+        // Then
+        assertThat(result).isTrue();
         verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
         verify(recipeRepository, times(1)).findById(recipe.getId());
         verify(favoriteRepository, times(1)).save(any(RecipeFavorite.class));
 
         RecipeFavorite saved = captor.getValue();
-        assertEquals(user.getId(), saved.getUser().getId());
-        assertEquals(recipe.getId(), saved.getRecipe().getId());
+        assertThat(saved.getUser().getId()).isEqualTo(user.getId());
+        assertThat(saved.getRecipe().getId()).isEqualTo(recipe.getId());
     }
 
     @Test
     @DisplayName("toggleFavorite: 존재하지 않는 유저면 USER_NOT_FOUND 예외")
     void toggleFavorite_userNotFound_throwsException() {
-        when(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.empty());
-        when(userRepository.findById(user.getId())).thenReturn(Optional.empty());
+        // Given
+        given(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.empty());
+        given(userRepository.findById(user.getId())).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            favoriteService.toggleFavorite(user.getId(), recipe.getId());
-        });
-        assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> favoriteService.toggleFavorite(user.getId(), recipe.getId()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND));
 
         verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
@@ -116,15 +124,16 @@ class RecipeFavoriteServiceTest {
     @Test
     @DisplayName("toggleFavorite: 존재하지 않는 레시피면 RECIPE_NOT_FOUND 예외")
     void toggleFavorite_recipeNotFound_throwsException() {
-        when(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.empty());
-        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
-        when(recipeRepository.findById(recipe.getId())).thenReturn(Optional.empty());
+        // Given
+        given(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.empty());
+        given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
+        given(recipeRepository.findById(recipe.getId())).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            favoriteService.toggleFavorite(user.getId(), recipe.getId());
-        });
-        assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> favoriteService.toggleFavorite(user.getId(), recipe.getId()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
         verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
@@ -135,10 +144,13 @@ class RecipeFavoriteServiceTest {
     @Test
     @DisplayName("deleteByRecipeId: favoriteRepository.deleteByRecipeId 호출")
     void deleteByRecipeId_invokesRepository() {
-        doNothing().when(favoriteRepository).deleteByRecipeId(recipe.getId());
+        // Given
+        willDoNothing().given(favoriteRepository).deleteByRecipeId(recipe.getId());
 
+        // When
         favoriteService.deleteByRecipeId(recipe.getId());
 
+        // Then
         verify(favoriteRepository, times(1)).deleteByRecipeId(recipe.getId());
     }
 }

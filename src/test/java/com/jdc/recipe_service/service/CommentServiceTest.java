@@ -28,8 +28,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CommentServiceTest {
@@ -81,22 +82,20 @@ class CommentServiceTest {
     @Test
     @DisplayName("getTop3CommentsWithLikes: 정상 조회 시 매핑된 DTO 리스트 반환")
     void getTop3CommentsWithLikes_success() {
-        // 1) 레포지토리에서 상위 3개 댓글 반환
+        // Given
         List<RecipeComment> topComments = List.of(comment1);
-        when(recipeCommentRepository.findTop3ByRecipeIdAndParentCommentIsNull(eq(20L), any(Pageable.class)))
-                .thenReturn(topComments);
+        given(recipeCommentRepository.findTop3ByRecipeIdAndParentCommentIsNull(eq(20L), any(Pageable.class)))
+                .willReturn(topComments);
 
-        // 2) 좋아요 집계 프로젝션 결과 세팅
         CommentLikeCountProjection proj = new CommentLikeCountProjection() {
             public Long getCommentId() { return 100L; }
             public int getLikeCount() { return 5; }
         };
-        when(commentLikeRepository.countLikesByCommentIds(List.of(100L)))
-                .thenReturn(List.of(proj));
+        given(commentLikeRepository.countLikesByCommentIds(List.of(100L)))
+                .willReturn(List.of(proj));
 
-        // 3) 현재 사용자가 좋아요 누른 댓글 목록 (empty)
-        when(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(100L)))
-                .thenReturn(Collections.emptyList());
+        given(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(100L)))
+                .willReturn(Collections.emptyList());
 
         CommentDto mappedDto = CommentDto.builder()
                 .id(100L)
@@ -111,14 +110,16 @@ class CommentServiceTest {
             mm.when(() -> CommentMapper.toDto(eq(comment1), eq(false), eq(5)))
                     .thenReturn(mappedDto);
 
+            // When
             List<CommentDto> result = commentService.getTop3CommentsWithLikes(20L, 10L);
 
-            assertEquals(1, result.size());
+            // Then
+            assertThat(result).hasSize(1);
             CommentDto dto = result.get(0);
-            assertEquals(100L, dto.getId());
-            assertEquals(5, dto.getLikeCount());
-            assertFalse(dto.isLikedByCurrentUser());
-            assertEquals(1, dto.getReplyCount());
+            assertThat(dto.getId()).isEqualTo(100L);
+            assertThat(dto.getLikeCount()).isEqualTo(5);
+            assertThat(dto.isLikedByCurrentUser()).isFalse();
+            assertThat(dto.getReplyCount()).isEqualTo(1);
         }
 
         verify(recipeCommentRepository, times(1))
@@ -133,11 +134,15 @@ class CommentServiceTest {
     @Test
     @DisplayName("getTop3CommentsWithLikes: 댓글이 없을 때 빈 리스트 반환하며, countLikesByCommentIds, findLikedCommentIdsByUser 는 빈 리스트로 호출됨")
     void getTop3CommentsWithLikes_empty() {
-        when(recipeCommentRepository.findTop3ByRecipeIdAndParentCommentIsNull(20L, Pageable.ofSize(3)))
-                .thenReturn(Collections.emptyList());
+        // Given
+        given(recipeCommentRepository.findTop3ByRecipeIdAndParentCommentIsNull(20L, Pageable.ofSize(3)))
+                .willReturn(Collections.emptyList());
 
+        // When
         List<CommentDto> result = commentService.getTop3CommentsWithLikes(20L, 10L);
-        assertTrue(result.isEmpty());
+
+        // Then
+        assertThat(result).isEmpty();
 
         // 댓글이 없더라도 countLikesByCommentIds(emptyList) 호출됨
         verify(commentLikeRepository, times(1))
@@ -149,13 +154,15 @@ class CommentServiceTest {
     @Test
     @DisplayName("createComment: 레시피 없으면 RECIPE_NOT_FOUND 예외")
     void createComment_recipeNotFound() {
-        when(recipeRepository.findById(20L)).thenReturn(Optional.empty());
+        // Given
+        given(recipeRepository.findById(20L)).willReturn(Optional.empty());
 
         CommentRequestDto dto = new CommentRequestDto("내용");
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.createComment(20L, dto, user)
-        );
-        assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
+
+        // When & Then
+        assertThatThrownBy(() -> commentService.createComment(20L, dto, user))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
         verify(recipeRepository, times(1)).findById(20L);
         verifyNoInteractions(recipeCommentRepository);
@@ -164,9 +171,10 @@ class CommentServiceTest {
     @Test
     @DisplayName("createComment: 정상 호출 시 매핑된 CommentDto 반환")
     void createComment_success() {
-        when(recipeRepository.findById(20L)).thenReturn(Optional.of(recipe));
-        when(recipeCommentRepository.save(any(RecipeComment.class)))
-                .thenAnswer(invocation -> {
+        // Given
+        given(recipeRepository.findById(20L)).willReturn(Optional.of(recipe));
+        given(recipeCommentRepository.save(any(RecipeComment.class)))
+                .willAnswer(invocation -> {
                     RecipeComment saved = invocation.getArgument(0);
                     ReflectionTestUtils.setField(saved, "id", 200L);
                     return saved;
@@ -186,10 +194,13 @@ class CommentServiceTest {
                     .thenReturn(mappedDto);
 
             CommentRequestDto dto = new CommentRequestDto("내용");
+
+            // When
             CommentDto result = commentService.createComment(20L, dto, user);
 
-            assertEquals(200L, result.getId());
-            assertEquals("내용", result.getContent());
+            // Then
+            assertThat(result.getId()).isEqualTo(200L);
+            assertThat(result.getContent()).isEqualTo("내용");
         }
 
         verify(recipeRepository, times(1)).findById(20L);
@@ -199,12 +210,13 @@ class CommentServiceTest {
     @Test
     @DisplayName("createReply: 레시피 없으면 RECIPE_NOT_FOUND 예외")
     void createReply_recipeNotFound() {
-        when(recipeRepository.findById(20L)).thenReturn(Optional.empty());
+        // Given
+        given(recipeRepository.findById(20L)).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.createReply(20L, 100L, new CommentRequestDto("답글"), user)
-        );
-        assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> commentService.createReply(20L, 100L, new CommentRequestDto("답글"), user))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
         verify(recipeRepository, times(1)).findById(20L);
         verifyNoInteractions(userRepository, recipeCommentRepository);
@@ -215,13 +227,14 @@ class CommentServiceTest {
     @Test
     @DisplayName("createReply: 부모 댓글 없으면 COMMENT_NOT_FOUND 예외")
     void createReply_parentNotFound() {
-        when(recipeRepository.findById(20L)).thenReturn(Optional.of(recipe));
-        when(recipeCommentRepository.findByIdAndRecipeId(999L, 20L)).thenReturn(Optional.empty());
+        // Given
+        given(recipeRepository.findById(20L)).willReturn(Optional.of(recipe));
+        given(recipeCommentRepository.findByIdAndRecipeId(999L, 20L)).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.createReply(20L, 999L, new CommentRequestDto("답글"), user)
-        );
-        assertEquals(ErrorCode.COMMENT_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> commentService.createReply(20L, 999L, new CommentRequestDto("답글"), user))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.COMMENT_NOT_FOUND));
 
         verify(recipeRepository, times(1)).findById(20L);
         verify(recipeCommentRepository, times(1))
@@ -231,12 +244,13 @@ class CommentServiceTest {
     @Test
     @DisplayName("createReply: 정상 호출 시 매핑된 ReplyDto 반환")
     void createReply_success() {
-        when(recipeRepository.findById(20L)).thenReturn(Optional.of(recipe));
-        when(recipeCommentRepository.findByIdAndRecipeId(100L, 20L))
-                .thenReturn(Optional.of(comment1));
+        // Given
+        given(recipeRepository.findById(20L)).willReturn(Optional.of(recipe));
+        given(recipeCommentRepository.findByIdAndRecipeId(100L, 20L))
+                .willReturn(Optional.of(comment1));
 
-        when(recipeCommentRepository.save(any(RecipeComment.class)))
-                .thenAnswer(invocation -> {
+        given(recipeCommentRepository.save(any(RecipeComment.class)))
+                .willAnswer(invocation -> {
                     RecipeComment saved = invocation.getArgument(0);
                     ReflectionTestUtils.setField(saved, "id", 300L);
                     return saved;
@@ -254,9 +268,12 @@ class CommentServiceTest {
             mm.when(() -> CommentMapper.toReplyDto(any(RecipeComment.class), eq(false), eq(0)))
                     .thenReturn(mappedReply);
 
+            // When
             ReplyDto result = commentService.createReply(20L, 100L, new CommentRequestDto("답글"), user);
-            assertEquals(300L, result.getId());
-            assertEquals("답글", result.getContent());
+
+            // Then
+            assertThat(result.getId()).isEqualTo(300L);
+            assertThat(result.getContent()).isEqualTo("답글");
         }
 
         verify(recipeCommentRepository, times(1)).save(any(RecipeComment.class));
@@ -265,13 +282,12 @@ class CommentServiceTest {
     @Test
     @DisplayName("getAllCommentsWithLikes: 페이지 정보에 따라 정렬된 CommentDto Page 반환")
     void getAllCommentsWithLikes_success() {
-        // 1) 최상위 댓글 1개에 대댓글 1개 세팅
+        // Given
         List<RecipeComment> comments = List.of(comment1);
         Pageable pageable = PageRequest.of(0, 10, Sort.unsorted());
-        when(recipeCommentRepository.findAllWithRepliesAndUsers(20L, pageable))
-                .thenReturn(comments);
+        given(recipeCommentRepository.findAllWithRepliesAndUsers(20L, pageable))
+                .willReturn(comments);
 
-        // 좋아요 집계
         CommentLikeCountProjection p1 = new CommentLikeCountProjection() {
             public Long getCommentId() { return 100L; }
             public int getLikeCount() { return 2; }
@@ -280,10 +296,10 @@ class CommentServiceTest {
             public Long getCommentId() { return 101L; }
             public int getLikeCount() { return 3; }
         };
-        when(commentLikeRepository.countLikesByCommentIds(List.of(100L, 101L)))
-                .thenReturn(List.of(p1, p2));
-        when(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(100L, 101L)))
-                .thenReturn(List.of(101L));
+        given(commentLikeRepository.countLikesByCommentIds(List.of(100L, 101L)))
+                .willReturn(List.of(p1, p2));
+        given(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(100L, 101L)))
+                .willReturn(List.of(101L));
 
         CommentDto topMapped = CommentDto.builder()
                 .id(100L).content("첫 번째 댓글")
@@ -302,13 +318,16 @@ class CommentServiceTest {
             mm.when(() -> CommentMapper.toReplyDto(eq(reply1), eq(true), eq(3)))
                     .thenReturn(replyMapped);
 
+            // When
             Page<CommentDto> page = commentService.getAllCommentsWithLikes(20L, 10L, pageable);
-            assertEquals(1, page.getTotalElements());
+
+            // Then
+            assertThat(page.getTotalElements()).isEqualTo(1);
             CommentDto dto = page.getContent().get(0);
-            assertEquals(100L, dto.getId());
-            assertEquals(2, dto.getLikeCount());
-            assertFalse(dto.isLikedByCurrentUser());
-            assertEquals(1, dto.getReplyCount());
+            assertThat(dto.getId()).isEqualTo(100L);
+            assertThat(dto.getLikeCount()).isEqualTo(2);
+            assertThat(dto.isLikedByCurrentUser()).isFalse();
+            assertThat(dto.getReplyCount()).isEqualTo(1);
         }
 
         verify(recipeCommentRepository, times(1))
@@ -322,13 +341,17 @@ class CommentServiceTest {
     @Test
     @DisplayName("getAllCommentsWithLikes: 댓글 없으면 빈 Page 반환")
     void getAllCommentsWithLikes_empty() {
+        // Given
         Pageable pageable = PageRequest.of(0, 5);
-        when(recipeCommentRepository.findAllWithRepliesAndUsers(20L, pageable))
-                .thenReturn(Collections.emptyList());
+        given(recipeCommentRepository.findAllWithRepliesAndUsers(20L, pageable))
+                .willReturn(Collections.emptyList());
 
+        // When
         Page<CommentDto> page = commentService.getAllCommentsWithLikes(20L, 10L, pageable);
-        assertEquals(0, page.getTotalElements());
-        assertTrue(page.getContent().isEmpty());
+
+        // Then
+        assertThat(page.getTotalElements()).isEqualTo(0);
+        assertThat(page.getContent()).isEmpty();
 
         verify(recipeCommentRepository, times(1))
                 .findAllWithRepliesAndUsers(20L, pageable);
@@ -338,13 +361,14 @@ class CommentServiceTest {
     @Test
     @DisplayName("findByIdAndRecipeId: 없는 댓글이면 COMMENT_NOT_FOUND 예외")
     void findByIdAndRecipeId_notFound() {
-        when(recipeCommentRepository.findByIdAndRecipeId(999L, 20L))
-                .thenReturn(Optional.empty());
+        // Given
+        given(recipeCommentRepository.findByIdAndRecipeId(999L, 20L))
+                .willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.findByIdAndRecipeId(999L, 20L, 10L)
-        );
-        assertEquals(ErrorCode.COMMENT_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> commentService.findByIdAndRecipeId(999L, 20L, 10L))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.COMMENT_NOT_FOUND));
 
         verify(recipeCommentRepository, times(1))
                 .findByIdAndRecipeId(999L, 20L);
@@ -353,11 +377,12 @@ class CommentServiceTest {
     @Test
     @DisplayName("findByIdAndRecipeId: 정상 호출 시 매핑된 CommentDto 반환")
     void findByIdAndRecipeId_success() {
-        when(recipeCommentRepository.findByIdAndRecipeId(100L, 20L))
-                .thenReturn(Optional.of(comment1));
+        // Given
+        given(recipeCommentRepository.findByIdAndRecipeId(100L, 20L))
+                .willReturn(Optional.of(comment1));
 
-        when(commentLikeRepository.countByCommentId(100L)).thenReturn(4);
-        when(commentLikeRepository.existsByCommentIdAndUserId(100L, 10L)).thenReturn(true);
+        given(commentLikeRepository.countByCommentId(100L)).willReturn(4);
+        given(commentLikeRepository.existsByCommentIdAndUserId(100L, 10L)).willReturn(true);
 
         CommentDto mapped = CommentDto.builder()
                 .id(100L).content("첫 번째 댓글")
@@ -369,11 +394,14 @@ class CommentServiceTest {
         try (MockedStatic<CommentMapper> mm = Mockito.mockStatic(CommentMapper.class)) {
             mm.when(() -> CommentMapper.toDto(comment1, true, 4)).thenReturn(mapped);
 
+            // When
             CommentDto result = commentService.findByIdAndRecipeId(100L, 20L, 10L);
-            assertEquals(100L, result.getId());
-            assertEquals(4, result.getLikeCount());
-            assertTrue(result.isLikedByCurrentUser());
-            assertEquals(1, result.getReplyCount());
+
+            // Then
+            assertThat(result.getId()).isEqualTo(100L);
+            assertThat(result.getLikeCount()).isEqualTo(4);
+            assertThat(result.isLikedByCurrentUser()).isTrue();
+            assertThat(result.getReplyCount()).isEqualTo(1);
         }
 
         verify(recipeCommentRepository, times(1))
@@ -387,12 +415,13 @@ class CommentServiceTest {
     @Test
     @DisplayName("deleteComment: 없는 댓글이면 COMMENT_NOT_FOUND 예외")
     void deleteComment_notFound() {
-        when(recipeCommentRepository.findById(500L)).thenReturn(Optional.empty());
+        // Given
+        given(recipeCommentRepository.findById(500L)).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.deleteComment(500L, 10L)
-        );
-        assertEquals(ErrorCode.COMMENT_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> commentService.deleteComment(500L, 10L))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.COMMENT_NOT_FOUND));
 
         verify(recipeCommentRepository, times(1)).findById(500L);
         verifyNoMoreInteractions(commentLikeRepository, recipeCommentRepository);
@@ -401,18 +430,19 @@ class CommentServiceTest {
     @Test
     @DisplayName("deleteComment: 작성자 != 요청자 이면 COMMENT_ACCESS_DENIED 예외")
     void deleteComment_notOwner() {
+        // Given
         User other = User.builder().id(99L).build();
         RecipeComment otherComment = RecipeComment.builder()
                 .user(other)
                 .build();
         ReflectionTestUtils.setField(otherComment, "id", 600L);
 
-        when(recipeCommentRepository.findById(600L)).thenReturn(Optional.of(otherComment));
+        given(recipeCommentRepository.findById(600L)).willReturn(Optional.of(otherComment));
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentService.deleteComment(600L, 10L)
-        );
-        assertEquals(ErrorCode.COMMENT_ACCESS_DENIED, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> commentService.deleteComment(600L, 10L))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.COMMENT_ACCESS_DENIED));
 
         verify(recipeCommentRepository, times(1)).findById(600L);
         verifyNoMoreInteractions(commentLikeRepository, recipeCommentRepository);
@@ -421,10 +451,13 @@ class CommentServiceTest {
     @Test
     @DisplayName("deleteComment: 정상 호출 시 댓글과 좋아요 레포 삭제 호출")
     void deleteComment_success() {
-        when(recipeCommentRepository.findById(100L)).thenReturn(Optional.of(comment1));
+        // Given
+        given(recipeCommentRepository.findById(100L)).willReturn(Optional.of(comment1));
 
+        // When
         commentService.deleteComment(100L, 10L);
 
+        // Then
         // 100L(부모)과 101L(대댓글) → 두 개 모두 삭제
         verify(commentLikeRepository, times(1)).deleteByCommentIdIn(List.of(100L, 101L));
         verify(recipeCommentRepository, times(1)).delete(comment1);
@@ -433,10 +466,13 @@ class CommentServiceTest {
     @Test
     @DisplayName("deleteAllByRecipeId: 댓글이 없으면 댓글이 없더라도 deleteByRecipeId 호출")
     void deleteAllByRecipeId_empty() {
-        when(recipeCommentRepository.findByRecipeId(20L)).thenReturn(Collections.emptyList());
+        // Given
+        given(recipeCommentRepository.findByRecipeId(20L)).willReturn(Collections.emptyList());
 
+        // When
         commentService.deleteAllByRecipeId(20L);
 
+        // Then
         verify(recipeCommentRepository, times(1)).findByRecipeId(20L);
         // 댓글 목록이 빈 리스트여도, deleteByRecipeId(recipeId) 는 호출돼야 함
         verify(recipeCommentRepository, times(1)).deleteByRecipeId(20L);
@@ -446,11 +482,14 @@ class CommentServiceTest {
     @Test
     @DisplayName("deleteAllByRecipeId: 댓글이 있으면 좋아요부터 삭제 후 댓글 일괄 삭제")
     void deleteAllByRecipeId_success() {
+        // Given
         List<RecipeComment> all = List.of(comment1, reply1);
-        when(recipeCommentRepository.findByRecipeId(20L)).thenReturn(all);
+        given(recipeCommentRepository.findByRecipeId(20L)).willReturn(all);
 
+        // When
         commentService.deleteAllByRecipeId(20L);
 
+        // Then
         verify(commentLikeRepository, times(1)).deleteByCommentIdIn(List.of(100L, 101L));
         verify(recipeCommentRepository, times(1)).deleteByRecipeId(20L);
     }
@@ -458,22 +497,23 @@ class CommentServiceTest {
     @Test
     @DisplayName("getRepliesWithLikes: 정상 호출 시 정렬된 ReplyDto Page 반환")
     void getRepliesWithLikes_success() {
+        // Given
         Page<RecipeComment> pageEnt = new PageImpl<>(List.of(reply1), PageRequest.of(0, 5), 1);
         // 좋아요 기준 내림차순 정렬
         Pageable pageable = PageRequest.of(0, 5, Sort.by("likeCount").descending());
 
         // DB 조회 시에는 likeCount 정렬 제외
-        when(recipeCommentRepository.findByParentCommentId(100L, PageRequest.of(0,5, Sort.unsorted())))
-                .thenReturn(pageEnt);
+        given(recipeCommentRepository.findByParentCommentId(100L, PageRequest.of(0,5, Sort.unsorted())))
+                .willReturn(pageEnt);
 
         CommentLikeCountProjection p = new CommentLikeCountProjection() {
             public Long getCommentId() { return 101L; }
             public int getLikeCount() { return 4; }
         };
-        when(commentLikeRepository.countLikesByCommentIds(List.of(101L)))
-                .thenReturn(List.of(p));
-        when(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(101L)))
-                .thenReturn(List.of(101L));
+        given(commentLikeRepository.countLikesByCommentIds(List.of(101L)))
+                .willReturn(List.of(p));
+        given(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(101L)))
+                .willReturn(List.of(101L));
 
         ReplyDto mapped = ReplyDto.builder()
                 .id(101L)
@@ -487,12 +527,15 @@ class CommentServiceTest {
             mm.when(() -> CommentMapper.toReplyDto(reply1, true, 4))
                     .thenReturn(mapped);
 
+            // When
             Page<ReplyDto> page = commentService.getRepliesWithLikes(100L, 10L, pageable);
-            assertEquals(1, page.getTotalElements());
+
+            // Then
+            assertThat(page.getTotalElements()).isEqualTo(1);
             ReplyDto dto = page.getContent().get(0);
-            assertEquals(101L, dto.getId());
-            assertEquals(4, dto.getLikeCount());
-            assertTrue(dto.isLikedByCurrentUser());
+            assertThat(dto.getId()).isEqualTo(101L);
+            assertThat(dto.getLikeCount()).isEqualTo(4);
+            assertThat(dto.isLikedByCurrentUser()).isTrue();
         }
 
         verify(recipeCommentRepository, times(1))

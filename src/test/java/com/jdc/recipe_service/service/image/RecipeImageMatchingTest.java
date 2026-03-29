@@ -16,7 +16,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.BDDMockito.*;
 
 @SpringBootTest
 class RecipeImageMatchingTest {
@@ -37,13 +37,12 @@ class RecipeImageMatchingTest {
         DishType dishType = DishType.SOUP_STEW;
 
         // 1. 가짜 DB 설정: 해당 키워드의 레시피가 5개 있다고 가정
-        when(recipeRepository.countCandidateRecipes(eq("김치찌개"), eq(dishType)))
-                .thenReturn(5L);
+        given(recipeRepository.countCandidateRecipes(eq("김치찌개"), eq(dishType)))
+                .willReturn(5L);
 
-        // 2. 가짜 DB 설정: 페이징으로 조회했을 때 가짜 레시피를 반환하도록 세팅
         Recipe mockRecipe = Recipe.builder().imageKey("s3/path/real_kimchi.jpg").build();
-        when(recipeRepository.findCandidateRecipesByKeywordAndDishType(eq("김치찌개"), eq(dishType), any(PageRequest.class)))
-                .thenReturn(new PageImpl<>(List.of(mockRecipe)));
+        given(recipeRepository.findCandidateRecipesByKeywordAndDishType(eq("김치찌개"), eq(dishType), any(PageRequest.class)))
+                .willReturn(new PageImpl<>(List.of(mockRecipe)));
 
         // When (진짜 로직 실행!)
         String resultImageKey = imageMatchingService.findMatchingImageKey(keywords, dishType);
@@ -63,8 +62,8 @@ class RecipeImageMatchingTest {
         DishType dishType = DishType.FRIED_PAN;
 
         // 가짜 DB 설정: 해당 키워드의 레시피가 0개라고 가정
-        when(recipeRepository.countCandidateRecipes(anyString(), any(DishType.class)))
-                .thenReturn(0L);
+        given(recipeRepository.countCandidateRecipes(anyString(), any(DishType.class)))
+                .willReturn(0L);
 
         // When
         String resultImageKey = imageMatchingService.findMatchingImageKey(keywords, dishType);

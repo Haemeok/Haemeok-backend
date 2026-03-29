@@ -22,8 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class GeminiImageServiceTest {
@@ -51,12 +52,13 @@ class GeminiImageServiceTest {
     @Test
     @DisplayName("Failover 테스트: Global 429 에러 시 -> US-Central1으로 우회하여 성공해야 한다")
     void testFailoverLogic() {
-        when(restTemplate.postForEntity(contains("/locations/global/"), any(), eq(Map.class)))
-                .thenThrow(new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS));
+        // Given
+        given(restTemplate.postForEntity(contains("/locations/global/"), any(), eq(Map.class)))
+                .willThrow(new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS));
 
         Map<String, Object> successResponse = createMockResponse();
-        when(restTemplate.postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class)))
-                .thenReturn(ResponseEntity.ok(successResponse));
+        given(restTemplate.postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class)))
+                .willReturn(ResponseEntity.ok(successResponse));
 
         List<String> result = geminiImageService.generateImageUrls("test prompt", 1L, 100L);
 
@@ -74,12 +76,13 @@ class GeminiImageServiceTest {
     @Test
     @DisplayName("Failover 실패 테스트: 모든 리전이 실패하면 예외가 발생해야 한다 (Unit Test엔 AOP 없음)")
     void generateImageUrls_throwsException_whenAllFail() {
-        when(restTemplate.postForEntity(anyString(), any(), eq(Map.class)))
-                .thenThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR));
+        // Given
+        given(restTemplate.postForEntity(anyString(), any(), eq(Map.class)))
+                .willThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR));
 
-        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> {
-            geminiImageService.generateImageUrls("prompt", 1L, 1L);
-        });
+        // When & Then
+        assertThatThrownBy(() -> geminiImageService.generateImageUrls("prompt", 1L, 1L))
+                .isInstanceOf(Exception.class);
 
         verify(restTemplate, times(3)).postForEntity(anyString(), any(), eq(Map.class));
     }
@@ -99,13 +102,13 @@ class GeminiImageServiceTest {
     @Test
     @DisplayName("네트워크 오류(Timeout) 발생 시에도 다음 리전으로 넘어가야 한다")
     void testFailoverOnNetworkError() {
-
-        when(restTemplate.postForEntity(contains("/locations/global/"), any(), eq(Map.class)))
-                .thenThrow(new ResourceAccessException("Connection timed out"));
+        // Given
+        given(restTemplate.postForEntity(contains("/locations/global/"), any(), eq(Map.class)))
+                .willThrow(new ResourceAccessException("Connection timed out"));
 
         Map<String, Object> successResponse = createMockResponse();
-        when(restTemplate.postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class)))
-                .thenReturn(ResponseEntity.ok(successResponse));
+        given(restTemplate.postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class)))
+                .willReturn(ResponseEntity.ok(successResponse));
 
         geminiImageService.generateImageUrls("prompt", 1L, 1L);
 
