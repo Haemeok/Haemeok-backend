@@ -76,12 +76,12 @@ class RecipeExtractionServiceTest {
         );
 
         // TransactionTemplate Mocking
-        lenient().given(transactionTemplate.execute(any())).willAnswer(invocation -> {
+        given(transactionTemplate.execute(any())).willAnswer(invocation -> {
             TransactionCallback<Object> callback = invocation.getArgument(0);
             return callback.doInTransaction(null);
         });
 
-        lenient().doAnswer(invocation -> {
+        doAnswer(invocation -> {
             java.util.function.Consumer<org.springframework.transaction.TransactionStatus> consumer =
                     invocation.getArgument(0);
             consumer.accept(null);
@@ -91,7 +91,7 @@ class RecipeExtractionServiceTest {
         // [핵심] Gemini 기본 Mocking (NPE 방지)
         RecipeCreateRequestDto defaultGeminiResponse = new RecipeCreateRequestDto();
         defaultGeminiResponse.setIsRecipe(true);
-        lenient().given(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
+        given(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
                 .willReturn(CompletableFuture.completedFuture(defaultGeminiResponse));
     }
 
@@ -248,15 +248,15 @@ class RecipeExtractionServiceTest {
         mockDto.setIsRecipe(true);
         mockDto.setIngredients(new ArrayList<>());
 
-        lenient().given(grokClientService.generateRecipeStep1(any(), any()))
+        given(grokClientService.generateRecipeStep1(any(), any()))
                 .willReturn(CompletableFuture.completedFuture(mockDto));
-        lenient().given(grokClientService.refineIngredientsOnly(any(), any()))
+        given(grokClientService.refineIngredientsOnly(any(), any()))
                 .willReturn(CompletableFuture.completedFuture(new ArrayList<>()));
-        lenient().given(asyncImageService.generateImageFromDto(any(), anyLong()))
+        given(asyncImageService.generateImageFromDto(any(), anyLong()))
                 .willReturn(CompletableFuture.completedFuture("http://img.com/a.jpg"));
 
         PresignedUrlResponse response = PresignedUrlResponse.builder().recipeId(recipeId).build();
-        lenient().given(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
+        given(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
                 .willReturn(response);
     }
 
