@@ -21,8 +21,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RecipeStepServiceTest {
@@ -71,9 +72,9 @@ class RecipeStepServiceTest {
     }
 
     @Test
-    @DisplayName("getStepsByRecipeId: 레포에서 가져온 리스트를 그대로 반환")
+    @DisplayName("getStepsByRecipeId: 레포에서 가져온 리스트를 그대로 반환하는 테스트")
     void getStepsByRecipeId_success() {
-        // given
+        // Given
         RecipeStep step1 = RecipeStep.builder()
                 .id(1L)
                 .stepNumber(1)
@@ -87,25 +88,25 @@ class RecipeStepServiceTest {
                 .recipe(recipe)
                 .build();
 
-        when(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
-                .thenReturn(List.of(step1, step2));
+        given(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
+                .willReturn(List.of(step1, step2));
 
-        // when
+        // When
         var actual = service.getStepsByRecipeId(10L);
 
-        // then
-        assertEquals(2, actual.size());
-        assertEquals(step1, actual.get(0));
-        assertEquals(step2, actual.get(1));
+        // Then
+        assertThat(actual).hasSize(2);
+        assertThat(actual.get(0)).isEqualTo(step1);
+        assertThat(actual.get(1)).isEqualTo(step2);
         verify(recipeStepRepository, times(1)).findByRecipeIdOrderByStepNumber(10L);
     }
 
     @Test
-    @DisplayName("saveAll: 새로운 단계와 단계별 재료를 모두 저장한다")
+    @DisplayName("saveAll: 새로운 단계와 단계별 재료를 모두 저장하는 테스트")
     void saveAll_success() {
-        // given
-        when(recipeIngredientRepository.findByRecipeId(10L))
-                .thenReturn(List.of(ingr1, ingr2));
+        // Given
+        given(recipeIngredientRepository.findByRecipeId(10L))
+                .willReturn(List.of(ingr1, ingr2));
 
         // DTO: stepNumber, instruction, imageKey, action, ingredients 리스트
         RecipeStepIngredientRequestDto siDto1 = new RecipeStepIngredientRequestDto();
@@ -120,19 +121,19 @@ class RecipeStepServiceTest {
         dto1.setAction("씻기");
         dto1.setIngredients(List.of(siDto1));
 
-        // when
+        // When
         service.saveAll(recipe, List.of(dto1));
 
-        // then
+        // Then
         // 1) RecipeStep 저장 검증
         ArgumentCaptor<RecipeStep> stepCaptor = ArgumentCaptor.forClass(RecipeStep.class);
         verify(recipeStepRepository, times(1)).save(stepCaptor.capture());
         RecipeStep savedStep = stepCaptor.getValue();
-        assertEquals(1, savedStep.getStepNumber());
-        assertEquals("감자 씻기", savedStep.getInstruction());
-        assertEquals("key1", savedStep.getImageKey());
-        assertEquals("씻기", savedStep.getAction());
-        assertEquals(recipe, savedStep.getRecipe());
+        assertThat(savedStep.getStepNumber()).isEqualTo(1);
+        assertThat(savedStep.getInstruction()).isEqualTo("감자 씻기");
+        assertThat(savedStep.getImageKey()).isEqualTo("key1");
+        assertThat(savedStep.getAction()).isEqualTo("씻기");
+        assertThat(savedStep.getRecipe()).isEqualTo(recipe);
 
         // 2) 단계별 재료 저장 검증
         ArgumentCaptor<RecipeStepIngredient> stepIngrCaptor = ArgumentCaptor.forClass(RecipeStepIngredient.class);
@@ -140,19 +141,19 @@ class RecipeStepServiceTest {
         RecipeStepIngredient savedStepIngr = stepIngrCaptor.getValue();
 
         // 이제 ingredient 필드가 null이므로, 대신 customName("감자")이 설정되었는지 확인한다.
-        assertNull(savedStepIngr.getIngredient());
-        assertEquals("감자", savedStepIngr.getCustomName());
-        assertEquals("2", savedStepIngr.getQuantity());
-        assertEquals("개", savedStepIngr.getUnit());
-        assertEquals(savedStep, savedStepIngr.getStep());
+        assertThat(savedStepIngr.getIngredient()).isNull();
+        assertThat(savedStepIngr.getCustomName()).isEqualTo("감자");
+        assertThat(savedStepIngr.getQuantity()).isEqualTo("2");
+        assertThat(savedStepIngr.getUnit()).isEqualTo("개");
+        assertThat(savedStepIngr.getStep()).isEqualTo(savedStep);
     }
 
     @Test
-    @DisplayName("saveAll: 존재하지 않는 재료명을 넘기면 INGREDIENT_NOT_FOUND 예외 (단계 저장 후 재료 저장 전 예외)")
+    @DisplayName("saveAll: 존재하지 않는 재료명을 넘기면 INGREDIENT_NOT_FOUND 예외 발생하는 테스트 (단계 저장 후 재료 저장 전 예외)")
     void saveAll_missingIngredient_throw() {
-        // given
-        when(recipeIngredientRepository.findByRecipeId(10L))
-                .thenReturn(List.of(ingr1)); // "양파"는 맵에 없음
+        // Given
+        given(recipeIngredientRepository.findByRecipeId(10L))
+                .willReturn(List.of(ingr1)); // "양파"는 맵에 없음
 
         RecipeStepIngredientRequestDto siDto = new RecipeStepIngredientRequestDto();
         siDto.setName("양파");
@@ -166,12 +167,13 @@ class RecipeStepServiceTest {
         dto.setAction("씻기");
         dto.setIngredients(List.of(siDto));
 
-        // when & then
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            service.saveAll(recipe, List.of(dto));
-        });
-        assertEquals(ErrorCode.INGREDIENT_NOT_FOUND, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("양파"));
+        // When & Then
+        assertThatThrownBy(() -> service.saveAll(recipe, List.of(dto)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.INGREDIENT_NOT_FOUND);
+                    assertThat(e.getMessage()).contains("양파");
+                });
 
         // RecipeStep은 1회 저장되지만, RecipeStepIngredient는 저장되지 않아야 한다
         verify(recipeStepRepository, times(1)).save(any());
@@ -179,11 +181,11 @@ class RecipeStepServiceTest {
     }
 
     @Test
-    @DisplayName("updateSteps: 없어진 step은 삭제, 기존 step은 업데이트, 새 step은 추가한다")
+    @DisplayName("updateSteps: 없어진 step은 삭제, 기존 step은 업데이트, 새 step은 추가하는 테스트")
     void updateSteps_success() {
-        // given
-        when(recipeIngredientRepository.findByRecipeId(10L))
-                .thenReturn(List.of(ingr1, ingr2));
+        // Given
+        given(recipeIngredientRepository.findByRecipeId(10L))
+                .willReturn(List.of(ingr1, ingr2));
 
         // 기존에 DB에 저장된 단계 1,2 준비
         RecipeStep existing1 = RecipeStep.builder()
@@ -213,8 +215,8 @@ class RecipeStepServiceTest {
                 .build();
         existing2.getStepIngredients().add(existingStepIngr);
 
-        when(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
-                .thenReturn(List.of(existing1, existing2));
+        given(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
+                .willReturn(List.of(existing1, existing2));
 
         // --- 1번 단계 수정 DTO 준비 ---
         RecipeStepIngredientRequestDto newSi1 = new RecipeStepIngredientRequestDto();
@@ -242,17 +244,17 @@ class RecipeStepServiceTest {
         dto3.setAction("끓이기");
         dto3.setIngredients(List.of(si3));
 
-        // when
+        // When
         service.updateSteps(recipe, List.of(dto1, dto3));
 
-        // then
+        // Then
         // 1) 2번 단계는 삭제되어야 한다
         verify(recipeStepRepository, times(1)).delete(existing2);
 
         // 2) 1번 단계 필드가 업데이트되었는지 확인
-        assertEquals("수정된1", existing1.getInstruction());
-        assertEquals("newKey1", existing1.getImageKey());
-        assertEquals("섞기", existing1.getAction());
+        assertThat(existing1.getInstruction()).isEqualTo("수정된1");
+        assertThat(existing1.getImageKey()).isEqualTo("newKey1");
+        assertThat(existing1.getAction()).isEqualTo("섞기");
 
         // 3) existing1 단계에 재료(감자)가 새로 추가되었는지 확인
         ArgumentCaptor<RecipeStepIngredient> capExist1 = ArgumentCaptor.forClass(RecipeStepIngredient.class);
@@ -263,17 +265,17 @@ class RecipeStepServiceTest {
                         rsi.getStep().equals(existing1)
                                 && Objects.equals(rsi.getCustomName(), "감자")
                 );
-        assertTrue(foundForExist1, "1번 단계에 customName = '감자'이 추가되어야 한다");
+        assertThat(foundForExist1).as("1번 단계에 customName = '감자'이 추가되어야 한다").isTrue();
 
         // 4) 3번 단계가 새로 생성되고 save()가 호출되었는지 확인
         ArgumentCaptor<RecipeStep> newStepCap = ArgumentCaptor.forClass(RecipeStep.class);
         verify(recipeStepRepository, times(1)).save(newStepCap.capture());
         RecipeStep savedStep3 = newStepCap.getValue();
-        assertEquals(3, savedStep3.getStepNumber());
-        assertEquals("새로운3", savedStep3.getInstruction());
-        assertEquals("key3", savedStep3.getImageKey());
-        assertEquals("끓이기", savedStep3.getAction());
-        assertEquals(recipe, savedStep3.getRecipe());
+        assertThat(savedStep3.getStepNumber()).isEqualTo(3);
+        assertThat(savedStep3.getInstruction()).isEqualTo("새로운3");
+        assertThat(savedStep3.getImageKey()).isEqualTo("key3");
+        assertThat(savedStep3.getAction()).isEqualTo("끓이기");
+        assertThat(savedStep3.getRecipe()).isEqualTo(recipe);
 
         // 5) 3번 단계의 재료도 save()가 최소 1회 호출되었는지 확인 (customName="감자")
         boolean foundForStep3 = savedList.stream()
@@ -281,17 +283,18 @@ class RecipeStepServiceTest {
                         Objects.equals(rsi.getStep(), savedStep3)
                                 && Objects.equals(rsi.getCustomName(), "감자")
                 );
-        assertTrue(foundForStep3, "3번 단계에 customName = '감자'이 추가되어야 한다");
+        assertThat(foundForStep3).as("3번 단계에 customName = '감자'이 추가되어야 한다").isTrue();
 
         // 전체적으로 RecipeStepIngredientRepository.save()는 최소 2회 호출
         verify(recipeStepIngredientRepository, atLeast(2)).save(any());
     }
 
     @Test
-    @DisplayName("updateSteps: 잘못된 재료가 DTO에 있으면 INGREDIENT_NOT_FOUND 예외")
+    @DisplayName("updateSteps: 잘못된 재료가 DTO에 있으면 INGREDIENT_NOT_FOUND 예외 발생하는 테스트")
     void updateSteps_missingIngredient_throw() {
-        when(recipeIngredientRepository.findByRecipeId(10L))
-                .thenReturn(List.of(ingr1));
+        // Given
+        given(recipeIngredientRepository.findByRecipeId(10L))
+                .willReturn(List.of(ingr1));
 
         // 기존 단계 하나, id=1
         RecipeStep existing = RecipeStep.builder()
@@ -299,8 +302,8 @@ class RecipeStepServiceTest {
                 .stepNumber(1)
                 .recipe(recipe)
                 .build();
-        when(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
-                .thenReturn(List.of(existing));
+        given(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
+                .willReturn(List.of(existing));
 
         // DTO에 존재하지 않는 "고추장"을 참조
         RecipeStepIngredientRequestDto wrongSi = new RecipeStepIngredientRequestDto();
@@ -315,20 +318,25 @@ class RecipeStepServiceTest {
         dto.setAction("넣기");
         dto.setIngredients(List.of(wrongSi));
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                service.updateSteps(recipe, List.of(dto))
-        );
-        assertEquals(ErrorCode.INGREDIENT_NOT_FOUND, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("고추장"));
+        // When & Then
+        assertThatThrownBy(() -> service.updateSteps(recipe, List.of(dto)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.INGREDIENT_NOT_FOUND);
+                    assertThat(e.getMessage()).contains("고추장");
+                });
     }
 
     @Test
-    @DisplayName("deleteAllByRecipeId: 모든 단계와 연관된 단계별 재료를 벌크 삭제한다")
+    @DisplayName("deleteAllByRecipeId: 모든 단계와 연관된 단계별 재료를 벌크 삭제하는 테스트")
     void deleteAllByRecipeId_success() {
+        // Given
         Long recipeId = 10L;
 
+        // When
         service.deleteAllByRecipeId(recipeId);
 
+        // Then
         verify(recipeStepIngredientRepository, times(1)).deleteAllByRecipeId(recipeId);
 
         verify(recipeStepRepository, times(1)).deleteByRecipeId(recipeId);
@@ -337,10 +345,11 @@ class RecipeStepServiceTest {
     }
 
     @Test
-    @DisplayName("updateStepsFromUser: action 없이 instruction, imageKey만 업데이트")
+    @DisplayName("updateStepsFromUser: action 없이 instruction, imageKey만 업데이트하는 테스트")
     void updateStepsFromUser_success() {
-        when(recipeIngredientRepository.findByRecipeId(10L))
-                .thenReturn(List.of(ingr1));
+        // Given
+        given(recipeIngredientRepository.findByRecipeId(10L))
+                .willReturn(List.of(ingr1));
 
         RecipeStep existing = RecipeStep.builder()
                 .id(1L)
@@ -350,8 +359,8 @@ class RecipeStepServiceTest {
                 .recipe(recipe)
                 .build();
 
-        when(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
-                .thenReturn(List.of(existing));
+        given(recipeStepRepository.findByRecipeIdOrderByStepNumber(10L))
+                .willReturn(List.of(existing));
 
         // DTO: action 없이 instruction과 imageKey만 반영
         RecipeStepIngredientRequestDto siDto = new RecipeStepIngredientRequestDto();
@@ -365,11 +374,13 @@ class RecipeStepServiceTest {
         dto.setImageKey("newKey");
         dto.setIngredients(List.of(siDto));
 
+        // When
         service.updateStepsFromUser(recipe, List.of(dto));
 
+        // Then
         // 기존 단계 instruction, imageKey만 바뀌고 action은 그대로 null
-        assertEquals("새로운", existing.getInstruction());
-        assertEquals("newKey", existing.getImageKey());
-        assertNull(existing.getAction());
+        assertThat(existing.getInstruction()).isEqualTo("새로운");
+        assertThat(existing.getImageKey()).isEqualTo("newKey");
+        assertThat(existing.getAction()).isNull();
     }
 }

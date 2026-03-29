@@ -18,8 +18,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RecipeLikeServiceTest {
@@ -47,18 +48,21 @@ class RecipeLikeServiceTest {
     @Test
     @DisplayName("toggleLike: 이미 좋아요 되어 있으면 삭제 후 false 반환")
     void toggleLike_existingLike_returnsFalse() {
+        // Given
         RecipeLike existing = RecipeLike.builder()
                 .id(200L)
                 .user(user)
                 .recipe(recipe)
                 .build();
-        when(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.of(existing));
-        doNothing().when(likeRepository).delete(existing);
+        given(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.of(existing));
+        willDoNothing().given(likeRepository).delete(existing);
 
+        // When
         boolean result = likeService.toggleLike(user.getId(), recipe.getId());
 
-        assertFalse(result);
+        // Then
+        assertThat(result).isFalse();
         verify(likeRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(likeRepository, times(1)).delete(existing);
         verifyNoInteractions(userRepository, recipeRepository);
@@ -67,38 +71,42 @@ class RecipeLikeServiceTest {
     @Test
     @DisplayName("toggleLike: 좋아요 기록이 없으면 새로 저장 후 true 반환")
     void toggleLike_noLike_savesAndReturnsTrue() {
-        when(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.empty());
-        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
-        when(recipeRepository.findById(recipe.getId())).thenReturn(Optional.of(recipe));
+        // Given
+        given(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.empty());
+        given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
+        given(recipeRepository.findById(recipe.getId())).willReturn(Optional.of(recipe));
 
         ArgumentCaptor<RecipeLike> captor = ArgumentCaptor.forClass(RecipeLike.class);
-        when(likeRepository.save(captor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+        given(likeRepository.save(captor.capture())).willAnswer(invocation -> invocation.getArgument(0));
 
+        // When
         boolean result = likeService.toggleLike(user.getId(), recipe.getId());
 
-        assertTrue(result);
+        // Then
+        assertThat(result).isTrue();
         verify(likeRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
         verify(recipeRepository, times(1)).findById(recipe.getId());
         verify(likeRepository, times(1)).save(any(RecipeLike.class));
 
         RecipeLike saved = captor.getValue();
-        assertEquals(user.getId(), saved.getUser().getId());
-        assertEquals(recipe.getId(), saved.getRecipe().getId());
+        assertThat(saved.getUser().getId()).isEqualTo(user.getId());
+        assertThat(saved.getRecipe().getId()).isEqualTo(recipe.getId());
     }
 
     @Test
     @DisplayName("toggleLike: 존재하지 않는 유저면 USER_NOT_FOUND 예외")
     void toggleLike_userNotFound_throwsException() {
-        when(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.empty());
-        when(userRepository.findById(user.getId())).thenReturn(Optional.empty());
+        // Given
+        given(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.empty());
+        given(userRepository.findById(user.getId())).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            likeService.toggleLike(user.getId(), recipe.getId());
-        });
-        assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> likeService.toggleLike(user.getId(), recipe.getId()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND));
 
         verify(likeRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
@@ -108,15 +116,16 @@ class RecipeLikeServiceTest {
     @Test
     @DisplayName("toggleLike: 존재하지 않는 레시피면 RECIPE_NOT_FOUND 예외")
     void toggleLike_recipeNotFound_throwsException() {
-        when(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
-                .thenReturn(Optional.empty());
-        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
-        when(recipeRepository.findById(recipe.getId())).thenReturn(Optional.empty());
+        // Given
+        given(likeRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
+                .willReturn(Optional.empty());
+        given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
+        given(recipeRepository.findById(recipe.getId())).willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () -> {
-            likeService.toggleLike(user.getId(), recipe.getId());
-        });
-        assertEquals(ErrorCode.RECIPE_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> likeService.toggleLike(user.getId(), recipe.getId()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
         verify(likeRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
@@ -127,10 +136,13 @@ class RecipeLikeServiceTest {
     @Test
     @DisplayName("deleteByRecipeId: likeRepository.deleteByRecipeId 호출")
     void deleteByRecipeId_invokesRepository() {
-        doNothing().when(likeRepository).deleteByRecipeId(recipe.getId());
+        // Given
+        willDoNothing().given(likeRepository).deleteByRecipeId(recipe.getId());
 
+        // When
         likeService.deleteByRecipeId(recipe.getId());
 
+        // Then
         verify(likeRepository, times(1)).deleteByRecipeId(recipe.getId());
     }
 }

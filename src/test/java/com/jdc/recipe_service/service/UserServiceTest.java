@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.verify;
+import static org.mockito.BDDMockito.verify;
 
 @SpringBootTest
 @Transactional
@@ -34,6 +34,7 @@ class UserServiceDeleteTest {
     @Test
     @DisplayName("유저 하드 삭제 시 연관된 레시피, 댓글, 좋아요가 DB Cascade에 의해 모두 삭제되어야 한다")
     void deleteUser_Cascade_Test() {
+        // Given
         User targetUser = userRepository.save(User.builder()
                 .nickname("삭제될유저")
                 .provider("google")
@@ -74,8 +75,10 @@ class UserServiceDeleteTest {
         em.flush();
         em.clear();
 
+        // When
         userService.deleteUser(targetUser.getId());
 
+        // Then
         assertThat(userRepository.findById(targetUser.getId())).isEmpty();
         assertThat(recipeRepository.findById(myRecipe.getId())).isEmpty();
         assertThat(recipeCommentRepository.findById(commentOnMyRecipe.getId())).isEmpty();

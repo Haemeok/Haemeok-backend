@@ -18,8 +18,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CommentLikeServiceTest {
@@ -44,18 +45,21 @@ class CommentLikeServiceTest {
     @Test
     @DisplayName("toggleLike: 이미 좋아요가 있으면 삭제 후 false 반환")
     void toggleLike_alreadyExists() {
+        // Given
         CommentLike existing = CommentLike.builder()
                 .comment(comment)
                 .user(user)
                 .build();
         ReflectionTestUtils.setField(existing, "id", 200L);
 
-        when(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
-                .thenReturn(Optional.of(existing));
+        given(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
+                .willReturn(Optional.of(existing));
 
+        // When
         boolean result = commentLikeService.toggleLike(100L, 10L);
-        assertFalse(result);
 
+        // Then
+        assertThat(result).isFalse();
         verify(commentLikeRepository, times(1)).delete(existing);
         verifyNoMoreInteractions(recipeCommentRepository, userRepository);
     }
@@ -63,15 +67,16 @@ class CommentLikeServiceTest {
     @Test
     @DisplayName("toggleLike: 댓글이 없으면 COMMENT_NOT_FOUND 예외")
     void toggleLike_commentNotFound() {
-        when(commentLikeRepository.findByCommentIdAndUserId(999L, 10L))
-                .thenReturn(Optional.empty());
-        when(recipeCommentRepository.findById(999L))
-                .thenReturn(Optional.empty());
+        // Given
+        given(commentLikeRepository.findByCommentIdAndUserId(999L, 10L))
+                .willReturn(Optional.empty());
+        given(recipeCommentRepository.findById(999L))
+                .willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentLikeService.toggleLike(999L, 10L)
-        );
-        assertEquals(ErrorCode.COMMENT_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> commentLikeService.toggleLike(999L, 10L))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.COMMENT_NOT_FOUND));
 
         verify(commentLikeRepository, times(1))
                 .findByCommentIdAndUserId(999L, 10L);
@@ -82,17 +87,18 @@ class CommentLikeServiceTest {
     @Test
     @DisplayName("toggleLike: 사용자 없으면 USER_NOT_FOUND 예외")
     void toggleLike_userNotFound() {
-        when(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
-                .thenReturn(Optional.empty());
-        when(recipeCommentRepository.findById(100L))
-                .thenReturn(Optional.of(comment));
-        when(userRepository.findById(10L))
-                .thenReturn(Optional.empty());
+        // Given
+        given(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
+                .willReturn(Optional.empty());
+        given(recipeCommentRepository.findById(100L))
+                .willReturn(Optional.of(comment));
+        given(userRepository.findById(10L))
+                .willReturn(Optional.empty());
 
-        CustomException ex = assertThrows(CustomException.class, () ->
-                commentLikeService.toggleLike(100L, 10L)
-        );
-        assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
+        // When & Then
+        assertThatThrownBy(() -> commentLikeService.toggleLike(100L, 10L))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND));
 
         verify(recipeCommentRepository, times(1)).findById(100L);
         verify(userRepository, times(1)).findById(10L);
@@ -101,38 +107,46 @@ class CommentLikeServiceTest {
     @Test
     @DisplayName("toggleLike: 정상 호출 시 새로운 좋아요 저장 후 true 반환")
     void toggleLike_success() {
-        when(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
-                .thenReturn(Optional.empty());
-        when(recipeCommentRepository.findById(100L))
-                .thenReturn(Optional.of(comment));
-        when(userRepository.findById(10L))
-                .thenReturn(Optional.of(user));
+        // Given
+        given(commentLikeRepository.findByCommentIdAndUserId(100L, 10L))
+                .willReturn(Optional.empty());
+        given(recipeCommentRepository.findById(100L))
+                .willReturn(Optional.of(comment));
+        given(userRepository.findById(10L))
+                .willReturn(Optional.of(user));
 
-        when(commentLikeRepository.save(any(CommentLike.class)))
-                .thenAnswer(invocation -> {
+        given(commentLikeRepository.save(any(CommentLike.class)))
+                .willAnswer(invocation -> {
                     CommentLike cl = invocation.getArgument(0);
                     ReflectionTestUtils.setField(cl, "id", 300L);
                     return cl;
                 });
 
+        // When
         boolean result = commentLikeService.toggleLike(100L, 10L);
-        assertTrue(result);
+
+        // Then
+        assertThat(result).isTrue();
 
         ArgumentCaptor<CommentLike> captor = ArgumentCaptor.forClass(CommentLike.class);
         verify(commentLikeRepository, times(1)).save(captor.capture());
 
         CommentLike saved = captor.getValue();
-        assertEquals(100L, ((RecipeComment) ReflectionTestUtils.getField(saved, "comment")).getId());
-        assertEquals(10L, ((User) ReflectionTestUtils.getField(saved, "user")).getId());
+        assertThat(((RecipeComment) ReflectionTestUtils.getField(saved, "comment")).getId()).isEqualTo(100L);
+        assertThat(((User) ReflectionTestUtils.getField(saved, "user")).getId()).isEqualTo(10L);
     }
 
     @Test
     @DisplayName("countLikes: 정상 호출 시 레포 countByCommentId 호출 결과 반환")
     void countLikes_success() {
-        when(commentLikeRepository.countByCommentId(100L)).thenReturn(7);
-        int cnt = commentLikeService.countLikes(100L);
-        assertEquals(7, cnt);
+        // Given
+        given(commentLikeRepository.countByCommentId(100L)).willReturn(7);
 
+        // When
+        int cnt = commentLikeService.countLikes(100L);
+
+        // Then
+        assertThat(cnt).isEqualTo(7);
         verify(commentLikeRepository, times(1)).countByCommentId(100L);
     }
 }

@@ -20,9 +20,10 @@
 //import java.util.Optional;
 //import java.util.concurrent.CompletionException;
 //
-//import static org.junit.jupiter.api.Assertions.*;
+//import static org.assertj.core.api.Assertions.assertThat;
+//import static org.assertj.core.api.Assertions.assertThatThrownBy;
 //import static org.mockito.ArgumentMatchers.any;
-//import static org.mockito.Mockito.*;
+//import static org.mockito.BDDMockito.*;
 //
 //class OpenAiClientServiceTest {
 //
@@ -42,96 +43,108 @@
 //
 //    @Test
 //    void generateRecipeJson_success() throws Exception {
+//        // Given
 //        String prompt = "테스트 프롬프트";
 //
 //        ChatCompletion completionMock = mock(ChatCompletion.class);
 //        ChatCompletion.Choice choiceMock = mock(ChatCompletion.Choice.class);
 //        ChatCompletionMessage messageMock = mock(ChatCompletionMessage.class);
 //
-//        when(openAIClient.chat()
+//        given(openAIClient.chat()
 //                .completions()
 //                .create(any(ChatCompletionCreateParams.class)))
-//                .thenReturn(completionMock);
+//                .willReturn(completionMock);
 //
-//        when(completionMock.choices()).thenReturn(List.of(choiceMock));
-//        when(choiceMock.message()).thenReturn(messageMock);
-//        when(messageMock.content()).thenReturn(Optional.of("{\"title\":\"dummy\"}"));
+//        given(completionMock.choices()).willReturn(List.of(choiceMock));
+//        given(choiceMock.message()).willReturn(messageMock);
+//        given(messageMock.content()).willReturn(Optional.of("{\"title\":\"dummy\"}"));
 //
 //        RecipeCreateRequestDto dtoMock = new RecipeCreateRequestDto();
-//        when(objectMapper.readValue("{\"title\":\"dummy\"}", RecipeCreateRequestDto.class))
-//                .thenReturn(dtoMock);
+//        given(objectMapper.readValue("{\"title\":\"dummy\"}", RecipeCreateRequestDto.class))
+//                .willReturn(dtoMock);
 //
+//        // When
 //        RecipeCreateRequestDto result = openAiClientService
 //                .generateRecipeJson(prompt)
 //                .join();
 //
-//        assertSame(dtoMock, result);
+//        // Then
+//        assertThat(result).isSameAs(dtoMock);
 //    }
 //
 //    @Test
 //    void generateRecipeJson_emptyChoices_throwsCustomException() {
+//        // Given
 //        ChatCompletion completionMock = mock(ChatCompletion.class);
 //
-//        when(openAIClient.chat()
+//        given(openAIClient.chat()
 //                .completions()
 //                .create(any(ChatCompletionCreateParams.class)))
-//                .thenReturn(completionMock);
+//                .willReturn(completionMock);
 //
-//        when(completionMock.choices()).thenReturn(List.of());
+//        given(completionMock.choices()).willReturn(List.of());
 //
-//        CompletionException ex = assertThrows(CompletionException.class, () ->
-//                openAiClientService.generateRecipeJson("p").join()
-//        );
-//        assertTrue(ex.getCause() instanceof CustomException);
-//        assertEquals(ErrorCode.AI_RECIPE_GENERATION_FAILED,
-//                ((CustomException) ex.getCause()).getErrorCode());
+//        // When & Then
+//        assertThatThrownBy(() -> openAiClientService.generateRecipeJson("p").join())
+//                .isInstanceOf(CompletionException.class)
+//                .satisfies(e -> {
+//                    assertThat(e.getCause()).isInstanceOf(CustomException.class);
+//                    assertThat(((CustomException) e.getCause()).getErrorCode())
+//                            .isEqualTo(ErrorCode.AI_RECIPE_GENERATION_FAILED);
+//                });
 //    }
 //
 //    @Test
 //    void generateRecipeJson_noContent_throwsCustomException() {
+//        // Given
 //        ChatCompletion completionMock = mock(ChatCompletion.class);
 //        ChatCompletion.Choice choiceMock = mock(ChatCompletion.Choice.class);
 //        ChatCompletionMessage messageMock = mock(ChatCompletionMessage.class);
 //
-//        when(openAIClient.chat()
+//        given(openAIClient.chat()
 //                .completions()
 //                .create(any(ChatCompletionCreateParams.class)))
-//                .thenReturn(completionMock);
+//                .willReturn(completionMock);
 //
-//        when(completionMock.choices()).thenReturn(List.of(choiceMock));
-//        when(choiceMock.message()).thenReturn(messageMock);
-//        when(messageMock.content()).thenReturn(Optional.empty());
+//        given(completionMock.choices()).willReturn(List.of(choiceMock));
+//        given(choiceMock.message()).willReturn(messageMock);
+//        given(messageMock.content()).willReturn(Optional.empty());
 //
-//        CompletionException ex = assertThrows(CompletionException.class, () ->
-//                openAiClientService.generateRecipeJson("p").join()
-//        );
-//        assertTrue(ex.getCause() instanceof CustomException);
-//        assertEquals(ErrorCode.AI_RECIPE_GENERATION_FAILED,
-//                ((CustomException) ex.getCause()).getErrorCode());
+//        // When & Then
+//        assertThatThrownBy(() -> openAiClientService.generateRecipeJson("p").join())
+//                .isInstanceOf(CompletionException.class)
+//                .satisfies(e -> {
+//                    assertThat(e.getCause()).isInstanceOf(CustomException.class);
+//                    assertThat(((CustomException) e.getCause()).getErrorCode())
+//                            .isEqualTo(ErrorCode.AI_RECIPE_GENERATION_FAILED);
+//                });
 //    }
 //
 //    @Test
 //    void generateRecipeJson_invalidJson_throwsCustomException() throws Exception {
+//        // Given
 //        ChatCompletion completionMock = mock(ChatCompletion.class);
 //        ChatCompletion.Choice choiceMock = mock(ChatCompletion.Choice.class);
 //        ChatCompletionMessage messageMock = mock(ChatCompletionMessage.class);
 //
-//        when(openAIClient.chat()
+//        given(openAIClient.chat()
 //                .completions()
 //                .create(any(ChatCompletionCreateParams.class)))
-//                .thenReturn(completionMock);
+//                .willReturn(completionMock);
 //
-//        when(completionMock.choices()).thenReturn(List.of(choiceMock));
-//        when(choiceMock.message()).thenReturn(messageMock);
-//        when(messageMock.content()).thenReturn(Optional.of("잘못된 JSON"));
-//        when(objectMapper.readValue("잘못된 JSON", RecipeCreateRequestDto.class))
-//                .thenThrow(new RuntimeException("파싱 에러"));
+//        given(completionMock.choices()).willReturn(List.of(choiceMock));
+//        given(choiceMock.message()).willReturn(messageMock);
+//        given(messageMock.content()).willReturn(Optional.of("잘못된 JSON"));
+//        given(objectMapper.readValue("잘못된 JSON", RecipeCreateRequestDto.class))
+//                .willThrow(new RuntimeException("파싱 에러"));
 //
-//        CompletionException ex = assertThrows(CompletionException.class, () ->
-//                openAiClientService.generateRecipeJson("p").join()
-//        );
-//        assertTrue(ex.getCause() instanceof CustomException);
-//        assertEquals(ErrorCode.INTERNAL_SERVER_ERROR,
-//                ((CustomException) ex.getCause()).getErrorCode());
+//        // When & Then
+//        assertThatThrownBy(() -> openAiClientService.generateRecipeJson("p").join())
+//                .isInstanceOf(CompletionException.class)
+//                .satisfies(e -> {
+//                    assertThat(e.getCause()).isInstanceOf(CustomException.class);
+//                    assertThat(((CustomException) e.getCause()).getErrorCode())
+//                            .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR);
+//                });
 //    }
 //}

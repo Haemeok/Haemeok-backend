@@ -29,13 +29,15 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -74,7 +76,7 @@ class RecipeExtractionServiceTest {
         );
 
         // TransactionTemplate Mocking
-        lenient().when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+        lenient().given(transactionTemplate.execute(any())).willAnswer(invocation -> {
             TransactionCallback<Object> callback = invocation.getArgument(0);
             return callback.doInTransaction(null);
         });
@@ -86,11 +88,11 @@ class RecipeExtractionServiceTest {
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
 
-        // [핵심] Gemini 기본 Mocking (NPE 방지) - 이게 없어서 터졌음
+        // [핵심] Gemini 기본 Mocking (NPE 방지)
         RecipeCreateRequestDto defaultGeminiResponse = new RecipeCreateRequestDto();
         defaultGeminiResponse.setIsRecipe(true);
-        lenient().when(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(defaultGeminiResponse));
+        lenient().given(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
+                .willReturn(CompletableFuture.completedFuture(defaultGeminiResponse));
     }
 
     @Test
@@ -104,13 +106,13 @@ class RecipeExtractionServiceTest {
         RecipeGenerationJob jobA = spy(RecipeGenerationJob.builder().id(1L).userId(userA).status(JobStatus.PENDING).build());
         RecipeGenerationJob jobB = spy(RecipeGenerationJob.builder().id(2L).userId(userB).status(JobStatus.PENDING).build());
 
-        when(jobRepository.findById(1L)).thenReturn(Optional.of(jobA));
-        when(jobRepository.findById(2L)).thenReturn(Optional.of(jobB));
+        // Given
+        given(jobRepository.findById(1L)).willReturn(Optional.of(jobA));
+        given(jobRepository.findById(2L)).willReturn(Optional.of(jobB));
 
         CountDownLatch latch = new CountDownLatch(1);
 
-        // yt-dlp Delay Mock
-        when(ytDlpService.getVideoDataFull(anyString())).thenAnswer(inv -> {
+        given(ytDlpService.getVideoDataFull(anyString())).willAnswer(inv -> {
             System.out.println("🐌 [Test] AI 처리 중... (Delay)");
             latch.await(1, TimeUnit.SECONDS);
             return new YtDlpService.YoutubeFullDataDto("busvideo1", videoUrl, "Title", SUFFICIENT_TEXT, "Comments", "Sub", SUFFICIENT_TEXT, "Ch", "Id", "Thumb", "Prof", 100L, 100L, 60L);
@@ -145,26 +147,25 @@ class RecipeExtractionServiceTest {
         String videoUrl = "https://www.youtube.com/watch?v=mukbang";
         RecipeGenerationJob job = spy(RecipeGenerationJob.builder().id(jobId).status(JobStatus.PENDING).build());
 
-        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
-
-        when(ytDlpService.getVideoDataFull(anyString())).thenReturn(
+        // Given
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        given(ytDlpService.getVideoDataFull(anyString())).willReturn(
                 new YtDlpService.YoutubeFullDataDto("mukbang", videoUrl, "Mukbang", SUFFICIENT_TEXT, "Eat", "", SUFFICIENT_TEXT, "Ch", "Id", "", "", 0L, 0L, 100L)
         );
 
-        // Grok 결과: 레시피 아님
         RecipeCreateRequestDto fakeResult = new RecipeCreateRequestDto();
         fakeResult.setIsRecipe(false);
         fakeResult.setNonRecipeReason("그냥 먹방임");
-        when(grokClientService.generateRecipeStep1(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(fakeResult));
+        given(grokClientService.generateRecipeStep1(any(), any()))
+                .willReturn(CompletableFuture.completedFuture(fakeResult));
 
+        // When
         service.processYoutubeExtractionAsyncV2(jobId, videoUrl, 100L, "User");
 
+        // Then
         ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
         verify(job).setErrorMessage(captor.capture());
-
-        // 901 에러 확인
-        assertTrue(captor.getValue().startsWith("901::"));
+        assertThat(captor.getValue()).startsWith("901::");
         // 환불 호출 X 확인
         verify(dailyQuotaService, never()).refund(anyLong(), any(), anyBoolean());
     }
@@ -176,14 +177,11 @@ class RecipeExtractionServiceTest {
         String videoUrl = "https://www.youtube.com/watch?v=error";
         RecipeGenerationJob job = spy(RecipeGenerationJob.builder().id(jobId).status(JobStatus.PENDING).build());
 
-        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
-
-        // 1. yt-dlp 실패 (의도적 예외)
-        when(ytDlpService.getVideoDataFull(anyString())).thenThrow(new RuntimeException("Connection Error"));
-
-        // 2. Fallback Gemini도 실패하도록 설정 (Mock 재설정)
-        when(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
-                .thenThrow(new RuntimeException("Gemini Also Failed"));
+        // Given
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        given(ytDlpService.getVideoDataFull(anyString())).willThrow(new RuntimeException("Connection Error"));
+        given(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
+                .willThrow(new RuntimeException("Gemini Also Failed"));
 
         service.processYoutubeExtractionAsyncV2(jobId, videoUrl, 100L, "User");
 
@@ -204,9 +202,9 @@ class RecipeExtractionServiceTest {
         String shortsUrl = "https://www.youtube.com/shorts/shorts123?feature=share";
         RecipeGenerationJob job = spy(RecipeGenerationJob.builder().id(jobId).status(JobStatus.PENDING).build());
 
-        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
-
-        when(ytDlpService.getVideoDataFull(anyString())).thenAnswer(inv -> {
+        // Given
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        given(ytDlpService.getVideoDataFull(anyString())).willAnswer(inv -> {
             String url = inv.getArgument(0);
             if(url.contains("shorts123")) {
                 return new YtDlpService.YoutubeFullDataDto("shorts123", url, "Shorts", SUFFICIENT_TEXT, "", "", SUFFICIENT_TEXT, "Ch", "Id", "", "", 0L, 0L, 50L);
@@ -233,13 +231,16 @@ class RecipeExtractionServiceTest {
                 .progress(0)
                 .build();
 
-        when(jobRepository.findById(jobId)).thenReturn(Optional.of(failedJob));
+        // Given
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(failedJob));
 
+        // When
         JobStatusDto statusDto = service.getJobStatus(jobId);
 
-        assertEquals("901", statusDto.getCode());
-        assertEquals("레시피 영상이 아닙니다.", statusDto.getMessage());
-        assertEquals(JobStatus.FAILED, statusDto.getStatus());
+        // Then
+        assertThat(statusDto.getCode()).isEqualTo("901");
+        assertThat(statusDto.getMessage()).isEqualTo("레시피 영상이 아닙니다.");
+        assertThat(statusDto.getStatus()).isEqualTo(JobStatus.FAILED);
     }
 
     private void mockSuccessFlow(Long recipeId) {
@@ -247,18 +248,16 @@ class RecipeExtractionServiceTest {
         mockDto.setIsRecipe(true);
         mockDto.setIngredients(new ArrayList<>());
 
-        lenient().when(grokClientService.generateRecipeStep1(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(mockDto));
-
-        lenient().when(grokClientService.refineIngredientsOnly(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(new ArrayList<>()));
-
-        lenient().when(asyncImageService.generateImageFromDto(any(), anyLong()))
-                .thenReturn(CompletableFuture.completedFuture("http://img.com/a.jpg"));
+        lenient().given(grokClientService.generateRecipeStep1(any(), any()))
+                .willReturn(CompletableFuture.completedFuture(mockDto));
+        lenient().given(grokClientService.refineIngredientsOnly(any(), any()))
+                .willReturn(CompletableFuture.completedFuture(new ArrayList<>()));
+        lenient().given(asyncImageService.generateImageFromDto(any(), anyLong()))
+                .willReturn(CompletableFuture.completedFuture("http://img.com/a.jpg"));
 
         PresignedUrlResponse response = PresignedUrlResponse.builder().recipeId(recipeId).build();
-        lenient().when(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
-                .thenReturn(response);
+        lenient().given(recipeService.createRecipeAndGenerateUrls(any(), anyLong(), any(), any()))
+                .willReturn(response);
     }
 
     @Test
@@ -276,7 +275,8 @@ class RecipeExtractionServiceTest {
                 .status(JobStatus.IN_PROGRESS)
                 .build();
 
-        when(jobRepository.findById(jobId)).thenReturn(Optional.of(mockJob));
+        // Given
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(mockJob));
 
         PresignedUrlResponse mockResponse = PresignedUrlResponse.builder().recipeId(recipeId).build();
         doAnswer(invocation -> {
@@ -299,5 +299,132 @@ class RecipeExtractionServiceTest {
         }
 
         verify(recipeFavoriteService, times(3)).addFavoriteIfNotExists(userId, recipeId);
+    }
+
+    // ─── parseIngredientBlock / buildIngredientHighlightSection ────────────────
+
+    @Test
+    @DisplayName("parseIngredientBlock: '재료' 섹션 키워드 이후 라인이 결과 목록에 수집되는 테스트")
+    void parseIngredientBlock_collectsLinesAfterSectionKeyword() {
+        // Given
+        String text = """
+                재료
+                계란 2개
+                소금 약간
+
+                만드는 법
+                1. 끓인다
+                """;
+        List<String> result = new ArrayList<>();
+
+        // When
+        ReflectionTestUtils.invokeMethod(service, "parseIngredientBlock", text, result);
+
+        // Then
+        assertThat(result).contains("계란 2개", "소금 약간");
+        assertThat(result).doesNotContain("만드는 법", "1. 끓인다");
+    }
+
+    @Test
+    @DisplayName("parseIngredientBlock: 섹션 키워드 없이도 단위 패턴 매칭 라인이 수집되는 테스트")
+    void parseIngredientBlock_collectsLinesMatchingUnitPattern() {
+        // Given
+        String text = """
+                오늘의 요리 소개합니다
+                간장 3T
+                설탕 2큰술
+                물 200ml
+                아무 텍스트
+                """;
+        List<String> result = new ArrayList<>();
+
+        // When
+        ReflectionTestUtils.invokeMethod(service, "parseIngredientBlock", text, result);
+
+        // Then
+        assertThat(result).contains("간장 3T", "설탕 2큰술", "물 200ml");
+    }
+
+    @Test
+    @DisplayName("parseIngredientBlock: 콤마로 구분된 재료는 개별 항목으로 분리되는 테스트")
+    void parseIngredientBlock_splitsCommaSeparatedIngredients() {
+        // Given — 섹션 키워드 형식으로 재료가 나열된 경우
+        String text = """
+                재료
+                소스 : 간장 4T, 맛술 2T, 참기름 1T
+                """;
+        List<String> result = new ArrayList<>();
+
+        // When
+        ReflectionTestUtils.invokeMethod(service, "parseIngredientBlock", text, result);
+
+        // Then
+        assertThat(result).containsExactlyInAnyOrder("간장 4T", "맛술 2T", "참기름 1T");
+    }
+
+    @Test
+    @DisplayName("buildIngredientHighlightSection: 설명글에 재료 없으면 빈 문자열을 반환하는 테스트")
+    void buildIngredientHighlightSection_returnsEmptyStringWhenNoIngredients() {
+        // Given
+        String description = "안녕하세요 오늘은 맛있는 요리를 소개합니다";
+        String comments = "구독 좋아요 눌러주세요~";
+
+        // When
+        String result = ReflectionTestUtils.invokeMethod(service, "buildIngredientHighlightSection", description, comments);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("buildIngredientHighlightSection: 재료 있으면 🔴 강조 헤더가 붙은 문자열을 반환하는 테스트")
+    void buildIngredientHighlightSection_returnsHighlightedSectionWhenIngredientsFound() {
+        // Given
+        String description = """
+                재료
+                두부 1모
+                간장 2T
+                """;
+        String comments = "";
+
+        // When
+        String result = ReflectionTestUtils.invokeMethod(service, "buildIngredientHighlightSection", description, comments);
+
+        // Then
+        assertThat(result).startsWith("🔴 [최우선 재료 목록");
+        assertThat(result).contains("두부 1모", "간장 2T");
+    }
+
+    @Test
+    @DisplayName("buildIngredientHighlightSection: 댓글에서도 재료를 추출하는 테스트")
+    void buildIngredientHighlightSection_extractsIngredientsFromComments() {
+        // Given — 설명글엔 재료 없고 댓글에 재료 있는 경우
+        String description = "오늘도 좋은 하루 되세요!";
+        String comments = """
+                재료
+                닭가슴살 200g
+                올리브오일 1T
+                """;
+
+        // When
+        String result = ReflectionTestUtils.invokeMethod(service, "buildIngredientHighlightSection", description, comments);
+
+        // Then
+        assertThat(result).contains("닭가슴살 200g", "올리브오일 1T");
+    }
+
+    @Test
+    @DisplayName("parseIngredientBlock: null 또는 빈 문자열 입력 시 예외 없이 빈 결과를 반환하는 테스트")
+    void parseIngredientBlock_handlesNullAndEmptyInputGracefully() {
+        // Given
+        List<String> result1 = new ArrayList<>();
+        List<String> result2 = new ArrayList<>();
+
+        // When & Then — 예외 없이 처리
+        ReflectionTestUtils.invokeMethod(service, "parseIngredientBlock", (Object) null, result1);
+        ReflectionTestUtils.invokeMethod(service, "parseIngredientBlock", "   ", result2);
+
+        assertThat(result1).isEmpty();
+        assertThat(result2).isEmpty();
     }
 }
