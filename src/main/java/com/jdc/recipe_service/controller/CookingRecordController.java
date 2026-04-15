@@ -2,6 +2,7 @@ package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.calendar.CookingRecordDto;
+import com.jdc.recipe_service.domain.dto.calendar.CookingRecordFeedResponse;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -10,6 +11,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.hashids.Hashids;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +28,20 @@ public class CookingRecordController {
 
     private final CookingRecordService service;
     private final Hashids hashids;
+
+    @GetMapping("/timeline")
+    @Operation(summary = "전체 요리 기록 타임라인",
+            description = "날짜별로 그룹핑된 전체 요리 기록을 최신순으로 조회합니다.")
+    public ResponseEntity<CookingRecordFeedResponse> getRecordFeed(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        if (userDetails == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long userId = userDetails.getUser().getId();
+        return ResponseEntity.ok(service.getRecordFeed(userId, pageable));
+    }
 
     @PostMapping
     @Operation(summary = "요리 기록 생성", description = "특정 레시피에 대한 요리 기록을 추가합니다.")

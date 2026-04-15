@@ -10,11 +10,17 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.util.PricingUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -93,6 +99,58 @@ public class CookingRecordService {
                 bucketName, region, key);
     }
 
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+    /**
+     * 전체 요리 기록 피드 (날짜별 그룹, 무한스크롤).
+     * 날짜 단위로 페이지네이션하여 하루치 기록이 페이지 경계에서 쪼개지지 않는다.
+     * size 파라미터는 "날짜 수"를 의미한다.
+     */
+    @Transactional(readOnly = true)
+    public CookingRecordFeedResponse getRecordFeed(Long userId, Pageable pageable) {
+        // 날짜 DISTINCT 쿼리에 클라이언트 sort가 섞이면 안 되므로 unsorted로 정규화
+        // 정렬은 JPQL의 ORDER BY cast(createdAt as date) DESC가 담당
+        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+
+        // 1단계: 기록이 있는 날짜를 Slice로 페이지네이션
+        Slice<LocalDate> dateSlice = repo.findDistinctDatesByUserId(userId, unsorted);
+
+        if (dateSlice.isEmpty()) {
+            return CookingRecordFeedResponse.builder()
+                    .groups(List.of())
+                    .hasNext(false)
+                    .build();
+        }
+
+        // 2단계: 해당 날짜들의 레코드를 한 번에 조회 (N+1 방지)
+        List<LocalDate> dates = dateSlice.getContent();
+        List<CookingRecord> records = repo.findByUserIdAndDatesIn(userId, dates);
+
+        // 날짜별 그룹핑 (LinkedHashMap + dates 순서로 최신순 유지)
+        LinkedHashMap<LocalDate, List<CookingRecord>> grouped = records.stream()
+                .collect(Collectors.groupingBy(
+                        r -> r.getCreatedAt().atZone(KST).toLocalDate(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        List<CookingRecordFeedResponse.DailyGroup> groups = dates.stream()
+                .filter(grouped::containsKey)
+                .map(date -> CookingRecordFeedResponse.DailyGroup.builder()
+                        .date(date)
+                        .records(grouped.get(date).stream()
+                                .map(r -> CookingRecordSummaryDto.from(
+                                        r, generateImageUrl(r.getRecipe().getImageKey())))
+                                .toList())
+                        .build())
+                .toList();
+
+        return CookingRecordFeedResponse.builder()
+                .groups(groups)
+                .hasNext(dateSlice.hasNext())
+                .build();
+    }
 
     /** 월별 달력 요약(일별 절약액 + 월합계) */
     @Transactional(readOnly = true)

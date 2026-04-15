@@ -27,8 +27,8 @@ public class CookingRecordSummaryDto {
         dto.recordId      = e.getId();
         dto.recipeId       = e.getRecipe().getId();
         dto.recipeTitle    = e.getRecipe().getTitle();
-        dto.ingredientCost = e.getRecipe().getTotalIngredientCost();
-        dto.marketPrice    = e.getRecipe().getMarketPrice();
+        dto.ingredientCost = e.getIngredientCost();
+        dto.marketPrice    = e.getMarketPrice();
         dto.nutrition = NutritionSummaryDto.from(e);
         dto.calories = e.getTotalCalories();
         dto.imageUrl       = imageUrl;

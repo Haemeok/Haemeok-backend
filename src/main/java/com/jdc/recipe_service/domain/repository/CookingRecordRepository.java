@@ -5,6 +5,9 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -73,6 +76,29 @@ FROM DUAL
 
     List<CookingRecord> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
             Long userId, LocalDateTime start, LocalDateTime end
+    );
+
+    @Query("""
+      SELECT DISTINCT cast(c.createdAt as date)
+      FROM CookingRecord c
+      WHERE c.user.id = :userId
+      ORDER BY cast(c.createdAt as date) DESC
+      """)
+    Slice<LocalDate> findDistinctDatesByUserId(
+            @Param("userId") Long userId,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"recipe"})
+    @Query("""
+      SELECT c FROM CookingRecord c
+      WHERE c.user.id = :userId
+        AND cast(c.createdAt as date) IN :dates
+      ORDER BY c.createdAt DESC
+      """)
+    List<CookingRecord> findByUserIdAndDatesIn(
+            @Param("userId") Long userId,
+            @Param("dates") List<LocalDate> dates
     );
 
     @Modifying
