@@ -37,4 +37,6 @@ public interface RecipeQueryRepository {
             List<RecipeType> types,
             Pageable pageable
     );
+
+    List<RecipeSimpleDto> findTopByIngredientId(Long ingredientId, int limit);
 }

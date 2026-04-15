@@ -12,6 +12,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.RecipeExtractionService;
+import com.jdc.recipe_service.service.RecipeRemixQueryService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import com.jdc.recipe_service.service.media.YtDlpService;
@@ -21,6 +22,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,6 +45,7 @@ public class RecipeController {
     private final RecipeAnalysisService recipeAnalysisService;
     private final RecipeExtractionService recipeExtractionService;
     private final RecipeSitemapService recipeSitemapService;
+    private final RecipeRemixQueryService recipeRemixQueryService;
 
     @PostMapping
     @Operation(summary = "레시피 직접 등록 + 이미지 Presigned URL 발급", description = "사용자가 직접 입력한 레시피 정보를 저장하고, 이미지를 업로드할 Presigned URL을 발급합니다.")
@@ -222,6 +228,17 @@ public class RecipeController {
             @JsonSerialize(using = HashIdConfig.HashIdSerializer.class)
             Long recipeId
     ) {}
+
+    @GetMapping("/{recipeId}/remixes")
+    @Operation(summary = "레시피 remix 목록",
+            description = "해당 원본 레시피를 복제하여 공개된 레시피 목록을 조회합니다.")
+    public ResponseEntity<Page<RecipeSimpleDto>> getRemixes(
+            @Parameter(description = "원본 레시피 ID") @DecodeId Long recipeId,
+            @Parameter(hidden = true)
+            @PageableDefault(size = 10, sort = "popularityScore", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        return ResponseEntity.ok(recipeRemixQueryService.findRemixes(recipeId, pageable));
+    }
 
     @GetMapping("/sitemap")
     public ResponseEntity<List<RecipeSitemapResponseDto>> getRecipesForSitemap() {

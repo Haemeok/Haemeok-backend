@@ -140,6 +140,14 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     }
 
     @Modifying(clearAutomatically = true)
+    @Query("UPDATE Recipe r SET r.likeCount = r.likeCount + 1, r.popularityScore = r.popularityScore + 1 WHERE r.id = :id")
+    void incrementLikeCount(@Param("id") Long id);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Recipe r SET r.likeCount = GREATEST(r.likeCount - 1, 0), r.popularityScore = GREATEST(r.popularityScore - 1, 0) WHERE r.id = :id")
+    void decrementLikeCount(@Param("id") Long id);
+
+    @Modifying(clearAutomatically = true)
     @Query("""
         UPDATE Recipe r
         SET r.weeklyLikeCount = (
@@ -382,9 +390,29 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     void updateImageInfo(@Param("id") Long id, @Param("imageKey") String imageKey,
                          @Param("status") RecipeImageStatus status, @Param("isPrivate") Boolean isPrivate);
 
-    Optional<Recipe> findFirstByYoutubeUrl(String youtubeUrl);
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.youtubeUrl = :youtubeUrl
+              AND r.user.id = :officialUserId
+              AND r.originRecipe IS NULL
+            ORDER BY r.id ASC
+            """)
+    Optional<Recipe> findFirstOfficialByYoutubeUrl(
+            @Param("youtubeUrl") String youtubeUrl,
+            @Param("officialUserId") Long officialUserId);
 
     List<Recipe> findAllByYoutubeUrlIsNotNull();
+
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.youtubeUrl IS NOT NULL
+              AND (
+                r.youtubeChannelName IS NULL OR r.youtubeChannelName = ''
+                OR r.youtubeChannelProfileUrl IS NULL OR r.youtubeChannelProfileUrl = ''
+                OR r.youtubeChannelId IS NULL OR r.youtubeChannelId = ''
+              )
+            """)
+    List<Recipe> findAllWithNullYoutubeChannelInfo();
 
     @EntityGraph(attributePaths = {"fineDiningDetails"})
     @Query("""
@@ -419,4 +447,27 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "  AND r.visibility = 'PUBLIC' " +
             "  AND r.listingStatus = 'LISTED'")
     List<RecipeSitemapProjection> findAllForSitemap();
+
+    boolean existsByOriginRecipeIdAndUserId(Long originRecipeId, Long userId);
+
+    @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
+            "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.favoriteCount, " +
+            "r.likeCount, FALSE, r.cookingTime, r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl, r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount, " +
+            "COALESCE(ROUND(r.avgRating, 2), 0.0d), r.ratingCount, r.youtubeUrl, r.isAiGenerated) " +
+            "FROM Recipe r " +
+            "WHERE r.originRecipe.id = :originRecipeId " +
+            "  AND r.isPrivate = false " +
+            "  AND r.lifecycleStatus = 'ACTIVE' " +
+            "  AND r.visibility = 'PUBLIC' " +
+            "  AND r.listingStatus = 'LISTED'")
+    Page<RecipeSimpleDto> findRemixesByOriginRecipeId(@Param("originRecipeId") Long originRecipeId, Pageable pageable);
+
+    // H6: WHERE 절은 findRemixesByOriginRecipeId와 동일해야 한다. 하나라도 어긋나면 count != list.size 불일치.
+    @Query("SELECT COUNT(r) FROM Recipe r " +
+            "WHERE r.originRecipe.id = :originRecipeId " +
+            "  AND r.isPrivate = false " +
+            "  AND r.lifecycleStatus = 'ACTIVE' " +
+            "  AND r.visibility = 'PUBLIC' " +
+            "  AND r.listingStatus = 'LISTED'")
+    long countRemixesByOriginRecipeId(@Param("originRecipeId") Long originRecipeId);
 }

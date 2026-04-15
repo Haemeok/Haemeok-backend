@@ -43,6 +43,10 @@ dependencies {
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	implementation 'mysql:mysql-connector-java:8.0.33'
+
+	// Flyway - DB 스키마 마이그레이션
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -95,6 +99,11 @@ dependencies {
 	implementation "org.springframework.retry:spring-retry"
 
 	testImplementation 'org.springframework.security:spring-security-test'
+
+	// Testcontainers (MySQL repository integration tests — H2 대신 MySQL 사용)
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+	testImplementation 'org.testcontainers:mysql:1.20.4'
 
 	implementation 'io.micrometer:micrometer-registry-prometheus'
 

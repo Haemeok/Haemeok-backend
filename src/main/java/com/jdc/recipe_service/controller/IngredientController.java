@@ -9,6 +9,11 @@ import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.IngredientService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -91,6 +96,47 @@ public class IngredientController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+    /** 재료 상세 조회 (i버튼 팝업용): 보관법 + Top 10 인기 레시피 */
+    @GetMapping("/{id}")
+    @Operation(
+            summary = "재료 상세 조회",
+            description = """
+                    냉장고의 i버튼 팝업에서 사용할 재료 상세 정보를 반환합니다.
+                    - 보관 방법(storageMethod)과 해당 재료로 만들 수 있는 **공개** 레시피를 인기순 최대 10개 포함합니다.
+                    - 레시피 목록은 `isPrivate=false` 이고 이미지가 `READY` 또는 준비 중이 아닌 것만 포함합니다.
+                    - 페이지네이션은 제공하지 않으며 `recipes`는 항상 배열(최대 10건, 빈 배열 가능)입니다.
+                    - 인증이 필요 없는 공개 엔드포인트입니다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = IngredientDetailDto.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "재료를 찾을 수 없음 (errorCode: INGREDIENT_NOT_FOUND)",
+                    content = @Content(
+                            examples = @ExampleObject(
+                                    name = "INGREDIENT_NOT_FOUND",
+                                    value = """
+                                            {
+                                              "code": "401",
+                                              "message": "요청한 재료가 존재하지 않습니다.",
+                                              "status": "NOT_FOUND"
+                                            }
+                                            """
+                            )
+                    )
+            )
+    })
+    public ResponseEntity<IngredientDetailDto> getIngredientDetail(
+            @Parameter(description = "재료 ID (해시)", example = "xJvY7aBp", required = true)
+            @DecodeId("id") Long ingredientId) {
+        return ResponseEntity.ok(service.findDetailById(ingredientId));
+    }
+
     /** 6) 여러 ID에 대한 이름 조회 (해시 ID 리스트)*/
     @GetMapping("/names")
     @Operation(summary = "재료 이름 목록 조회", description = "해시화된 ID 리스트를 받아 해당 재료들의 이름 목록을 반환합니다.")

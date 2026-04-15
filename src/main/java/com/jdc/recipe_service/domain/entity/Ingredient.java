@@ -76,6 +76,9 @@ public class Ingredient {
     @Builder.Default
     private boolean isPantry = false;
 
+    @Column(name = "storage_method", columnDefinition = "TEXT")
+    private String storageMethod;
+
     public void updateUsageCount(Long count) {
         this.usageCount = count;
     }

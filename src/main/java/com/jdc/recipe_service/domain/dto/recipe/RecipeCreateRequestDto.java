@@ -1,11 +1,14 @@
 package com.jdc.recipe_service.domain.dto.recipe;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
@@ -65,6 +68,12 @@ public class RecipeCreateRequestDto {
     private List<ComponentResponseDto> components;
     private PlatingResponseDto plating;
     private List<String> imageMatchKeywords;
+
+    @Schema(description = "리믹스(복제) 원본 레시피 ID. 지정 시 서버가 원본 cloneable 검증 후 " +
+            "visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true, counts=0, source=YOUTUBE 으로 강제한다.",
+            example = "Xk8B2a9m")
+    @JsonDeserialize(using = HashIdConfig.HashIdDeserializer.class)
+    private Long originRecipeId;
 
     @Getter @Setter
     @NoArgsConstructor

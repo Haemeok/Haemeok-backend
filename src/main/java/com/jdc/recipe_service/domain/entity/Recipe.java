@@ -96,6 +96,13 @@ public class Recipe extends BaseTimeEntity {
     @Builder.Default
     private Long weeklyFavoriteCount = 0L;
 
+    // like_count + favorite_count 누적값. 검색 기본 정렬(인기순)에서 사용.
+    // 원자 UPDATE 경로(@Modifying)와 dirty-checking 경로(아래 증감 메서드) 모두에서 동기화된다.
+    @Column(name = "popularity_score", nullable = false)
+    @ColumnDefault("0")
+    @Builder.Default
+    private Long popularityScore = 0L;
+
     @Column(name = "image_key")
     private String imageKey;
 
@@ -223,6 +230,11 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "image_match_keywords", length = 100)
     private String imageMatchKeywords;
 
+    // 클론(remix) 출처 레시피. null이면 원본(독립 생성).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "origin_recipe_id")
+    private Recipe originRecipe;
+
     public void update(String title, String description, DishType dishType, Integer cookingTime,
                        String imageKey, String youtubeUrl, Set<String> cookingTools, Integer servings,
                        Integer totalIngredientCost, Integer marketPrice, String cookingTips,
@@ -328,18 +340,32 @@ public class Recipe extends BaseTimeEntity {
         this.extractorId = extractorId;
     }
 
+    public void updateOriginRecipe(Recipe originRecipe) {
+        this.originRecipe = originRecipe;
+    }
+
     public void increaseLikeCount() {
         if (this.likeCount == null) {
             this.likeCount = 0L;
         }
+        if (this.popularityScore == null) {
+            this.popularityScore = 0L;
+        }
         this.likeCount++;
+        this.popularityScore++;
     }
     public void decreaseLikeCount() {
         if (this.likeCount == null) {
             this.likeCount = 0L;
         }
+        if (this.popularityScore == null) {
+            this.popularityScore = 0L;
+        }
         if (this.likeCount > 0) {
             this.likeCount--;
+            if (this.popularityScore > 0) {
+                this.popularityScore--;
+            }
         }
     }
 
@@ -347,15 +373,25 @@ public class Recipe extends BaseTimeEntity {
         if (this.favoriteCount == null) {
             this.favoriteCount = 0L;
         }
+        if (this.popularityScore == null) {
+            this.popularityScore = 0L;
+        }
         this.favoriteCount++;
+        this.popularityScore++;
     }
 
     public void decreaseFavoriteCount() {
         if (this.favoriteCount == null) {
             this.favoriteCount = 0L;
         }
+        if (this.popularityScore == null) {
+            this.popularityScore = 0L;
+        }
         if (this.favoriteCount > 0) {
             this.favoriteCount--;
+            if (this.popularityScore > 0) {
+                this.popularityScore--;
+            }
         }
     }
 

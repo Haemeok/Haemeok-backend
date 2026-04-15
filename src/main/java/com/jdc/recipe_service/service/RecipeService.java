@@ -6,7 +6,10 @@ import com.jdc.recipe_service.domain.dto.url.*;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
+import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
 import com.jdc.recipe_service.event.UserRecipeCreatedEvent;
 import com.jdc.recipe_service.exception.CustomException;
@@ -59,6 +62,7 @@ public class RecipeService {
     private static final String MAIN_IMAGE_SLOT = "main";
     private static final String STEP_IMAGE_SLOT_PREFIX = "step_";
     private static final int DEFAULT_MARGIN_PERCENT = 30;
+    private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
 
     private int calculateRealIngredientCount(List<RecipeIngredient> ingredients) {
         if (ingredients == null || ingredients.isEmpty()) return 0;
@@ -76,7 +80,7 @@ public class RecipeService {
     public PresignedUrlResponse createRecipeAndGenerateUrls(
             RecipeWithImageUploadRequest req,
             Long userId,
-            RecipeSourceType sourceType,
+            RecipeSourceType incomingSourceType,
             AiRecipeConcept aiConcept
     ) {
         User user = getUserOrThrow(userId);
@@ -85,6 +89,18 @@ public class RecipeService {
                         ErrorCode.INVALID_INPUT_VALUE,
                         "레시피 생성 요청 데이터(dto)가 null입니다."
                 ));
+
+        Recipe remixSource = null;
+        if (dto.getOriginRecipeId() != null) {
+            remixSource = recipeRepository.findById(dto.getOriginRecipeId())
+                    .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+            validateRemixSource(remixSource);
+            if (recipeRepository.existsByOriginRecipeIdAndUserId(remixSource.getId(), userId)) {
+                throw new CustomException(ErrorCode.RECIPE_REMIX_ALREADY_EXISTS);
+            }
+        }
+        final RecipeSourceType sourceType =
+                remixSource != null ? RecipeSourceType.YOUTUBE : incomingSourceType;
 
         deduplicateIngredients(dto.getIngredients());
 
@@ -137,11 +153,35 @@ public class RecipeService {
             recipe.updateImageStatus(RecipeImageStatus.PENDING);
         }
 
-        recipeRepository.save(recipe);
+        if (remixSource != null) {
+            recipe.updateOriginRecipe(remixSource);
+            recipe.updateVisibility(RecipeVisibility.PRIVATE);
+            recipe.updateListingStatus(RecipeListingStatus.UNLISTED);
+            recipe.updateIsPrivate(true);
+            recipe.updateExtractorId(null);
+            recipe.updateImageStatus(RecipeImageStatus.PENDING);
+            recipe.updateImageKey(null);
+        }
+
+        try {
+            recipeRepository.save(recipe);
+            if (remixSource != null) {
+                em.flush();
+            }
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            if (remixSource != null) {
+                throw new CustomException(ErrorCode.RECIPE_REMIX_ALREADY_EXISTS);
+            }
+            throw e;
+        }
 
         if (sourceType != RecipeSourceType.AI && sourceType != RecipeSourceType.YOUTUBE) {
             String mainImageKey = "images/recipes/" + recipe.getId() + "/main.webp";
             recipe.updateImageKey(mainImageKey);
+        }
+
+        if (remixSource != null) {
+            copyRemixMainImage(recipe, remixSource);
         }
 
         int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), sourceType);
@@ -600,6 +640,48 @@ public class RecipeService {
         if (!recipe.getUser().getId().equals(userId)) {
             throw new CustomException(ErrorCode.RECIPE_ACCESS_DENIED);
         }
+    }
+
+    private void validateRemixSource(Recipe source) {
+        if (source.getUser() == null || !OFFICIAL_RECIPE_USER_ID.equals(source.getUser().getId())) {
+            throw new CustomException(ErrorCode.RECIPE_REMIX_NOT_ALLOWED);
+        }
+        if (source.getSource() != RecipeSourceType.YOUTUBE) {
+            throw new CustomException(ErrorCode.RECIPE_REMIX_NOT_ALLOWED);
+        }
+        if (source.getOriginRecipe() != null) {
+            throw new CustomException(ErrorCode.RECIPE_REMIX_NOT_ALLOWED);
+        }
+        if (source.getLifecycleStatus() != RecipeLifecycleStatus.ACTIVE) {
+            throw new CustomException(ErrorCode.RECIPE_REMIX_NOT_ALLOWED);
+        }
+        if (source.getVisibility() != RecipeVisibility.PUBLIC) {
+            throw new CustomException(ErrorCode.RECIPE_REMIX_NOT_ALLOWED);
+        }
+    }
+
+    private void copyRemixMainImage(Recipe recipe, Recipe source) {
+        String sourceKey = source.getImageKey();
+        if (sourceKey == null || sourceKey.isBlank()) {
+            return;
+        }
+        String destKey = "images/recipes/" + recipe.getId() + "/main.webp";
+        s3Util.copyObject(sourceKey, destKey);
+        recipe.updateImageKey(destKey);
+        recipe.updateImageStatus(RecipeImageStatus.READY);
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    try {
+                        s3Util.deleteFiles(java.util.List.of(destKey));
+                    } catch (Exception e) {
+                        log.warn("리믹스 이미지 롤백 정리 실패: key={}, error={}", destKey, e.getMessage());
+                    }
+                }
+            }
+        });
     }
 
     private void calculateAndSetTotalNutrition(Recipe recipe, List<RecipeIngredient> ingredients) {

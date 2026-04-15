@@ -27,7 +27,18 @@ public class YoutubeSyncController {
     public ResponseEntity<String> triggerSync() {
         log.info("👮 [Admin] 유튜브 통계 동기화 요청 승인됨");
         String result = youtubeStatsService.updateAllRecipeStats();
+        return ResponseEntity.ok(result);
+    }
 
+    /**
+     * null 채널 정보(채널명·프로필·channelId) 보정
+     * POST /api/admin/sync/channel-info
+     */
+    @PostMapping("/channel-info")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> repairNullChannelInfo() {
+        log.info("👮 [Admin] null 채널 정보 갱신 요청");
+        String result = youtubeStatsService.refreshNullChannelInfo();
         return ResponseEntity.ok(result);
     }
 }
