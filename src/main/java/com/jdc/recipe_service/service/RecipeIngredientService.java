@@ -101,6 +101,31 @@ public class RecipeIngredientService {
     @Transactional
     public int updateIngredients(Recipe recipe, List<RecipeIngredientRequestDto> ingredientDtos, RecipeSourceType sourceType) {
         List<RecipeIngredient> existingIngredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+
+        Map<String, RecipeIngredient> existingCustomMap = existingIngredients.stream()
+                .filter(ri -> ri.getIngredient() == null && ri.getCustomName() != null)
+                .collect(Collectors.toMap(
+                        ri -> ri.getCustomName().toLowerCase().replaceAll("\\s+", ""),
+                        Function.identity(), (a, b) -> a));
+
+        // 커스텀 재료는 현재 유저 입력 경로가 없다(YouTube/AI 추출로만 채워짐).
+        // 따라서 프론트가 null 또는 0을 보내면 "의도 없음"으로 간주하고 기존 DB 값을 항상 복구한다.
+        for (RecipeIngredientRequestDto dto : ingredientDtos) {
+            if (dto.getName() == null) continue;
+            String key = dto.getName().toLowerCase().replaceAll("\\s+", "");
+            RecipeIngredient existing = existingCustomMap.get(key);
+            if (existing == null) continue;
+
+            if (isMissing(dto.getCustomCalories()))      dto.setCustomCalories(existing.getCustomCalorie());
+            if (isMissing(dto.getCustomCarbohydrate()))  dto.setCustomCarbohydrate(existing.getCustomCarbohydrate());
+            if (isMissing(dto.getCustomProtein()))       dto.setCustomProtein(existing.getCustomProtein());
+            if (isMissing(dto.getCustomFat()))           dto.setCustomFat(existing.getCustomFat());
+            if (isMissing(dto.getCustomSugar()))         dto.setCustomSugar(existing.getCustomSugar());
+            if (isMissing(dto.getCustomSodium()))        dto.setCustomSodium(existing.getCustomSodium());
+            if (isMissing(dto.getCustomPrice()) && existing.getCustomPrice() != null && existing.getCustomPrice() > 0)
+                dto.setCustomPrice(BigDecimal.valueOf(existing.getCustomPrice()));
+        }
+
         for (RecipeIngredient ri : existingIngredients) {
             recipeStepIngredientRepository.deleteByRecipeIngredientId(ri.getId());
         }
@@ -121,6 +146,10 @@ public class RecipeIngredientService {
             recipeStepIngredientRepository.deleteByRecipeIngredientId(ri.getId());
         }
         recipeIngredientRepository.deleteByRecipeId(recipeId);
+    }
+
+    private static boolean isMissing(BigDecimal value) {
+        return value == null || value.signum() == 0;
     }
 
     private double parseQuantity(String quantityStr) {

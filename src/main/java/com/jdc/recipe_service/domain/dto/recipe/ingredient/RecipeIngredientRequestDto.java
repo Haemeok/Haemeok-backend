@@ -31,4 +31,5 @@ public class RecipeIngredientRequestDto {
     private BigDecimal customFat;
     private BigDecimal customSugar;
     private BigDecimal customSodium;
+    private Boolean isEstimated;
 }
