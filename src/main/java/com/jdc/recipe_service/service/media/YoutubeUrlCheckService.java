@@ -22,6 +22,8 @@ import java.util.regex.Pattern;
 @Slf4j
 public class YoutubeUrlCheckService {
 
+    private static final Long OFFICIAL_RECIPE_USER_ID = 90121L;
+
     private final RecipeRepository recipeRepository;
 
     private static final Pattern YOUTUBE_URL_PATTERN = Pattern.compile(
@@ -44,8 +46,8 @@ public class YoutubeUrlCheckService {
         String watchUrl = "https://www.youtube.com/watch?v=" + videoId;
         String shortsUrl = "https://www.youtube.com/shorts/" + videoId;
 
-        Optional<Recipe> existingRecipe = recipeRepository.findFirstByYoutubeUrl(watchUrl)
-                .or(() -> recipeRepository.findFirstByYoutubeUrl(shortsUrl));
+        Optional<Recipe> existingRecipe = recipeRepository.findFirstOfficialByYoutubeUrl(watchUrl, OFFICIAL_RECIPE_USER_ID)
+                .or(() -> recipeRepository.findFirstOfficialByYoutubeUrl(shortsUrl, OFFICIAL_RECIPE_USER_ID));
 
         return existingRecipe
                 .filter(r -> r.getImageKey() != null)

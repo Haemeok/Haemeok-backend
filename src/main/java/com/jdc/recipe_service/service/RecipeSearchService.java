@@ -98,12 +98,16 @@ public class RecipeSearchService {
 
         Sort.Order likeSort = pageable.getSort().getOrderFor("likeCount");
         Sort.Order ratingSort = pageable.getSort().getOrderFor("avgRating");
+        Sort.Order popularitySort = pageable.getSort().getOrderFor("popularityScore");
 
         if (likeSort != null) {
             return searchWithQuerydslSortedByDynamicField(condition, pageable, "likeCount", likeSort.getDirection(), userId);
         }
         if (ratingSort != null) {
             return searchWithQuerydslSortedByDynamicField(condition, pageable, "avgRating", ratingSort.getDirection(), userId);
+        }
+        if (popularitySort != null) {
+            return searchWithQuerydslSortedByDynamicField(condition, pageable, "popularityScore", popularitySort.getDirection(), userId);
         }
 
         if (shouldUseOpenSearch(condition)) {

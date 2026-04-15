@@ -305,6 +305,8 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
             dynamicOrder = new OrderSpecifier<>(dir, recipe.likeCount);
         } else if ("avgRating".equals(property)) {
             dynamicOrder = new OrderSpecifier<>(dir, recipe.avgRating);
+        } else if ("popularityScore".equals(property)) {
+            dynamicOrder = new OrderSpecifier<>(dir, recipe.popularityScore);
         } else {
             dynamicOrder = recipe.createdAt.desc();
         }
@@ -584,6 +586,53 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         return new SliceImpl<>(content, pageable, hasNext);
     }
 
+    @Override
+    public List<RecipeSimpleDto> findTopByIngredientId(Long ingredientId, int limit) {
+        QRecipe recipe = QRecipe.recipe;
+        QRecipeIngredient ri = QRecipeIngredient.recipeIngredient;
+
+        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
+        BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
+                .or(recipe.imageStatus.isNull());
+        BooleanExpression ingredientFilter = ri.ingredient.id.eq(ingredientId);
+
+        List<RecipeSimpleDto> content = queryFactory
+                .select(new QRecipeSimpleDto(
+                        recipe.id,
+                        recipe.title,
+                        recipe.imageKey,
+                        recipe.user.id,
+                        recipe.user.nickname,
+                        recipe.user.profileImage,
+                        recipe.createdAt,
+                        recipe.favoriteCount.coalesce(0L),
+                        recipe.likeCount,
+                        Expressions.constant(false),
+                        recipe.cookingTime.coalesce(0),
+                        recipe.youtubeChannelName,
+                        recipe.youtubeChannelId,
+                        recipe.youtubeVideoTitle,
+                        recipe.youtubeThumbnailUrl,
+                        recipe.youtubeChannelProfileUrl,
+                        recipe.youtubeSubscriberCount,
+                        recipe.youtubeVideoViewCount,
+                        recipe.avgRating.coalesce(BigDecimal.ZERO),
+                        recipe.ratingCount.coalesce(0L),
+                        recipe.youtubeUrl,
+                        recipe.isAiGenerated
+                ))
+                .from(recipe)
+                .join(recipe.ingredients, ri)
+                .where(privacyCondition, imageReadyCondition, ingredientFilter)
+                .groupBy(recipe.id)
+                .orderBy(recipe.popularityScore.desc(), recipe.id.desc())
+                .limit(limit)
+                .fetch();
+
+        content.forEach(dto -> dto.setImageUrl(generateImageUrl(dto.getImageUrl())));
+        return content;
+    }
+
 
     private OrderSpecifier<?>[] getFallbackOrderSpecifiers(Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
@@ -622,6 +671,10 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                     switch (o.getProperty()) {
                         case "likeCount":
                             return new OrderSpecifier<>(dir, recipe.likeCount);
+                        case "favoriteCount":
+                            return new OrderSpecifier<>(dir, recipe.favoriteCount);
+                        case "popularityScore":
+                            return new OrderSpecifier<>(dir, recipe.popularityScore);
                         case "cookingTime":
                             return new OrderSpecifier<>(dir, recipe.cookingTime);
                         case "avgRating":

@@ -313,9 +313,9 @@ public class YtDlpService {
                             return new ChannelInfo(realName, profileUrl, subscriberCount, true);
                         }
                     } else {
-                        log.warn("⚠️ [API 실패] 검색 결과 없음 (items is empty). Response: {}", shrink(response, 200));
+                        log.warn("⚠️ [API 실패] 검색 결과 없음 (items is empty), 다음 키 시도. Response: {}", shrink(response, 200));
+                        continue;
                     }
-                    break;
                 } catch (Exception e) {
                     log.warn("⚠️ [API 예외] Key index: {}, Error: {}", i, e.getMessage());
                 }

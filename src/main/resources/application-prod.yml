@@ -13,11 +13,14 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none    # Flyway가 스키마 전담. 기존 update는 ADR-0001에서 유지보수 불가로 판정.
     show-sql: false
     properties:
       hibernate:
         format_sql: false
+
+  flyway:
+    enabled: true
 
   security:
     oauth2:

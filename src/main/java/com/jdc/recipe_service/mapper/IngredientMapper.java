@@ -12,6 +12,7 @@ public class IngredientMapper {
                 .imageUrl(dto.getImageUrl())
                 .price(dto.getPrice())
                 .unit(dto.getUnit())
+                .storageMethod(dto.getStorageMethod())
                 .build();
     }
 
@@ -24,6 +25,7 @@ public class IngredientMapper {
                 .price(entity.getPrice())
                 .unit(entity.getUnit())
                 .inFridge(false)
+                .storageMethod(entity.getStorageMethod())
                 .build();
     }
 

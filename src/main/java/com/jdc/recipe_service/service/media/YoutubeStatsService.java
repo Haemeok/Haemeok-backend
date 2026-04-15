@@ -15,6 +15,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.LinkedHashMap;
 
 @Slf4j
 @Service
@@ -32,6 +33,97 @@ public class YoutubeStatsService {
     private static final Pattern VIDEO_ID_PATTERN = Pattern.compile(
             "(?:youtu\\.be/|youtube\\.com/(?:watch\\?v=|shorts/|embed/))([a-zA-Z0-9_-]{11})"
     );
+
+    /**
+     * 🔧 [null 갱신] youtubeChannelName / channelProfileUrl / channelId 가 null인 레시피를
+     *    1개씩 개별 처리 — 하나 실패해도 나머지 계속 진행
+     */
+    public String refreshNullChannelInfo() {
+        List<Recipe> targets = recipeRepository.findAllWithNullYoutubeChannelInfo();
+        if (targets.isEmpty()) return "null 채널 정보 레시피 없음";
+
+        log.info("🔧 null 채널 정보 레시피 {}개 갱신 시작", targets.size());
+
+        int successCount = 0;
+        int failCount = 0;
+
+        for (Recipe recipe : targets) {
+            try {
+                boolean updated = Boolean.TRUE.equals(transactionTemplate.execute(status -> {
+                    try {
+                        return repairOne(recipe);
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }));
+                if (updated) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    log.warn("⚠️ 채널 정보 없음 (영상 비공개/삭제 가능성): recipeId={}, url={}",
+                            recipe.getId(), recipe.getYoutubeUrl());
+                }
+            } catch (Exception e) {
+                failCount++;
+                log.error("❌ recipeId={} 갱신 실패: {}", recipe.getId(), e.getMessage());
+            }
+
+            try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+        }
+
+        return String.format("null 채널 정보 %d개 — 성공 %d / 실패 %d", targets.size(), successCount, failCount);
+    }
+
+    private boolean repairOne(Recipe recipe) throws Exception {
+        String vid = extractVideoId(recipe.getYoutubeUrl());
+        if (vid == null) return false;
+
+        // 1) 영상 정보로 channelId 확보
+        Map<String, VideoInfo> videoInfos = fetchVideoDetails(List.of(vid));
+        VideoInfo info = videoInfos.get(vid);
+        if (info == null || info.channelId() == null) return false;
+
+        // 2) 채널 정보 조회
+        Map<String, ChannelDetail> channelDetails = fetchChannelDetails(List.of(info.channelId()));
+        ChannelDetail detail = channelDetails.get(info.channelId());
+        if (detail == null) return false;
+
+        recipe.updateYoutubeInfo(
+                detail.name(),
+                info.channelId(),
+                recipe.getYoutubeVideoTitle(),
+                recipe.getYoutubeThumbnailUrl(),
+                detail.profileUrl(),
+                detail.subscriberCount(),
+                recipe.getYoutubeVideoViewCount()
+        );
+        log.info("✅ recipeId={} 채널 정보 갱신 완료: channelName={}", recipe.getId(), detail.name());
+        return true;
+    }
+
+    private Map<String, ChannelDetail> fetchChannelDetails(List<String> channelIds) throws Exception {
+        String url = "https://www.googleapis.com/youtube/v3/channels"
+                + "?part=snippet,statistics"
+                + "&id=" + String.join(",", channelIds)
+                + "&key=" + getApiKey();
+
+        JsonNode root = objectMapper.readTree(new URL(url));
+        Map<String, ChannelDetail> result = new HashMap<>();
+
+        for (JsonNode item : root.path("items")) {
+            String cid = item.path("id").asText();
+            String name = item.path("snippet").path("title").asText(null);
+            JsonNode thumbs = item.path("snippet").path("thumbnails");
+            String profileUrl = thumbs.path("high").path("url").asText(null);
+            if (profileUrl == null || profileUrl.isBlank())
+                profileUrl = thumbs.path("medium").path("url").asText(null);
+            if (profileUrl == null || profileUrl.isBlank())
+                profileUrl = thumbs.path("default").path("url").asText(null);
+            long subs = item.path("statistics").path("subscriberCount").asLong(0);
+            result.put(cid, new ChannelDetail(name, profileUrl, subs));
+        }
+        return result;
+    }
 
     /**
      * 🚀 [메인] 모든 레시피의 유튜브 통계(조회수, 구독자) 업데이트
@@ -99,12 +191,12 @@ public class YoutubeStatsService {
             }
 
             if (!channelIdsToFetch.isEmpty()) {
-                Map<String, Long> channelSubscribers = fetchChannelSubscribers(new ArrayList<>(channelIdsToFetch));
+                Map<String, ChannelDetail> channelDetails = fetchChannelDetails(new ArrayList<>(channelIdsToFetch));
 
                 for (Recipe recipe : recipes) {
                     String chId = recipe.getYoutubeChannelId();
-                    if (chId != null && channelSubscribers.containsKey(chId)) {
-                        recipe.updateYoutubeSubscriberCount(channelSubscribers.get(chId));
+                    if (chId != null && channelDetails.containsKey(chId)) {
+                        recipe.updateYoutubeSubscriberCount(channelDetails.get(chId).subscriberCount());
                     }
                 }
             }
@@ -136,23 +228,6 @@ public class YoutubeStatsService {
         return result;
     }
 
-    private Map<String, Long> fetchChannelSubscribers(List<String> channelIds) throws Exception {
-        String url = "https://www.googleapis.com/youtube/v3/channels" +
-                "?part=statistics" +
-                "&id=" + String.join(",", channelIds) +
-                "&key=" + getApiKey();
-
-        JsonNode root = objectMapper.readTree(new URL(url));
-        Map<String, Long> result = new HashMap<>();
-
-        for (JsonNode item : root.path("items")) {
-            String cid = item.path("id").asText();
-            long subs = item.path("statistics").path("subscriberCount").asLong(0);
-            result.put(cid, subs);
-        }
-        return result;
-    }
-
     private String getApiKey() {
         if (apiKeys == null || apiKeys.isEmpty()) throw new RuntimeException("API Key Missing");
         return apiKeys.get(0);
@@ -165,4 +240,6 @@ public class YoutubeStatsService {
     }
 
     private record VideoInfo(long viewCount, String channelId) {}
+
+    private record ChannelDetail(String name, String profileUrl, long subscriberCount) {}
 }

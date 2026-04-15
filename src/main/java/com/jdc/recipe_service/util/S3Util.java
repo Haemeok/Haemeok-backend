@@ -110,6 +110,15 @@ public class S3Util {
         s3Client.putObject(putReq, RequestBody.fromBytes(data));
     }
 
+    public void copyObject(String sourceKey, String destinationKey) {
+        s3Client.copyObject(CopyObjectRequest.builder()
+                .sourceBucket(bucketName)
+                .sourceKey(sourceKey)
+                .destinationBucket(bucketName)
+                .destinationKey(destinationKey)
+                .build());
+    }
+
     public Set<String> listKeysInFolder(String folderPrefix) {
         if (folderPrefix == null || folderPrefix.isBlank()) {
             return Collections.emptySet();

@@ -47,10 +47,7 @@ public class RecipeLikeService {
 
         if (like.isPresent()) {
             likeRepository.delete(like.get());
-
-            Recipe recipe = like.get().getRecipe();
-            recipe.decreaseLikeCount();
-
+            recipeRepository.decrementLikeCount(recipeId);
             return false;
         }
 
@@ -60,7 +57,7 @@ public class RecipeLikeService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         likeRepository.save(RecipeLike.builder().user(user).recipe(recipe).build());
-        recipe.increaseLikeCount();
+        recipeRepository.incrementLikeCount(recipeId);
 
         Long targetUserId = recipe.getUser().getId();
         if (!targetUserId.equals(userId)) {

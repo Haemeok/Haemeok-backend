@@ -1,11 +1,15 @@
 package com.jdc.recipe_service.service;
 
 import com.jdc.recipe_service.domain.dto.ingredient.*;
+import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.entity.Ingredient;
 import com.jdc.recipe_service.domain.entity.QIngredient;
 import com.jdc.recipe_service.domain.entity.QIngredientKeyword;
 import com.jdc.recipe_service.domain.repository.IngredientRepository;
+import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.RefrigeratorItemRepository;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.IngredientMapper;
 import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.OrderSpecifier;
@@ -37,6 +41,7 @@ public class IngredientService {
     private final JPAQueryFactory queryFactory;
     private final IngredientRepository repo;
     private final RefrigeratorItemRepository fridgeRepo;
+    private final RecipeRepository recipeRepository;
     private final Hashids hashids;
 
     private final QIngredient ing = QIngredient.ingredient;
@@ -173,7 +178,29 @@ public class IngredientService {
         entity.setImageUrl(dto.getImageUrl());
         entity.setPrice(dto.getPrice());
         entity.setUnit(dto.getUnit());
+        entity.setStorageMethod(dto.getStorageMethod());
         return IngredientMapper.toDto(entity);
+    }
+
+    /** 재료 상세 (i버튼 팝업용): 보관법 + Top N 인기 레시피 */
+    @Transactional(readOnly = true)
+    public IngredientDetailDto findDetailById(Long ingredientId) {
+        Ingredient entity = repo.findById(ingredientId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INGREDIENT_NOT_FOUND));
+
+        List<RecipeSimpleDto> recipes = recipeRepository.findTopByIngredientId(ingredientId, 10);
+
+        String s3Prefix = "https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com/images/ingredients/";
+        String imageUrl = s3Prefix + entity.getName() + ".webp";
+
+        return IngredientDetailDto.builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .category(entity.getCategory())
+                .imageUrl(imageUrl)
+                .storageMethod(entity.getStorageMethod())
+                .recipes(recipes)
+                .build();
     }
 
     /** 삭제 (관리자 전용) */

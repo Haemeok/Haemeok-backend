@@ -458,8 +458,8 @@ public class YoutubeRecipeExtractionService {
         String watchUrl = buildStorageYoutubeUrl(videoId, false);
         String shortsUrl = buildStorageYoutubeUrl(videoId, true);
 
-        Optional<Recipe> existingRecipe = recipeRepository.findFirstByYoutubeUrl(watchUrl)
-                .or(() -> recipeRepository.findFirstByYoutubeUrl(shortsUrl));
+        Optional<Recipe> existingRecipe = recipeRepository.findFirstOfficialByYoutubeUrl(watchUrl, OFFICIAL_RECIPE_USER_ID)
+                .or(() -> recipeRepository.findFirstOfficialByYoutubeUrl(shortsUrl, OFFICIAL_RECIPE_USER_ID));
 
         if (existingRecipe.isPresent()) {
             Recipe r = existingRecipe.get();
@@ -527,7 +527,7 @@ public class YoutubeRecipeExtractionService {
 
         try {
             String canonicalUrl = nullToEmpty(videoData.canonicalUrl());
-            Optional<Recipe> existingRecipeCanonical = recipeRepository.findFirstByYoutubeUrl(canonicalUrl);
+            Optional<Recipe> existingRecipeCanonical = recipeRepository.findFirstOfficialByYoutubeUrl(canonicalUrl, OFFICIAL_RECIPE_USER_ID);
             if (existingRecipeCanonical.isPresent()) {
                 Recipe r = existingRecipeCanonical.get();
                 boolean isPremiumRecipe = (r.getVisibility() == RecipeVisibility.PUBLIC && r.getListingStatus() == RecipeListingStatus.LISTED);

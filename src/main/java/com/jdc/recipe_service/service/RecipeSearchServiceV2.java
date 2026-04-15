@@ -13,6 +13,9 @@ import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeSimpleStaticDtoV2;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.RecipeType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeIngredientMapper;
@@ -219,6 +222,13 @@ public class RecipeSearchServiceV2 {
 
         List<Long> contributors = recipeIngredientReportRepository.findVerifiedMemberIds(recipeId);
 
+        boolean isCloneable = basic.getUser() != null
+                && OFFICIAL_RECIPE_USER_ID.equals(basic.getUser().getId())
+                && basic.getSource() == RecipeSourceType.YOUTUBE
+                && basic.getOriginRecipe() == null
+                && basic.getLifecycleStatus() == RecipeLifecycleStatus.ACTIVE
+                && basic.getVisibility() == RecipeVisibility.PUBLIC;
+
         return RecipeDetailStaticDto.builder()
                 .id(recipeId)
                 .title(basic.getTitle())
@@ -256,6 +266,7 @@ public class RecipeSearchServiceV2 {
                 .cookingTips(basic.getCookingTips())
                 .nutrition(nutrition)
                 .fineDiningInfo(fineDiningInfo)
+                .isCloneable(isCloneable)
                 .createdAt(basic.getCreatedAt())
                 .updatedAt(basic.getUpdatedAt())
                 .build();
@@ -280,12 +291,16 @@ public class RecipeSearchServiceV2 {
     private Page<RecipeSimpleStaticDto> searchWithQuerydslV2(RecipeSearchCondition condition, Pageable pageable, Long userId) {
         Sort.Order likeSort = pageable.getSort().getOrderFor("likeCount");
         Sort.Order ratingSort = pageable.getSort().getOrderFor("avgRating");
+        Sort.Order popularitySort = pageable.getSort().getOrderFor("popularityScore");
 
         if (likeSort != null) {
             return searchRecipesSortedByDynamicField(condition, pageable, "likeCount", likeSort.getDirection());
         }
         if (ratingSort != null) {
             return searchRecipesSortedByDynamicField(condition, pageable, "avgRating", ratingSort.getDirection());
+        }
+        if (popularitySort != null) {
+            return searchRecipesSortedByDynamicField(condition, pageable, "popularityScore", popularitySort.getDirection());
         }
 
         return recipeQueryRepositoryV2.searchStatic(
@@ -299,9 +314,14 @@ public class RecipeSearchServiceV2 {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
         BooleanExpression whereClause = createWhereClauseForSearch(cond);
-        OrderSpecifier<?> orderSpecifier = "likeCount".equals(property)
-                ? (direction == Sort.Direction.ASC ? recipe.likeCount.asc() : recipe.likeCount.desc())
-                : (direction == Sort.Direction.ASC ? recipe.avgRating.asc() : recipe.avgRating.desc());
+        OrderSpecifier<?> orderSpecifier;
+        if ("likeCount".equals(property)) {
+            orderSpecifier = direction == Sort.Direction.ASC ? recipe.likeCount.asc() : recipe.likeCount.desc();
+        } else if ("popularityScore".equals(property)) {
+            orderSpecifier = direction == Sort.Direction.ASC ? recipe.popularityScore.asc() : recipe.popularityScore.desc();
+        } else {
+            orderSpecifier = direction == Sort.Direction.ASC ? recipe.avgRating.asc() : recipe.avgRating.desc();
+        }
 
         List<Long> sortedIds = queryFactory.select(recipe.id).from(recipe)
                 .leftJoin(recipe.tags, tag).where(whereClause)

@@ -18,6 +18,12 @@ spring:
       hibernate:
         default_batch_fetch_size: 100
 
+  # Flyway 공통 설정. 실제 활성화 여부는 프로파일별 파일에서 제어.
+  flyway:
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+
 server:
   forward-headers-strategy: framework
 
@@ -64,6 +70,8 @@ ai:
     timezone: "Asia/Seoul"
 
 app:
+  recipe:
+    official-user-id: 90121
   vertex:
     locations: "global, us-central1, us-east1"
     # 한 번 429 뜬 지역을 몇 ms 동안 제외할지 (여기선 30초)
