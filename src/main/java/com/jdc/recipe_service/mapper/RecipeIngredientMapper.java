@@ -101,15 +101,29 @@ public class RecipeIngredientMapper {
             }
         }
 
-        return RecipeIngredientDto.builder()
+        RecipeIngredientDto.RecipeIngredientDtoBuilder builder = RecipeIngredientDto.builder()
                 .id(ingredient != null ? ingredient.getId() : null)
                 .name(ingredient != null ? ingredient.getName() : entity.getCustomName())
                 .quantity(formatQuantityForDisplay(entity.getQuantity()))
                 .unit(ingredient != null ? entity.getUnit() : entity.getCustomUnit())
                 .price(totalPrice)
                 .calories(totalCalories)
-                .coupangLink(ingredient != null ? ingredient.getCoupangLink() : null)
-                .build();
+                .coupangLink(ingredient != null ? ingredient.getCoupangLink() : null);
+
+        // 커스텀 재료는 per-unit 원본값을 함께 내려 프론트가 round-trip 할 수 있게 한다.
+        // 유저가 직접 입력하지 않고 YouTube/AI 추출 결과로만 채워지므로 항상 보존되어야 한다.
+        if (isCustom) {
+            Integer rawCustomPrice = entity.getCustomPrice();
+            builder.customPrice(rawCustomPrice != null ? BigDecimal.valueOf(rawCustomPrice) : null)
+                    .customCalories(entity.getCustomCalorie())
+                    .customCarbohydrate(entity.getCustomCarbohydrate())
+                    .customProtein(entity.getCustomProtein())
+                    .customFat(entity.getCustomFat())
+                    .customSugar(entity.getCustomSugar())
+                    .customSodium(entity.getCustomSodium());
+        }
+
+        return builder.build();
     }
 
     public static List<RecipeIngredientDto> toDtoList(List<RecipeIngredient> entities) {
