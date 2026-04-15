@@ -5,6 +5,7 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.exception.ErrorResponse;
 import com.jdc.recipe_service.service.DailyQuotaService;
 import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,13 +33,18 @@ public class GlobalExceptionHandler {
     private String activeProfile;
 
     @ExceptionHandler(CustomException.class)
-    public ResponseEntity<ErrorResponse> handleCustomException(CustomException ex) {
+    public ResponseEntity<ErrorResponse> handleCustomException(CustomException ex, HttpServletRequest request) {
         ErrorCode errorCode = ex.getErrorCode();
 
         String message = ex.getMessage();
 
         if (message == null || message.isBlank()) {
             message = errorCode.getMessage();
+        }
+
+        if (isRefreshRequest(request)) {
+            log.warn("[AUTH_REFRESH] result=response status={} code={} message={}",
+                    errorCode.getStatus().value(), errorCode.getCode(), message);
         }
 
         return ResponseEntity
@@ -121,10 +127,15 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleException(Exception ex) {
+    public ResponseEntity<ErrorResponse> handleException(Exception ex, HttpServletRequest request) {
         String errorId = UUID.randomUUID().toString();
 
         log.error("[ErrorID: {}] 서버 에러 발생", errorId, ex);
+
+        if (isRefreshRequest(request)) {
+            log.error("[AUTH_REFRESH] result=response status=500 exceptionType={} message={} errorId={}",
+                    ex.getClass().getSimpleName(), ex.getMessage(), errorId);
+        }
 
         if (ex.getClass().getName().startsWith("org.springdoc")) {
             throw new RuntimeException(ex);
@@ -158,6 +169,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleRejected(RejectedExecutionException e) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(new ErrorResponse("TOO_MANY_REQUESTS", e.getMessage()));
+    }
+
+    private boolean isRefreshRequest(HttpServletRequest request) {
+        return request != null && "/api/token/refresh".equals(request.getRequestURI());
     }
 
 }
