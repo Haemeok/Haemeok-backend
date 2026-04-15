@@ -390,4 +390,137 @@ class RecipeIngredientServiceTest {
         verify(recipeIngredientRepository).deleteByRecipeId(dummyRecipe.getId());
         verify(recipeIngredientRepository).flush();
     }
+
+    // ─── updateIngredients: 프론트가 0을 보내도 커스텀 값이 보존되는지 회귀 테스트 ──
+    // 배경: 커스텀 재료는 YouTube/AI 추출로만 채워진다(유저 직접 입력 경로 없음).
+    //       프론트 폼이 빈 값을 BigDecimal.ZERO로 직렬화해도 기존 DB 값이 0으로 초기화되면 안 된다.
+
+    @Test
+    @DisplayName("updateIngredients: 프론트가 customPrice/영양소를 모두 0(ZERO)으로 보내도 기존 DB 값이 보존된다")
+    void updateIngredients_preservesExistingValues_whenDtoSendsZero() {
+        // given - DB에 저장된 커스텀 재료 (AI/YouTube가 채운 상태)
+        RecipeIngredient existingCustom = RecipeIngredient.builder()
+                .id(30L)
+                .recipe(dummyRecipe)
+                .customName("특제소스")
+                .customPrice(3500)
+                .customCalorie(BigDecimal.valueOf(120))
+                .customCarbohydrate(BigDecimal.valueOf(15))
+                .customProtein(BigDecimal.valueOf(3))
+                .customFat(BigDecimal.valueOf(5))
+                .customSugar(BigDecimal.valueOf(8))
+                .customSodium(BigDecimal.valueOf(450))
+                .build();
+
+        given(recipeIngredientRepository.findByRecipeId(dummyRecipe.getId()))
+                .willReturn(List.of(existingCustom));
+        given(ingredientRepository.findAll()).willReturn(List.of());
+
+        // 프론트가 폼 기본값 0을 그대로 직렬화해서 보낸 payload를 시뮬레이션
+        RecipeIngredientRequestDto dto = RecipeIngredientRequestDto.builder()
+                .name("특제소스")
+                .quantity("1")
+                .customUnit("큰술")
+                .customPrice(BigDecimal.ZERO)
+                .customCalories(BigDecimal.ZERO)
+                .customCarbohydrate(BigDecimal.ZERO)
+                .customProtein(BigDecimal.ZERO)
+                .customFat(BigDecimal.ZERO)
+                .customSugar(BigDecimal.ZERO)
+                .customSodium(BigDecimal.ZERO)
+                .build();
+
+        // when
+        recipeIngredientService.updateIngredients(dummyRecipe, List.of(dto), RecipeSourceType.USER);
+
+        // then - carry-over가 ZERO를 "의도 없음"으로 간주하고 기존 값으로 복구해야 한다
+        assertThat(dto.getCustomPrice()).isEqualByComparingTo(BigDecimal.valueOf(3500));
+        assertThat(dto.getCustomCalories()).isEqualByComparingTo(BigDecimal.valueOf(120));
+        assertThat(dto.getCustomCarbohydrate()).isEqualByComparingTo(BigDecimal.valueOf(15));
+        assertThat(dto.getCustomProtein()).isEqualByComparingTo(BigDecimal.valueOf(3));
+        assertThat(dto.getCustomFat()).isEqualByComparingTo(BigDecimal.valueOf(5));
+        assertThat(dto.getCustomSugar()).isEqualByComparingTo(BigDecimal.valueOf(8));
+        assertThat(dto.getCustomSodium()).isEqualByComparingTo(BigDecimal.valueOf(450));
+    }
+
+    @Test
+    @DisplayName("updateIngredients: null과 0을 섞어 보내도 각 필드별로 기존 값이 복구된다")
+    void updateIngredients_preservesExistingValues_whenDtoMixesNullAndZero() {
+        // given
+        RecipeIngredient existingCustom = RecipeIngredient.builder()
+                .id(31L)
+                .recipe(dummyRecipe)
+                .customName("참깨드레싱")
+                .customPrice(2000)
+                .customCalorie(BigDecimal.valueOf(90))
+                .customCarbohydrate(BigDecimal.valueOf(7))
+                .customProtein(BigDecimal.valueOf(2))
+                .customFat(BigDecimal.valueOf(6))
+                .customSugar(BigDecimal.valueOf(4))
+                .customSodium(BigDecimal.valueOf(300))
+                .build();
+
+        given(recipeIngredientRepository.findByRecipeId(dummyRecipe.getId()))
+                .willReturn(List.of(existingCustom));
+        given(ingredientRepository.findAll()).willReturn(List.of());
+
+        // 일부는 null, 일부는 ZERO - 둘 다 "의도 없음"으로 간주돼야 한다
+        RecipeIngredientRequestDto dto = RecipeIngredientRequestDto.builder()
+                .name("참깨드레싱")
+                .quantity("2")
+                .customUnit("큰술")
+                .customPrice(null)
+                .customCalories(BigDecimal.ZERO)
+                .customCarbohydrate(null)
+                .customProtein(BigDecimal.ZERO)
+                .customFat(null)
+                .customSugar(BigDecimal.ZERO)
+                .customSodium(null)
+                .build();
+
+        // when
+        recipeIngredientService.updateIngredients(dummyRecipe, List.of(dto), RecipeSourceType.USER);
+
+        // then
+        assertThat(dto.getCustomPrice()).isEqualByComparingTo(BigDecimal.valueOf(2000));
+        assertThat(dto.getCustomCalories()).isEqualByComparingTo(BigDecimal.valueOf(90));
+        assertThat(dto.getCustomCarbohydrate()).isEqualByComparingTo(BigDecimal.valueOf(7));
+        assertThat(dto.getCustomProtein()).isEqualByComparingTo(BigDecimal.valueOf(2));
+        assertThat(dto.getCustomFat()).isEqualByComparingTo(BigDecimal.valueOf(6));
+        assertThat(dto.getCustomSugar()).isEqualByComparingTo(BigDecimal.valueOf(4));
+        assertThat(dto.getCustomSodium()).isEqualByComparingTo(BigDecimal.valueOf(300));
+    }
+
+    @Test
+    @DisplayName("updateIngredients: 프론트가 실제 non-zero 값을 echo하면 그대로 유지되고 DB 값으로 덮어쓰지 않는다")
+    void updateIngredients_keepsDtoValues_whenNonZeroEchoed() {
+        // given - 프론트가 응답 DTO의 per-unit 원본값을 그대로 round-trip 해준 경우
+        RecipeIngredient existingCustom = RecipeIngredient.builder()
+                .id(32L)
+                .recipe(dummyRecipe)
+                .customName("매운양념")
+                .customPrice(1000)
+                .customCalorie(BigDecimal.valueOf(50))
+                .build();
+
+        given(recipeIngredientRepository.findByRecipeId(dummyRecipe.getId()))
+                .willReturn(List.of(existingCustom));
+        given(ingredientRepository.findAll()).willReturn(List.of());
+
+        // 프론트가 새로 내려준 응답값을 그대로 echo
+        RecipeIngredientRequestDto dto = RecipeIngredientRequestDto.builder()
+                .name("매운양념")
+                .quantity("1")
+                .customUnit("큰술")
+                .customPrice(BigDecimal.valueOf(1000))
+                .customCalories(BigDecimal.valueOf(50))
+                .build();
+
+        // when
+        recipeIngredientService.updateIngredients(dummyRecipe, List.of(dto), RecipeSourceType.USER);
+
+        // then - non-zero 값은 carry-over가 건드리지 않는다
+        assertThat(dto.getCustomPrice()).isEqualByComparingTo(BigDecimal.valueOf(1000));
+        assertThat(dto.getCustomCalories()).isEqualByComparingTo(BigDecimal.valueOf(50));
+    }
 }

@@ -65,7 +65,8 @@ class RecipeLikeServiceTest {
         assertThat(result).isFalse();
         verify(likeRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(likeRepository, times(1)).delete(existing);
-        verifyNoInteractions(userRepository, recipeRepository);
+        verify(recipeRepository, times(1)).decrementLikeCount(recipe.getId());
+        verify(userRepository, never()).findById(any());
     }
 
     @Test
@@ -89,6 +90,7 @@ class RecipeLikeServiceTest {
         verify(userRepository, times(1)).findById(user.getId());
         verify(recipeRepository, times(1)).findById(recipe.getId());
         verify(likeRepository, times(1)).save(any(RecipeLike.class));
+        verify(recipeRepository, times(1)).incrementLikeCount(recipe.getId());
 
         RecipeLike saved = captor.getValue();
         assertThat(saved.getUser().getId()).isEqualTo(user.getId());

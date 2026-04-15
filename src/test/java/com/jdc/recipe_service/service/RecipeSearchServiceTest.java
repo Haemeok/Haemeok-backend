@@ -50,6 +50,8 @@ class RecipeSearchServiceTest {
     @Mock private RecipeTagRepository recipeTagRepository;
     @Mock private RecipeIngredientRepository recipeIngredientRepository;
     @Mock private RecipeStepRepository recipeStepRepository;
+    @Mock private com.jdc.recipe_service.domain.repository.RecipeStepIngredientRepository recipeStepIngredientRepository;
+    @Mock private com.jdc.recipe_service.domain.repository.RecipeIngredientReportRepository recipeIngredientReportRepository;
     @Mock private RecipeRatingService recipeRatingService;
     @Mock private CommentService commentService;
     @Mock private RecipeLikeService recipeLikeService;
@@ -117,7 +119,7 @@ class RecipeSearchServiceTest {
     void getRecipeDetail_Success() {
         // Given
         ReflectionTestUtils.setField(sampleRecipe, "likeCount", 10L);
-        given(recipeRepository.findWithUserById(existingId)).willReturn(Optional.of(sampleRecipe));
+        given(recipeRepository.findDetailWithFineDiningById(existingId)).willReturn(Optional.of(sampleRecipe));
         given(recipeLikeRepository.existsByRecipeIdAndUserId(existingId, userId)).willReturn(true);
         given(recipeFavoriteRepository.existsByRecipeIdAndUserId(existingId, userId)).willReturn(false);
         given(recipeRatingService.getMyRating(existingId, userId)).willReturn(5.0);
@@ -133,7 +135,9 @@ class RecipeSearchServiceTest {
                 .customName("감자").customPrice(1000).customUnit("개").build();
         given(recipeIngredientRepository.findByRecipeId(existingId)).willReturn(List.of(ingrEntity));
 
-        RecipeIngredientDto ingrDto = new RecipeIngredientDto(1L, "감자", "2", "개", 2000, 1.0, null);
+        RecipeIngredientDto ingrDto = RecipeIngredientDto.builder()
+                .id(1L).name("감자").quantity("2").unit("개").price(2000).calories(1.0).coupangLink(null)
+                .build();
 
         try (MockedStatic<RecipeIngredientMapper> ingrMapper = Mockito.mockStatic(RecipeIngredientMapper.class)) {
             ingrMapper.when(() -> RecipeIngredientMapper.toDtoList(List.of(ingrEntity))).thenReturn(List.of(ingrDto));
@@ -143,6 +147,8 @@ class RecipeSearchServiceTest {
                     .instruction("손질").imageKey("step-img-key").action(null).build();
             stepEntity.getStepIngredients().clear();
             given(recipeStepRepository.findByRecipeIdOrderByStepNumber(existingId)).willReturn(List.of(stepEntity));
+            given(recipeStepIngredientRepository.findByStepIdIn(List.of(stepEntity.getId()))).willReturn(List.of());
+            given(recipeIngredientReportRepository.findVerifiedMemberIds(existingId)).willReturn(List.of());
 
             String stepImageUrl = "https://bucket.region.amazonaws.com/step-img-key";
             doReturn(stepImageUrl).when(spyService).generateImageUrl("step-img-key");
@@ -219,7 +225,7 @@ class RecipeSearchServiceTest {
                         assertThat(actual.getCreatedAt()).isNotNull();
                         assertThat(actual.getUpdatedAt()).isNotNull();
 
-                        verify(recipeRepository, times(1)).findWithUserById(existingId);
+                        verify(recipeRepository, times(1)).findDetailWithFineDiningById(existingId);
                         verify(recipeLikeRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
                         verify(recipeFavoriteRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
                         verify(recipeRatingService, times(1)).getMyRating(existingId, userId);
@@ -240,14 +246,14 @@ class RecipeSearchServiceTest {
     @DisplayName("getRecipeDetail: 없는 ID 조회 시, RECIPE_NOT_FOUND 예외 발생")
     void getRecipeDetail_NotFound() {
         // Given
-        given(recipeRepository.findWithUserById(missingId)).willReturn(Optional.empty());
+        given(recipeRepository.findDetailWithFineDiningById(missingId)).willReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> spyService.getRecipeDetail(missingId, userId))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_NOT_FOUND));
 
-        verify(recipeRepository, times(1)).findWithUserById(missingId);
+        verify(recipeRepository, times(1)).findDetailWithFineDiningById(missingId);
         verifyNoMoreInteractions(
                 recipeLikeRepository,
                 recipeFavoriteRepository,
@@ -264,14 +270,14 @@ class RecipeSearchServiceTest {
     void getRecipeDetail_PrivateRecipe_OtherUser_throwException() {
         // Given
         sampleRecipe.updateIsPrivate(true);
-        given(recipeRepository.findWithUserById(existingId)).willReturn(Optional.of(sampleRecipe));
+        given(recipeRepository.findDetailWithFineDiningById(existingId)).willReturn(Optional.of(sampleRecipe));
 
         // When & Then
         assertThatThrownBy(() -> spyService.getRecipeDetail(existingId, userId))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED));
 
-        verify(recipeRepository, times(1)).findWithUserById(existingId);
+        verify(recipeRepository, times(1)).findDetailWithFineDiningById(existingId);
         verifyNoMoreInteractions(
                 recipeLikeRepository,
                 recipeFavoriteRepository,
@@ -293,12 +299,13 @@ class RecipeSearchServiceTest {
         // Given
         Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
         given(recipeRepository.findPopularRecipesSince(any(), any())).willReturn(mockPage);
+        given(recipeRepository.search(any(), any(), any())).willReturn(mockPage);
 
         // When
         spyService.getPopularRecipes(period, pageable, currentUserId);
 
+        // Then
         verify(recipeRepository, times(1)).findPopularRecipesSince(any(LocalDateTime.class), eq(pageable));
-
         verify(spyService, times(1)).addLikeInfoToPage(any(), eq(currentUserId));
     }
 
@@ -345,5 +352,87 @@ class RecipeSearchServiceTest {
         // Then
         verify(recipeRepository, times(1)).search(eq(cond), eq(pageable), eq(userId));
         assertThat(cond.getTitle()).isEqualTo("파스타");
+    }
+
+    @Test
+    @DisplayName("searchRecipes: sort=popularityScore DESC 이면 searchAndSortByDynamicField(\"popularityScore\", ...) 경로로 라우팅된다")
+    void searchRecipes_popularityScoreSort_routesToDynamicFieldPath() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "popularityScore"));
+        RecipeSearchCondition cond = new RecipeSearchCondition();
+
+        Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
+        given(recipeRepository.searchAndSortByDynamicField(
+                eq(cond), eq("popularityScore"), eq(Sort.Direction.DESC), eq(pageable), eq(userId)))
+                .willReturn(mockPage);
+
+        // When
+        recipeSearchService.searchRecipes(cond, pageable, userId);
+
+        // Then
+        verify(recipeRepository, times(1)).searchAndSortByDynamicField(
+                eq(cond), eq("popularityScore"), eq(Sort.Direction.DESC), eq(pageable), eq(userId));
+        verify(recipeRepository, never()).search(any(), any(), any());
+        verifyNoInteractions(openSearchService);
+    }
+
+    @Test
+    @DisplayName("searchRecipes: sort=likeCount ASC 이면 searchAndSortByDynamicField(\"likeCount\", ...) 경로로 라우팅된다")
+    void searchRecipes_likeCountSort_routesToDynamicFieldPath() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "likeCount"));
+        RecipeSearchCondition cond = new RecipeSearchCondition();
+
+        Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
+        given(recipeRepository.searchAndSortByDynamicField(
+                eq(cond), eq("likeCount"), eq(Sort.Direction.ASC), eq(pageable), eq(userId)))
+                .willReturn(mockPage);
+
+        // When
+        recipeSearchService.searchRecipes(cond, pageable, userId);
+
+        // Then
+        verify(recipeRepository, times(1)).searchAndSortByDynamicField(
+                eq(cond), eq("likeCount"), eq(Sort.Direction.ASC), eq(pageable), eq(userId));
+        verify(recipeRepository, never()).search(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("searchRecipes: sort=avgRating 이면 searchAndSortByDynamicField(\"avgRating\", ...) 경로로 라우팅된다")
+    void searchRecipes_avgRatingSort_routesToDynamicFieldPath() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "avgRating"));
+        RecipeSearchCondition cond = new RecipeSearchCondition();
+
+        Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
+        given(recipeRepository.searchAndSortByDynamicField(
+                eq(cond), eq("avgRating"), eq(Sort.Direction.DESC), eq(pageable), eq(userId)))
+                .willReturn(mockPage);
+
+        // When
+        recipeSearchService.searchRecipes(cond, pageable, userId);
+
+        // Then
+        verify(recipeRepository, times(1)).searchAndSortByDynamicField(
+                eq(cond), eq("avgRating"), eq(Sort.Direction.DESC), eq(pageable), eq(userId));
+    }
+
+    @Test
+    @DisplayName("searchRecipes: sort=createdAt 이면 dynamic field 경로가 아닌 일반 검색 경로로 간다")
+    void searchRecipes_createdAtSort_doesNotUseDynamicFieldPath() {
+        // Given
+        given(searchProperties.getEngine()).willReturn("querydsl");
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+        RecipeSearchCondition cond = new RecipeSearchCondition();
+
+        Page<RecipeSimpleDto> mockPage = new PageImpl<>(List.of());
+        given(recipeRepository.search(eq(cond), eq(pageable), eq(userId))).willReturn(mockPage);
+
+        // When
+        recipeSearchService.searchRecipes(cond, pageable, userId);
+
+        // Then
+        verify(recipeRepository, never()).searchAndSortByDynamicField(any(), any(), any(), any(), any());
+        verify(recipeRepository, times(1)).search(eq(cond), eq(pageable), eq(userId));
     }
 }
