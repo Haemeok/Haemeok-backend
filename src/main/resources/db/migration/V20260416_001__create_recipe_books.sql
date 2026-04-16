@@ -1,8 +1,9 @@
 -- 레시피북(폴더) 기능: 즐겨찾기와 독립적인 폴더 기반 레시피 정리 시스템
 -- 기존 recipe_favorites 테이블에는 변경 없음 (additive only)
 
--- 유저당 기본 폴더 1개 보장: generated column default_user_id에 UNIQUE 제약.
--- is_default=1이면 user_id를 저장하고, 0이면 NULL이 들어가므로 UNIQUE에서 무시된다.
+-- 유저당 기본 폴더 1개 보장: functional unique index 사용.
+-- is_default=1인 행만 user_id로 유니크 제약을 걸고, 0인 행은 NULL이므로 무시된다.
+-- (MySQL 8.0.13+ functional index, STORED generated column + UNIQUE 조합은 RDS에서 거부될 수 있어 대체)
 
 CREATE TABLE recipe_books (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
@@ -13,14 +14,15 @@ CREATE TABLE recipe_books (
     recipe_count    INT          NOT NULL DEFAULT 0,
     created_at      DATETIME(6)  NOT NULL,
     updated_at      DATETIME(6)  NOT NULL,
-    default_user_id BIGINT GENERATED ALWAYS AS (IF(is_default, user_id, NULL)) STORED,
     PRIMARY KEY (id),
     CONSTRAINT fk_recipe_books_user
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT uk_recipe_books_one_default_per_user
-        UNIQUE (default_user_id),
     INDEX idx_recipe_books_user_order (user_id, display_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 유저당 기본 폴더 1개 제약: functional unique index
+CREATE UNIQUE INDEX uk_recipe_books_one_default_per_user
+    ON recipe_books ((CASE WHEN is_default = 1 THEN user_id END));
 
 -- 레시피북-레시피 매핑 테이블
 
