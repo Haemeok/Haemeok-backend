@@ -13,6 +13,7 @@ import com.jdc.recipe_service.domain.type.recipe.RecipeDisplayMode;
 import com.jdc.recipe_service.service.ai.AiRecipeGenerationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Commit;
@@ -22,6 +23,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "RUN_AI_REAL_TESTS", matches = "true")
 class AiGenerationRealTest {
 
     @Autowired

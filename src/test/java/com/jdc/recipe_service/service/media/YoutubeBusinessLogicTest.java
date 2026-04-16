@@ -9,13 +9,17 @@ import com.jdc.recipe_service.service.user.UserCreditService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional // 테스트 후 DB 상태를 깨끗하게 유지
+@EnabledIfEnvironmentVariable(named = "RUN_YOUTUBE_BUSINESS_TESTS", matches = "true")
 class YoutubeBusinessLogicTest {
 
     @Autowired

@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
@@ -41,54 +40,69 @@ class GeminiImageServiceTest {
     @BeforeEach
     void setUp() {
         List<String> locations = Arrays.asList("global", "us-central1", "us-east1");
+        // 하나의 credential만 사용해 shuffle 랜덤성을 제거한다.
+        List<String> rawCredentials = List.of("test-project:TEST_KEY");
 
         ReflectionTestUtils.setField(geminiImageService, "vertexLocations", locations);
-        ReflectionTestUtils.setField(geminiImageService, "geminiApiKey", "TEST_KEY");
+        ReflectionTestUtils.setField(geminiImageService, "rawCredentials", rawCredentials);
         ReflectionTestUtils.setField(geminiImageService, "bucketName", "test-bucket");
         ReflectionTestUtils.setField(geminiImageService, "region", "us-east-1");
         ReflectionTestUtils.setField(geminiImageService, "cooldownMs", 0L);
+        geminiImageService.init();
     }
 
     @Test
-    @DisplayName("Failover 테스트: Global 429 에러 시 -> US-Central1으로 우회하여 성공해야 한다")
-    void testFailoverLogic() {
-        // Given
+    @DisplayName("Failover: Global 429 발생 시 us-central1으로 넘어가 성공한다")
+    void testFailoverOn429() {
         given(restTemplate.postForEntity(contains("/locations/global/"), any(), eq(Map.class)))
                 .willThrow(new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS));
 
-        Map<String, Object> successResponse = createMockResponse();
         given(restTemplate.postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class)))
-                .willReturn(ResponseEntity.ok(successResponse));
+                .willReturn(ResponseEntity.ok(createMockResponse()));
 
         List<String> result = geminiImageService.generateImageUrls("test prompt", 1L, 100L);
 
         verify(restTemplate, times(1)).postForEntity(contains("/locations/global/"), any(), eq(Map.class));
-
         verify(restTemplate, times(1)).postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class));
-
         verify(restTemplate, never()).postForEntity(contains("/locations/us-east1/"), any(), eq(Map.class));
-
         verify(s3Util, times(1)).upload(any(), any(), any());
 
         assertThat(result.get(0)).contains("test-bucket.s3.us-east-1.amazonaws.com");
     }
 
     @Test
-    @DisplayName("Failover 실패 테스트: 모든 리전이 실패하면 예외가 발생해야 한다 (Unit Test엔 AOP 없음)")
-    void generateImageUrls_throwsException_whenAllFail() {
-        // Given
-        given(restTemplate.postForEntity(anyString(), any(), eq(Map.class)))
-                .willThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR));
+    @DisplayName("네트워크 오류(Timeout) 발생 시에도 다음 리전으로 넘어간다")
+    void testFailoverOnNetworkError() {
+        given(restTemplate.postForEntity(contains("/locations/global/"), any(), eq(Map.class)))
+                .willThrow(new ResourceAccessException("Connection timed out"));
 
-        // When & Then
-        assertThatThrownBy(() -> geminiImageService.generateImageUrls("prompt", 1L, 1L))
-                .isInstanceOf(Exception.class);
+        given(restTemplate.postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class)))
+                .willReturn(ResponseEntity.ok(createMockResponse()));
 
-        verify(restTemplate, times(3)).postForEntity(anyString(), any(), eq(Map.class));
+        geminiImageService.generateImageUrls("prompt", 1L, 1L);
+
+        verify(restTemplate, times(1)).postForEntity(contains("/locations/global/"), any(), eq(Map.class));
+        verify(restTemplate, times(1)).postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class));
+        verify(s3Util, times(1)).upload(any(), any(), any());
     }
 
     @Test
-    @DisplayName("Recover 테스트: recover 메서드 호출 시 기본 이미지(Default URL)를 반환해야 한다")
+    @DisplayName("모든 리전이 5xx로 실패하면 safe-prompt 재시도 후 기본 이미지 URL을 반환한다")
+    void allRegionsFail_returnsDefaultImage() {
+        given(restTemplate.postForEntity(anyString(), any(), eq(Map.class)))
+                .willThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        List<String> result = geminiImageService.generateImageUrls("prompt", 1L, 1L);
+
+        // 1차 호출: 3 regions + safe-prompt 재시도: 3 regions = 총 6
+        verify(restTemplate, times(6)).postForEntity(anyString(), any(), eq(Map.class));
+        verify(s3Util, never()).upload(any(), any(), any());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0)).contains("no_image.webp");
+    }
+
+    @Test
+    @DisplayName("@Recover 메서드는 기본 이미지(Default URL)를 반환한다")
     void recover_returnsDefaultImage() {
         List<String> result = geminiImageService.recover(
                 new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR),
@@ -99,27 +113,8 @@ class GeminiImageServiceTest {
         assertThat(result.get(0)).contains("no_image.webp");
     }
 
-    @Test
-    @DisplayName("네트워크 오류(Timeout) 발생 시에도 다음 리전으로 넘어가야 한다")
-    void testFailoverOnNetworkError() {
-        // Given
-        given(restTemplate.postForEntity(contains("/locations/global/"), any(), eq(Map.class)))
-                .willThrow(new ResourceAccessException("Connection timed out"));
-
-        Map<String, Object> successResponse = createMockResponse();
-        given(restTemplate.postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class)))
-                .willReturn(ResponseEntity.ok(successResponse));
-
-        geminiImageService.generateImageUrls("prompt", 1L, 1L);
-
-        verify(restTemplate, times(1)).postForEntity(contains("/locations/global/"), any(), eq(Map.class));
-        verify(restTemplate, times(1)).postForEntity(contains("/locations/us-central1/"), any(), eq(Map.class));
-        verify(s3Util, times(1)).upload(any(), any(), any());
-    }
-
     private Map<String, Object> createMockResponse() {
         String validBase64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-
         return Map.of(
                 "candidates", List.of(
                         Map.of("content", Map.of("parts", List.of(Map.of("inlineData", Map.of("data", validBase64)))))

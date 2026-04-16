@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service.media;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.service.media.YtDlpService.YoutubeFullDataDto;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -38,6 +39,7 @@ class YtDlpServiceTest {
         ReflectionTestUtils.setField(ytDlpService, "youtubeApiKeys", List.of());
     }
 
+    @Disabled("로컬 디버그용 — yt-dlp 설치 필요")
     @Test
     @DisplayName("🚀 로컬 통합 테스트: 에러 추적 모드")
     void testRealExecution() {
@@ -58,6 +60,7 @@ class YtDlpServiceTest {
         }
     }
 
+    @Disabled("로컬 디버그용 — yt-dlp 설치 필요")
     @Test
     void testGetVideoDataFull() {
         String targetUrl = "https://www.youtube.com/watch?v=CiNtYiBt2oQ";

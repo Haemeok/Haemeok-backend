@@ -8,6 +8,7 @@ import com.jdc.recipe_service.domain.repository.recipe.RecipeAccessRepository;
 import com.jdc.recipe_service.domain.type.recipe.RecipeDisplayMode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Commit;
@@ -17,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "RUN_CONCURRENCY_INTEGRATION_TESTS", matches = "true")
 class ConcurrencyIntegrationTest {
 
     @Autowired
