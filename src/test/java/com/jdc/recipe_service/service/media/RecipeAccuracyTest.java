@@ -5,6 +5,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.service.ai.GrokClientService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "RUN_RECIPE_ACCURACY_TESTS", matches = "true")
 class RecipeAccuracyTest {
 
     @Autowired

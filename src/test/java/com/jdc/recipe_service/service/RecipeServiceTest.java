@@ -343,7 +343,7 @@ class RecipeServiceTest {
     }
 
     @Test
-    @DisplayName("deleteRecipe: 정상 삭제 시 recipeId 반환")
+    @DisplayName("deleteRecipe: 정상 삭제 시 recipeId 반환 (연관 데이터는 DB cascade)")
     void deleteRecipe_success() {
         // Given
         Recipe existing = Recipe.builder()
@@ -353,16 +353,6 @@ class RecipeServiceTest {
                 .build();
         given(recipeRepository.findWithUserById(400L)).willReturn(Optional.of(existing));
 
-        willDoNothing().given(recipeImageService).deleteImagesByRecipeId(400L);
-        willDoNothing().given(recipeLikeService).deleteByRecipeId(400L);
-        willDoNothing().given(recipeFavoriteService).deleteByRecipeId(400L);
-        willDoNothing().given(commentService).deleteAllByRecipeId(400L);
-        willDoNothing().given(recipeStepService).deleteAllByRecipeId(400L);
-        willDoNothing().given(recipeIngredientService).deleteAllByRecipeId(400L);
-        willDoNothing().given(recipeTagService).deleteAllByRecipeId(400L);
-        willDoNothing().given(recipeIndexingService).deleteRecipeSafelyWithRetry(400L);
-        willDoNothing().given(recipeRatingRepository).deleteByRecipeId(400L);
-
         // When
         Long result = recipeService.deleteRecipe(400L, author.getId());
 
@@ -371,15 +361,12 @@ class RecipeServiceTest {
 
         verify(recipeRepository, times(1)).findWithUserById(400L);
         verify(recipeImageService, times(1)).deleteImagesByRecipeId(400L);
-        verify(recipeLikeService, times(1)).deleteByRecipeId(400L);
-        verify(recipeFavoriteService, times(1)).deleteByRecipeId(400L);
-        verify(commentService, times(1)).deleteAllByRecipeId(400L);
-        verify(recipeStepService, times(1)).deleteAllByRecipeId(400L);
-        verify(recipeIngredientService, times(1)).deleteAllByRecipeId(400L);
-        verify(recipeTagService, times(1)).deleteAllByRecipeId(400L);
-        verify(recipeRatingRepository, times(1)).deleteByRecipeId(400L);
         verify(recipeRepository, times(1)).deleteByIdDirectly(400L);
         verify(recipeIndexingService, times(1)).deleteRecipeSafelyWithRetry(400L);
+        // 연관 테이블 정리는 DB cascade 로 이동했으므로 서비스에서는 호출하지 않는다
+        verifyNoInteractions(recipeLikeService, recipeFavoriteService, commentService,
+                recipeStepService, recipeIngredientService, recipeTagService);
+        verify(recipeRatingRepository, never()).deleteByRecipeId(anyLong());
     }
 
     @Test

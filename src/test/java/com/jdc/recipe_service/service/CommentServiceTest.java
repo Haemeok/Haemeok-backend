@@ -15,6 +15,7 @@ import com.jdc.recipe_service.service.NotificationService;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.CommentMapper;
+import org.hashids.Hashids;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ class CommentServiceTest {
     @Mock private RecipeRepository recipeRepository;
     @Mock private UserRepository userRepository;
     @Mock private NotificationService notificationService;
+    @Mock private Hashids hashids;
 
     @InjectMocks
     private CommentService commentService;
@@ -285,38 +287,29 @@ class CommentServiceTest {
         // Given
         List<RecipeComment> comments = List.of(comment1);
         Pageable pageable = PageRequest.of(0, 10, Sort.unsorted());
-        given(recipeCommentRepository.findAllWithRepliesAndUsers(20L, pageable))
+        Pageable repoPg = PageRequest.of(0, 10);
+        given(recipeCommentRepository.findAllWithRepliesAndUsers(20L, repoPg))
                 .willReturn(comments);
+        given(recipeCommentRepository.countByRecipeId(20L)).willReturn(1L);
 
         CommentLikeCountProjection p1 = new CommentLikeCountProjection() {
             public Long getCommentId() { return 100L; }
             public int getLikeCount() { return 2; }
         };
-        CommentLikeCountProjection p2 = new CommentLikeCountProjection() {
-            public Long getCommentId() { return 101L; }
-            public int getLikeCount() { return 3; }
-        };
-        given(commentLikeRepository.countLikesByCommentIds(List.of(100L, 101L)))
-                .willReturn(List.of(p1, p2));
-        given(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(100L, 101L)))
-                .willReturn(List.of(101L));
+        given(commentLikeRepository.countLikesByCommentIds(List.of(100L)))
+                .willReturn(List.of(p1));
+        given(commentLikeRepository.findLikedCommentIdsByUser(10L, List.of(100L)))
+                .willReturn(Collections.emptyList());
 
         CommentDto topMapped = CommentDto.builder()
                 .id(100L).content("첫 번째 댓글")
                 .likeCount(2).likedByCurrentUser(false).replyCount(1)
                 .createdAt(LocalDateTime.of(2025,1,1,10,0))
                 .build();
-        ReplyDto replyMapped = ReplyDto.builder()
-                .id(101L).content("첫 번째 댓글의 답글")
-                .likeCount(3).likedByCurrentUser(true)
-                .createdAt(LocalDateTime.of(2025,1,1,11,0))
-                .build();
 
         try (MockedStatic<CommentMapper> mm = Mockito.mockStatic(CommentMapper.class)) {
             mm.when(() -> CommentMapper.toDto(eq(comment1), eq(false), eq(2)))
                     .thenReturn(topMapped);
-            mm.when(() -> CommentMapper.toReplyDto(eq(reply1), eq(true), eq(3)))
-                    .thenReturn(replyMapped);
 
             // When
             Page<CommentDto> page = commentService.getAllCommentsWithLikes(20L, 10L, pageable);
@@ -331,11 +324,11 @@ class CommentServiceTest {
         }
 
         verify(recipeCommentRepository, times(1))
-                .findAllWithRepliesAndUsers(20L, pageable);
+                .findAllWithRepliesAndUsers(20L, repoPg);
         verify(commentLikeRepository, times(1))
-                .countLikesByCommentIds(List.of(100L, 101L));
+                .countLikesByCommentIds(List.of(100L));
         verify(commentLikeRepository, times(1))
-                .findLikedCommentIdsByUser(10L, List.of(100L, 101L));
+                .findLikedCommentIdsByUser(10L, List.of(100L));
     }
 
     @Test
@@ -464,34 +457,16 @@ class CommentServiceTest {
     }
 
     @Test
-    @DisplayName("deleteAllByRecipeId: 댓글이 없으면 댓글이 없더라도 deleteByRecipeId 호출")
-    void deleteAllByRecipeId_empty() {
-        // Given
-        given(recipeCommentRepository.findByRecipeId(20L)).willReturn(Collections.emptyList());
-
+    @DisplayName("deleteAllByRecipeId: 좋아요 → 대댓글 → 댓글 순으로 bulk 삭제를 호출한다")
+    void deleteAllByRecipeId_callsBulkDelete() {
         // When
         commentService.deleteAllByRecipeId(20L);
 
         // Then
-        verify(recipeCommentRepository, times(1)).findByRecipeId(20L);
-        // 댓글 목록이 빈 리스트여도, deleteByRecipeId(recipeId) 는 호출돼야 함
+        verify(commentLikeRepository, times(1)).deleteAllByRecipeId(20L);
+        verify(recipeCommentRepository, times(1)).deleteRepliesByRecipeId(20L);
         verify(recipeCommentRepository, times(1)).deleteByRecipeId(20L);
         verifyNoMoreInteractions(commentLikeRepository);
-    }
-
-    @Test
-    @DisplayName("deleteAllByRecipeId: 댓글이 있으면 좋아요부터 삭제 후 댓글 일괄 삭제")
-    void deleteAllByRecipeId_success() {
-        // Given
-        List<RecipeComment> all = List.of(comment1, reply1);
-        given(recipeCommentRepository.findByRecipeId(20L)).willReturn(all);
-
-        // When
-        commentService.deleteAllByRecipeId(20L);
-
-        // Then
-        verify(commentLikeRepository, times(1)).deleteByCommentIdIn(List.of(100L, 101L));
-        verify(recipeCommentRepository, times(1)).deleteByRecipeId(20L);
     }
 
     @Test

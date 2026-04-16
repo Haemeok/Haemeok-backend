@@ -5,10 +5,12 @@ import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.verify;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional
 class UserServiceDeleteTest {
 
@@ -32,6 +35,7 @@ class UserServiceDeleteTest {
     S3Util s3Util;
 
     @Test
+    @Disabled("Flyway ON DELETE CASCADE에 의존. H2 + ddl-auto=create-drop(Flyway 비활성) 환경에선 FK cascade가 재현되지 않아 MySQL Testcontainers + Flyway 도입 후 활성화 필요.")
     @DisplayName("유저 하드 삭제 시 연관된 레시피, 댓글, 좋아요가 DB Cascade에 의해 모두 삭제되어야 한다")
     void deleteUser_Cascade_Test() {
         // Given
@@ -58,7 +62,12 @@ class UserServiceDeleteTest {
                 .build());
 
         Recipe otherRecipe = recipeRepository.save(Recipe.builder()
-                .user(otherUser).title("남의 레시피").build());
+                .user(otherUser)
+                .title("남의 레시피")
+                .dishType(DishType.FRYING)
+                .isPrivate(false)
+                .isAiGenerated(false)
+                .build());
 
         recipeLikeRepository.save(RecipeLike.builder()
                 .user(targetUser)
