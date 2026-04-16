@@ -6,11 +6,13 @@ import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponseItem;
 import com.jdc.recipe_service.domain.dto.user.UserDto;
 import com.jdc.recipe_service.domain.dto.user.UserPatchDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
 import com.jdc.recipe_service.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -38,10 +42,12 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/recipes")
-    @Operation(summary = "사용자가 작성한 레시피 목록 조회", description = "특정 사용자가 작성한 레시피 목록을 페이징하여 조회합니다.")
+    @Operation(summary = "사용자가 작성한 레시피 목록 조회", description = "특정 사용자가 작성한 레시피 목록을 페이징하여 조회합니다. types 파라미터로 필터링 가능합니다 (AI, USER, YOUTUBE).")
     public ResponseEntity<Page<MyRecipeSummaryDto>> getUserRecipes(
             @DecodeId Long userId,
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "레시피 타입 필터 (복수 선택 가능)", example = "AI,USER")
+            @RequestParam(required = false) List<RecipeSourceType> types,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
@@ -50,7 +56,7 @@ public class UserController {
                 : null;
 
         Page<MyRecipeSummaryDto> page =
-                userService.getUserRecipes(userId, viewerId, pageable);
+                userService.getUserRecipes(userId, viewerId, types, pageable);
 
         return ResponseEntity.ok(page);
     }

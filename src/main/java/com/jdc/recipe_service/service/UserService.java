@@ -12,6 +12,7 @@ import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.QuotaType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.UserMapper;
@@ -241,18 +242,24 @@ public class UserService {
     public Page<MyRecipeSummaryDto> getUserRecipes(
             Long targetUserId,
             @Nullable Long viewerId,
+            @Nullable List<RecipeSourceType> sourceTypes,
             Pageable pageable) {
 
         userRepository.findById(targetUserId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         boolean isOwner = (viewerId != null && viewerId.equals(targetUserId));
+        boolean hasTypeFilter = sourceTypes != null && !sourceTypes.isEmpty();
 
         Page<Recipe> recipesPage;
         if (isOwner) {
-            recipesPage = recipeRepository.findCompletedRecipesByUserId(targetUserId, pageable);
+            recipesPage = hasTypeFilter
+                    ? recipeRepository.findCompletedRecipesByUserIdAndSourceIn(targetUserId, sourceTypes, pageable)
+                    : recipeRepository.findCompletedRecipesByUserId(targetUserId, pageable);
         } else {
-            recipesPage = recipeRepository.findByUserIdAndIsPrivateFalse(targetUserId, pageable);
+            recipesPage = hasTypeFilter
+                    ? recipeRepository.findByUserIdAndIsPrivateFalseAndSourceIn(targetUserId, sourceTypes, pageable)
+                    : recipeRepository.findByUserIdAndIsPrivateFalse(targetUserId, pageable);
         }
 
         Set<Long> likedIds;
@@ -275,6 +282,7 @@ public class UserService {
                         .title(recipe.getTitle())
                         .imageUrl(generateImageUrl(recipe.getImageKey()))
                         .dishType(recipe.getDishType().getDisplayName())
+                        .type(recipe.getSource().name())
                         .createdAt(recipe.getCreatedAt())
                         .isAiGenerated(recipe.isAiGenerated())
                         .isPrivate(recipe.getIsPrivate())

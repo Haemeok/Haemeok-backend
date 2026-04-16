@@ -7,6 +7,7 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.projection.RecipeSitemapProjection;
 import com.jdc.recipe_service.domain.type.DishType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,6 +57,18 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     @EntityGraph(attributePaths = {"fineDiningDetails"})
     Page<Recipe> findByUserIdAndIsPrivateFalse(Long userId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"fineDiningDetails"})
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.user.id = :userId
+              AND r.isPrivate = false
+              AND r.source IN :sources
+            """)
+    Page<Recipe> findByUserIdAndIsPrivateFalseAndSourceIn(
+            @Param("userId") Long userId,
+            @Param("sources") List<RecipeSourceType> sources,
+            Pageable pageable);
 
     Optional<Recipe> findById(Long id);
 
@@ -421,6 +434,17 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
               AND (r.isAiGenerated = false OR r.imageKey IS NOT NULL)
             """)
     Page<Recipe> findCompletedRecipesByUserId(@Param("userId") Long userId, Pageable pageable);
+
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.user.id = :userId
+              AND (r.isAiGenerated = false OR r.imageKey IS NOT NULL)
+              AND r.source IN :sources
+            """)
+    Page<Recipe> findCompletedRecipesByUserIdAndSourceIn(
+            @Param("userId") Long userId,
+            @Param("sources") List<RecipeSourceType> sources,
+            Pageable pageable);
 
     @Query("SELECT COUNT(r) FROM Recipe r " +
             "WHERE REPLACE(r.title, ' ', '') LIKE %:keyword% " +
