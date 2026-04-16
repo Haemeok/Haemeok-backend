@@ -6,6 +6,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto;
 import com.jdc.recipe_service.domain.dto.user.UserPatchDTO;
 import com.jdc.recipe_service.domain.dto.user.UserResponseDTO;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -24,6 +25,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 import static org.springframework.data.domain.Sort.Direction.DESC;
 
@@ -89,9 +92,11 @@ public class MyAccountController {
     }
 
     @GetMapping("/recipes")
-    @Operation(summary = "내가 작성한 레시피 조회", description = "내가 작성한 모든 레시피를 페이징하여 조회합니다. 정렬 기준: createdAt DESC")
+    @Operation(summary = "내가 작성한 레시피 조회", description = "내가 작성한 모든 레시피를 페이징하여 조회합니다. types 파라미터로 필터링 가능합니다 (AI, USER, YOUTUBE).")
     public ResponseEntity<Page<MyRecipeSummaryDto>> getMyRecipes(
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "레시피 타입 필터 (복수 선택 가능)", example = "AI,USER")
+            @RequestParam(required = false) List<RecipeSourceType> types,
             @Parameter(name = "sort", description = "정렬 기준 (createdAt,DESC 만 지원)", example = "createdAt,DESC")
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
@@ -100,7 +105,7 @@ public class MyAccountController {
         }
         Long myId = userDetails.getUser().getId();
         Page<MyRecipeSummaryDto> page =
-                userService.getUserRecipes(myId, myId, pageable);
+                userService.getUserRecipes(myId, myId, types, pageable);
 
         return ResponseEntity.ok(page);
     }

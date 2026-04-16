@@ -24,6 +24,7 @@ public class MyRecipeSummaryDto {
     private String title;
     private String imageUrl;
     private String dishType;
+    private String type;
     private boolean isAiGenerated;
     private boolean isPrivate;
 
