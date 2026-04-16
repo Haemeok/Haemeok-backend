@@ -18,7 +18,7 @@ public class RecipeStatusService {
 
     private final RecipeRepository recipeRepository;
     private final RecipeLikeRepository recipeLikeRepository;
-    private final RecipeFavoriteRepository recipeFavoriteRepository;
+    private final RecipeBookItemRepository recipeBookItemRepository;
     private final RecipeRatingRepository recipeRatingRepository;
     private final RecipeCommentRepository recipeCommentRepository;
     private final RefrigeratorItemRepository refrigeratorItemRepository;
@@ -34,7 +34,6 @@ public class RecipeStatusService {
         Map<Long, Long> recipeFavoriteCounts = recipeRepository.findFavoriteCountsMapByIds(recipeIds);
 
         Map<Long, List<CommentStatusDto>> commentStatusesMap = new HashMap<>();
-        // remixCount는 user-agnostic이지만 H6(count==list.size) 보장 위해 status에서 fresh 계산. 단건 상세에서만.
         Map<Long, Long> remixCountMap = new HashMap<>();
         if (recipeIds.size() == 1) {
             Long recipeId = recipeIds.get(0);
@@ -68,10 +67,9 @@ public class RecipeStatusService {
         }
 
         Set<Long> likedRecipeIds = recipeLikeRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
-        Set<Long> favoritedRecipeIds = recipeFavoriteRepository.findRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
+        Set<Long> favoritedRecipeIds = recipeBookItemRepository.findSavedRecipeIdsByUserIdAndRecipeIdIn(userId, recipeIds);
         Map<Long, Double> myRatings = recipeRatingRepository.findRatingsMapByUserIdAndRecipeIdIn(userId, recipeIds);
 
-        // 재료-냉장고 교집합과 clonedByMe는 상세 단건 조회에서만 채운다. 목록 배치에서는 쿼리 비용이 커서 제외.
         Map<Long, List<Long>> fridgeIngredientIdsMap = new HashMap<>();
         Map<Long, Boolean> clonedByMeMap = new HashMap<>();
         if (recipeIds.size() == 1) {

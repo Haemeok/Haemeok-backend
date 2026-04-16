@@ -86,7 +86,16 @@ public enum ErrorCode {
     WEBHOOK_HANDLING_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "1003", "웹훅 이벤트 처리 중 오류가 발생했습니다."),
     INVALID_PAYMENT_PRODUCT(HttpStatus.BAD_REQUEST, "1004", "유효하지 않은 결제 상품(Variant ID)입니다."),
     CREDIT_TRANSACTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "1005", "크레딧 지급/차감 처리에 실패했습니다."),
-    REFERRAL_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "1006", "이번 달 친구 초대 보상 한도를 초과했습니다.");
+    REFERRAL_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "1006", "이번 달 친구 초대 보상 한도를 초과했습니다."),
+
+    // --- Recipe Book (1100) ---
+    RECIPE_BOOK_NOT_FOUND(HttpStatus.NOT_FOUND, "1101", "요청한 레시피북이 존재하지 않습니다."),
+    RECIPE_BOOK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "1102", "레시피북에 대한 접근 권한이 없습니다."),
+    RECIPE_BOOK_DEFAULT_CANNOT_DELETE(HttpStatus.BAD_REQUEST, "1103", "기본 레시피북은 삭제할 수 없습니다."),
+    RECIPE_BOOK_DEFAULT_CANNOT_RENAME(HttpStatus.BAD_REQUEST, "1104", "기본 레시피북은 이름을 변경할 수 없습니다."),
+    RECIPE_BOOK_DUPLICATE_ITEM(HttpStatus.CONFLICT, "1105", "이미 해당 레시피북에 추가된 레시피입니다."),
+    RECIPE_BOOK_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "1106", "레시피북 생성 한도를 초과했습니다."),
+    RECIPE_BOOK_DUPLICATE_NAME(HttpStatus.CONFLICT, "1107", "이미 같은 이름의 레시피북이 존재합니다.");
 
     private final HttpStatus status;
     private final String code;

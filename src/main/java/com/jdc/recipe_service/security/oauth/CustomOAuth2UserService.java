@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.type.Role;
+import com.jdc.recipe_service.service.RecipeBookService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -28,6 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
+    private final RecipeBookService recipeBookService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String DEFAULT_PROFILE_BASE =
             "https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com/images/profiles/default/";
@@ -148,6 +150,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                                 .profileImage(randomProfile)
                                 .build());
                         log.info("[OAuth2] 신규 유저 가입 완료: provider={}, userId={}", provider, saved.getId());
+                        recipeBookService.ensureDefaultBook(saved.getId());
                         return saved;
                     } catch (DataIntegrityViolationException e) {
                         log.warn("[OAuth2] 동시 가입 충돌 감지, 기존 유저 조회로 폴백: provider={}, oauthId={}", provider, p.oauthId);

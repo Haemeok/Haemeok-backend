@@ -107,6 +107,7 @@ public class RecipeExtractionService {
     private final RecipeService recipeService;
     private final DailyQuotaService dailyQuotaService;
     private final RecipeFavoriteService recipeFavoriteService;
+    private final RecipeBookService recipeBookService;
     private final RecipeActivityService recipeActivityService;
 
     private final RecipeRepository recipeRepository;
@@ -135,7 +136,9 @@ public class RecipeExtractionService {
             RecipeService recipeService,
             DailyQuotaService dailyQuotaService, RecipeActivityService recipeActivityService,
             RecipeRepository recipeRepository,
-            RecipeFavoriteService recipeFavoriteService, RecipeGenerationJobRepository jobRepository,
+            RecipeFavoriteService recipeFavoriteService,
+            RecipeBookService recipeBookService,
+            RecipeGenerationJobRepository jobRepository,
             YoutubeTargetChannelRepository youtubeTargetChannelRepository,
             YoutubeRecommendationRepository youtubeRecommendationRepository,
             TransactionTemplate transactionTemplate,
@@ -151,6 +154,7 @@ public class RecipeExtractionService {
         this.recipeActivityService = recipeActivityService;
         this.recipeRepository = recipeRepository;
         this.recipeFavoriteService = recipeFavoriteService;
+        this.recipeBookService = recipeBookService;
         this.jobRepository = jobRepository;
         this.youtubeTargetChannelRepository = youtubeTargetChannelRepository;
         this.youtubeRecommendationRepository = youtubeRecommendationRepository;
@@ -1125,6 +1129,7 @@ public class RecipeExtractionService {
             try {
                 transactionTemplate.executeWithoutResult(status -> {
                     recipeFavoriteService.addFavoriteIfNotExists(userId, recipeId);
+                    recipeBookService.saveToDefaultBookIfAbsent(userId, recipeId);
                 });
                 return;
 

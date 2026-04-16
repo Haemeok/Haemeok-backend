@@ -4,7 +4,7 @@ import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
-import com.jdc.recipe_service.service.RecipeFavoriteService;
+import com.jdc.recipe_service.service.RecipeBookService;
 import com.jdc.recipe_service.service.RecipeLikeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,7 +23,7 @@ import java.util.Map;
 public class RecipeLikeAndFavoriteController {
 
     private final RecipeLikeService likeService;
-    private final RecipeFavoriteService favoriteService;
+    private final RecipeBookService recipeBookService;
 
     @PostMapping("/{id}/like")
     @Operation(summary = "레시피 좋아요 토글", description = "레시피에 좋아요를 등록하거나 취소합니다. 이미 좋아요 상태면 취소되고, 아니라면 등록됩니다.")
@@ -43,7 +43,7 @@ public class RecipeLikeAndFavoriteController {
     }
 
     @PostMapping("/{id}/favorite")
-    @Operation(summary = "레시피 즐겨찾기 토글", description = "레시피를 즐겨찾기에 등록하거나 해제합니다. 이미 즐겨찾기 상태면 해제되고, 아니라면 등록됩니다.")
+    @Operation(summary = "레시피 저장 토글", description = "레시피를 저장하거나 저장 해제합니다. 저장 시 기본 폴더에 추가되며, 해제 시 모든 폴더에서 제거됩니다.")
     public ResponseEntity<?> toggleFavorite(
             @Parameter(description = "레시피 ID") @DecodeId Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails
@@ -52,10 +52,10 @@ public class RecipeLikeAndFavoriteController {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         Long userId = userDetails.getUser().getId();
-        boolean favorited = favoriteService.toggleFavorite(userId, id);
+        boolean saved = recipeBookService.toggleSave(userId, id);
         return ResponseEntity.ok(Map.of(
-                "favorited", favorited,
-                "message", favorited ? "레시피 즐겨찾기 등록 완료" : "레시피 즐겨찾기 취소 완료"
+                "saved", saved,
+                "message", saved ? "레시피 저장 완료" : "레시피 저장 해제 완료"
         ));
     }
 }

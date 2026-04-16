@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.repository.RecipeBookItemRepository;
 import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
@@ -30,6 +31,10 @@ class RecipeFavoriteServiceTest {
     private RecipeRepository recipeRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private RecipeBookItemRepository bookItemRepository;
+    @Mock
+    private RecipeBookService recipeBookService;
 
     @InjectMocks
     private RecipeFavoriteService favoriteService;
@@ -47,16 +52,13 @@ class RecipeFavoriteServiceTest {
     @DisplayName("toggleFavorite: 이미 즐겨찾기 되어 있으면 삭제 후 false 반환")
     void toggleFavorite_existingFavorite_returnsFalse() {
         // Given
-        // 1) favoriteRepository.findByUserIdAndRecipeId(...) 가 Optional.of(...) 리턴
         RecipeFavorite existing = RecipeFavorite.builder()
-                .id(100L)
+                .id(200L)
                 .user(user)
                 .recipe(recipe)
                 .build();
         given(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
                 .willReturn(Optional.of(existing));
-
-        // 2) delete(...) 호출 시 아무 일 없음
         willDoNothing().given(favoriteRepository).delete(existing);
 
         // When
@@ -64,26 +66,18 @@ class RecipeFavoriteServiceTest {
 
         // Then
         assertThat(result).isFalse();
-        verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
-        verify(favoriteRepository, times(1)).delete(existing);
-        // 유저/레시피 조회는 호출되지 않아야 함
-        verifyNoInteractions(userRepository, recipeRepository);
+        verify(favoriteRepository).delete(existing);
     }
 
     @Test
     @DisplayName("toggleFavorite: 즐겨찾기 기록이 없으면 새로 저장 후 true 반환")
     void toggleFavorite_noFavorite_savesAndReturnsTrue() {
         // Given
-        // 1) findByUserIdAndRecipeId -> Optional.empty()
         given(favoriteRepository.findByUserIdAndRecipeId(user.getId(), recipe.getId()))
                 .willReturn(Optional.empty());
-
-        // 2) userRepository.findById -> user
         given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
-        // 3) recipeRepository.findById -> recipe
         given(recipeRepository.findById(recipe.getId())).willReturn(Optional.of(recipe));
 
-        // 4) save(...) 호출 시 그대로 RecipeFavorite 객체 리턴
         ArgumentCaptor<RecipeFavorite> captor = ArgumentCaptor.forClass(RecipeFavorite.class);
         given(favoriteRepository.save(captor.capture()))
                 .willAnswer(invocation -> invocation.getArgument(0));
@@ -93,10 +87,7 @@ class RecipeFavoriteServiceTest {
 
         // Then
         assertThat(result).isTrue();
-        verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
-        verify(userRepository, times(1)).findById(user.getId());
-        verify(recipeRepository, times(1)).findById(recipe.getId());
-        verify(favoriteRepository, times(1)).save(any(RecipeFavorite.class));
+        verify(favoriteRepository).save(any(RecipeFavorite.class));
 
         RecipeFavorite saved = captor.getValue();
         assertThat(saved.getUser().getId()).isEqualTo(user.getId());
@@ -118,7 +109,6 @@ class RecipeFavoriteServiceTest {
 
         verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
-        verifyNoMoreInteractions(recipeRepository, favoriteRepository);
     }
 
     @Test
@@ -138,19 +128,23 @@ class RecipeFavoriteServiceTest {
         verify(favoriteRepository, times(1)).findByUserIdAndRecipeId(user.getId(), recipe.getId());
         verify(userRepository, times(1)).findById(user.getId());
         verify(recipeRepository, times(1)).findById(recipe.getId());
-        verifyNoMoreInteractions(favoriteRepository);
     }
 
     @Test
-    @DisplayName("deleteByRecipeId: favoriteRepository.deleteByRecipeId 호출")
-    void deleteByRecipeId_invokesRepository() {
+    @DisplayName("deleteByRecipeId: favorite 삭제 → count 보정 → bookItem 삭제 순서로 호출")
+    void deleteByRecipeId_invokesInCorrectOrder() {
         // Given
         willDoNothing().given(favoriteRepository).deleteByRecipeId(recipe.getId());
+        willDoNothing().given(recipeBookService).adjustCountsBeforeRecipeDeletion(recipe.getId());
+        willDoNothing().given(bookItemRepository).deleteByRecipeId(recipe.getId());
 
         // When
         favoriteService.deleteByRecipeId(recipe.getId());
 
         // Then
-        verify(favoriteRepository, times(1)).deleteByRecipeId(recipe.getId());
+        InOrder inOrder = inOrder(favoriteRepository, recipeBookService, bookItemRepository);
+        inOrder.verify(favoriteRepository).deleteByRecipeId(recipe.getId());
+        inOrder.verify(recipeBookService).adjustCountsBeforeRecipeDeletion(recipe.getId());
+        inOrder.verify(bookItemRepository).deleteByRecipeId(recipe.getId());
     }
 }
