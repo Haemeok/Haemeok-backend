@@ -595,6 +595,13 @@ public class RecipeService {
         }
 
         recipe.updateIsPrivate(newValue);
+        if (newValue) {
+            recipe.updateVisibility(RecipeVisibility.PRIVATE);
+            recipe.updateListingStatus(RecipeListingStatus.UNLISTED);
+        } else {
+            recipe.updateVisibility(RecipeVisibility.PUBLIC);
+            recipe.updateListingStatus(RecipeListingStatus.LISTED);
+        }
 
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
