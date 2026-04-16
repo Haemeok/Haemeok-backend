@@ -215,40 +215,54 @@ public class RecipeBookService {
     // ── 레시피북 아이템 관리 ──
 
     @Transactional
-    public void addRecipeToBook(Long userId, Long bookId, AddRecipeToBookRequest request) {
+    public AddRecipesToBookResponse addRecipesToBook(Long userId, Long bookId, AddRecipesToBookRequest request) {
         RecipeBook book = findBookAndVerifyOwner(userId, bookId);
-        Long recipeId = request.getRecipeId();
 
-        Recipe recipe = recipeRepo.findById(recipeId)
-                .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
+        // 중복 제거
+        List<Long> uniqueIds = request.getRecipeIds().stream().distinct().toList();
 
-        if (!isAccessible(recipe, userId)) {
-            throw new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
-        }
+        int addedCount = 0;
+        int skippedCount = 0;
 
-        if (itemRepo.existsByBookIdAndRecipeId(bookId, recipeId)) {
-            throw new CustomException(ErrorCode.RECIPE_BOOK_DUPLICATE_ITEM);
-        }
+        for (Long recipeId : uniqueIds) {
+            // 이미 이 폴더에 있으면 skip
+            if (itemRepo.existsByBookIdAndRecipeId(bookId, recipeId)) {
+                skippedCount++;
+                continue;
+            }
 
-        RecipeBookItem item = RecipeBookItem.builder()
-                .book(book)
-                .recipe(recipe)
-                .build();
+            Recipe recipe = recipeRepo.findById(recipeId).orElse(null);
+            if (recipe == null || !isAccessible(recipe, userId)) {
+                skippedCount++;
+                continue;
+            }
 
-        // 첫 폴더 추가인 경우 legacy favorite도 동기화
-        boolean wasAlreadySaved = itemRepo.existsByUserIdAndRecipeId(userId, recipeId);
-
-        itemRepo.save(item);
-        book.incrementRecipeCount();
-
-        if (!wasAlreadySaved && !favoriteRepo.existsByUserIdAndRecipeId(userId, recipeId)) {
-            var user = userRepo.getReferenceById(userId);
-            favoriteRepo.save(RecipeFavorite.builder()
-                    .user(user)
+            RecipeBookItem item = RecipeBookItem.builder()
+                    .book(book)
                     .recipe(recipe)
-                    .build());
-            recipe.increaseFavoriteCount();
+                    .build();
+
+            // 첫 폴더 추가인 경우 legacy favorite도 동기화
+            boolean wasAlreadySaved = itemRepo.existsByUserIdAndRecipeId(userId, recipeId);
+
+            itemRepo.save(item);
+            book.incrementRecipeCount();
+            addedCount++;
+
+            if (!wasAlreadySaved && !favoriteRepo.existsByUserIdAndRecipeId(userId, recipeId)) {
+                var user = userRepo.getReferenceById(userId);
+                favoriteRepo.save(RecipeFavorite.builder()
+                        .user(user)
+                        .recipe(recipe)
+                        .build());
+                recipe.increaseFavoriteCount();
+            }
         }
+
+        return AddRecipesToBookResponse.builder()
+                .addedCount(addedCount)
+                .skippedCount(skippedCount)
+                .build();
     }
 
     @Transactional

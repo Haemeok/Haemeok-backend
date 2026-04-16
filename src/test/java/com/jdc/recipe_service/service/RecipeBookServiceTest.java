@@ -294,11 +294,11 @@ class RecipeBookServiceTest {
         }
     }
 
-    // ── addRecipeToBook ──
+    // ── addRecipesToBook ──
 
     @Nested
-    @DisplayName("addRecipeToBook")
-    class AddRecipeToBook {
+    @DisplayName("addRecipesToBook")
+    class AddRecipesToBook {
 
         @Test
         @DisplayName("첫 폴더에 레시피 추가 시 legacy favorite도 생성")
@@ -312,7 +312,6 @@ class RecipeBookServiceTest {
                     .willReturn(false);
             given(itemRepo.save(any(RecipeBookItem.class)))
                     .willAnswer(invocation -> invocation.getArgument(0));
-            // 첫 폴더 추가 → legacy sync
             given(itemRepo.existsByUserIdAndRecipeId(user.getId(), recipe.getId()))
                     .willReturn(false);
             given(favoriteRepo.existsByUserIdAndRecipeId(user.getId(), recipe.getId()))
@@ -320,19 +319,22 @@ class RecipeBookServiceTest {
             given(userRepo.getReferenceById(user.getId())).willReturn(user);
             given(favoriteRepo.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
-            AddRecipeToBookRequest request = AddRecipeToBookRequest.builder()
-                    .recipeId(recipe.getId())
+            AddRecipesToBookRequest request = AddRecipesToBookRequest.builder()
+                    .recipeIds(List.of(recipe.getId()))
                     .build();
 
-            bookService.addRecipeToBook(user.getId(), defaultBook.getId(), request);
+            AddRecipesToBookResponse result =
+                    bookService.addRecipesToBook(user.getId(), defaultBook.getId(), request);
 
+            assertThat(result.getAddedCount()).isEqualTo(1);
+            assertThat(result.getSkippedCount()).isZero();
             verify(itemRepo).save(any(RecipeBookItem.class));
             verify(favoriteRepo).save(any());
         }
 
         @Test
-        @DisplayName("비공개 레시피를 타인이 추가하려 하면 RECIPE_PRIVATE_ACCESS_DENIED 예외")
-        void throwsWhenPrivateRecipeNotOwned() {
+        @DisplayName("비공개 타인 레시피는 skip 처리")
+        void skipsPrivateRecipeNotOwned() {
             User otherUser = User.builder().id(999L).build();
             Recipe privateRecipe = Recipe.builder().id(50L)
                     .user(otherUser).isPrivate(true).build();
@@ -341,45 +343,25 @@ class RecipeBookServiceTest {
                     .id(20L).user(user).name("커스텀").build();
 
             given(bookRepo.findById(customBook.getId())).willReturn(Optional.of(customBook));
+            given(itemRepo.existsByBookIdAndRecipeId(customBook.getId(), privateRecipe.getId()))
+                    .willReturn(false);
             given(recipeRepo.findById(privateRecipe.getId())).willReturn(Optional.of(privateRecipe));
 
-            AddRecipeToBookRequest request = AddRecipeToBookRequest.builder()
-                    .recipeId(privateRecipe.getId())
+            AddRecipesToBookRequest request = AddRecipesToBookRequest.builder()
+                    .recipeIds(List.of(privateRecipe.getId()))
                     .build();
 
-            assertThatThrownBy(() -> bookService.addRecipeToBook(user.getId(), customBook.getId(), request))
-                    .isInstanceOf(CustomException.class)
-                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
-                            .isEqualTo(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED));
+            AddRecipesToBookResponse result =
+                    bookService.addRecipesToBook(user.getId(), customBook.getId(), request);
+
+            assertThat(result.getAddedCount()).isZero();
+            assertThat(result.getSkippedCount()).isEqualTo(1);
+            verify(itemRepo, never()).save(any());
         }
 
         @Test
-        @DisplayName("isPrivate=true, visibility=PUBLIC인 타인 레시피는 접근 거부 (실제 운영 케이스)")
-        void throwsWhenIsPrivateTrueButVisibilityPublic() {
-            User otherUser = User.builder().id(999L).build();
-            // 실제 운영: togglePrivacy는 isPrivate만 바꾸고 visibility는 PUBLIC으로 남긴다
-            Recipe recipe = Recipe.builder().id(50L)
-                    .user(otherUser).isPrivate(true).build();
-
-            RecipeBook customBook = RecipeBook.builder()
-                    .id(20L).user(user).name("커스텀").build();
-
-            given(bookRepo.findById(customBook.getId())).willReturn(Optional.of(customBook));
-            given(recipeRepo.findById(recipe.getId())).willReturn(Optional.of(recipe));
-
-            AddRecipeToBookRequest request = AddRecipeToBookRequest.builder()
-                    .recipeId(recipe.getId())
-                    .build();
-
-            assertThatThrownBy(() -> bookService.addRecipeToBook(user.getId(), customBook.getId(), request))
-                    .isInstanceOf(CustomException.class)
-                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
-                            .isEqualTo(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED));
-        }
-
-        @Test
-        @DisplayName("이미 추가된 레시피는 RECIPE_BOOK_DUPLICATE_ITEM 예외")
-        void throwsWhenDuplicate() {
+        @DisplayName("이미 추가된 레시피는 skip 처리")
+        void skipsWhenDuplicate() {
             Recipe recipe = Recipe.builder().id(50L)
                     .user(user).isPrivate(false).build();
 
@@ -387,18 +369,82 @@ class RecipeBookServiceTest {
                     .id(20L).user(user).name("커스텀").build();
 
             given(bookRepo.findById(customBook.getId())).willReturn(Optional.of(customBook));
-            given(recipeRepo.findById(recipe.getId())).willReturn(Optional.of(recipe));
             given(itemRepo.existsByBookIdAndRecipeId(customBook.getId(), recipe.getId()))
                     .willReturn(true);
 
-            AddRecipeToBookRequest request = AddRecipeToBookRequest.builder()
-                    .recipeId(recipe.getId())
+            AddRecipesToBookRequest request = AddRecipesToBookRequest.builder()
+                    .recipeIds(List.of(recipe.getId()))
                     .build();
 
-            assertThatThrownBy(() -> bookService.addRecipeToBook(user.getId(), customBook.getId(), request))
-                    .isInstanceOf(CustomException.class)
-                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
-                            .isEqualTo(ErrorCode.RECIPE_BOOK_DUPLICATE_ITEM));
+            AddRecipesToBookResponse result =
+                    bookService.addRecipesToBook(user.getId(), customBook.getId(), request);
+
+            assertThat(result.getAddedCount()).isZero();
+            assertThat(result.getSkippedCount()).isEqualTo(1);
+            verify(itemRepo, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("여러 레시피 중 일부만 추가되고 나머지는 skip")
+        void partialAddAndSkip() {
+            Recipe publicRecipe = Recipe.builder().id(50L)
+                    .user(user).isPrivate(false).build();
+            Recipe alreadyAdded = Recipe.builder().id(51L)
+                    .user(user).isPrivate(false).build();
+            Long nonExistentId = 999L;
+
+            RecipeBook customBook = RecipeBook.builder()
+                    .id(20L).user(user).name("커스텀").build();
+
+            given(bookRepo.findById(customBook.getId())).willReturn(Optional.of(customBook));
+
+            // 50: 새로 추가 가능
+            given(itemRepo.existsByBookIdAndRecipeId(customBook.getId(), 50L)).willReturn(false);
+            given(recipeRepo.findById(50L)).willReturn(Optional.of(publicRecipe));
+            given(itemRepo.existsByUserIdAndRecipeId(user.getId(), 50L)).willReturn(true);
+            given(itemRepo.save(any(RecipeBookItem.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+
+            // 51: 이미 존재
+            given(itemRepo.existsByBookIdAndRecipeId(customBook.getId(), 51L)).willReturn(true);
+
+            // 999: 존재하지 않는 레시피
+            given(itemRepo.existsByBookIdAndRecipeId(customBook.getId(), 999L)).willReturn(false);
+            given(recipeRepo.findById(999L)).willReturn(Optional.empty());
+
+            AddRecipesToBookRequest request = AddRecipesToBookRequest.builder()
+                    .recipeIds(List.of(50L, 51L, 999L))
+                    .build();
+
+            AddRecipesToBookResponse result =
+                    bookService.addRecipesToBook(user.getId(), customBook.getId(), request);
+
+            assertThat(result.getAddedCount()).isEqualTo(1);
+            assertThat(result.getSkippedCount()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("중복 ID는 자동 제거되어 1번만 처리")
+        void deduplicatesIds() {
+            Recipe recipe = Recipe.builder().id(50L)
+                    .user(user).isPrivate(false).build();
+
+            given(bookRepo.findById(defaultBook.getId())).willReturn(Optional.of(defaultBook));
+            given(itemRepo.existsByBookIdAndRecipeId(defaultBook.getId(), 50L)).willReturn(false);
+            given(recipeRepo.findById(50L)).willReturn(Optional.of(recipe));
+            given(itemRepo.existsByUserIdAndRecipeId(user.getId(), 50L)).willReturn(true);
+            given(itemRepo.save(any(RecipeBookItem.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+
+            AddRecipesToBookRequest request = AddRecipesToBookRequest.builder()
+                    .recipeIds(List.of(50L, 50L, 50L))
+                    .build();
+
+            AddRecipesToBookResponse result =
+                    bookService.addRecipesToBook(user.getId(), defaultBook.getId(), request);
+
+            assertThat(result.getAddedCount()).isEqualTo(1);
+            assertThat(result.getSkippedCount()).isZero();
         }
     }
 
