@@ -88,15 +88,15 @@ public class RecipeBookController {
     }
 
     @PostMapping("/{bookId}/recipes")
-    @Operation(summary = "레시피북에 레시피 추가", description = "레시피북에 레시피를 추가합니다.")
-    public ResponseEntity<Map<String, String>> addRecipe(
+    @Operation(summary = "레시피북에 레시피 추가 (bulk)",
+            description = "레시피북에 레시피를 추가합니다. 이미 존재하거나 접근 불가한 레시피는 건너뜁니다.")
+    public ResponseEntity<AddRecipesToBookResponse> addRecipes(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @DecodeId Long bookId,
-            @Valid @RequestBody AddRecipeToBookRequest request) {
+            @Valid @RequestBody AddRecipesToBookRequest request) {
         Long userId = extractUserId(userDetails);
-        service.addRecipeToBook(userId, bookId, request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Map.of("message", "레시피가 레시피북에 추가되었습니다."));
+        AddRecipesToBookResponse result = service.addRecipesToBook(userId, bookId, request);
+        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{bookId}/recipes")
