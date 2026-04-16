@@ -47,13 +47,17 @@ public interface RecipeBookItemRepository extends JpaRepository<RecipeBookItem, 
     @Query("SELECT i.book.id, COUNT(i) FROM RecipeBookItem i WHERE i.recipe.id = :recipeId GROUP BY i.book.id")
     List<Object[]> countByRecipeIdGroupByBookId(@Param("recipeId") Long recipeId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RecipeBookItem i WHERE i.book.id = :bookId AND i.recipe.id IN :recipeIds")
     int deleteByBookIdAndRecipeIdIn(
             @Param("bookId") Long bookId,
             @Param("recipeIds") List<Long> recipeIds);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM RecipeBookItem i WHERE i.book.id = :bookId")
+    void deleteByBookId(@Param("bookId") Long bookId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RecipeBookItem i WHERE i.recipe.id = :recipeId")
     void deleteByRecipeId(@Param("recipeId") Long recipeId);
 
@@ -63,7 +67,7 @@ public interface RecipeBookItemRepository extends JpaRepository<RecipeBookItem, 
             @Param("userId") Long userId,
             @Param("recipeId") Long recipeId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RecipeBookItem i WHERE i.book.user.id = :userId AND i.recipe.id = :recipeId")
     int deleteAllByUserIdAndRecipeId(
             @Param("userId") Long userId,

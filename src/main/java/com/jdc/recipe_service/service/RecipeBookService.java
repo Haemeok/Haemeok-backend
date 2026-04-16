@@ -184,6 +184,8 @@ public class RecipeBookService {
             }
         }
 
+        // JPA 레벨에서 items를 먼저 삭제해야 TransientObjectException 방지
+        itemRepo.deleteByBookId(bookId);
         bookRepo.delete(book);
     }
 
