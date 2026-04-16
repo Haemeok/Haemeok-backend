@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.repository.RecipeBookItemRepository;
 import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
@@ -21,6 +22,8 @@ public class RecipeFavoriteService {
     private final RecipeFavoriteRepository favoriteRepository;
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
+    private final RecipeBookItemRepository bookItemRepository;
+    private final RecipeBookService recipeBookService;
 
     @Transactional
     public boolean toggleFavorite(Long userId, Long recipeId) {
@@ -29,7 +32,6 @@ public class RecipeFavoriteService {
         if (favorite.isPresent()) {
             Recipe recipe = favorite.get().getRecipe();
             favoriteRepository.delete(favorite.get());
-
             recipe.decreaseFavoriteCount();
             return false;
         }
@@ -40,7 +42,6 @@ public class RecipeFavoriteService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         favoriteRepository.save(RecipeFavorite.builder().user(user).recipe(recipe).build());
-
         recipe.increaseFavoriteCount();
         return true;
     }
@@ -62,12 +63,15 @@ public class RecipeFavoriteService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
         favoriteRepository.save(RecipeFavorite.builder().user(user).recipe(recipe).build());
-
         recipe.increaseFavoriteCount();
     }
 
     @Transactional
     public void deleteByRecipeId(Long recipeId) {
         favoriteRepository.deleteByRecipeId(recipeId);
+        // recipeCount 보정 후 아이템 삭제
+        recipeBookService.adjustCountsBeforeRecipeDeletion(recipeId);
+        bookItemRepository.deleteByRecipeId(recipeId);
     }
+
 }

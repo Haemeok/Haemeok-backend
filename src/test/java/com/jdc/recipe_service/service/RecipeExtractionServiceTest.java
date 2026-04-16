@@ -49,6 +49,7 @@ class RecipeExtractionServiceTest {
     @Mock private RecipeService recipeService;
     @Mock private DailyQuotaService dailyQuotaService;
     @Mock private RecipeFavoriteService recipeFavoriteService;
+    @Mock private RecipeBookService recipeBookService;
     @Mock private RecipeActivityService recipeActivityService;
     @Mock private RecipeRepository recipeRepository;
     @Mock private YoutubeTargetChannelRepository youtubeTargetChannelRepository;
@@ -70,7 +71,8 @@ class RecipeExtractionServiceTest {
 
         service = new RecipeExtractionService(
                 ytDlpService, grokClientService, geminiMultimodalService, recipeService,
-                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService, jobRepository,
+                dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService,
+                recipeBookService, jobRepository,
                 youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
                 testExecutor, asyncImageService, objectMapper
         );

@@ -7,13 +7,11 @@ import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientReque
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.url.YoutubeExtractionResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.entity.credit.CreditCostEntity;
 import com.jdc.recipe_service.domain.entity.media.RecipeYoutubeInfo;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeAccess;
-import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
@@ -26,6 +24,8 @@ import com.jdc.recipe_service.domain.type.recipe.*;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.RecipeActivityService;
+import com.jdc.recipe_service.service.RecipeBookService;
+import com.jdc.recipe_service.service.RecipeFavoriteService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
@@ -109,7 +109,8 @@ public class YoutubeRecipeExtractionService {
     private final UserRepository userRepository;
     private final RecipeGenerationJobRepository jobRepository;
     private final CreditCostRepository creditCostRepository;
-    private final RecipeFavoriteRepository recipeFavoriteRepository;
+    private final RecipeFavoriteService recipeFavoriteService;
+    private final RecipeBookService recipeBookService;
 
     private final TransactionTemplate transactionTemplate;
     private final Executor recipeExtractionExecutor;
@@ -127,7 +128,9 @@ public class YoutubeRecipeExtractionService {
             RecipeRepository recipeRepository,
             RecipeAccessRepository recipeAccessRepository, RecipeYoutubeInfoRepository recipeYoutubeInfoRepository,
             UserRepository userRepository,
-            RecipeGenerationJobRepository jobRepository, CreditCostRepository creditCostRepository, RecipeFavoriteRepository recipeFavoriteRepository,
+            RecipeGenerationJobRepository jobRepository, CreditCostRepository creditCostRepository,
+            RecipeFavoriteService recipeFavoriteService,
+            RecipeBookService recipeBookService,
             TransactionTemplate transactionTemplate,
             @Qualifier("recipeExtractionExecutor") Executor recipeExtractionExecutor,
             AsyncImageService asyncImageService
@@ -145,7 +148,8 @@ public class YoutubeRecipeExtractionService {
         this.userRepository = userRepository;
         this.jobRepository = jobRepository;
         this.creditCostRepository = creditCostRepository;
-        this.recipeFavoriteRepository = recipeFavoriteRepository;
+        this.recipeFavoriteService = recipeFavoriteService;
+        this.recipeBookService = recipeBookService;
         this.transactionTemplate = transactionTemplate;
         this.recipeExtractionExecutor = recipeExtractionExecutor;
         this.asyncImageService = asyncImageService;
@@ -1062,15 +1066,9 @@ public class YoutubeRecipeExtractionService {
     private void autoAddFavorite(Long userId, Long recipeId) {
         if (userId == null || recipeId == null) return;
 
-        boolean exists = recipeFavoriteRepository.existsByUserIdAndRecipeId(userId, recipeId);
-        if (!exists) {
-            RecipeFavorite favorite = RecipeFavorite.builder()
-                    .user(userRepository.getReferenceById(userId))
-                    .recipe(recipeRepository.getReferenceById(recipeId))
-                    .build();
-            recipeFavoriteRepository.save(favorite);
-            log.info("⭐ 즐겨찾기 자동 추가 완료: User={}, Recipe={}", userId, recipeId);
-        }
+        recipeFavoriteService.addFavoriteIfNotExists(userId, recipeId);
+        recipeBookService.saveToDefaultBookIfAbsent(userId, recipeId);
+        log.info("⭐ 즐겨찾기/기본폴더 자동 추가 완료: User={}, Recipe={}", userId, recipeId);
     }
 
     private String emptyToPlaceholder(String s, String placeholder) {

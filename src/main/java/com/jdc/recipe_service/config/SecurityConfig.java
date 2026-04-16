@@ -66,6 +66,9 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/logs/stats").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/recipes/reports").hasRole("ADMIN")
+                            // 2-a) 레시피 하위 중 인증 필요 GET
+                            .requestMatchers(HttpMethod.GET, "/api/recipes/*/saved-books").authenticated()
+
                             // 2) 공개 GET (인증 없이 모두 허용)
                             .requestMatchers(HttpMethod.GET,
                                     "/api/ingredients",
@@ -95,6 +98,8 @@ public class SecurityConfig {
                             ).permitAll()
 
                             // 3) 보호된 GET (JWT 필요)
+                            .requestMatchers("/api/me/recipe-books/**").authenticated()
+
                             .requestMatchers(HttpMethod.GET,
                                     "/api/me",
                                     "/api/me/favorites",
@@ -217,6 +222,9 @@ public class SecurityConfig {
                                 "/actuator/**"
                         ).permitAll()
 
+                        // 레시피북: 모든 메서드 인증 필요
+                        .requestMatchers("/api/me/recipe-books/**").authenticated()
+
                         // 2) GET 중 인증 필요
                         .requestMatchers(HttpMethod.GET,
                                 "/api/me",
@@ -235,6 +243,9 @@ public class SecurityConfig {
                         ).authenticated()
 
                         .requestMatchers(HttpMethod.GET, "/api/recipes/reports").hasRole("ADMIN")
+
+                        // 3-a) 레시피 하위 중 인증 필요 GET
+                        .requestMatchers(HttpMethod.GET, "/api/recipes/*/saved-books").authenticated()
 
                         // 3) 읽기 전용 GET (모두 허용)
                         .requestMatchers(HttpMethod.GET,

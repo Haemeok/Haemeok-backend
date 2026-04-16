@@ -9,12 +9,10 @@ import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.user.UserSurveyDto;
 import com.jdc.recipe_service.domain.entity.Recipe;
-import com.jdc.recipe_service.domain.entity.RecipeFavorite;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.entity.credit.CreditCostEntity;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeAccess;
-import com.jdc.recipe_service.domain.repository.RecipeFavoriteRepository;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
@@ -67,8 +65,6 @@ public class AiRecipeGenerationService {
     private final RecipeAccessRepository recipeAccessRepository;
     private final UserRepository userRepository;
     private final CreditCostRepository creditCostRepository;
-    private final RecipeFavoriteRepository recipeFavoriteRepository;
-
     private final GrokClientService grokClientService;
     private final GeminiClientService geminiClientService;
     private final RecipeService recipeService;
@@ -360,15 +356,6 @@ public class AiRecipeGenerationService {
         if (userId == null || recipeId == null) return;
 
         grantRecipeOwnership(userId, recipeId, RecipeAccessRole.OWNER);
-
-        if (!recipeFavoriteRepository.existsByUserIdAndRecipeId(userId, recipeId)) {
-            RecipeFavorite favorite = RecipeFavorite.builder()
-                    .user(userRepository.getReferenceById(userId))
-                    .recipe(recipeRepository.getReferenceById(recipeId))
-                    .build();
-            recipeFavoriteRepository.save(favorite);
-            log.info("⭐ AI 레시피 즐겨찾기 자동 추가 완료: User={}, Recipe={}", userId, recipeId);
-        }
     }
 
     private int getCostFromDb(CreditCost costType) {

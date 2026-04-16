@@ -49,7 +49,7 @@ public class RecipeSearchService {
 
     private final RecipeRepository recipeRepository;
     private final RecipeLikeRepository recipeLikeRepository;
-    private final RecipeFavoriteRepository recipeFavoriteRepository;
+    private final RecipeBookItemRepository recipeBookItemRepository;
     private final RecipeCommentRepository recipeCommentRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepRepository recipeStepRepository;
@@ -187,7 +187,7 @@ public class RecipeSearchService {
         boolean likedByUser = currentUserId != null &&
                 recipeLikeRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
         boolean favoritedByUser = currentUserId != null &&
-                recipeFavoriteRepository.existsByRecipeIdAndUserId(recipeId, currentUserId);
+                recipeBookItemRepository.existsByUserIdAndRecipeId(currentUserId, recipeId);
 
         RecipeRatingInfoDto ratingInfo = RecipeRatingInfoDto.builder()
                 .avgRating(basic.getAvgRating())

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
 import com.jdc.recipe_service.domain.dto.recipe.*;
+import com.jdc.recipe_service.domain.dto.recipebook.RecipeSaveStatusResponse;
 import com.jdc.recipe_service.domain.dto.recipe.sitemap.RecipeSitemapResponseDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
@@ -11,6 +12,7 @@ import com.jdc.recipe_service.domain.type.Role;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.RecipeBookService;
 import com.jdc.recipe_service.service.RecipeExtractionService;
 import com.jdc.recipe_service.service.RecipeRemixQueryService;
 import com.jdc.recipe_service.service.RecipeService;
@@ -42,6 +44,7 @@ import java.util.Map;
 public class RecipeController {
 
     private final RecipeService recipeService;
+    private final RecipeBookService recipeBookService;
     private final RecipeAnalysisService recipeAnalysisService;
     private final RecipeExtractionService recipeExtractionService;
     private final RecipeSitemapService recipeSitemapService;
@@ -244,5 +247,15 @@ public class RecipeController {
     public ResponseEntity<List<RecipeSitemapResponseDto>> getRecipesForSitemap() {
         List<RecipeSitemapResponseDto> sitemapData = recipeSitemapService.getSitemapData();
         return ResponseEntity.ok(sitemapData);
+    }
+
+    @GetMapping("/{recipeId}/saved-books")
+    @Operation(summary = "레시피 저장 상태 조회",
+            description = "해당 레시피가 내 어떤 폴더에 저장되어 있는지 조회합니다.")
+    public ResponseEntity<RecipeSaveStatusResponse> getSaveStatus(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @DecodeId Long recipeId) {
+        Long userId = userDetails.getUser().getId();
+        return ResponseEntity.ok(recipeBookService.getSaveStatus(userId, recipeId));
     }
 }
