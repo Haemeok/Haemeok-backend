@@ -84,7 +84,7 @@ class CookingRecordServiceTest {
         void emptyRecords_returnsEmptyGroups() {
             // given
             Pageable pageable = PageRequest.of(0, 20);
-            given(repo.findDistinctDatesByUserId(eq(1L), any(Pageable.class)))
+            given(repo.findDistinctDatesByUserIdRaw(eq(1L), any(Pageable.class)))
                     .willReturn(new SliceImpl<>(List.of(), pageable, false));
 
             // when
@@ -103,7 +103,7 @@ class CookingRecordServiceTest {
             LocalDate yesterday = LocalDate.of(2026, 4, 15);
             Pageable pageable = PageRequest.of(0, 20);
 
-            given(repo.findDistinctDatesByUserId(eq(1L), any(Pageable.class)))
+            given(repo.findDistinctDatesByUserIdRaw(eq(1L), any(Pageable.class)))
                     .willReturn(new SliceImpl<>(List.of(today, yesterday), pageable, false));
 
             CookingRecord todayRecord1 = buildRecord(3L, 3000, 8000,
@@ -135,7 +135,7 @@ class CookingRecordServiceTest {
             LocalDate today = LocalDate.of(2026, 4, 16);
             Pageable pageable = PageRequest.of(0, 1);
 
-            given(repo.findDistinctDatesByUserId(eq(1L), any(Pageable.class)))
+            given(repo.findDistinctDatesByUserIdRaw(eq(1L), any(Pageable.class)))
                     .willReturn(new SliceImpl<>(List.of(today), pageable, true));
 
             CookingRecord record = buildRecord(1L, 3000, 8000, today.atTime(18, 0));
@@ -156,7 +156,7 @@ class CookingRecordServiceTest {
             Pageable sortedPageable = PageRequest.of(0, 10,
                     org.springframework.data.domain.Sort.by("createdAt").descending());
 
-            given(repo.findDistinctDatesByUserId(eq(1L), any(Pageable.class)))
+            given(repo.findDistinctDatesByUserIdRaw(eq(1L), any(Pageable.class)))
                     .willReturn(new SliceImpl<>(List.of(), sortedPageable, false));
 
             // when
@@ -164,7 +164,7 @@ class CookingRecordServiceTest {
 
             // then — 실제 호출된 Pageable이 unsorted인지 확인
             var captor = org.mockito.ArgumentCaptor.forClass(Pageable.class);
-            verify(repo).findDistinctDatesByUserId(eq(1L), captor.capture());
+            verify(repo).findDistinctDatesByUserIdRaw(eq(1L), captor.capture());
             assertThat(captor.getValue().getSort().isUnsorted()).isTrue();
             assertThat(captor.getValue().getPageNumber()).isEqualTo(0);
             assertThat(captor.getValue().getPageSize()).isEqualTo(10);

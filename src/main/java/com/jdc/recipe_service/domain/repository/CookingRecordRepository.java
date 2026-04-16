@@ -84,7 +84,7 @@ FROM DUAL
       WHERE c.user.id = :userId
       ORDER BY cast(c.createdAt as date) DESC
       """)
-    Slice<LocalDate> findDistinctDatesByUserId(
+    Slice<Object> findDistinctDatesByUserIdRaw(
             @Param("userId") Long userId,
             Pageable pageable
     );

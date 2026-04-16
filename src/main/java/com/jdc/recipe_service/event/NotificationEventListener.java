@@ -4,12 +4,14 @@ import com.jdc.recipe_service.domain.dto.notification.NotificationDto;
 import com.jdc.recipe_service.domain.entity.Notification;
 import com.jdc.recipe_service.domain.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 @Service
+@Profile("!local")
 @RequiredArgsConstructor
 public class NotificationEventListener {
 
