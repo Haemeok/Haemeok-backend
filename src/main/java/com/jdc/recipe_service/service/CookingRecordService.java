@@ -109,25 +109,22 @@ public class CookingRecordService {
      */
     @Transactional(readOnly = true)
     public CookingRecordFeedResponse getRecordFeed(Long userId, Pageable pageable) {
-        // 날짜 DISTINCT 쿼리에 클라이언트 sort가 섞이면 안 되므로 unsorted로 정규화
-        // 정렬은 JPQL의 ORDER BY cast(createdAt as date) DESC가 담당
         Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
 
-        // 1단계: 기록이 있는 날짜를 Slice로 페이지네이션
-        Slice<LocalDate> dateSlice = repo.findDistinctDatesByUserId(userId, unsorted);
+        Slice<Object> rawSlice = repo.findDistinctDatesByUserIdRaw(userId, unsorted);
 
-        if (dateSlice.isEmpty()) {
+        if (rawSlice.isEmpty()) {
             return CookingRecordFeedResponse.builder()
                     .groups(List.of())
                     .hasNext(false)
                     .build();
         }
 
-        // 2단계: 해당 날짜들의 레코드를 한 번에 조회 (N+1 방지)
-        List<LocalDate> dates = dateSlice.getContent();
+        List<LocalDate> dates = rawSlice.getContent().stream()
+                .map(CookingRecordService::toLocalDate)
+                .toList();
         List<CookingRecord> records = repo.findByUserIdAndDatesIn(userId, dates);
 
-        // 날짜별 그룹핑 (LinkedHashMap + dates 순서로 최신순 유지)
         LinkedHashMap<LocalDate, List<CookingRecord>> grouped = records.stream()
                 .collect(Collectors.groupingBy(
                         r -> r.getCreatedAt().atZone(KST).toLocalDate(),
@@ -148,7 +145,7 @@ public class CookingRecordService {
 
         return CookingRecordFeedResponse.builder()
                 .groups(groups)
-                .hasNext(dateSlice.hasNext())
+                .hasNext(rawSlice.hasNext())
                 .build();
     }
 
@@ -159,7 +156,7 @@ public class CookingRecordService {
 
         List<CalendarDaySummaryDto> daily = raw.stream()
                 .map(arr -> {
-                    LocalDate date = ((java.sql.Date) arr[0]).toLocalDate();
+                    LocalDate date = toLocalDate(arr[0]);
                     long totalSavings    = ((Number) arr[1]).longValue();
                     LocalDateTime start = date.atStartOfDay();
                     LocalDateTime end = start.plusDays(1);
@@ -220,5 +217,12 @@ public class CookingRecordService {
         int streak = ((Number) row[0]).intValue();
         boolean cookedToday = ((Number) row[1]).intValue() == 1;
         return new CookingStreakDto(streak, cookedToday);
+    }
+
+    /** H2는 LocalDate, MySQL은 java.sql.Date를 반환하므로 양쪽 대응 */
+    private static LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate ld) return ld;
+        if (value instanceof java.sql.Date sd) return sd.toLocalDate();
+        throw new IllegalArgumentException("Unexpected date type: " + value.getClass());
     }
 }
