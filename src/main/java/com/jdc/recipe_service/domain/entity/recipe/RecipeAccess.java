@@ -6,6 +6,8 @@ import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import com.jdc.recipe_service.domain.type.recipe.RecipeAccessRole;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(
@@ -33,6 +35,7 @@ public class RecipeAccess extends BaseTimeEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipe_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Recipe recipe;
 
     @Enumerated(EnumType.STRING)

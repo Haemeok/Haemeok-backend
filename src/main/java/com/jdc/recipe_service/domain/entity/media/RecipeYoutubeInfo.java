@@ -4,6 +4,8 @@ import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(
@@ -28,6 +30,7 @@ public class RecipeYoutubeInfo extends BaseTimeEntity {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipe_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Recipe recipe;
 
     @Column(name = "video_id", nullable = false, length = 32)
