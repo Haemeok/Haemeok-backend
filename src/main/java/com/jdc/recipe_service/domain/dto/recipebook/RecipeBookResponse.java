@@ -29,16 +29,17 @@ public class RecipeBookResponse {
     @Schema(description = "표시 순서")
     private int displayOrder;
 
-    @Schema(description = "포함된 레시피 수")
+    @Schema(description = "현재 사용자가 볼 수 있는 레시피 수 (공개 레시피 + 본인 레시피). "
+            + "타인이 비공개로 전환한 레시피는 집계에서 제외된다.")
     private int recipeCount;
 
-    public static RecipeBookResponse from(RecipeBook book) {
+    public static RecipeBookResponse from(RecipeBook book, int recipeCount) {
         return RecipeBookResponse.builder()
                 .id(book.getId())
                 .name(book.getName())
                 .isDefault(book.isDefault())
                 .displayOrder(book.getDisplayOrder())
-                .recipeCount(book.getRecipeCount())
+                .recipeCount(recipeCount)
                 .build();
     }
 }

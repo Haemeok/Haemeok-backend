@@ -147,6 +147,66 @@ class RecipeBookServiceTest {
         }
     }
 
+    // ── listBooks ──
+
+    @Nested
+    @DisplayName("listBooks")
+    class ListBooks {
+
+        @Test
+        @DisplayName("응답 recipeCount는 denormalized 컬럼이 아니라 accessible count 쿼리 결과를 따른다")
+        void responseCountComesFromAccessibilityQueryNotStaleColumn() {
+            // drift 재현: 엔티티의 recipeCount(79/99)는 stale이고 실제 접근 가능 건수는 74/5
+            RecipeBook staleDefault = RecipeBook.builder()
+                    .id(defaultBook.getId()).user(user).name("저장한 레시피")
+                    .isDefault(true).displayOrder(0).recipeCount(79).build();
+            RecipeBook customBook = RecipeBook.builder()
+                    .id(20L).user(user).name("한식 모음")
+                    .displayOrder(1).recipeCount(99).build();
+
+            given(bookRepo.findByUserIdAndIsDefaultTrue(user.getId()))
+                    .willReturn(Optional.of(staleDefault));
+            given(bookRepo.findByUserIdOrderByDisplayOrderAsc(user.getId()))
+                    .willReturn(List.of(staleDefault, customBook));
+            given(itemRepo.countAccessibleByUserIdGroupByBookId(user.getId()))
+                    .willReturn(List.of(
+                            new Object[]{staleDefault.getId(), 74L},
+                            new Object[]{customBook.getId(), 5L}
+                    ));
+
+            List<RecipeBookResponse> result = bookService.listBooks(user.getId());
+
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getRecipeCount())
+                    .as("denormalized 79가 아니라 accessible 74를 돌려줘야 한다")
+                    .isEqualTo(74);
+            assertThat(result.get(1).getRecipeCount())
+                    .as("denormalized 99가 아니라 accessible 5를 돌려줘야 한다")
+                    .isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("배치 쿼리에 나오지 않는 폴더는 stale 컬럼 대신 0을 응답한다")
+        void returnsZeroForBookMissingFromBatchResult() {
+            RecipeBook emptyBook = RecipeBook.builder()
+                    .id(21L).user(user).name("빈 폴더")
+                    .displayOrder(1).recipeCount(10).build();
+
+            given(bookRepo.findByUserIdAndIsDefaultTrue(user.getId()))
+                    .willReturn(Optional.of(defaultBook));
+            given(bookRepo.findByUserIdOrderByDisplayOrderAsc(user.getId()))
+                    .willReturn(List.of(defaultBook, emptyBook));
+            given(itemRepo.countAccessibleByUserIdGroupByBookId(user.getId()))
+                    .willReturn(List.<Object[]>of(new Object[]{defaultBook.getId(), 3L}));
+
+            List<RecipeBookResponse> result = bookService.listBooks(user.getId());
+
+            assertThat(result.get(1).getRecipeCount())
+                    .as("배치 결과에 없는 폴더는 stale 10이 아닌 0이어야 한다")
+                    .isZero();
+        }
+    }
+
     // ── renameBook ──
 
     @Nested
@@ -201,6 +261,27 @@ class RecipeBookServiceTest {
 
             assertThat(result.getName()).isEqualTo("한식 모음");
             then(bookRepo).should(never()).existsByUserIdAndName(any(), any());
+        }
+
+        @Test
+        @DisplayName("이름 변경 성공 시 응답 recipeCount는 accessible count 쿼리 결과를 따른다")
+        void responseCountComesFromAccessibilityQueryAfterRename() {
+            RecipeBook customBook = RecipeBook.builder()
+                    .id(20L).user(user).name("기존 이름").recipeCount(99).build();
+            given(bookRepo.findById(customBook.getId())).willReturn(Optional.of(customBook));
+            given(itemRepo.countAccessibleByBookIdAndUserId(customBook.getId(), user.getId()))
+                    .willReturn(7);
+
+            RenameRecipeBookRequest request = RenameRecipeBookRequest.builder()
+                    .name("한식 모음")
+                    .build();
+
+            RecipeBookResponse result = bookService.renameBook(user.getId(), customBook.getId(), request);
+
+            assertThat(result.getName()).isEqualTo("한식 모음");
+            assertThat(result.getRecipeCount())
+                    .as("denormalized 99가 아니라 accessible 7을 돌려줘야 한다")
+                    .isEqualTo(7);
         }
 
         @Test
@@ -506,6 +587,36 @@ class RecipeBookServiceTest {
                     .isInstanceOf(CustomException.class)
                     .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                             .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        }
+
+        @Test
+        @DisplayName("순서 변경 성공 시 응답 recipeCount는 accessible count 쿼리 결과를 따른다")
+        void responseCountComesFromAccessibilityQueryAfterReorder() {
+            RecipeBook book2 = RecipeBook.builder()
+                    .id(20L).user(user).name("폴더2")
+                    .displayOrder(1).recipeCount(99).build();
+            given(bookRepo.findByUserIdOrderByDisplayOrderAsc(user.getId()))
+                    .willReturn(List.of(defaultBook, book2));
+            given(itemRepo.countAccessibleByUserIdGroupByBookId(user.getId()))
+                    .willReturn(List.of(
+                            new Object[]{defaultBook.getId(), 4L},
+                            new Object[]{book2.getId(), 2L}
+                    ));
+
+            ReorderRecipeBooksRequest request = ReorderRecipeBooksRequest.builder()
+                    .bookIds(List.of(book2.getId(), defaultBook.getId()))
+                    .build();
+
+            List<RecipeBookResponse> result = bookService.reorderBooks(user.getId(), request);
+
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getId())
+                    .as("reorder 후 displayOrder=0이 된 book2가 먼저 와야 한다")
+                    .isEqualTo(book2.getId());
+            assertThat(result.get(0).getRecipeCount())
+                    .as("denormalized 99가 아니라 accessible 2를 돌려줘야 한다")
+                    .isEqualTo(2);
+            assertThat(result.get(1).getRecipeCount()).isEqualTo(4);
         }
 
         @Test
