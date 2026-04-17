@@ -27,7 +27,8 @@ public class RecipeBookDetailResponse {
     @Schema(description = "기본 레시피북 여부")
     private boolean isDefault;
 
-    @Schema(description = "포함된 레시피 수")
+    @Schema(description = "현재 사용자가 볼 수 있는 레시피 수 (공개 레시피 + 본인 레시피). "
+            + "타인이 비공개로 전환한 레시피는 집계에서 제외된다.")
     private int recipeCount;
 
     @Schema(description = "레시피 목록 (최신순)")

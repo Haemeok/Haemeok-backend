@@ -43,6 +43,17 @@ public interface RecipeBookItemRepository extends JpaRepository<RecipeBookItem, 
             @Param("bookId") Long bookId,
             @Param("userId") Long userId);
 
+    /** 유저의 모든 폴더에서 접근 가능한 레시피 수를 book_id별로 집계 (폴더 목록에서 사용) */
+    @Query("""
+      SELECT i.book.id, COUNT(i)
+      FROM RecipeBookItem i
+      JOIN i.recipe r
+      WHERE i.book.user.id = :userId
+        AND (r.isPrivate = false OR r.user.id = :userId)
+      GROUP BY i.book.id
+      """)
+    List<Object[]> countAccessibleByUserIdGroupByBookId(@Param("userId") Long userId);
+
     /** 레시피 삭제 시 영향받는 폴더별 아이템 수 조회 (count 보정용) */
     @Query("SELECT i.book.id, COUNT(i) FROM RecipeBookItem i WHERE i.recipe.id = :recipeId GROUP BY i.book.id")
     List<Object[]> countByRecipeIdGroupByBookId(@Param("recipeId") Long recipeId);

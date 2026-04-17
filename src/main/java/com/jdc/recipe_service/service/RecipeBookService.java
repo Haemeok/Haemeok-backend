@@ -21,6 +21,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -107,15 +108,19 @@ public class RecipeBookService {
                 .build();
 
         bookRepo.save(book);
-        return RecipeBookResponse.from(book);
+        return RecipeBookResponse.from(book, 0);
     }
 
     @Transactional
     public List<RecipeBookResponse> listBooks(Long userId) {
         ensureDefaultBook(userId);
 
-        return bookRepo.findByUserIdOrderByDisplayOrderAsc(userId).stream()
-                .map(RecipeBookResponse::from)
+        List<RecipeBook> books = bookRepo.findByUserIdOrderByDisplayOrderAsc(userId);
+        Map<Long, Integer> countByBookId = loadAccessibleCounts(userId);
+
+        return books.stream()
+                .map(b -> RecipeBookResponse.from(
+                        b, countByBookId.getOrDefault(b.getId(), 0)))
                 .toList();
     }
 
@@ -158,7 +163,8 @@ public class RecipeBookService {
         }
 
         book.rename(request.getName());
-        return RecipeBookResponse.from(book);
+        int accessibleCount = itemRepo.countAccessibleByBookIdAndUserId(bookId, userId);
+        return RecipeBookResponse.from(book, accessibleCount);
     }
 
     @Transactional
@@ -208,10 +214,24 @@ public class RecipeBookService {
             bookMap.get(orderedIds.get(i)).updateDisplayOrder(i);
         }
 
+        Map<Long, Integer> countByBookId = loadAccessibleCounts(userId);
+
         return books.stream()
                 .sorted((a, b) -> Integer.compare(a.getDisplayOrder(), b.getDisplayOrder()))
-                .map(RecipeBookResponse::from)
+                .map(b -> RecipeBookResponse.from(
+                        b, countByBookId.getOrDefault(b.getId(), 0)))
                 .toList();
+    }
+
+    private Map<Long, Integer> loadAccessibleCounts(Long userId) {
+        List<Object[]> rows = itemRepo.countAccessibleByUserIdGroupByBookId(userId);
+        Map<Long, Integer> result = new HashMap<>();
+        for (Object[] row : rows) {
+            Long bookId = ((Number) row[0]).longValue();
+            int count = ((Number) row[1]).intValue();
+            result.put(bookId, count);
+        }
+        return result;
     }
 
     // ── 레시피북 아이템 관리 ──
