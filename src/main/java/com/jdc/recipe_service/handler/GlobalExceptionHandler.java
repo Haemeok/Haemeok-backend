@@ -4,10 +4,13 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.exception.ErrorResponse;
 import com.jdc.recipe_service.service.DailyQuotaService;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,10 +30,13 @@ import java.util.concurrent.RejectedExecutionException;
 @RestControllerAdvice(annotations = {RestController.class})
 @Hidden
 @Slf4j
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
     @Value("${spring.profiles.active:default}")
     private String activeProfile;
+
+    private final MeterRegistry meterRegistry;
 
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<ErrorResponse> handleCustomException(CustomException ex, HttpServletRequest request) {
@@ -124,6 +130,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(ErrorCode.NULL_POINTER.getCode(), msg));
+    }
+
+    // refresh 회전은 row-level pessimistic lock을 잡기 때문에 innodb_lock_wait_timeout 만료 시
+    // Spring이 ConcurrencyFailureException 계열(PessimisticLockingFailureException,
+    // CannotAcquireLockException, DeadlockLoserDataAccessException 등)을 올려준다.
+    // 이 상황은 프론트가 한 번 더 refresh를 시도하면 복구되는 성격이라, 500(catch-all)로
+    // 빠지지 않도록 여기서 401 계열 "유효하지 않은 토큰"으로 매핑해 force-logout까지
+    // 이어지지 않게 한다. 단, refresh 경로가 아닌 다른 도메인(댓글 좋아요 등)에서 같은
+    // 예외가 나면 의미가 다르므로 원 예외를 다시 던져 catch-all로 돌려보낸다.
+    @ExceptionHandler(ConcurrencyFailureException.class)
+    public ResponseEntity<ErrorResponse> handleConcurrencyFailure(ConcurrencyFailureException ex,
+                                                                  HttpServletRequest request) {
+        if (!isRefreshRequest(request)) {
+            throw ex;
+        }
+
+        ErrorCode errorCode = ErrorCode.INVALID_REFRESH_TOKEN;
+        log.warn("[AUTH_REFRESH] result=fail reason=lock_timeout exceptionType={} message={}",
+                ex.getClass().getSimpleName(), ex.getMessage());
+
+        meterRegistry.counter("auth_refresh_total", "result", "lock_timeout").increment();
+
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(new ErrorResponse(errorCode.getCode(), errorCode.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

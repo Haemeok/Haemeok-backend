@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.TokenResponseDTO;
+import com.jdc.recipe_service.domain.dto.auth.RefreshResult;
 import com.jdc.recipe_service.domain.entity.RefreshToken;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
@@ -9,7 +10,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.exception.ErrorResponse;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
-import io.jsonwebtoken.JwtException;
+import com.jdc.recipe_service.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
@@ -31,6 +32,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @RestController
@@ -43,6 +45,7 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
+    private final AuthService authService;
 
     @PostMapping("/refresh")
     @Operation(
@@ -74,52 +77,35 @@ public class AuthController {
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
 
-        try {
-            jwtTokenProvider.validateToken(refreshToken);
-        } catch (JwtException e) {
-            boolean expired = e.getMessage() != null && e.getMessage().contains("만료");
-            ErrorCode errorCode = expired ? ErrorCode.REFRESH_TOKEN_EXPIRED : ErrorCode.INVALID_REFRESH_TOKEN;
-            String reason = expired ? "jwt_expired" : "jwt_invalid";
+        RefreshResult result = authService.refresh(refreshToken);
 
-            log.warn("[AUTH_REFRESH] result=fail reason={} refreshFp={} origin={} userAgent={} message={}",
-                    reason, refreshFp, origin, userAgent, e.getMessage());
-            throw new CustomException(errorCode, e.getMessage());
-        }
+        log.info("[AUTH_REFRESH] result=success path={} userId={} oldRefreshFp={} newRefreshFp={} refreshExpiredAt={} origin={} userAgent={}",
+                result.getPath(), result.getUserId(), refreshFp,
+                fingerprint(result.getRefreshToken()), result.getRefreshExpiredAt(), origin, userAgent);
 
-        RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> {
-                    log.warn("[AUTH_REFRESH] result=fail reason=db_not_found refreshFp={} origin={} userAgent={}",
-                            refreshFp, origin, userAgent);
-                    return new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
-                });
+        writeAuthCookies(response, result, request);
 
-        if (savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
-            log.warn("[AUTH_REFRESH] result=fail reason=db_expired userId={} refreshFp={} dbExpiredAt={} origin={} userAgent={}",
-                    savedToken.getUser().getId(), refreshFp, savedToken.getExpiredAt(), origin, userAgent);
-            throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
-        }
+        return ResponseEntity.ok(new TokenResponseDTO(result.getAccessToken(), null));
+    }
 
-        User user = savedToken.getUser();
-        String newAccessToken = jwtTokenProvider.createAccessToken(user);
-        String newRefreshToken = jwtTokenProvider.createRefreshToken();
-        LocalDateTime newRefreshExpiry = LocalDateTime.now().plusDays(7);
-
-        savedToken.setToken(newRefreshToken);
-        savedToken.setExpiredAt(newRefreshExpiry);
-        refreshTokenRepository.save(savedToken);
-
+    // refresh/access 쿠키를 한 세트로 내려준다. refresh maxAge는 DB가 들고 있는 실제 만료 시각
+    // 기준으로 계산해 서버/클라이언트 TTL이 어긋나지 않게 한다. grace_replay 경로에서도 기존
+    // refresh가 그대로 재전송되므로 max-age 역시 기존 만료 기준으로 음수가 아닌 남은 시간을 준다.
+    private void writeAuthCookies(HttpServletResponse response, RefreshResult result, HttpServletRequest request) {
+        String origin = request.getHeader("Origin");
         boolean isLocalRequest = origin != null && origin.startsWith("http://localhost");
 
-        log.info("[AUTH_REFRESH] result=success userId={} oldRefreshFp={} newRefreshFp={} newExpiredAt={} origin={} userAgent={}",
-                user.getId(), refreshFp, fingerprint(newRefreshToken), newRefreshExpiry, origin, userAgent);
+        long refreshMaxAgeSeconds = Math.max(
+                Duration.between(LocalDateTime.now(), result.getRefreshExpiredAt()).getSeconds(),
+                0L
+        );
 
-
-        var refreshBuilder = ResponseCookie.from("refreshToken", newRefreshToken)
+        var refreshBuilder = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .path("/")
                 .httpOnly(true)
-                .maxAge(7 * 24 * 60 * 60)
+                .maxAge(refreshMaxAgeSeconds)
                 .sameSite("Lax");
-        var accessBuilder  = ResponseCookie.from("accessToken", newAccessToken)
+        var accessBuilder = ResponseCookie.from("accessToken", result.getAccessToken())
                 .path("/")
                 .httpOnly(true)
                 .maxAge(15 * 60)
@@ -131,9 +117,7 @@ public class AuthController {
         }
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshBuilder.build().toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder .build().toString());
-
-        return ResponseEntity.ok(new TokenResponseDTO(newAccessToken, null));
+        response.addHeader(HttpHeaders.SET_COOKIE, accessBuilder.build().toString());
     }
 
     @PostMapping("/logout")
@@ -147,8 +131,13 @@ public class AuthController {
             HttpServletResponse response) {
 
         if (refreshToken != null) {
-            refreshTokenRepository.findByToken(refreshToken)
-                    .ifPresent(refreshTokenRepository::delete);
+            // 클라이언트가 회전 직전의 옛 토큰을 들고 logout을 눌러도(Android WebView flush 지연 등)
+            // 서버의 current row가 살아 남아 "로그아웃했는데 세션이 살아있는" 상태가 되지 않도록,
+            // token/previous_token 양쪽을 같이 매칭해서 revoke한다.
+            var rows = refreshTokenRepository.findAllByTokenOrPreviousToken(refreshToken);
+            if (!rows.isEmpty()) {
+                refreshTokenRepository.deleteAll(rows);
+            }
         }
 
         ResponseCookie deleteRefresh = createDeleteCookie("refreshToken", request);
