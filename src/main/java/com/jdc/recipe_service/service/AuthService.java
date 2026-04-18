@@ -28,6 +28,9 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -82,6 +85,8 @@ public class AuthService {
             RefreshToken row = currentRow.get();
             if (isExpired(row, now)) {
                 incrementRefresh("expired");
+                log.warn("[AUTH_REFRESH] result=fail reason=db_expired stage=current refreshFp={} userId={}",
+                        fingerprint(oldToken), row.getUser().getId());
                 throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
             }
             return rotate(row, oldToken, now);
@@ -94,6 +99,8 @@ public class AuthService {
             RefreshToken row = graceRow.get();
             if (isExpired(row, now)) {
                 incrementRefresh("expired");
+                log.warn("[AUTH_REFRESH] result=fail reason=db_expired stage=grace refreshFp={} userId={}",
+                        fingerprint(oldToken), row.getUser().getId());
                 throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
             }
             return graceReplay(row);
@@ -104,7 +111,9 @@ public class AuthService {
         // 필요는 없고, UNIQUE가 아닌 INDEX 위의 단순 exists 쿼리다. 프론트 응답은 동일하게
         // INVALID_REFRESH_TOKEN로 유지하여 사용자 경험/계약은 바꾸지 않는다.
         boolean graceExpiredReplay = refreshTokenRepository.existsByPreviousToken(oldToken);
-        incrementRefresh(graceExpiredReplay ? "replay_suspected" : "invalid");
+        String reason = graceExpiredReplay ? "replay_suspected" : "invalid";
+        incrementRefresh(reason);
+        log.warn("[AUTH_REFRESH] result=fail reason={} refreshFp={}", reason, fingerprint(oldToken));
         throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
     }
 
@@ -115,9 +124,11 @@ public class AuthService {
             boolean expired = e.getMessage() != null && e.getMessage().contains("만료");
             if (expired) {
                 incrementRefresh("jwt_expired");
+                log.warn("[AUTH_REFRESH] result=fail reason=jwt_expired refreshFp={}", fingerprint(token));
                 throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED, e.getMessage());
             }
             incrementRefresh("jwt_invalid");
+            log.warn("[AUTH_REFRESH] result=fail reason=jwt_invalid refreshFp={}", fingerprint(token));
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN, e.getMessage());
         }
     }
@@ -170,6 +181,25 @@ public class AuthService {
 
     private void incrementRefresh(String result) {
         meterRegistry.counter("auth_refresh_total", "result", result).increment();
+    }
+
+    // AuthController.fingerprint와 동일 포맷. 실패 로그의 refreshFp와 컨트롤러의
+    // "result=start" 로그의 refreshFp가 동일 토큰이면 정확히 같은 값이 찍히도록 맞춘다.
+    private String fingerprint(String token) {
+        if (token == null || token.isBlank()) {
+            return "none";
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 4; i++) {
+                sb.append(String.format("%02x", digest[i]));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            return Integer.toHexString(token.hashCode());
+        }
     }
 
     /**
