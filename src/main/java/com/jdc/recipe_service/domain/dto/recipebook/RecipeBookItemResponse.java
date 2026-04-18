@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.RecipeBookItem;
+import com.jdc.recipe_service.domain.entity.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,17 +34,31 @@ public class RecipeBookItemResponse {
     @Schema(description = "요리 유형")
     private String dishType;
 
+    @JsonSerialize(using = HashIdSerializer.class)
+    @Schema(description = "작성자 ID")
+    private Long authorId;
+
+    @Schema(description = "작성자 닉네임")
+    private String authorName;
+
+    @Schema(description = "작성자 프로필 이미지")
+    private String profileImage;
+
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Seoul")
     @Schema(description = "레시피북에 추가된 시간")
     private LocalDateTime addedAt;
 
     public static RecipeBookItemResponse from(RecipeBookItem item, String imageUrl) {
         Recipe recipe = item.getRecipe();
+        User author = recipe.getUser();
         return RecipeBookItemResponse.builder()
                 .recipeId(recipe.getId())
                 .title(recipe.getTitle())
                 .imageUrl(imageUrl)
                 .dishType(recipe.getDishType() != null ? recipe.getDishType().name() : null)
+                .authorId(author != null ? author.getId() : null)
+                .authorName(author != null ? author.getNickname() : null)
+                .profileImage(author != null ? author.getProfileImage() : null)
                 .addedAt(item.getCreatedAt())
                 .build();
     }
