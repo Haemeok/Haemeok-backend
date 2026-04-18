@@ -82,7 +82,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/css/") || path.startsWith("/js/")
                 || path.startsWith("/images/") || path.startsWith("/oauth2")
                 || path.startsWith("/h2-console") || path.equals("/favicon.ico")
-                || path.startsWith("/ws/notifications");
+                || path.startsWith("/ws/notifications")
+                || path.equals("/api/token/refresh");
     }
 
     @Override
