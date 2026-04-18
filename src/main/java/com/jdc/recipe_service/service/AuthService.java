@@ -39,10 +39,6 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthService {
 
-    // Android WebView CookieManager가 새 refresh 쿠키를 디스크에 flush하기 전에 앱이
-    // 백그라운드로 가거나 죽었을 때를 메우기 위한 유예 시간. 사람이 "한 번 더 탭"하는 동안
-    // 옛 토큰이 재전송되어도 로그아웃되지 않게 해준다. 너무 길면 토큰 재전송 공격 창이 커지고,
-    // 너무 짧으면 재시도 여유가 없어 원래 문제로 돌아간다.
     private static final Duration REFRESH_GRACE_WINDOW = Duration.ofSeconds(30);
 
     private final ClientRegistrationRepository clientRegistrationRepository;
@@ -79,7 +75,6 @@ public class AuthService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // 1단계: 현재 유효 토큰으로 조회. UNIQUE 인덱스(uk_rt_token) 위에서 정확히 0/1 row.
         var currentRow = refreshTokenRepository.findByTokenForUpdate(oldToken);
         if (currentRow.isPresent()) {
             RefreshToken row = currentRow.get();
@@ -92,8 +87,6 @@ public class AuthService {
             return rotate(row, oldToken, now);
         }
 
-        // 2단계: grace 윈도우 안의 옛 토큰으로 조회.
-        // 플로우상 "최근에 T1→T2로 회전된 row"가 여기서 잡힌다.
         var graceRow = refreshTokenRepository.findByPreviousTokenInGraceForUpdate(oldToken, now);
         if (graceRow.isPresent()) {
             RefreshToken row = graceRow.get();
@@ -106,10 +99,6 @@ public class AuthService {
             return graceReplay(row);
         }
 
-        // 3단계: 두 lookup 모두 miss. 이 토큰이 "grace가 만료된 옛 refresh의 재전송"인지
-        // "한 번도 발급된 적 없는 토큰"인지 관찰용으로 구분한다. previous_token에 X-lock을 걸
-        // 필요는 없고, UNIQUE가 아닌 INDEX 위의 단순 exists 쿼리다. 프론트 응답은 동일하게
-        // INVALID_REFRESH_TOKEN로 유지하여 사용자 경험/계약은 바꾸지 않는다.
         boolean graceExpiredReplay = refreshTokenRepository.existsByPreviousToken(oldToken);
         String reason = graceExpiredReplay ? "replay_suspected" : "invalid";
         incrementRefresh(reason);
@@ -137,8 +126,6 @@ public class AuthService {
         return row.getExpiredAt() != null && row.getExpiredAt().isBefore(now);
     }
 
-    // 정상 회전: 새 access/refresh를 발급하고 옛 토큰을 previous_token으로 접어넣는다.
-    // 엔티티는 @Transactional 변경감지로 flush되므로 save() 호출은 하지 않는다.
     private RefreshResult rotate(RefreshToken row, String oldToken, LocalDateTime now) {
         User user = row.getUser();
 
@@ -162,8 +149,6 @@ public class AuthService {
                 .build();
     }
 
-    // grace 재전송: 회전은 하지 않는다. 이미 발급된 current 토큰을 그대로 재송신하고
-    // access만 새로 만든다. 같은 grace 토큰이 여러 번 들어와도 idempotent하게 동작한다.
     private RefreshResult graceReplay(RefreshToken row) {
         User user = row.getUser();
         String newAccess = jwtTokenProvider.createAccessToken(user);
@@ -183,8 +168,6 @@ public class AuthService {
         meterRegistry.counter("auth_refresh_total", "result", result).increment();
     }
 
-    // AuthController.fingerprint와 동일 포맷. 실패 로그의 refreshFp와 컨트롤러의
-    // "result=start" 로그의 refreshFp가 동일 토큰이면 정확히 같은 값이 찍히도록 맞춘다.
     private String fingerprint(String token) {
         if (token == null || token.isBlank()) {
             return "none";
