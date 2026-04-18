@@ -4,10 +4,15 @@ import com.jdc.recipe_service.domain.entity.RefreshToken;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RefreshTokenRepository;
 import com.jdc.recipe_service.domain.dto.auth.AuthTokens;
+import com.jdc.recipe_service.domain.dto.auth.RefreshResult;
+import com.jdc.recipe_service.exception.CustomException;
+import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import com.jdc.recipe_service.security.oauth.AppleClientSecretGenerator;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2User;
 import com.jdc.recipe_service.security.oauth.CustomOAuth2UserService;
+import io.jsonwebtoken.JwtException;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
@@ -21,7 +26,9 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequ
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationResponse;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -29,12 +36,141 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthService {
 
+    // Android WebView CookieManager가 새 refresh 쿠키를 디스크에 flush하기 전에 앱이
+    // 백그라운드로 가거나 죽었을 때를 메우기 위한 유예 시간. 사람이 "한 번 더 탭"하는 동안
+    // 옛 토큰이 재전송되어도 로그아웃되지 않게 해준다. 너무 길면 토큰 재전송 공격 창이 커지고,
+    // 너무 짧으면 재시도 여유가 없어 원래 문제로 돌아간다.
+    private static final Duration REFRESH_GRACE_WINDOW = Duration.ofSeconds(30);
+
     private final ClientRegistrationRepository clientRegistrationRepository;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient;
     private final AppleClientSecretGenerator appleClientSecretGenerator;
+    private final MeterRegistry meterRegistry;
+
+    /**
+     * refresh 토큰 회전. Android WebView CookieManager flush 누락으로 옛 토큰이 재전송되는
+     * 케이스를 살려주기 위해 previous_token grace 윈도우를 두고, 동시 회전을 위해
+     * 두 단계 lookup을 모두 PESSIMISTIC_WRITE로 잡는다.
+     *
+     * <p>호출 전제:
+     * <ul>
+     *   <li>컨트롤러가 쿠키 존재 여부만 확인하고 원본 token 문자열을 넘긴다.</li>
+     *   <li>본 메서드는 @Transactional이므로 두 lookup이 같은 read view에 속하지 않고,
+     *       row-level X-lock이 commit 시점까지 유지된다.</li>
+     * </ul>
+     *
+     * <p>실패 매핑:
+     * <ul>
+     *   <li>JWT 서명/형식 오류 → {@link ErrorCode#INVALID_REFRESH_TOKEN}</li>
+     *   <li>JWT 만료 → {@link ErrorCode#REFRESH_TOKEN_EXPIRED}</li>
+     *   <li>DB에서 현재/grace 어디에도 없음 → {@link ErrorCode#INVALID_REFRESH_TOKEN}</li>
+     *   <li>DB row 만료 → {@link ErrorCode#REFRESH_TOKEN_EXPIRED}</li>
+     * </ul>
+     */
+    @Transactional
+    public RefreshResult refresh(String oldToken) {
+        validateJwtOrThrow(oldToken);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1단계: 현재 유효 토큰으로 조회. UNIQUE 인덱스(uk_rt_token) 위에서 정확히 0/1 row.
+        var currentRow = refreshTokenRepository.findByTokenForUpdate(oldToken);
+        if (currentRow.isPresent()) {
+            RefreshToken row = currentRow.get();
+            if (isExpired(row, now)) {
+                incrementRefresh("expired");
+                throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
+            }
+            return rotate(row, oldToken, now);
+        }
+
+        // 2단계: grace 윈도우 안의 옛 토큰으로 조회.
+        // 플로우상 "최근에 T1→T2로 회전된 row"가 여기서 잡힌다.
+        var graceRow = refreshTokenRepository.findByPreviousTokenInGraceForUpdate(oldToken, now);
+        if (graceRow.isPresent()) {
+            RefreshToken row = graceRow.get();
+            if (isExpired(row, now)) {
+                incrementRefresh("expired");
+                throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED);
+            }
+            return graceReplay(row);
+        }
+
+        // 3단계: 두 lookup 모두 miss. 이 토큰이 "grace가 만료된 옛 refresh의 재전송"인지
+        // "한 번도 발급된 적 없는 토큰"인지 관찰용으로 구분한다. previous_token에 X-lock을 걸
+        // 필요는 없고, UNIQUE가 아닌 INDEX 위의 단순 exists 쿼리다. 프론트 응답은 동일하게
+        // INVALID_REFRESH_TOKEN로 유지하여 사용자 경험/계약은 바꾸지 않는다.
+        boolean graceExpiredReplay = refreshTokenRepository.existsByPreviousToken(oldToken);
+        incrementRefresh(graceExpiredReplay ? "replay_suspected" : "invalid");
+        throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    private void validateJwtOrThrow(String token) {
+        try {
+            jwtTokenProvider.validateToken(token);
+        } catch (JwtException e) {
+            boolean expired = e.getMessage() != null && e.getMessage().contains("만료");
+            if (expired) {
+                incrementRefresh("jwt_expired");
+                throw new CustomException(ErrorCode.REFRESH_TOKEN_EXPIRED, e.getMessage());
+            }
+            incrementRefresh("jwt_invalid");
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN, e.getMessage());
+        }
+    }
+
+    private boolean isExpired(RefreshToken row, LocalDateTime now) {
+        return row.getExpiredAt() != null && row.getExpiredAt().isBefore(now);
+    }
+
+    // 정상 회전: 새 access/refresh를 발급하고 옛 토큰을 previous_token으로 접어넣는다.
+    // 엔티티는 @Transactional 변경감지로 flush되므로 save() 호출은 하지 않는다.
+    private RefreshResult rotate(RefreshToken row, String oldToken, LocalDateTime now) {
+        User user = row.getUser();
+
+        String newAccess = jwtTokenProvider.createAccessToken(user);
+        String newRefresh = jwtTokenProvider.createRefreshToken();
+        LocalDateTime newExpiry = jwtTokenProvider.getRefreshTokenExpiryAsLocalDateTime();
+
+        row.setPreviousToken(oldToken);
+        row.setPreviousTokenGraceUntil(now.plus(REFRESH_GRACE_WINDOW));
+        row.setToken(newRefresh);
+        row.setExpiredAt(newExpiry);
+
+        incrementRefresh("rotated");
+
+        return RefreshResult.builder()
+                .userId(user.getId())
+                .accessToken(newAccess)
+                .refreshToken(newRefresh)
+                .refreshExpiredAt(newExpiry)
+                .path(RefreshResult.Path.ROTATED)
+                .build();
+    }
+
+    // grace 재전송: 회전은 하지 않는다. 이미 발급된 current 토큰을 그대로 재송신하고
+    // access만 새로 만든다. 같은 grace 토큰이 여러 번 들어와도 idempotent하게 동작한다.
+    private RefreshResult graceReplay(RefreshToken row) {
+        User user = row.getUser();
+        String newAccess = jwtTokenProvider.createAccessToken(user);
+
+        incrementRefresh("grace_replay");
+
+        return RefreshResult.builder()
+                .userId(user.getId())
+                .accessToken(newAccess)
+                .refreshToken(row.getToken())
+                .refreshExpiredAt(row.getExpiredAt())
+                .path(RefreshResult.Path.GRACE_REPLAY)
+                .build();
+    }
+
+    private void incrementRefresh(String result) {
+        meterRegistry.counter("auth_refresh_total", "result", result).increment();
+    }
 
     /**
      * provider: "google", "kakao" 또는 "naver"
