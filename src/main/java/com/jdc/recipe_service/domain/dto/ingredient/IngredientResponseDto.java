@@ -16,5 +16,4 @@ public class IngredientResponseDto {
     private Integer price;
     private String unit;
     private boolean inFridge;
-    private String storageMethod;
 }

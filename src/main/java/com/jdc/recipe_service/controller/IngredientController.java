@@ -102,7 +102,7 @@ public class IngredientController {
             summary = "재료 상세 조회",
             description = """
                     냉장고의 i버튼 팝업에서 사용할 재료 상세 정보를 반환합니다.
-                    - 보관 방법(storageMethod)과 해당 재료로 만들 수 있는 **공개** 레시피를 인기순 최대 10개 포함합니다.
+                    - 보관 정보(storageLocation/storageTemperature/storageDuration/storageNotes), 페어링(goodPairs/badPairs), 추천 조리법(recommendedCookingMethods), 그리고 해당 재료로 만들 수 있는 **공개** 레시피를 인기순 최대 10개 포함합니다.
                     - 레시피 목록은 `isPrivate=false` 이고 이미지가 `READY` 또는 준비 중이 아닌 것만 포함합니다.
                     - 페이지네이션은 제공하지 않으며 `recipes`는 항상 배열(최대 10건, 빈 배열 가능)입니다.
                     - 인증이 필요 없는 공개 엔드포인트입니다.
