@@ -173,6 +173,7 @@ public class RecipeExtractionService {
             - timeline과 nonRecipeReason만 null 허용
             - 모든 숫자 필드는 0 이상 (빈 문자열, null 금지)
             - 영상에 없는 정보는 절대 창작 금지
+            - **[언어] 입력 자막이 어떤 언어든 모든 출력 문자열(title, ingredients.name, instruction, cookingTips 등)은 자연스러운 한국어로 번역·현지화하라. (예: "soy sauce" → "간장")**
             
             ## 1단계: 레시피 판별
             조리법이 아니면 즉시 반환:
