@@ -384,9 +384,11 @@ public class RecipeSearchService {
                 .toList();
 
         Set<Long> likedIds = recipeLikeRepository.findRecipeIdsByUserIdAndRecipeIdIn(currentUserId, recipeIds);
+        Set<Long> favoritedIds = recipeBookItemRepository.findSavedRecipeIdsByUserIdAndRecipeIdIn(currentUserId, recipeIds);
 
         page.getContent().forEach(dto -> {
             dto.setLikedByCurrentUser(likedIds.contains(dto.getId()));
+            dto.setFavoriteByCurrentUser(favoritedIds.contains(dto.getId()));
         });
 
         return page;
