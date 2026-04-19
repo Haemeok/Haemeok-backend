@@ -150,10 +150,14 @@ public class RecipeDetailStaticDto {
     @Schema(description = "파인다이닝 전용 상세 정보 (일반 레시피일 경우 null)")
     private FineDiningInfo fineDiningInfo;
 
-    @JsonProperty("isCloneable")
     @Schema(description = "리믹스(복제) 가능 여부. 공식 계정의 YOUTUBE PUBLIC ACTIVE 원본에서만 true.",
             example = "true")
     private boolean isCloneable;
+
+    @JsonProperty("isCloneable")
+    public boolean isCloneable() {
+        return isCloneable;
+    }
 
     @Getter @Builder @NoArgsConstructor @AllArgsConstructor
     public static class FineDiningInfo {
