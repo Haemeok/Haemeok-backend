@@ -173,12 +173,11 @@ public class IngredientService {
         Ingredient entity = repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "재료가 없습니다: " + id));
-            entity.setName(dto.getName());
+        entity.setName(dto.getName());
         entity.setCategory(dto.getCategory());
         entity.setImageUrl(dto.getImageUrl());
         entity.setPrice(dto.getPrice());
         entity.setUnit(dto.getUnit());
-        entity.setStorageMethod(dto.getStorageMethod());
         return IngredientMapper.toDto(entity);
     }
 
@@ -198,7 +197,13 @@ public class IngredientService {
                 .name(entity.getName())
                 .category(entity.getCategory())
                 .imageUrl(imageUrl)
-                .storageMethod(entity.getStorageMethod())
+                .storageLocation(entity.getStorageLocation())
+                .storageTemperature(entity.getStorageTemperature())
+                .storageDuration(entity.getStorageDuration())
+                .storageNotes(entity.getStorageNotes())
+                .goodPairs(entity.getGoodPairs())
+                .badPairs(entity.getBadPairs())
+                .recommendedCookingMethods(entity.getRecommendedCookingMethods())
                 .recipes(recipes)
                 .build();
     }

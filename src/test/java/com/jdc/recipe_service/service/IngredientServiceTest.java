@@ -45,7 +45,7 @@ class IngredientServiceTest {
     private IngredientService ingredientService;
 
     @Test
-    @DisplayName("findDetailById: 재료가 있고 레시피가 있으면 imageUrl/storageMethod/recipes가 조립된 DTO 반환")
+    @DisplayName("findDetailById: 재료가 있고 레시피가 있으면 imageUrl/보관필드/recipes가 조립된 DTO 반환")
     void findDetailById_happyPath() {
         // given
         Long id = 42L;
@@ -53,7 +53,13 @@ class IngredientServiceTest {
                 .id(id)
                 .name("대파")
                 .category("채소")
-                .storageMethod("냉장 보관 권장")
+                .storageLocation("냉장")
+                .storageTemperature("0~4℃")
+                .storageDuration("1~2주")
+                .storageNotes("습기 주의")
+                .goodPairs("돼지고기 / 마늘")
+                .badPairs(null)
+                .recommendedCookingMethods("구이 / 볶음")
                 .build();
         RecipeSimpleDto recipe = RecipeSimpleDto.builder()
                 .id(100L)
@@ -69,7 +75,13 @@ class IngredientServiceTest {
         assertThat(result.getId()).isEqualTo(id);
         assertThat(result.getName()).isEqualTo("대파");
         assertThat(result.getCategory()).isEqualTo("채소");
-        assertThat(result.getStorageMethod()).isEqualTo("냉장 보관 권장");
+        assertThat(result.getStorageLocation()).isEqualTo("냉장");
+        assertThat(result.getStorageTemperature()).isEqualTo("0~4℃");
+        assertThat(result.getStorageDuration()).isEqualTo("1~2주");
+        assertThat(result.getStorageNotes()).isEqualTo("습기 주의");
+        assertThat(result.getGoodPairs()).isEqualTo("돼지고기 / 마늘");
+        assertThat(result.getBadPairs()).isNull();
+        assertThat(result.getRecommendedCookingMethods()).isEqualTo("구이 / 볶음");
         assertThat(result.getImageUrl())
                 .isEqualTo("https://haemeok-s3-bucket.s3.ap-northeast-2.amazonaws.com/images/ingredients/대파.webp");
         assertThat(result.getRecipes()).containsExactly(recipe);
@@ -109,6 +121,7 @@ class IngredientServiceTest {
 
         // then
         assertThat(result.getRecipes()).isNotNull().isEmpty();
-        assertThat(result.getStorageMethod()).isNull();
+        assertThat(result.getStorageLocation()).isNull();
+        assertThat(result.getRecommendedCookingMethods()).isNull();
     }
 }

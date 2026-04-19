@@ -76,8 +76,26 @@ public class Ingredient {
     @Builder.Default
     private boolean isPantry = false;
 
-    @Column(name = "storage_method", columnDefinition = "TEXT")
-    private String storageMethod;
+    @Column(name = "storage_location", length = 50)
+    private String storageLocation;
+
+    @Column(name = "storage_temperature", length = 255)
+    private String storageTemperature;
+
+    @Column(name = "storage_duration", length = 255)
+    private String storageDuration;
+
+    @Column(name = "storage_notes", columnDefinition = "TEXT")
+    private String storageNotes;
+
+    @Column(name = "good_pairs", columnDefinition = "TEXT")
+    private String goodPairs;
+
+    @Column(name = "bad_pairs", columnDefinition = "TEXT")
+    private String badPairs;
+
+    @Column(name = "recommended_cooking_methods", columnDefinition = "TEXT")
+    private String recommendedCookingMethods;
 
     public void updateUsageCount(Long count) {
         this.usageCount = count;

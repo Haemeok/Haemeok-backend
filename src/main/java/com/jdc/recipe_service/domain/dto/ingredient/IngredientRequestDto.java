@@ -13,5 +13,4 @@ public class IngredientRequestDto {
     private String imageUrl;
     private Integer price;
     private String unit;
-    private String storageMethod;
 }
