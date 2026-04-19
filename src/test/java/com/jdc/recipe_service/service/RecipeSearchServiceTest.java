@@ -45,7 +45,7 @@ class RecipeSearchServiceTest {
 
     @Mock private RecipeRepository recipeRepository;
     @Mock private RecipeLikeRepository recipeLikeRepository;
-    @Mock private RecipeFavoriteRepository recipeFavoriteRepository;
+    @Mock private RecipeBookItemRepository recipeBookItemRepository;
     @Mock private RecipeCommentRepository recipeCommentRepository;
     @Mock private RecipeTagRepository recipeTagRepository;
     @Mock private RecipeIngredientRepository recipeIngredientRepository;
@@ -121,7 +121,7 @@ class RecipeSearchServiceTest {
         ReflectionTestUtils.setField(sampleRecipe, "likeCount", 10L);
         given(recipeRepository.findDetailWithFineDiningById(existingId)).willReturn(Optional.of(sampleRecipe));
         given(recipeLikeRepository.existsByRecipeIdAndUserId(existingId, userId)).willReturn(true);
-        given(recipeFavoriteRepository.existsByRecipeIdAndUserId(existingId, userId)).willReturn(false);
+        given(recipeBookItemRepository.existsByUserIdAndRecipeId(userId, existingId)).willReturn(false);
         given(recipeRatingService.getMyRating(existingId, userId)).willReturn(5.0);
         given(recipeRatingService.getRatingCount(existingId)).willReturn(20L);
 
@@ -227,7 +227,7 @@ class RecipeSearchServiceTest {
 
                         verify(recipeRepository, times(1)).findDetailWithFineDiningById(existingId);
                         verify(recipeLikeRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
-                        verify(recipeFavoriteRepository, times(1)).existsByRecipeIdAndUserId(existingId, userId);
+                        verify(recipeBookItemRepository, times(1)).existsByUserIdAndRecipeId(userId, existingId);
                         verify(recipeRatingService, times(1)).getMyRating(existingId, userId);
                         verify(recipeRatingService, times(1)).getRatingCount(existingId);
                         verify(recipeTagRepository, times(1)).findByRecipeId(existingId);
@@ -256,7 +256,7 @@ class RecipeSearchServiceTest {
         verify(recipeRepository, times(1)).findDetailWithFineDiningById(missingId);
         verifyNoMoreInteractions(
                 recipeLikeRepository,
-                recipeFavoriteRepository,
+                recipeBookItemRepository,
                 recipeRatingService,
                 recipeTagRepository,
                 recipeIngredientRepository,
@@ -280,7 +280,7 @@ class RecipeSearchServiceTest {
         verify(recipeRepository, times(1)).findDetailWithFineDiningById(existingId);
         verifyNoMoreInteractions(
                 recipeLikeRepository,
-                recipeFavoriteRepository,
+                recipeBookItemRepository,
                 recipeRatingService,
                 recipeTagRepository,
                 recipeIngredientRepository,
@@ -415,6 +415,59 @@ class RecipeSearchServiceTest {
         // Then
         verify(recipeRepository, times(1)).searchAndSortByDynamicField(
                 eq(cond), eq("avgRating"), eq(Sort.Direction.DESC), eq(pageable), eq(userId));
+    }
+
+    @Test
+    @DisplayName("addLikeInfoToPage: userId가 있으면 좋아요/즐겨찾기 조회 결과를 각 DTO에 독립적으로 주입한다")
+    void addLikeInfoToPage_setsLikeAndFavoriteIndependently() {
+        // given
+        Long currentUserId = 10L;
+        RecipeSimpleDto likedOnly = RecipeSimpleDto.builder().id(1L).imageUrl("img-1").build();
+        RecipeSimpleDto favoritedOnly = RecipeSimpleDto.builder().id(2L).imageUrl("img-2").build();
+        RecipeSimpleDto neither = RecipeSimpleDto.builder().id(3L).imageUrl("img-3").build();
+        Page<RecipeSimpleDto> page = new PageImpl<>(List.of(likedOnly, favoritedOnly, neither));
+
+        given(recipeLikeRepository.findRecipeIdsByUserIdAndRecipeIdIn(eq(currentUserId), anyList()))
+                .willReturn(Set.of(1L));
+        given(recipeBookItemRepository.findSavedRecipeIdsByUserIdAndRecipeIdIn(eq(currentUserId), anyList()))
+                .willReturn(Set.of(2L));
+        doReturn("img-1").when(spyService).generateImageUrl("img-1");
+        doReturn("img-2").when(spyService).generateImageUrl("img-2");
+        doReturn("img-3").when(spyService).generateImageUrl("img-3");
+
+        // when
+        Page<RecipeSimpleDto> result = spyService.addLikeInfoToPage(page, currentUserId);
+
+        // then
+        assertThat(result.getContent()).hasSize(3);
+        assertThat(likedOnly.isLikedByCurrentUser()).isTrue();
+        assertThat(likedOnly.isFavoriteByCurrentUser()).isFalse();
+        assertThat(favoritedOnly.isLikedByCurrentUser()).isFalse();
+        assertThat(favoritedOnly.isFavoriteByCurrentUser()).isTrue();
+        assertThat(neither.isLikedByCurrentUser()).isFalse();
+        assertThat(neither.isFavoriteByCurrentUser()).isFalse();
+
+        verify(recipeLikeRepository, times(1)).findRecipeIdsByUserIdAndRecipeIdIn(eq(currentUserId), anyList());
+        verify(recipeBookItemRepository, times(1)).findSavedRecipeIdsByUserIdAndRecipeIdIn(eq(currentUserId), anyList());
+    }
+
+    @Test
+    @DisplayName("addLikeInfoToPage: userId가 null이면 좋아요/즐겨찾기 배치 조회를 건너뛴다")
+    void addLikeInfoToPage_anonymousUser_skipsBatchQueries() {
+        // given
+        RecipeSimpleDto dto = RecipeSimpleDto.builder().id(1L).imageUrl("img-1").build();
+        Page<RecipeSimpleDto> page = new PageImpl<>(List.of(dto));
+        doReturn("img-1").when(spyService).generateImageUrl("img-1");
+
+        // when
+        Page<RecipeSimpleDto> result = spyService.addLikeInfoToPage(page, null);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(dto.isLikedByCurrentUser()).isFalse();
+        assertThat(dto.isFavoriteByCurrentUser()).isFalse();
+        verify(recipeLikeRepository, never()).findRecipeIdsByUserIdAndRecipeIdIn(any(), anyList());
+        verify(recipeBookItemRepository, never()).findSavedRecipeIdsByUserIdAndRecipeIdIn(any(), anyList());
     }
 
     @Test

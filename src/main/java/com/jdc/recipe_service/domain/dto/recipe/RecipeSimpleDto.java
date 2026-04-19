@@ -55,6 +55,9 @@ public class RecipeSimpleDto {
     @Schema(description = "현재 로그인한 사용자가 좋아요를 눌렀는지 여부")
     private boolean likedByCurrentUser;
 
+    @Schema(description = "현재 로그인한 사용자가 즐겨찾기에 추가했는지 여부")
+    private boolean favoriteByCurrentUser;
+
     @Schema(description = "평균 평점")
     @Getter(AccessLevel.NONE)
     private BigDecimal avgRating;
