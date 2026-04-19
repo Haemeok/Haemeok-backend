@@ -32,6 +32,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
     private final JPAQueryFactory queryFactory;
     private final RecipeLikeRepository recipeLikeRepository;
+    private final RecipeBookItemRepository recipeBookItemRepository;
 
     @Value("${app.s3.bucket-name}")
     private String bucketName;
@@ -129,10 +130,13 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
                 Set<Long> likedIds = recipeLikeRepository
                         .findRecipeIdsByUserIdAndRecipeIdIn(currentUserId, recipeIds);
+                Set<Long> favoritedIds = recipeBookItemRepository
+                        .findSavedRecipeIdsByUserIdAndRecipeIdIn(currentUserId, recipeIds);
 
-                content.forEach(dto ->
-                        dto.setLikedByCurrentUser(likedIds.contains(dto.getId()))
-                );
+                content.forEach(dto -> {
+                    dto.setLikedByCurrentUser(likedIds.contains(dto.getId()));
+                    dto.setFavoriteByCurrentUser(favoritedIds.contains(dto.getId()));
+                });
             }
         }
 
