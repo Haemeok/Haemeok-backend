@@ -8,8 +8,12 @@ import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import com.jdc.recipe_service.security.CustomAuthenticationEntryPoint;
 import com.jdc.recipe_service.service.IngredientService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.hamcrest.Matchers;
 import org.hashids.Hashids;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,12 +35,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = IngredientController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(HashIdConfig.class)
+@Import({HashIdConfig.class, IngredientControllerTest.MeterRegistryTestConfig.class})
 @TestPropertySource(properties = {
         "app.hashids.salt=TEST_SALT_FOR_INGREDIENT_CONTROLLER",
         "app.hashids.min-length=8"
 })
 class IngredientControllerTest {
+
+    @TestConfiguration
+    static class MeterRegistryTestConfig {
+        @Bean
+        MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -75,7 +87,13 @@ class IngredientControllerTest {
                 .name("대파")
                 .category("채소")
                 .imageUrl("https://example.com/대파.webp")
-                .storageMethod("냉장 보관 권장")
+                .storageLocation("냉장")
+                .storageTemperature("0~4℃")
+                .storageDuration("1~2주")
+                .storageNotes("습기 주의")
+                .goodPairs("돼지고기 / 마늘")
+                .badPairs(null)
+                .recommendedCookingMethods("구이 / 볶음")
                 .recipes(List.of(recipe))
                 .build();
         given(ingredientService.findDetailById(eq(rawId))).willReturn(dto);
@@ -86,15 +104,16 @@ class IngredientControllerTest {
                 .andExpect(jsonPath("$.id").value(hashedId))
                 .andExpect(jsonPath("$.name").value("대파"))
                 .andExpect(jsonPath("$.category").value("채소"))
-                .andExpect(jsonPath("$.storageMethod").value("냉장 보관 권장"))
+                .andExpect(jsonPath("$.storageLocation").value("냉장"))
+                .andExpect(jsonPath("$.recommendedCookingMethods").value("구이 / 볶음"))
                 .andExpect(jsonPath("$.recipes.length()").value(1))
                 .andExpect(jsonPath("$.recipes[0].id").value(hashids.encode(recipeRawId)))
                 .andExpect(jsonPath("$.recipes[0].authorId").value(hashids.encode(authorRawId)));
     }
 
     @Test
-    @DisplayName("GET /api/ingredients/{id}: storageMethod가 null이어도 응답에 필드가 존재한다(NON_NULL 미적용 계약)")
-    void getIngredientDetail_nullStorageMethod_fieldStillPresent() throws Exception {
+    @DisplayName("GET /api/ingredients/{id}: 보관 정보가 모두 null이어도 응답에 필드가 존재한다(NON_NULL 미적용 계약)")
+    void getIngredientDetail_nullStorageFields_fieldsStillPresent() throws Exception {
         // given
         long rawId = 7L;
         String hashedId = hashids.encode(rawId);
@@ -104,7 +123,6 @@ class IngredientControllerTest {
                 .name("셀러리")
                 .category("채소")
                 .imageUrl("https://example.com/셀러리.webp")
-                .storageMethod(null)
                 .recipes(List.of())
                 .build();
         given(ingredientService.findDetailById(eq(rawId))).willReturn(dto);
@@ -112,7 +130,8 @@ class IngredientControllerTest {
         // when & then
         mockMvc.perform(get("/api/ingredients/{id}", hashedId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.storageMethod").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.storageLocation").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.recommendedCookingMethods").value(Matchers.nullValue()))
                 .andExpect(jsonPath("$.recipes").isArray())
                 .andExpect(jsonPath("$.recipes.length()").value(0));
     }
