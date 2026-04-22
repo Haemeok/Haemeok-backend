@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service.image;
 
+import com.jdc.recipe_service.util.LogSanitizer;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,7 +65,7 @@ public class NanoBananaImageService {
         try {
             response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
         } catch (RestClientException e) {
-            log.error("❌ Vertex AI REST 호출 실패: {}", e.getMessage(), e);
+            log.error("❌ Vertex AI REST 호출 실패: errorType={}, msg={}", e.getClass().getSimpleName(), LogSanitizer.mask(e.getMessage()));
             throw new RuntimeException("❌ Vertex AI REST 호출 실패", e);
         }
 

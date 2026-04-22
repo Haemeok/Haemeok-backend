@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service.image;
 
+import com.jdc.recipe_service.util.LogSanitizer;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -99,7 +100,7 @@ public class GeminiImageService {
 
     @Recover
     public List<String> recover(RestClientException e, String prompt, Long userId, Object recipeId) {
-        log.error("❌ 모든 계정/리전 실패 (재시도 소진). 기본 이미지 반환. recipeId={}, error={}", recipeId, e.getMessage());
+        log.error("❌ 모든 계정/리전 실패 (재시도 소진). 기본 이미지 반환. recipeId={}, error={}", recipeId, LogSanitizer.mask(e.getMessage()));
         return Collections.singletonList(DEFAULT_IMAGE_URL);
     }
 
@@ -150,7 +151,7 @@ public class GeminiImageService {
                     throw e;
 
                 } catch (Exception e) {
-                    log.warn("⚠️ 연결 오류 -> 재시도 (Msg={})", e.getMessage());
+                    log.warn("⚠️ 연결 오류 -> 재시도 (Project={}, Location={}, Msg={})", cred.projectId, loc, LogSanitizer.mask(e.getMessage()));
                     lastException = new RestClientException("Connection Error", e);
                 }
             }

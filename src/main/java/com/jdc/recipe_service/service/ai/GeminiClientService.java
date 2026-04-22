@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.util.LogSanitizer;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
@@ -121,7 +122,7 @@ public class GeminiClientService {
     }
 
     private CompletableFuture<RecipeCreateRequestDto> fallbackGenerate(String system, String user, Throwable ex) {
-        log.error("Gemini Fallback: {}", ex.getMessage());
+        log.error("Gemini Fallback: errorType={}, msg={}", ex.getClass().getSimpleName(), LogSanitizer.mask(ex.getMessage()));
         return CompletableFuture.failedFuture(new CustomException(ErrorCode.AI_RECIPE_GENERATION_FAILED, "파인다이닝 생성 중 일시적인 오류 발생"));
     }
 }
