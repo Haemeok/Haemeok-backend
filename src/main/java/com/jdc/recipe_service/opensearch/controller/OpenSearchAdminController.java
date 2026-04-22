@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -23,6 +24,7 @@ import java.util.Objects;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/opensearch")
+@PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "OpenSearch 관리 API", description = "OpenSearch 인덱스 생성, 삭제, 재색인을 위한 관리자 전용 API입니다.")
 public class OpenSearchAdminController {
 

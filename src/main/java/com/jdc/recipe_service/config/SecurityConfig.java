@@ -170,6 +170,7 @@ public class SecurityConfig {
 
                             // 7) 관리자용 API
                             .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                            .requestMatchers("/api/opensearch/**").hasRole("ADMIN")
                             .requestMatchers("/api/test/recipes/**").hasRole("ADMIN")
 
                             // 8) 나머지 요청은 모두 공개
@@ -219,9 +220,10 @@ public class SecurityConfig {
                                 "/api/tags/**",
                                 "/", "/oauth2/**", "/login/**", "/error",
                                 "/h2-console/**",
-                                "/api/opensearch/**",
                                 "/actuator/**"
                         ).permitAll()
+
+                        .requestMatchers("/api/opensearch/**").hasRole("ADMIN")
 
                         // 레시피북: 모든 메서드 인증 필요
                         .requestMatchers("/api/me/recipe-books/**").authenticated()
