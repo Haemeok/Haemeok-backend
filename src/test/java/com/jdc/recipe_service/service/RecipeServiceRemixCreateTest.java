@@ -3,6 +3,7 @@ package com.jdc.recipe_service.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
+import com.jdc.recipe_service.domain.dto.recipe.step.RecipeStepRequestDto;
 import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.User;
@@ -192,6 +193,87 @@ class RecipeServiceRemixCreateTest {
         assertThat(persisted.getUser().getId()).isEqualTo(REMIX_USER_ID);
 
         verify(s3Util).copyObject(SOURCE_IMAGE_KEY, EXPECTED_NEW_IMAGE_KEY);
+    }
+
+    @Test
+    @DisplayName("리믹스 + 새 메인 이미지 업로드 시 CopyObject 생략, 프리사인드 URL 경로로 업로드")
+    void remix_whenNewMainUploaded_skipsCopyAndUsesPresignedUrl() {
+        // given
+        Recipe source = cloneableSource().build();
+        given(recipeRepository.findById(SOURCE_RECIPE_ID)).willReturn(Optional.of(source));
+        given(recipeRepository.existsByOriginRecipeIdAndUserId(SOURCE_RECIPE_ID, REMIX_USER_ID))
+                .willReturn(false);
+
+        RecipeCreateRequestDto dto = baseDto();
+        dto.setOriginRecipeId(SOURCE_RECIPE_ID);
+
+        FileInfoRequest mainFile = FileInfoRequest.builder()
+                .type("main")
+                .contentType("image/jpeg")
+                .build();
+        RecipeWithImageUploadRequest req = RecipeWithImageUploadRequest.builder()
+                .recipe(dto)
+                .files(List.of(mainFile))
+                .build();
+
+        // when
+        recipeService.createRecipeAndGenerateUrls(req, REMIX_USER_ID, RecipeSourceType.USER, null);
+
+        // then
+        verify(s3Util, never()).copyObject(anyString(), anyString());
+
+        ArgumentCaptor<Recipe> saved = ArgumentCaptor.forClass(Recipe.class);
+        verify(recipeRepository).save(saved.capture());
+        Recipe persisted = saved.getValue();
+
+        // 리믹스 불변식은 유지되어야 한다
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(persisted.getIsPrivate()).isTrue();
+        assertThat(persisted.getSource()).isEqualTo(RecipeSourceType.YOUTUBE);
+        assertThat(persisted.getOriginRecipe()).isSameAs(source);
+        // imageKey는 새 레시피의 자체 경로로 배정되어야 한다 (복사가 아닌 프리사인드 업로드 대상)
+        assertThat(persisted.getImageKey()).isEqualTo(EXPECTED_NEW_IMAGE_KEY);
+
+        verify(recipeImageService).generateAndSavePresignedUrls(any(Recipe.class), eq(List.of(mainFile)));
+    }
+
+    @Test
+    @DisplayName("리믹스 + 스텝 이미지 업로드 시 해당 스텝 DTO에 imageKey가 할당된다")
+    void remix_whenStepImageUploaded_assignsStepImageKey() {
+        // given
+        Recipe source = cloneableSource().build();
+        given(recipeRepository.findById(SOURCE_RECIPE_ID)).willReturn(Optional.of(source));
+        given(recipeRepository.existsByOriginRecipeIdAndUserId(SOURCE_RECIPE_ID, REMIX_USER_ID))
+                .willReturn(false);
+
+        RecipeStepRequestDto step1 = RecipeStepRequestDto.builder()
+                .stepNumber(1)
+                .instruction("고기를 볶는다")
+                .build();
+        RecipeCreateRequestDto dto = baseDto();
+        dto.setOriginRecipeId(SOURCE_RECIPE_ID);
+        dto.setSteps(List.of(step1));
+
+        FileInfoRequest stepFile = FileInfoRequest.builder()
+                .type("step1")
+                .stepIndex(1)
+                .contentType("image/jpeg")
+                .build();
+        RecipeWithImageUploadRequest req = RecipeWithImageUploadRequest.builder()
+                .recipe(dto)
+                .files(List.of(stepFile))
+                .build();
+
+        // when
+        recipeService.createRecipeAndGenerateUrls(req, REMIX_USER_ID, RecipeSourceType.USER, null);
+
+        // then
+        // 메인은 업로드 없음 → 원본 복사 동작 유지
+        verify(s3Util).copyObject(SOURCE_IMAGE_KEY, EXPECTED_NEW_IMAGE_KEY);
+        // 스텝 DTO에 imageKey가 할당되어 saveAll로 전달되어야 한다
+        assertThat(step1.getImageKey())
+                .isEqualTo("images/recipes/" + NEW_RECIPE_ID + "/step_1.webp");
     }
 
     @Test
