@@ -102,6 +102,10 @@ public class RecipeService {
         final RecipeSourceType sourceType =
                 remixSource != null ? RecipeSourceType.YOUTUBE : incomingSourceType;
 
+        final boolean remixWithNewMain = remixSource != null
+                && req.getFiles() != null
+                && req.getFiles().stream().anyMatch(f -> MAIN_IMAGE_SLOT.equals(f.getType()));
+
         deduplicateIngredients(dto.getIngredients());
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
@@ -175,12 +179,13 @@ public class RecipeService {
             throw e;
         }
 
-        if (sourceType != RecipeSourceType.AI && sourceType != RecipeSourceType.YOUTUBE) {
+        if ((sourceType != RecipeSourceType.AI && sourceType != RecipeSourceType.YOUTUBE)
+                || remixWithNewMain) {
             String mainImageKey = "images/recipes/" + recipe.getId() + "/main.webp";
             recipe.updateImageKey(mainImageKey);
         }
 
-        if (remixSource != null) {
+        if (remixSource != null && !remixWithNewMain) {
             copyRemixMainImage(recipe, remixSource);
         }
 
@@ -207,7 +212,8 @@ public class RecipeService {
                     recipe.getId(), totalCost, marketPrice);
         }
 
-        if (sourceType != RecipeSourceType.AI && sourceType != RecipeSourceType.YOUTUBE) {
+        if ((sourceType != RecipeSourceType.AI && sourceType != RecipeSourceType.YOUTUBE)
+                || remixSource != null) {
             if (req.getFiles() != null) {
                 for (FileInfoRequest file : req.getFiles()) {
                     if (file.getType() != null && file.getType().startsWith("step") && file.getStepIndex() != null) {
