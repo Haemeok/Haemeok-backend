@@ -207,6 +207,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/notification-preferences/**").authenticated()
+                        // 챗봇 — POST /api/chat / GET /api/chat/history / GET /api/chat/quota
+                        .requestMatchers("/api/chat", "/api/chat/**").authenticated()
 
                         // 1) 공개 엔드포인트
                         .requestMatchers(

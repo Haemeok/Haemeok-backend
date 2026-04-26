@@ -2,6 +2,11 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.4.3'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'jacoco'
+}
+
+jacoco {
+	toolVersion = '0.8.11'
 }
 
 group = 'com.jdc'
@@ -27,6 +32,8 @@ dependencyManagement {
 	imports {
 		// AWS SDK v2 BOM: 여기 버전을 전부 맞추고 싶으신 최신 버전(예: 2.31.29) 으로 지정
 		mavenBom "software.amazon.awssdk:bom:2.31.29"
+		// Spring AI BOM (1.0 GA) — 레시피 챗봇(Upstage Solar) 통합용
+		mavenBom "org.springframework.ai:spring-ai-bom:1.0.0"
 	}
 }
 
@@ -107,9 +114,21 @@ dependencies {
 	testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
 	testImplementation 'org.testcontainers:mysql:1.20.4'
 
+	// WireMock standalone — 챗봇 통합 테스트용 Upstage 응답 가상화
+	testImplementation 'org.wiremock:wiremock-standalone:3.10.0'
+
+	// Apache Commons CSV — 200건 회귀 테스트 (multiline quoted CSV)
+	testImplementation 'org.apache.commons:commons-csv:1.10.0'
+
 	implementation 'io.micrometer:micrometer-registry-prometheus'
 
 	implementation 'com.openai:openai-java:2.8.1'
+
+	// Spring AI OpenAI starter — Upstage Solar(OpenAI 호환) 기반 레시피 챗봇
+	implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+
+	// Bucket4j — 챗봇 burst rate limit (유저당 분당 10건)
+	implementation 'com.bucket4j:bucket4j-core:8.10.1'
 
 	implementation 'com.anthropic:anthropic-java:0.3.0'
 	implementation 'com.squareup.okhttp3:okhttp:4.12.0'
@@ -136,4 +155,25 @@ tasks.named("compileJava") {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+		html.required = true
+	}
+	afterEvaluate {
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+				'com/jdc/recipe_service/domain/dto/**',
+				'com/jdc/recipe_service/domain/entity/**',
+				'com/jdc/recipe_service/config/**',
+				'com/jdc/recipe_service/exception/**',
+				'**/RecipeServiceApplication*',
+				'**/Q*.class',  // Querydsl-generated
+			])
+		}))
+	}
 }
