@@ -1,7 +1,6 @@
 package com.jdc.recipe_service.service.chat;
 
 import com.jdc.recipe_service.domain.dto.chat.ChatHistoryItem;
-import com.jdc.recipe_service.domain.dto.chat.ChatRequest;
 import com.jdc.recipe_service.domain.dto.chat.ChatResponse;
 import com.jdc.recipe_service.domain.dto.chat.QuotaResponse;
 import com.jdc.recipe_service.domain.entity.chat.ChatLog;
@@ -33,7 +32,6 @@ import java.util.List;
 @Slf4j
 public class ChatService {
 
-    // Phase 2: chat_config 키로 분리. 메모리 참고.
     private static final BigDecimal MINI_PER_TOKEN_USD       = new BigDecimal("0.00000015");
     private static final BigDecimal PRO_INPUT_PER_TOKEN_USD  = new BigDecimal("0.00000015");
     private static final BigDecimal PRO_CACHED_PER_TOKEN_USD = new BigDecimal("0.000000015");
@@ -57,22 +55,19 @@ public class ChatService {
     private final ChatLogRepository chatLogRepository;
     private final PromptLoader prompts;
 
-    /**
-     * 일반 사용자 호출. rate-limit + daily quota 적용.
-     */
-    public ChatResponse chat(Long userId, ChatRequest request) {
-        return chat(userId, request, false);
+    public ChatResponse chat(Long userId, Long recipeId, String question) {
+        return chat(userId, recipeId, question, false);
     }
 
     /**
      * @param bypassLimits true면 rate-limit + daily quota skip (ROLE_ADMIN 전용).
-     *                     killswitch(chat_enabled)와 chat_log 기록은 동일하게 적용.
+     *                     killswitch와 chat_log 기록은 동일하게 적용.
      */
-    public ChatResponse chat(Long userId, ChatRequest request, boolean bypassLimits) {
+    public ChatResponse chat(Long userId, Long recipeId, String question, boolean bypassLimits) {
         long start = System.currentTimeMillis();
         ChatLog.ChatLogBuilder logBuilder = ChatLog.builder()
                 .userId(userId)
-                .recipeId(request.getRecipeId());
+                .recipeId(recipeId);
 
         // 부분 정보 보존을 위해 try 밖에 선언 (catch 시점까지 수집된 값 그대로 chat_log에 기록).
         String cleanQuestion = null;
@@ -92,7 +87,7 @@ public class ChatService {
                 rateLimitService.checkUserRate(userId);
             }
 
-            cleanQuestion = InputSanitizer.sanitize(request.getQuestion());
+            cleanQuestion = InputSanitizer.sanitize(question);
             if (cleanQuestion == null || cleanQuestion.isBlank()) {
                 throw new CustomException(ErrorCode.CHAT_INVALID_QUESTION);
             }
@@ -102,12 +97,12 @@ public class ChatService {
             }
             suspicious = suspiciousDetector.detect(cleanQuestion);
 
-            String recipeText = recipeLoader.loadAsPromptText(userId, request.getRecipeId());
+            String recipeText = recipeLoader.loadAsPromptText(userId, recipeId);
             if (!bypassLimits) {
                 quotaService.checkAndIncrement(userId);
             }
 
-            List<Message> historyMessages = loadRecentHistory(userId, request.getRecipeId());
+            List<Message> historyMessages = loadRecentHistory(userId, recipeId);
 
             long miniStart = System.currentTimeMillis();
             miniResult = classifier.classify(cleanQuestion);
@@ -152,7 +147,7 @@ public class ChatService {
             chatLogService.saveAsync(logEntry);
 
             log.info("Chat completed: userId={} recipeId={} intent={} elapsed={}ms answerLen={}",
-                    userId, request.getRecipeId(), intent, totalLatency, answer.length());
+                    userId, recipeId, intent, totalLatency, answer.length());
 
             return ChatResponse.builder()
                     .answer(answer)
@@ -162,7 +157,7 @@ public class ChatService {
 
         } catch (CustomException e) {
             long totalLatency = System.currentTimeMillis() - start;
-            String questionForLog = cleanQuestion != null ? cleanQuestion : request.getQuestion();
+            String questionForLog = cleanQuestion != null ? cleanQuestion : question;
             ChatLog errorLog = buildChatLog(logBuilder,
                     questionForLog, Intent.UNKNOWN, "", false,
                     miniResult, miniLatency, proResult, proLatency,

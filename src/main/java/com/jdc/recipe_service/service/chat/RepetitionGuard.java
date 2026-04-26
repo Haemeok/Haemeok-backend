@@ -22,7 +22,6 @@ public class RepetitionGuard {
     public String guard(String text) {
         if (text == null || text.isBlank()) return text;
 
-        // P1: 자기 참조 ("고춧가루 대신 고춧가루")
         Matcher selfRef = SELF_REFERENCE.matcher(text);
         if (selfRef.find()) {
             int safeEnd = findSafeBoundary(text, selfRef.start());
@@ -31,7 +30,6 @@ public class RepetitionGuard {
             return text.substring(0, safeEnd).trim() + "...";
         }
 
-        // 기존 chunk literal 반복 검출 (3회+)
         if (text.length() < MIN_CHUNK_LEN * REPEAT_THRESHOLD) {
             return text;
         }

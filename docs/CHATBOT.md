@@ -45,9 +45,9 @@
 
 | Method | Path | 설명 |
 |---|---|---|
-| `POST` | `/api/chat` | 챗봇 질문 (auth 필수) |
-| `GET` | `/api/chat/history?recipeId=&limit=` | 대화 기록 (DESC, max 50) |
-| `GET` | `/api/chat/quota` | 일일 쿼터 상태 |
+| `POST` | `/api/recipes/{recipeId}/chat` | 챗봇 질문 (auth 필수) |
+| `GET` | `/api/recipes/{recipeId}/chat/history?limit=` | 대화 기록 (DESC, max 50) |
+| `GET` | `/api/chat/quota` | 일일 쿼터 (user-scoped) |
 
 상세 명세는 OpenAPI(Swagger UI: `/swagger-ui.html`) 참조.
 프론트 협업 가이드 (호출 예시 / 에러 코드 / UX 권장): [docs/api/chatbot.html](api/chatbot.html)
@@ -56,8 +56,8 @@
 
 요청:
 ```json
-POST /api/chat
-{ "recipeId": "x9Lb3a7Q", "question": "이거 매워요?" }   // hashids 인코딩 (raw long도 backward compat)
+POST /api/recipes/x9Lb3a7Q/chat        // recipeId는 path variable (hashids, raw long 둘 다 OK)
+{ "question": "이거 매워요?" }
 ```
 
 응답:

@@ -11,9 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 챗봇 프롬프트를 startup 시 1회 classpath에서 로드해 메모리에 보관한다.
- */
 @Component
 @Slf4j
 public class PromptLoader {
