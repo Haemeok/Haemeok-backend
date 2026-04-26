@@ -46,7 +46,7 @@ public class ChatController {
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
 
         ChatResponse response = chatService.chat(
-                userDetails.getId(), recipeId, request.getQuestion(), isAdmin);
+                userDetails.getId(), recipeId, request.getQuestion(), request.getSessionId(), isAdmin);
         return ResponseEntity.ok(response);
     }
 

@@ -1,0 +1,411 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "레시피오 챗봇 API",
+    "description": "레시피별 질문 답변 챗봇 (Spring AI + Upstage Solar). MVP v0.1.0 (2026-04-27).",
+    "version": "0.1.0",
+    "contact": {
+      "name": "Haemeok Backend",
+      "url": "https://github.com/Haemeok/Haemeok-backend"
+    }
+  },
+  "servers": [
+    { "url": "https://api.recipio.kr", "description": "Production" },
+    { "url": "http://localhost:8080", "description": "Local dev" }
+  ],
+  "tags": [
+    { "name": "Chat", "description": "레시피별 챗봇 질문/대화 기록" },
+    { "name": "Quota", "description": "사용자 일일 쿼터" }
+  ],
+  "security": [
+    { "accessTokenCookie": [] }
+  ],
+  "paths": {
+    "/api/recipes/{recipeId}/chat": {
+      "post": {
+        "tags": ["Chat"],
+        "summary": "레시피 챗봇 질문",
+        "description": "Mini 분류기로 의도 판별 후 IN_SCOPE는 Pro 답변, 그 외는 정형 응답 반환. 같은 sessionId + 같은 (user, recipe)의 최근 5턴이 서버에서 자동으로 컨텍스트로 합침. sessionId 미전송 시 stateless.",
+        "operationId": "chatPost",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "in": "path",
+            "required": true,
+            "description": "레시피 id (hashids 인코딩 string. raw numeric도 backward-compat)",
+            "schema": { "type": "string", "example": "x9Lb3a7Q" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "정상 응답 (IN_SCOPE Pro 답변 또는 OUT_OF_SCOPE/UNCLEAR 정형)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatResponse" },
+                "examples": {
+                  "inScope": {
+                    "summary": "IN_SCOPE — Pro 답변",
+                    "value": {
+                      "answer": "이 김치찌개는 보통 매운맛이에요. 고춧가루 1작은술 들어가서 중간 정도예요.",
+                      "intent": "IN_SCOPE",
+                      "fromLlm": true
+                    }
+                  },
+                  "outOfScope": {
+                    "summary": "OUT_OF_SCOPE — 정형 reject",
+                    "value": {
+                      "answer": "저는 지금 보고 계신 레시피에 대해서만 도와드릴 수 있어요!\n요리 관련해서 궁금한 점 있으면 편하게 물어보세요 🍳",
+                      "intent": "OUT_OF_SCOPE",
+                      "fromLlm": false
+                    }
+                  },
+                  "unclear": {
+                    "summary": "UNCLEAR — 정형 unclear",
+                    "value": {
+                      "answer": "앗 잠깐, 조금 더 자세히 말씀해 주실 수 있어요?\n어떤 점이 궁금하신 건지 알려주시면 바로 도와드릴게요! 😊",
+                      "intent": "UNCLEAR",
+                      "fromLlm": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation 실패 또는 비즈니스 입력 오류",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "tooLong": {
+                    "summary": "707 CHAT_QUESTION_TOO_LONG",
+                    "value": { "code": "707", "message": "질문이 허용된 길이를 초과했습니다." }
+                  },
+                  "invalid": {
+                    "summary": "709 CHAT_INVALID_QUESTION",
+                    "value": { "code": "709", "message": "유효하지 않은 질문입니다." }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증 실패 (쿠키 없음 / 토큰 만료)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "code": "103", "message": "인증이 필요합니다." }
+              }
+            }
+          },
+          "403": {
+            "description": "비공개 레시피 작성자 외 접근",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "code": "207", "message": "비공개 레시피에 대한 접근 권한이 없습니다." }
+              }
+            }
+          },
+          "404": {
+            "description": "레시피 없음",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "code": "201", "message": "요청한 레시피가 존재하지 않습니다." }
+              }
+            }
+          },
+          "429": {
+            "description": "쿼터 초과 또는 분당 호출 초과",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "quota": {
+                    "summary": "705 CHAT_QUOTA_EXCEEDED — 일일 한도 (KST 자정 리셋)",
+                    "value": { "code": "705", "message": "챗봇 일일 사용 한도를 초과했습니다." }
+                  },
+                  "rate": {
+                    "summary": "708 CHAT_RATE_LIMITED — 분당 한도 (1분 후 가능)",
+                    "value": { "code": "708", "message": "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요." }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "내부 서버 오류",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "classification": {
+                    "summary": "703 CHAT_CLASSIFICATION_FAILED — Mini retry 모두 실패",
+                    "value": { "code": "703", "message": "챗봇 질문 분류에 실패했습니다.", "errorId": "a1b2c3d4-..." }
+                  },
+                  "answer": {
+                    "summary": "704 CHAT_ANSWER_GENERATION_FAILED — Pro retry 모두 실패",
+                    "value": { "code": "704", "message": "챗봇 답변 생성에 실패했습니다.", "errorId": "e5f6g7h8-..." }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "운영 킬스위치 (chat_config.chat_enabled=false)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "code": "706", "message": "챗봇 기능이 일시적으로 비활성화되었습니다." }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/{recipeId}/chat/history": {
+      "get": {
+        "tags": ["Chat"],
+        "summary": "레시피별 챗봇 대화 기록",
+        "description": "유저의 특정 레시피에 대한 정상 답변 history를 최신순(DESC)으로 반환. UI 표시용. **다음 POST에 다시 보낼 필요 없음** — 서버가 자동으로 컨텍스트 합침.",
+        "operationId": "chatHistory",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "in": "path",
+            "required": true,
+            "description": "레시피 id (hashids 인코딩, raw numeric backward-compat)",
+            "schema": { "type": "string", "example": "x9Lb3a7Q" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "최대 50까지 (초과 시 50으로 clamp)",
+            "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 50 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DESC 정렬 대화 기록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ChatHistoryItem" }
+                },
+                "example": [
+                  {
+                    "id": "rN7bM2x9",
+                    "createdAt": "2026-04-27T20:34:14.852",
+                    "question": "그럼 덜 맵게 하려면?",
+                    "answer": "고춧가루를 1작은술 → ½작은술로 줄이면...",
+                    "intent": "IN_SCOPE",
+                    "fromLlm": true
+                  },
+                  {
+                    "id": "kq3Yp8Wa",
+                    "createdAt": "2026-04-27T20:33:35.300",
+                    "question": "이거 매워요?",
+                    "answer": "보통 매운맛이에요...",
+                    "intent": "IN_SCOPE",
+                    "fromLlm": true
+                  }
+                ]
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/chat/quota": {
+      "get": {
+        "tags": ["Quota"],
+        "summary": "챗봇 일일 쿼터 조회",
+        "description": "현재 일일 한도, 사용량, 남은 호출 수, 다음 리셋 시각 반환 (KST 자정 리셋).",
+        "operationId": "chatQuota",
+        "responses": {
+          "200": {
+            "description": "쿼터 상태",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/QuotaResponse" },
+                "example": {
+                  "dailyLimit": 20,
+                  "used": 5,
+                  "remaining": 15,
+                  "resetAt": "2026-04-28T00:00:00"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "accessTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "accessToken",
+        "description": "JWT access token (OAuth 로그인 후 자동 발급)"
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "인증 실패",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "code": "103", "message": "인증이 필요합니다." }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ChatRequest": {
+        "type": "object",
+        "description": "레시피 챗봇 질문 요청 (recipeId는 path variable)",
+        "required": ["question"],
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "유저 질문. @NotBlank + 최대 2000자(1차 방어). 운영 한도는 chat_config.max_question_length(현재 500)에서 동적 체크",
+            "minLength": 1,
+            "maxLength": 2000,
+            "example": "이거 매워요?"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "페이지/컴포넌트 단위 대화 세션 식별자 (선택, max 50자). 같은 sessionId만 history 합침. 미전송 시 1회성 stateless. frontend 챗봇 컴포넌트 mount 시 uuid 발급 권장",
+            "maxLength": 50,
+            "nullable": true,
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "description": "레시피 챗봇 응답",
+        "required": ["answer", "intent", "fromLlm"],
+        "properties": {
+          "answer": {
+            "type": "string",
+            "description": "사용자에게 표시할 답변 (마크다운 가능)",
+            "example": "이 레시피는 보통 매운맛이에요..."
+          },
+          "intent": {
+            "$ref": "#/components/schemas/Intent"
+          },
+          "fromLlm": {
+            "type": "boolean",
+            "description": "Pro 모델 답변이면 true, 정형 응답(reject/unclear)이면 false",
+            "example": true
+          }
+        }
+      },
+      "ChatHistoryItem": {
+        "type": "object",
+        "description": "챗봇 대화 기록 항목 (UI 표시용)",
+        "required": ["id", "createdAt", "question", "answer", "intent", "fromLlm"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "chat_log row id (hashids 인코딩 string)",
+            "example": "rN7bM2x9"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "생성 시각 (KST ISO-8601)",
+            "example": "2026-04-27T20:34:14.852"
+          },
+          "question": {
+            "type": "string",
+            "example": "이거 매워요?"
+          },
+          "answer": {
+            "type": "string",
+            "example": "보통 매운맛이에요..."
+          },
+          "intent": {
+            "$ref": "#/components/schemas/Intent"
+          },
+          "fromLlm": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "QuotaResponse": {
+        "type": "object",
+        "description": "챗봇 일일 쿼터 상태",
+        "required": ["dailyLimit", "used", "remaining", "resetAt"],
+        "properties": {
+          "dailyLimit": {
+            "type": "integer",
+            "description": "유저당 일일 한도 (chat_config.daily_quota_per_user, 현재 20)",
+            "example": 20
+          },
+          "used": {
+            "type": "integer",
+            "description": "오늘 사용한 호출 수",
+            "example": 5
+          },
+          "remaining": {
+            "type": "integer",
+            "description": "남은 호출 수 (race로 음수 시 0으로 clamp)",
+            "example": 15
+          },
+          "resetAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "다음 리셋 시각 (KST 다음날 00:00)",
+            "example": "2026-04-28T00:00:00"
+          }
+        }
+      },
+      "Intent": {
+        "type": "string",
+        "description": "Mini 분류기 결과 의도",
+        "enum": ["IN_SCOPE", "OUT_OF_SCOPE", "UNCLEAR"],
+        "example": "IN_SCOPE"
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "공통 에러 응답",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "ErrorCode 문자열 (도메인별 번호 대역)",
+            "example": "705"
+          },
+          "message": {
+            "type": "string",
+            "description": "사용자 표시 가능 메시지",
+            "example": "챗봇 일일 사용 한도를 초과했습니다."
+          },
+          "errorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "예상 밖 5xx 에러일 때만 포함되는 추적 ID",
+            "example": "a1b2c3d4-1234-5678-9abc-def012345678"
+          }
+        }
+      }
+    }
+  }
+}
