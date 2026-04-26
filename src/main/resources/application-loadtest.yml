@@ -1,0 +1,27 @@
+# 부하 테스트 전용 프로필 (local 위에 override).
+# 실행: SPRING_PROFILES_ACTIVE=local,loadtest ./gradlew bootRun
+#  또는 IntelliJ Run config 'Active profiles': local;loadtest
+#
+# 목적:
+#  - Upstage Solar 실제 호출 회피 (WireMock 4040으로 redirect)
+#  - Tomcat 스레드 풀 명시 (관측 용이)
+#  - test-login 켜진 채로 유지 (local에서 이미 true)
+
+spring:
+  ai:
+    openai:
+      base-url: http://localhost:4040
+      api-key: test-loadtest-key
+      chat:
+        completions-path: /v1/solar/chat/completions
+        options:
+          model: solar-pro3
+          temperature: 0.5
+          max-tokens: 600
+
+server:
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    accept-count: 100
