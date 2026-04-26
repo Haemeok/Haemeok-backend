@@ -182,8 +182,12 @@ class ChatControllerIntegrationTest {
     }
 
     private String chatBody(String question) throws Exception {
+        return chatBody(question, "test-session-default");
+    }
+
+    private String chatBody(String question, String sessionId) throws Exception {
         return objectMapper.writeValueAsString(
-                ChatRequest.builder().question(question).build());
+                ChatRequest.builder().question(question).sessionId(sessionId).build());
     }
 
     // ─────────────────────────────────────────────────────────────

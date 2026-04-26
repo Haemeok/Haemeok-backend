@@ -55,19 +55,21 @@ public class ChatService {
     private final ChatLogRepository chatLogRepository;
     private final PromptLoader prompts;
 
-    public ChatResponse chat(Long userId, Long recipeId, String question) {
-        return chat(userId, recipeId, question, false);
+    public ChatResponse chat(Long userId, Long recipeId, String question, String sessionId) {
+        return chat(userId, recipeId, question, sessionId, false);
     }
 
     /**
+     * @param sessionId    페이지/컴포넌트 단위 대화 세션. null이면 stateless (history 미합침).
      * @param bypassLimits true면 rate-limit + daily quota skip (ROLE_ADMIN 전용).
      *                     killswitch와 chat_log 기록은 동일하게 적용.
      */
-    public ChatResponse chat(Long userId, Long recipeId, String question, boolean bypassLimits) {
+    public ChatResponse chat(Long userId, Long recipeId, String question, String sessionId, boolean bypassLimits) {
         long start = System.currentTimeMillis();
         ChatLog.ChatLogBuilder logBuilder = ChatLog.builder()
                 .userId(userId)
-                .recipeId(recipeId);
+                .recipeId(recipeId)
+                .sessionId(sessionId);
 
         // 부분 정보 보존을 위해 try 밖에 선언 (catch 시점까지 수집된 값 그대로 chat_log에 기록).
         String cleanQuestion = null;
@@ -102,7 +104,7 @@ public class ChatService {
                 quotaService.checkAndIncrement(userId);
             }
 
-            List<Message> historyMessages = loadRecentHistory(userId, recipeId);
+            List<Message> historyMessages = loadRecentHistory(userId, recipeId, sessionId);
 
             long miniStart = System.currentTimeMillis();
             miniResult = classifier.classify(cleanQuestion);
@@ -193,10 +195,13 @@ public class ChatService {
                 .build();
     }
 
-    private List<Message> loadRecentHistory(Long userId, Long recipeId) {
+    private List<Message> loadRecentHistory(Long userId, Long recipeId, String sessionId) {
+        // sessionId 없으면 stateless — 페이지/세션 boundary 표시 X.
+        if (sessionId == null || sessionId.isBlank()) return Collections.emptyList();
+
         LocalDateTime since = LocalDateTime.now(KST).minusHours(HISTORY_GAP_HOURS);
         List<ChatLog> recentDesc = chatLogRepository.findRecentForContext(
-                userId, recipeId, since, PageRequest.of(0, HISTORY_TRAILING_TURNS));
+                userId, recipeId, sessionId, since, PageRequest.of(0, HISTORY_TRAILING_TURNS));
         if (recentDesc.isEmpty()) return Collections.emptyList();
 
         List<Message> messages = new ArrayList<>(recentDesc.size() * 2);

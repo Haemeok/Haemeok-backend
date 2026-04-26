@@ -57,8 +57,17 @@
 요청:
 ```json
 POST /api/recipes/x9Lb3a7Q/chat        // recipeId는 path variable (hashids, raw long 둘 다 OK)
-{ "question": "이거 매워요?" }
+{
+  "question": "이거 매워요?",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000"  // optional. 같은 sessionId만 history 합침
+}
 ```
+
+**`sessionId` 라이프사이클**:
+- frontend 챗봇 컴포넌트 mount 시 `crypto.randomUUID()` 생성 → React state 보관
+- 같은 컴포넌트 살아있는 동안 (백그라운드 다녀와도) 같은 sessionId → 컨텍스트 유지
+- 컴포넌트 unmount (페이지 떠남) → state 사라짐 → 다음 mount 시 새 sessionId → 새 대화
+- `sessionId` 미전송 시 stateless (history 합치지 않음, 그 호출만 1회성)
 
 응답:
 ```json
@@ -69,7 +78,9 @@ POST /api/recipes/x9Lb3a7Q/chat        // recipeId는 path variable (hashids, ra
 }
 ```
 
-대화 컨텍스트는 **server-side reload** (클라이언트는 question만 전송). 이유: 프롬프트 인젝션 공격면 축소. 6시간 이내 정상 답변(`error_message IS NULL`) 5턴이 자동 포함됨 (DESC → ASC 변환).
+대화 컨텍스트는 **server-side reload** (클라이언트는 question + sessionId만 전송). 이유: 프롬프트 인젝션 공격면 축소.
+
+같은 `sessionId` + 같은 `(user, recipe)` + 6시간 안전망 안의 정상 답변(`error_message IS NULL`) 최근 5턴이 자동 포함됨 (DESC → ASC 변환). `sessionId` 미전송 시 stateless.
 
 ## Dev Setup
 
