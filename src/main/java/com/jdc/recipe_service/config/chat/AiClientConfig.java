@@ -18,7 +18,7 @@ public class AiClientConfig {
                 .defaultOptions(OpenAiChatOptions.builder()
                         .model("solar-pro3")
                         .temperature(0.5)
-                        .maxTokens(600)
+                        .maxTokens(1000)
                         .build())
                 .build();
     }

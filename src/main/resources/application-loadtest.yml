@@ -17,7 +17,7 @@ spring:
         options:
           model: solar-pro3
           temperature: 0.5
-          max-tokens: 600
+          max-tokens: 1000
 
 server:
   tomcat:

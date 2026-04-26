@@ -19,7 +19,7 @@ spring:
         options:
           model: solar-pro3
           temperature: 0.5
-          max-tokens: 600
+          max-tokens: 1000
 
   # Spring Boot 3.4+ RestClient/HttpClient 공용 타임아웃. Spring AI 내부 client도 이 값을 사용.
   http:
