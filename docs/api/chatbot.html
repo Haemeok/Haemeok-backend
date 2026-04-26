@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>프론트 전달 — 레시피 챗봇 API (2026-04-27)</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1f2328;
+      --muted: #57606a;
+      --border: #d0d7de;
+      --code-bg: #f6f8fa;
+      --accent: #0969da;
+      --danger: #cf222e;
+      --warn: #9a6700;
+      --ok: #1a7f37;
+      --purple: #8250df;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                   "Segoe UI", Pretendard, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      max-width: 880px;
+      margin: 40px auto;
+      padding: 0 24px 80px;
+      line-height: 1.65;
+      font-size: 15px;
+    }
+    h1 {
+      font-size: 22px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 17px;
+      margin-top: 36px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3 { font-size: 14px; margin-top: 18px; color: var(--muted); text-transform: none; }
+    p, li { margin: 6px 0; }
+    ul { padding-left: 22px; }
+    code {
+      background: var(--code-bg);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre {
+      background: var(--code-bg);
+      padding: 12px 14px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      border: 1px solid transparent;
+    }
+    .badge.new        { background: #dafbe1; color: var(--ok);     border-color: #aceebb; }
+    .badge.breaking   { background: #ffebe9; color: var(--danger); border-color: #ffcecb; }
+    .badge.nonbreaking{ background: #dafbe1; color: var(--ok);     border-color: #aceebb; }
+    .badge.info       { background: #ddf4ff; color: var(--accent); border-color: #b6e3ff; }
+    .badge.admin      { background: #fbefff; color: var(--purple); border-color: #e0c5fb; }
+    .badge.method     { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .badge.method-post { background: #fff8c5; color: #9a6700; border-color: #f0d56b; }
+    .badge.method-get  { background: #dafbe1; color: var(--ok);   border-color: #aceebb; }
+    .badge.auth   { background: #ffebe9; color: var(--danger); border-color: #ffcecb; font-size: 11px; }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      background: #fafbfc;
+    }
+    .meta a { color: var(--accent); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin: 10px 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--code-bg); font-weight: 600; }
+    .action {
+      border-left: 3px solid var(--accent);
+      background: #f6f8ff;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin-top: 10px;
+    }
+    .note {
+      border-left: 3px solid var(--warn);
+      background: #fff8e1;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin-top: 10px;
+    }
+    .tip {
+      border-left: 3px solid var(--ok);
+      background: #f0fdf4;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin-top: 10px;
+    }
+    .endpoint {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px;
+      background: var(--code-bg);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin: 8px 0 12px;
+      border: 1px solid var(--border);
+    }
+    .footer {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .toc { background: #fafbfc; border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-top: 16px; }
+    .toc ol { margin: 4px 0 0 0; padding-left: 22px; }
+    .ascii {
+      background: var(--code-bg);
+      padding: 14px 16px;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      white-space: pre;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+<h1>프론트 전달 — 레시피 챗봇 API <span style="color: var(--muted); font-size: 14px;">(2026-04-27)</span></h1>
+
+<div class="meta">
+  <strong>요약</strong> — 레시피별 질문 답변 챗봇 신규 API 3개 + 헬스 체크 1개. 기존 API 변경 0, 모두 신규 추가.<br>
+  Backend: Spring AI 1.0 GA + Upstage Solar (Mini 분류기 + Pro 답변기). 비용 호출당 ~₩0.246.
+</div>
+
+<div class="toc">
+  <strong>목차</strong>
+  <ol>
+    <li>시스템 개념 (요청 → 응답 흐름)</li>
+    <li><code>POST /api/chat</code> — 챗봇 질문</li>
+    <li><code>GET /api/chat/history</code> — 대화 기록</li>
+    <li><code>GET /api/chat/quota</code> — 일일 쿼터</li>
+    <li><code>GET /api/health/ai</code> — Upstage 헬스 체크 (관리자)</li>
+    <li>에러 코드 통합 표 (703 ~ 710)</li>
+    <li>UX 권장 동작</li>
+    <li>Breaking Changes 요약</li>
+    <li>공통 참고사항</li>
+  </ol>
+</div>
+
+<!-- ===================================================================== -->
+<h2>1. 시스템 개념</h2>
+
+<p>
+프론트는 <strong>현재 보고 있는 레시피의 ID와 사용자 질문 한 건만</strong> 보내면 됩니다.
+이전 대화 컨텍스트(history)는 서버가 자동으로 붙입니다 — 클라이언트가 직접 history를 전송하지 않습니다 (보안상 의도된 설계).
+</p>
+
+<div class="ascii">사용자 질문 1건
+   ↓
+[POST /api/chat] { recipeId, question }
+   ↓
+서버가 자동으로:
+  1. 같은 (user, recipe)의 최근 5턴 + 6시간 이내 정상 대화를 history로 합쳐
+  2. Mini 분류기로 IN_SCOPE / OUT_OF_SCOPE / UNCLEAR 판단
+  3. IN_SCOPE만 Pro 답변 (fromLlm=true)
+  4. 그 외는 정형 응답 (fromLlm=false)
+   ↓
+{ answer, intent, fromLlm }</div>
+
+<h3>분류 결과 3가지</h3>
+<table>
+  <thead>
+    <tr><th>intent</th><th>의미</th><th>fromLlm</th><th>answer 출처</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>IN_SCOPE</code></td>
+      <td>레시피 관련 정상 질문 → Pro 답변 생성</td>
+      <td><code>true</code></td>
+      <td>Solar Pro 3 LLM 응답</td>
+    </tr>
+    <tr>
+      <td><code>OUT_OF_SCOPE</code></td>
+      <td>레시피와 무관 (주식, 날씨, 연애 등)</td>
+      <td><code>false</code></td>
+      <td>고정 reject 메시지<br><em>"저는 지금 보고 계신 레시피에 대해서만 도와드릴 수 있어요!"</em></td>
+    </tr>
+    <tr>
+      <td><code>UNCLEAR</code></td>
+      <td>너무 짧거나 모호한 질문</td>
+      <td><code>false</code></td>
+      <td>고정 unclear 메시지<br><em>"앗 잠깐, 조금 더 자세히 말씀해 주실 수 있어요?"</em></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>Tip</strong> — UI에서 답변을 표시할 때 <code>fromLlm</code>으로 분기하면 좋습니다.
+  <code>true</code>는 마크다운 렌더(<strong>볼드</strong>, 줄바꿈, 표 등 활용 가능),
+  <code>false</code>는 평문 표시로 충분합니다.
+</div>
+
+<h3>인증</h3>
+<p>
+모든 챗봇 endpoint는 <code>accessToken</code> JWT 쿠키 인증 필요. 미인증 시 <strong>401 UNAUTHORIZED</strong>.
+기존 OAuth 로그인 후 자동 발급되는 쿠키를 그대로 사용하시면 됩니다 (별도 헤더 X).
+</p>
+
+<!-- ===================================================================== -->
+<h2>2. <span class="badge new">신규</span> POST /api/chat — 챗봇 질문</h2>
+
+<div class="endpoint">
+  <span class="badge method method-post">POST</span> <code>/api/chat</code>
+  &nbsp;<span class="badge auth">로그인 필요 (accessToken 쿠키)</span>
+</div>
+
+<h3>Request</h3>
+<pre><code>POST /api/chat
+Content-Type: application/json
+Cookie: accessToken=eyJhbGc...
+
+{
+  "recipeId": "x9Lb3a7Q",
+  "question": "이거 매워요?"
+}</code></pre>
+
+<table>
+  <thead><tr><th>필드</th><th>타입</th><th>필수</th><th>제약 / 설명</th></tr></thead>
+  <tbody>
+    <tr><td><code>recipeId</code></td><td>string (hashids)</td><td>Y</td><td>현재 보고 있는 레시피 id (다른 API와 동일한 hashids 인코딩 — 예: <code>"x9Lb3a7Q"</code>). 운영 backward-compat 위해 raw numeric도 허용</td></tr>
+    <tr><td><code>question</code></td><td>string</td><td>Y</td>
+        <td><code>@NotBlank</code> + 최대 2000자(1차 방어) <br>
+            실제 운영 한도는 <code>chat_config.max_question_length</code>(현재 500)에서 동적. 초과 시 <code>707</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Response 200 OK</h3>
+<pre><code>{
+  "answer": "보통 매운맛이에요. 고춧가루 1작은술 들어가서 중간 정도예요.",
+  "intent": "IN_SCOPE",
+  "fromLlm": true
+}</code></pre>
+
+<table>
+  <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+  <tbody>
+    <tr><td><code>answer</code></td><td>string</td><td>사용자에게 표시할 답변. 마크다운 형식 가능</td></tr>
+    <tr><td><code>intent</code></td><td>enum</td><td><code>IN_SCOPE</code> / <code>OUT_OF_SCOPE</code> / <code>UNCLEAR</code> (3가지만 응답으로 노출)</td></tr>
+    <tr><td><code>fromLlm</code></td><td>boolean</td><td>Pro 모델 답변이면 <code>true</code>, 정형 응답이면 <code>false</code></td></tr>
+  </tbody>
+</table>
+
+<h3>호출 예시 (fetch)</h3>
+<pre><code>const res = await fetch('/api/chat', {
+  method: 'POST',
+  credentials: 'include',          // 쿠키 자동 전송
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ recipeId: 'x9Lb3a7Q', question: '이거 매워요?' })
+});
+
+if (res.status === 429) {
+  const err = await res.json();
+  if (err.code === '705') showToast('오늘 챗봇 한도를 다 썼어요. 내일 다시 시도해주세요.');
+  if (err.code === '708') showToast('너무 빠르게 보내고 있어요. 잠시 후 다시!');
+  return;
+}
+
+const { answer, intent, fromLlm } = await res.json();
+</code></pre>
+
+<h3>발생 가능 에러</h3>
+<table>
+  <thead><tr><th>HTTP</th><th>code</th><th>의미</th><th>UX 권장</th></tr></thead>
+  <tbody>
+    <tr><td>400</td><td><code>707</code></td><td>질문 길이 초과</td><td>입력란에 글자 수 제한 표시</td></tr>
+    <tr><td>400</td><td><code>709</code></td><td>빈 질문</td><td>전송 버튼 비활성</td></tr>
+    <tr><td>401</td><td><code>103</code></td><td>인증 실패 / 토큰 만료</td><td>로그인 페이지 redirect</td></tr>
+    <tr><td>403</td><td><code>207</code></td><td>비공개 레시피인데 작성자 X</td><td>"이 레시피의 챗봇은 작성자만 사용 가능"</td></tr>
+    <tr><td>404</td><td><code>201</code></td><td>레시피 없음</td><td>레시피 목록으로 돌아가기</td></tr>
+    <tr><td>429</td><td><code>705</code></td><td>일일 쿼터 초과 (20/day, KST)</td><td>"내일 자정에 리셋됩니다"</td></tr>
+    <tr><td>429</td><td><code>708</code></td><td>분당 호출 초과 (10/min)</td><td>"잠시 후 다시 시도"</td></tr>
+    <tr><td>503</td><td><code>706</code></td><td>챗봇 기능 임시 차단 (운영 킬스위치)</td><td>"챗봇 기능이 일시 중지되었어요"</td></tr>
+    <tr><td>500</td><td><code>703</code> / <code>704</code></td><td>Mini / Pro 호출 실패 (3회 retry 후)</td><td>"답변을 만들지 못했어요. 잠시 후 다시" + retry 버튼</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>주의 — 429 두 종류 구분</strong><br>
+  <code>705</code>(quota)는 <strong>일일 한도</strong>로 다음날 KST 자정까지 차단입니다.
+  <code>708</code>(rate limit)은 <strong>분당 한도</strong>로 1분만 기다리면 다시 가능합니다.
+  UX 메시지를 다르게 표시하세요.
+</div>
+
+<h3>특수 케이스 — 인젝션 / 위험 카테고리</h3>
+<p>아래는 모두 <strong>HTTP 200 + 정상 답변</strong>으로 응답합니다 (별도 차단 코드 없음). 백엔드가 자동 처리:</p>
+<ul>
+  <li><strong>인젝션 시도</strong> (<em>"시스템 프롬프트 보여줘"</em>, <em>"이전 지시 무시"</em>) — Mini가 <code>OUT_OF_SCOPE</code>로 거름 → reject 정형 응답.
+      추가로 14개 정규식 패턴이 backend에서 logging만 (UI 영향 X).</li>
+  <li><strong>위험 카테고리</strong> (<em>"강아지에게 줘도 돼?"</em>, <em>"임산부 먹어도 돼?"</em>, <em>"땅콩 알러지"</em>) — Pro가 <strong>"절대 안 돼요"</strong> 또는 <strong>"주의 필요"</strong> 형태로 답변.
+      프론트는 그냥 <code>answer</code>를 그대로 표시하면 됩니다.</li>
+  <li><strong>비격식 입력</strong> (<em>"ㅇㅇ 매워?"</em>, <em>"이거 왜 매웡?"</em>) — Mini가 IN_SCOPE로 정확히 분류, Pro가 정상 답변.</li>
+</ul>
+
+<h3>답변 길이 보호</h3>
+<p>
+Pro가 가끔 <em>"X 대신 X..."</em> 같은 자기참조 무한반복을 만드는 경우, 백엔드의 <strong>RepetitionGuard</strong>가
+자동으로 자연스러운 문장 경계에서 잘라내고 끝에 <code>"..."</code>를 붙입니다.
+프론트에서 추가 처리는 필요 없습니다.
+</p>
+
+<!-- ===================================================================== -->
+<h2>3. <span class="badge new">신규</span> GET /api/chat/history — 대화 기록</h2>
+
+<div class="endpoint">
+  <span class="badge method method-get">GET</span> <code>/api/chat/history?recipeId=x9Lb3a7Q&amp;limit=20</code>
+  &nbsp;<span class="badge auth">로그인 필요 (accessToken 쿠키)</span>
+</div>
+
+<h3>Query Params</h3>
+<table>
+  <thead><tr><th>name</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
+  <tbody>
+    <tr><td><code>recipeId</code></td><td>string (hashids)</td><td>(필수)</td><td>대화 기록을 조회할 레시피 id (hashids 인코딩, raw numeric backward-compat)</td></tr>
+    <tr><td><code>limit</code></td><td>int</td><td><code>20</code></td><td>최대 50까지. 초과 입력 시 50으로 clamp</td></tr>
+  </tbody>
+</table>
+
+<h3>Response 200 OK</h3>
+<pre><code>[
+  {
+    "id": "rN7bM2x9",
+    "createdAt": "2026-04-27T20:34:14.852",
+    "question": "그럼 덜 맵게 하려면?",
+    "answer": "고춧가루를 1작은술 → ½작은술로 줄이면...",
+    "intent": "IN_SCOPE",
+    "fromLlm": true
+  },
+  {
+    "id": "kq3Yp8Wa",
+    "createdAt": "2026-04-27T20:33:35.300",
+    "question": "이거 매워요?",
+    "answer": "보통 매운맛이에요...",
+    "intent": "IN_SCOPE",
+    "fromLlm": true
+  }
+]</code></pre>
+
+<ul>
+  <li><strong>정렬</strong>: <code>createdAt DESC</code> (최신 먼저)</li>
+  <li><strong>필터</strong>: 정상 답변만. 에러 / 차단된 호출(<code>error_message != null</code>)은 자동 제외</li>
+  <li><strong>cutoff 없음</strong>: 시간 제한 없이 전체 history. (Pro 답변 컨텍스트로 들어가는 5턴은 별도로 6시간 cutoff — 서버 내부 처리)</li>
+</ul>
+
+<div class="action">
+  <strong>UX 권장</strong><br>
+  레시피 상세 페이지 진입 시 또는 "챗봇 패널 열기" 시 1회 호출해서 이전 대화를 채팅 UI에 그려주세요.
+  새 메시지가 추가되면 (POST /api/chat 응답 받은 후) 이 응답 객체를 history 배열에 prepend하면 됩니다.
+</div>
+
+<h3>발생 가능 에러</h3>
+<table>
+  <thead><tr><th>HTTP</th><th>code</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td>400</td><td>—</td><td><code>recipeId</code> 누락 (스프링 기본 메시지)</td></tr>
+    <tr><td>401</td><td><code>103</code></td><td>인증 실패</td></tr>
+  </tbody>
+</table>
+
+<!-- ===================================================================== -->
+<h2>4. <span class="badge new">신규</span> GET /api/chat/quota — 일일 쿼터</h2>
+
+<div class="endpoint">
+  <span class="badge method method-get">GET</span> <code>/api/chat/quota</code>
+  &nbsp;<span class="badge auth">로그인 필요 (accessToken 쿠키)</span>
+</div>
+
+<h3>Response 200 OK</h3>
+<pre><code>{
+  "dailyLimit": 20,
+  "used": 5,
+  "remaining": 15,
+  "resetAt": "2026-04-28T00:00:00"
+}</code></pre>
+
+<table>
+  <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+  <tbody>
+    <tr><td><code>dailyLimit</code></td><td>int</td><td>유저당 일일 한도. 운영에서 동적 변경 가능 (현재 20)</td></tr>
+    <tr><td><code>used</code></td><td>int</td><td>오늘 사용한 호출 수</td></tr>
+    <tr><td><code>remaining</code></td><td>int</td><td>남은 호출 수 (race로 음수가 되면 0으로 clamp)</td></tr>
+    <tr><td><code>resetAt</code></td><td>ISO datetime</td><td>다음 리셋 시각 (KST 기준 다음날 00:00)</td></tr>
+  </tbody>
+</table>
+
+<div class="action">
+  <strong>UX 권장</strong>
+  <ul>
+    <li>챗봇 패널 진입 시 또는 답변 받은 직후 새로 호출해서 "오늘 N/20회 남음" 같은 카운터 표시</li>
+    <li><code>remaining === 0</code>이면 입력란 비활성 + "내일 자정 리셋" 안내</li>
+    <li><code>remaining &lt;= 3</code>이면 경고 톤 (옵션)</li>
+  </ul>
+</div>
+
+<!-- ===================================================================== -->
+<h2>5. <span class="badge admin">관리자</span> GET /api/health/ai — Upstage 헬스 체크</h2>
+
+<div class="endpoint">
+  <span class="badge method method-get">GET</span> <code>/api/health/ai</code>
+  &nbsp;<span class="badge auth">로그인 필요 + ADMIN 권한</span>
+</div>
+
+<p>관리자 도구용. Mini 모델에 <code>max_tokens=1</code> ping을 보내 응답 여부를 확인합니다. 호출 시 비용 발생.</p>
+
+<h3>Response 200 OK</h3>
+<pre><code>{
+  "status": "UP",
+  "details": { "model": "solar-mini", "latencyMs": 312 }
+}</code></pre>
+
+<p>일반 사용자용 UI에는 노출하지 않아도 됩니다.</p>
+
+<!-- ===================================================================== -->
+<h2>6. 에러 코드 통합 표</h2>
+
+<table>
+  <thead>
+    <tr><th>code</th><th>HTTP</th><th>이름</th><th>의미</th><th>프론트 메시지 예시</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>703</code></td><td>500</td><td>CHAT_CLASSIFICATION_FAILED</td><td>Mini 분류기 retry 모두 실패</td><td>"답변을 만들지 못했어요" + retry</td></tr>
+    <tr><td><code>704</code></td><td>500</td><td>CHAT_ANSWER_GENERATION_FAILED</td><td>Pro 생성 retry 모두 실패</td><td>"답변을 만들지 못했어요" + retry</td></tr>
+    <tr><td><code>705</code></td><td>429</td><td>CHAT_QUOTA_EXCEEDED</td><td>일일 한도 초과</td><td>"오늘 한도를 모두 사용했어요"</td></tr>
+    <tr><td><code>706</code></td><td>503</td><td>CHAT_DISABLED</td><td>운영자가 챗봇 기능 차단 (킬스위치)</td><td>"챗봇이 일시 중지되었어요"</td></tr>
+    <tr><td><code>707</code></td><td>400</td><td>CHAT_QUESTION_TOO_LONG</td><td>질문 길이 초과 (운영값 500)</td><td>"너무 길어요. 줄여서 보내주세요"</td></tr>
+    <tr><td><code>708</code></td><td>429</td><td>CHAT_RATE_LIMITED</td><td>분당 10건 초과</td><td>"잠시 후 다시 시도해주세요"</td></tr>
+    <tr><td><code>709</code></td><td>400</td><td>CHAT_INVALID_QUESTION</td><td>빈 질문 / sanitize 후 공백</td><td>전송 버튼 비활성</td></tr>
+    <tr><td><code>710</code></td><td>500</td><td>CHAT_PROMPT_LEAK_DETECTED</td><td>(예약, 현재 사용 X — 자동으로 reject 응답으로 fallback됨)</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h3>에러 응답 형식</h3>
+<pre><code>{
+  "code": "705",
+  "message": "챗봇 일일 사용 한도를 초과했습니다."
+}</code></pre>
+
+<p>500 catch-all 에러일 때만 추적용 <code>errorId</code>(UUID)가 추가로 포함됩니다.</p>
+
+<!-- ===================================================================== -->
+<h2>7. UX 권장 동작</h2>
+
+<h3>챗봇 패널 진입 시</h3>
+<ol>
+  <li><code>GET /api/chat/quota</code> 1회 → 카운터 표시</li>
+  <li><code>GET /api/chat/history?recipeId=X&amp;limit=20</code> 1회 → 채팅 영역에 그리기 (DESC라 reverse 후 표시)</li>
+  <li>입력창 활성. <code>quota.remaining === 0</code>이면 비활성</li>
+</ol>
+
+<h3>질문 전송 시</h3>
+<ol>
+  <li>전송 버튼 클릭 → loading 상태 (Mini ~200ms + Pro ~1~2s 예상)</li>
+  <li><code>POST /api/chat</code> 호출</li>
+  <li>응답:
+    <ul>
+      <li>200 → <code>answer</code>를 채팅에 추가 (<code>fromLlm</code>으로 마크다운/평문 분기)</li>
+      <li>429 + code 705/708 구분해서 토스트</li>
+      <li>500 → "답변을 만들지 못했어요" + retry 버튼</li>
+    </ul>
+  </li>
+  <li>성공 후 quota 카운터 갱신 (선택: 다시 GET 또는 클라이언트에서 -1)</li>
+</ol>
+
+<h3>history 자동 컨텍스트</h3>
+<div class="callout callout-info action">
+  프론트는 <strong>history를 따로 보낼 필요 없습니다</strong>. 서버가 자동으로:
+  <ul>
+    <li>같은 (user, recipe)의 최근 5턴까지</li>
+    <li><strong>6시간 이내</strong> 정상 답변만</li>
+    <li>chronological order로 Pro 컨텍스트에 합쳐서 호출</li>
+  </ul>
+  사용자가 6시간 이상 자리 비우면 새로운 대화처럼 시작합니다 (의도된 동작).
+</div>
+
+<!-- ===================================================================== -->
+<h2>8. Breaking Changes 요약</h2>
+
+<table>
+  <thead>
+    <tr><th>항목</th><th>변경 내용</th><th>프론트 액션</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge nonbreaking">non-breaking</span></td>
+      <td>신규 endpoint 4개 추가, 기존 endpoint 변경 0</td>
+      <td>없음 (새 챗봇 UI 신규 구현)</td>
+    </tr>
+    <tr>
+      <td><span class="badge info">신규 에러 코드</span></td>
+      <td><code>703 ~ 710</code> 추가</td>
+      <td>전역 에러 핸들러에 매핑 추가 (특히 705 / 708 분리)</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ===================================================================== -->
+<h2>9. 공통 참고사항</h2>
+
+<ul>
+  <li><strong>recipeId / chat_log id</strong>: 다른 API와 동일하게 <strong>hashids 인코딩 string</strong> 사용. 운영 backward-compat을 위해 raw numeric도 받음</li>
+  <li><strong>날짜 형식</strong>: <code>createdAt</code> / <code>resetAt</code>은 KST 기준 ISO-8601 (<code>2026-04-27T20:34:14.852</code>)</li>
+  <li><strong>인증</strong>: 쿠키 기반 JWT. <code>credentials: 'include'</code> 필수</li>
+  <li><strong>비용 추적</strong>: 모든 호출이 백엔드 <code>chat_log</code>에 기록됨 (모니터링용, 프론트 노출 X)</li>
+  <li><strong>운영 토글</strong>: <code>chat_config.chat_enabled = false</code>로 즉시 차단 가능 → 응답 503 + code 706</li>
+  <li><strong>Admin bypass</strong>: <code>ROLE_ADMIN</code> 사용자는 rate-limit + daily quota 자동 skip (chat_log 기록은 동일, killswitch는 admin도 적용)</li>
+  <li><strong>Swagger UI</strong>: <code>/swagger-ui</code>에서 직접 호출 테스트 가능</li>
+</ul>
+
+<div class="footer">
+  <strong>릴리즈 일자</strong>: 2026-04-27 (MVP v0.1.0)<br>
+  <strong>문의</strong>: 백엔드 — <code>docs/CHATBOT.md</code> 참조<br>
+  <strong>관련 문서</strong>: <code>src/main/resources/db/migration/V20260425_001__create_chat_tables.sql</code>
+</div>
+
+</body>
+</html>
