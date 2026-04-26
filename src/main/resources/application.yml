@@ -7,6 +7,26 @@ spring:
       ssl:
           enabled: true
 
+  # Spring AI 1.0 — 레시피 챗봇(Upstage Solar) 설정.
+  # 주의: 최상위 `openai.*` 블록은 Grok SDK(com.openai:openai-java)용 별도 prefix이므로 서로 충돌 없음.
+  # Upstage는 기본 /v1/chat/completions 경로를 쓰지 않으므로 completions-path 명시 필수.
+  ai:
+    openai:
+      base-url: https://api.upstage.ai
+      api-key: ${UPSTAGE_API_KEY}
+      chat:
+        completions-path: /v1/solar/chat/completions
+        options:
+          model: solar-pro3
+          temperature: 0.5
+          max-tokens: 600
+
+  # Spring Boot 3.4+ RestClient/HttpClient 공용 타임아웃. Spring AI 내부 client도 이 값을 사용.
+  http:
+    client:
+      connect-timeout: 5s
+      read-timeout: 30s
+
   profiles:
     active: local
   mvc:
@@ -46,6 +66,11 @@ management:
     web:
       exposure:
         include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
   security:
     enabled: false
 
@@ -68,6 +93,8 @@ ai:
     per-day: 2
     youtube-per-day: 3
     timezone: "Asia/Seoul"
+# 챗봇 쿼터/킬스위치/분류기 활성/질문 최대길이는 chat_config 테이블에서 단일 관리
+# (db_and_logging.md §1.1 참조 — 운영 중 DB UPDATE로 즉시 반영)
 
 app:
   recipe:

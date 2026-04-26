@@ -74,6 +74,7 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          UPSTAGE_API_KEY: ${{ secrets.UPSTAGE_API_KEY }}
           APP_HASHIDS_SALT: ${{ secrets.APP_HASHIDS_SALT }}
           APP_HASHIDS_MIN_LENGTH: ${{ secrets.APP_HASHIDS_MIN_LENGTH }}
           YTDLP_PROXY_URL: ${{ secrets.YTDLP_PROXY_URL }}
