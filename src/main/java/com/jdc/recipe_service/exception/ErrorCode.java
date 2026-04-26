@@ -59,6 +59,16 @@ public enum ErrorCode {
     AI_RECIPE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "701", "AI 레시피 생성에 실패했습니다."),
     INVALID_AI_RECIPE_REQUEST(HttpStatus.BAD_REQUEST, "702", "AI 레시피 요청 형식이 잘못되었습니다."),
 
+    // --- Chat (703~) — 레시피 챗봇(Upstage Solar) ---
+    CHAT_CLASSIFICATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "703", "챗봇 질문 분류에 실패했습니다."),
+    CHAT_ANSWER_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "704", "챗봇 답변 생성에 실패했습니다."),
+    CHAT_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "705", "챗봇 일일 사용 한도를 초과했습니다."),
+    CHAT_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "706", "챗봇 기능이 일시적으로 비활성화되었습니다."),
+    CHAT_QUESTION_TOO_LONG(HttpStatus.BAD_REQUEST, "707", "질문이 허용된 길이를 초과했습니다."),
+    CHAT_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "708", "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요."),
+    CHAT_INVALID_QUESTION(HttpStatus.BAD_REQUEST, "709", "유효하지 않은 질문입니다."),
+    CHAT_PROMPT_LEAK_DETECTED(HttpStatus.INTERNAL_SERVER_ERROR, "710", "답변 처리 중 오류가 발생했습니다."),
+
     // --- Record (800) ---
     COOKING_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "801", "요리 기록이 존재하지 않습니다."),
     COOKING_RECORD_ACCESS_DENIED(HttpStatus.FORBIDDEN, "802", "요리 기록에 접근할 권한이 없습니다."),

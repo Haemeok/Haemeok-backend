@@ -23,7 +23,8 @@ public class CacheConfig {
                 buildCache("ingredientSearch", 10, 500),
                 buildCache("recipeRecommendations", 30, 1000),
                 buildCache("popularRecipes", 60, 100),
-                buildCache("budgetRecipes", 60, 100)
+                buildCache("budgetRecipes", 60, 100),
+                buildCache("chatConfig", 1, 10)
         );
 
         cacheManager.setCaches(caches);
