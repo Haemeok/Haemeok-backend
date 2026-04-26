@@ -207,8 +207,11 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/notification-preferences/**").authenticated()
-                        // 챗봇 — POST /api/chat / GET /api/chat/history / GET /api/chat/quota
-                        .requestMatchers("/api/chat", "/api/chat/**").authenticated()
+                        // 챗봇 (recipe sub-resource) — POST/GET /api/recipes/{id}/chat[/history]
+                        // /api/recipes/**의 다른 광범위 매처보다 specific하게 먼저 catch.
+                        .requestMatchers("/api/recipes/*/chat", "/api/recipes/*/chat/**").authenticated()
+                        // 챗봇 user-scoped — GET /api/chat/quota
+                        .requestMatchers("/api/chat/quota").authenticated()
 
                         // 1) 공개 엔드포인트
                         .requestMatchers(

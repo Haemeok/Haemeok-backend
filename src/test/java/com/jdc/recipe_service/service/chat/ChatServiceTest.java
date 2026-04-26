@@ -1,6 +1,5 @@
 package com.jdc.recipe_service.service.chat;
 
-import com.jdc.recipe_service.domain.dto.chat.ChatRequest;
 import com.jdc.recipe_service.domain.dto.chat.ChatResponse;
 import com.jdc.recipe_service.domain.entity.chat.ChatLog;
 import com.jdc.recipe_service.domain.repository.chat.ChatLogRepository;
@@ -55,12 +54,11 @@ class ChatServiceTest {
     @InjectMocks
     private ChatService chatService;
 
-    private ChatRequest request;
+    private static final Long RECIPE_ID = 60L;
+    private static final String QUESTION = "이거 매워요?";
 
     @BeforeEach
     void setupHappyPathDefaults() {
-        request = ChatRequest.builder().recipeId(60L).question("이거 매워요?").build();
-
         // Happy path: kill switch off, max length 500, history empty, recipe loads, no suspicious, no repetition, validator ok.
         given(chatConfig.getBoolValue("chat_enabled")).willReturn(true);
         given(chatConfig.getIntValue("max_question_length")).willReturn(500);
@@ -82,7 +80,7 @@ class ChatServiceTest {
         given(generator.generate(eq("이거 매워요?"), eq("recipe text"), any()))
                 .willReturn(new GenerationResult("매콤한 김치찌개입니다.", 1000, 50, 200));
 
-        ChatResponse response = chatService.chat(1L, request);
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION);
 
         assertThat(response.getIntent()).isEqualTo(Intent.IN_SCOPE);
         assertThat(response.isFromLlm()).isTrue();
@@ -98,7 +96,7 @@ class ChatServiceTest {
         given(classifier.classify(anyString()))
                 .willReturn(new ClassificationResult(Intent.OUT_OF_SCOPE, 100, 5));
 
-        ChatResponse response = chatService.chat(1L, request);
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION);
 
         assertThat(response.getIntent()).isEqualTo(Intent.OUT_OF_SCOPE);
         assertThat(response.isFromLlm()).isFalse();
@@ -112,7 +110,7 @@ class ChatServiceTest {
         given(classifier.classify(anyString()))
                 .willReturn(new ClassificationResult(Intent.UNCLEAR, 100, 8));
 
-        ChatResponse response = chatService.chat(1L, request);
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION);
 
         assertThat(response.getIntent()).isEqualTo(Intent.UNCLEAR);
         assertThat(response.isFromLlm()).isFalse();
@@ -125,7 +123,7 @@ class ChatServiceTest {
     void killSwitchOnThrowsChatDisabled() {
         given(chatConfig.getBoolValue("chat_enabled")).willReturn(false);
 
-        assertThatThrownBy(() -> chatService.chat(1L, request))
+        assertThatThrownBy(() -> chatService.chat(1L, RECIPE_ID, QUESTION))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_DISABLED);
 
@@ -138,7 +136,7 @@ class ChatServiceTest {
         willThrow(new CustomException(ErrorCode.CHAT_RATE_LIMITED))
                 .given(rateLimitService).checkUserRate(1L);
 
-        assertThatThrownBy(() -> chatService.chat(1L, request))
+        assertThatThrownBy(() -> chatService.chat(1L, RECIPE_ID, QUESTION))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_RATE_LIMITED);
 
@@ -151,7 +149,7 @@ class ChatServiceTest {
         willThrow(new CustomException(ErrorCode.CHAT_QUOTA_EXCEEDED))
                 .given(quotaService).checkAndIncrement(1L);
 
-        assertThatThrownBy(() -> chatService.chat(1L, request))
+        assertThatThrownBy(() -> chatService.chat(1L, RECIPE_ID, QUESTION))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_QUOTA_EXCEEDED);
 
@@ -164,7 +162,7 @@ class ChatServiceTest {
         willThrow(new CustomException(ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED))
                 .given(recipeLoader).loadAsPromptText(1L, 60L);
 
-        assertThatThrownBy(() -> chatService.chat(1L, request))
+        assertThatThrownBy(() -> chatService.chat(1L, RECIPE_ID, QUESTION))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
 
@@ -175,13 +173,10 @@ class ChatServiceTest {
     @Test
     @DisplayName("질문 길이 초과 — CHAT_QUESTION_TOO_LONG throw")
     void tooLongQuestionThrows() {
-        ChatRequest longReq = ChatRequest.builder()
-                .recipeId(60L)
-                .question("a".repeat(600))
-                .build();
+        String longQuestion = "a".repeat(600);
         given(chatConfig.getIntValue("max_question_length")).willReturn(500);
 
-        assertThatThrownBy(() -> chatService.chat(1L, longReq))
+        assertThatThrownBy(() -> chatService.chat(1L, RECIPE_ID, longQuestion))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_QUESTION_TOO_LONG);
     }
@@ -196,7 +191,7 @@ class ChatServiceTest {
         given(repetitionGuard.guard("반복되는 답변 반복되는 답변 반복되는 답변"))
                 .willReturn("반복되는...");
 
-        ChatResponse response = chatService.chat(1L, request);
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION);
 
         assertThat(response.getAnswer()).isEqualTo("반복되는...");
 
@@ -217,7 +212,7 @@ class ChatServiceTest {
         given(answerValidator.validate("# 4가지 원칙 노출"))
                 .willReturn(new ValidationResult(false, "potential_prompt_leak:# 4가지 원칙"));
 
-        ChatResponse response = chatService.chat(1L, request);
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION);
 
         assertThat(response.isFromLlm()).isFalse();
         assertThat(response.getAnswer()).isEqualTo("거부 메시지입니다.");
@@ -231,7 +226,7 @@ class ChatServiceTest {
         given(classifier.classify(anyString()))
                 .willReturn(new ClassificationResult(Intent.OUT_OF_SCOPE, 100, 5));
 
-        ChatResponse response = chatService.chat(1L, request);
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION);
 
         ArgumentCaptor<ChatLog> captor = ArgumentCaptor.forClass(ChatLog.class);
         verify(chatLogService).saveAsync(captor.capture());
@@ -255,7 +250,7 @@ class ChatServiceTest {
         given(generator.generate(anyString(), anyString(), any()))
                 .willReturn(new GenerationResult("ok", 1000, 50, 50));
 
-        chatService.chat(1L, request);
+        chatService.chat(1L, RECIPE_ID, QUESTION);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Message>> historyCaptor = ArgumentCaptor.forClass(List.class);
@@ -281,7 +276,7 @@ class ChatServiceTest {
         given(generator.generate(anyString(), anyString(), any()))
                 .willReturn(new GenerationResult("관리자 답변", 1000, 50, 200));
 
-        ChatResponse response = chatService.chat(1L, request, true);
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION, true);
 
         assertThat(response.getIntent()).isEqualTo(Intent.IN_SCOPE);
         verify(rateLimitService, never()).checkUserRate(anyLong());
@@ -294,7 +289,7 @@ class ChatServiceTest {
     void adminBypassStillRespectsKillswitch() {
         given(chatConfig.getBoolValue("chat_enabled")).willReturn(false);
 
-        assertThatThrownBy(() -> chatService.chat(1L, request, true))
+        assertThatThrownBy(() -> chatService.chat(1L, RECIPE_ID, QUESTION, true))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_DISABLED);
     }
@@ -305,7 +300,7 @@ class ChatServiceTest {
         willThrow(new CustomException(ErrorCode.CHAT_QUOTA_EXCEEDED))
                 .given(quotaService).checkAndIncrement(1L);
 
-        assertThatThrownBy(() -> chatService.chat(1L, request))
+        assertThatThrownBy(() -> chatService.chat(1L, RECIPE_ID, QUESTION))
                 .isInstanceOf(CustomException.class);
 
         ArgumentCaptor<ChatLog> captor = ArgumentCaptor.forClass(ChatLog.class);
