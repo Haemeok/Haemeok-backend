@@ -13,13 +13,18 @@ import com.jdc.recipe_service.domain.entity.media.RecipeYoutubeInfo;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
+import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeExtractionInfoRepository;
 import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeInfoRepository;
+import com.jdc.recipe_service.domain.type.ActivityLogType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.media.EvidenceLevel;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.service.RecipeActivityService;
+import com.jdc.recipe_service.service.RecipeBookService;
+import com.jdc.recipe_service.service.RecipeFavoriteService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
@@ -50,6 +55,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -90,6 +96,10 @@ class DevYoutubeRecipeExtractionFacadeTest {
     @Mock RecipeGenerationJobRepository jobRepository;
     @Mock RecipeYoutubeInfoRepository recipeYoutubeInfoRepository;
     @Mock RecipeYoutubeExtractionInfoRepository extractionInfoRepository;
+    @Mock UserRepository userRepository;
+    @Mock RecipeFavoriteService recipeFavoriteService;
+    @Mock RecipeBookService recipeBookService;
+    @Mock RecipeActivityService recipeActivityService;
     @Mock DevRecipeIngredientPersistService devIngredientPersist;
     @Mock TransactionTemplate transactionTemplate;
 
@@ -655,6 +665,155 @@ class DevYoutubeRecipeExtractionFacadeTest {
                 .refund(eq(USER_ID), eq(DevYoutubeQuotaService.COST_WITH_GEMINI));
         // deprecated overload도 호출 안 됨
         verify(devYoutubeQuotaService, never()).refund(eq(USER_ID), eq(DevYoutubeQuotaService.COST_BASIC));
+    }
+
+    @Test
+    @DisplayName("**MUST 회귀 차단**: yt-dlp 실패 시 903으로 끝나지 않고 Gemini multimodal fallback으로 진입 (운영 V2:856 동등)")
+    @SuppressWarnings("unchecked")
+    void async_ytDlpThrows_fallsBackToGeminiInsteadOf903() {
+        // 운영 V2는 yt-dlp 실패를 try-catch + useUrlFallback=true로 graceful 우회.
+        // dev V3가 try-catch 없으면 상위 catch(Exception)로 흘러 903 catch-all FAILED.
+        // 이 invariant가 회귀하면 사용자가 본 14562/14564/14568 패턴 재발.
+        Long jobId = 2000L;
+        Long recipeId = 7777L;
+        LocalDate consumedOn = LocalDate.of(2026, 4, 30);
+        RecipeGenerationJob job = mockJobWithCost(jobId, DevYoutubeQuotaService.COST_BASIC, consumedOn);
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        stubTransactionTemplate();
+        given(transactionTemplate.execute(any())).willAnswer(inv -> {
+            org.springframework.transaction.support.TransactionCallback<Object> cb = inv.getArgument(0);
+            return cb.doInTransaction(null);
+        });
+
+        // dedup miss
+        given(recipeYoutubeInfoRepository.findByVideoId(VIDEO_ID)).willReturn(Optional.empty());
+        given(recipeRepository.findFirstOfficialByYoutubeUrl(any(), any())).willReturn(Optional.empty());
+
+        // 🔥 yt-dlp가 RuntimeException throw — 운영 환경에서 자막 다운로드 실패 / subprocess error 시뮬레이션
+        given(ytDlpService.getVideoDataFull(VALID_URL))
+                .willThrow(new RuntimeException("yt-dlp subprocess timeout"));
+
+        // 빈 description/comments/scriptPlain → 모든 신호 false → isTextSufficient=false → Gemini fallback
+        YoutubeSignalDetector.SignalReport zeroSignals =
+                new YoutubeSignalDetector.SignalReport(false, false, false);
+        given(signalDetector.detectSignals(any(), any(), any())).willReturn(zeroSignals);
+        given(signalDetector.computeEvidence(zeroSignals, true)).willReturn(EvidenceLevel.LOW);
+
+        // Gemini multimodal로 정상 생성
+        RecipeCreateRequestDto geminiDto = new RecipeCreateRequestDto();
+        geminiDto.setIsRecipe(true);
+        geminiDto.setTitle("yt-dlp 실패 후 Gemini 추출");
+        geminiDto.setIngredients(List.of(ing("재료1", "1", "개")));
+        given(geminiMultimodalService.generateRecipeFromYoutubeUrl(any(), any(), any()))
+                .willReturn(java.util.concurrent.CompletableFuture.completedFuture(geminiDto));
+
+        given(asyncImageService.buildPromptFromDto(any())).willReturn("image prompt");
+        given(devImageGenRouterService.generate(any(), any(), any(), any())).willReturn(List.of());
+
+        PresignedUrlResponse response = PresignedUrlResponse.builder()
+                .recipeId(recipeId)
+                .uploads(List.of())
+                .build();
+        given(recipeService.createRecipeAndGenerateUrls(
+                any(), eq(90121L), eq(RecipeSourceType.YOUTUBE), any())).willReturn(response);
+        Recipe recipe = mock(Recipe.class);
+        given(recipeRepository.findById(recipeId)).willReturn(Optional.of(recipe));
+
+        given(jobRepository.saveAndFlush(any(RecipeGenerationJob.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        facade.processYoutubeExtractionAsync(jobId, VALID_URL, VALID_MODEL, USER_ID);
+
+        // then
+        // ① yt-dlp throw 후에도 emptyVideoData로 흐름 진행 — signalDetector가 빈 문자열 3개로 호출됨
+        verify(signalDetector).detectSignals("", "", "");
+        // ② Grok 호출은 일어나지 않고 (텍스트 신호 0이라 isTextSufficient=false → 곧바로 Gemini)
+        verify(grokClientService, never()).generateRecipeStep1(any(), any());
+        // ③ Gemini multimodal로 우회 진행
+        verify(geminiMultimodalService).generateRecipeFromYoutubeUrl(any(), any(), any());
+        // ④ recipe 저장 단까지 도달 (903 FAILED 안 됨)
+        verify(recipeService).createRecipeAndGenerateUrls(
+                any(), eq(90121L), eq(RecipeSourceType.YOUTUBE), any());
+        // ⑤ Gemini fallback이라 +3 추가 차감 (basic 2 + gemini 3 = 5)
+        verify(devYoutubeQuotaService).chargeGeminiUpgrade(USER_ID, consumedOn);
+        // ⑥ job COMPLETED
+        assertThat(job.getStatus()).isEqualTo(com.jdc.recipe_service.domain.type.JobStatus.COMPLETED);
+        assertThat(job.getResultRecipeId()).isEqualTo(recipeId);
+    }
+
+    @Test
+    @DisplayName("**MUST 회귀 차단**: completeJob 성공 후 추출자 me/favorites + default book + activity log에 자동 등록 (V2 RecipeExtractionService:622 동등)")
+    @SuppressWarnings("unchecked")
+    void completeJob_autoRegistersFavoriteAndDefaultBookAndLog() {
+        // YouTube 추출 recipe는 OFFICIAL_RECIPE_USER_ID 명의로 저장되어 본인 me/recipes에 안 들어감.
+        // 자동 favorite + default book + activity log를 빼면 추출자가 본인 추출 결과를 못 찾는 UX 사고.
+        Long jobId = 999L;
+        Long recipeId = 888L;
+        RecipeGenerationJob job = mockJobWithCost(jobId, DevYoutubeQuotaService.COST_BASIC);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "userId", USER_ID);
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        given(jobRepository.saveAndFlush(any(RecipeGenerationJob.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // transactionTemplate.execute(...)가 callback을 즉시 실행하도록 stub
+        given(transactionTemplate.execute(any())).willAnswer(inv -> {
+            org.springframework.transaction.support.TransactionCallback<Object> cb = inv.getArgument(0);
+            return cb.doInTransaction(null);
+        });
+        // executeWithoutResult는 favorite retry block에서 호출됨
+        doAnswer(inv -> {
+            java.util.function.Consumer<org.springframework.transaction.TransactionStatus> cb = inv.getArgument(0);
+            cb.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
+
+        com.jdc.recipe_service.domain.entity.User user = mock(com.jdc.recipe_service.domain.entity.User.class);
+        given(user.getNickname()).willReturn("tester");
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+
+        // when — private completeJob 직접 호출 (entire async flow 거치지 않고 격리 검증)
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(facade, "completeJob", jobId, recipeId);
+
+        // then — V2와 동일한 3종 후속 작업이 모두 호출됨
+        verify(recipeFavoriteService).addFavoriteIfNotExists(USER_ID, recipeId);
+        verify(recipeBookService).saveToDefaultBookIfAbsent(USER_ID, recipeId);
+        verify(recipeActivityService).saveLog(USER_ID, "tester", ActivityLogType.YOUTUBE_EXTRACT);
+    }
+
+    @Test
+    @DisplayName("**MUST 회귀 차단**: favorite 추가 시 DB 충돌 발생해도 5회 retry 후 silent fail — completeJob 자체는 깨지지 않음")
+    @SuppressWarnings("unchecked")
+    void completeJob_favoriteRetriesOnConflict_thenSilentFail() {
+        // 일시적 DB lock contention 시뮬레이션. 5회 모두 throw → silent fail (사용자가 수동 favorite으로 복구).
+        Long jobId = 1000L;
+        Long recipeId = 777L;
+        RecipeGenerationJob job = mockJobWithCost(jobId, DevYoutubeQuotaService.COST_BASIC);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "userId", USER_ID);
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        given(jobRepository.saveAndFlush(any(RecipeGenerationJob.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // execute (job 완료 단)는 정상
+        given(transactionTemplate.execute(any())).willAnswer(inv -> {
+            org.springframework.transaction.support.TransactionCallback<Object> cb = inv.getArgument(0);
+            return cb.doInTransaction(null);
+        });
+        // executeWithoutResult (favorite 단)에서 5회 모두 throw
+        doThrow(new RuntimeException("lock wait timeout"))
+                .when(transactionTemplate).executeWithoutResult(any());
+
+        com.jdc.recipe_service.domain.entity.User user = mock(com.jdc.recipe_service.domain.entity.User.class);
+        given(user.getNickname()).willReturn("tester");
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+
+        // when — completeJob이 favorite 실패에도 throw 안 함
+        org.assertj.core.api.Assertions.assertThatCode(() ->
+                org.springframework.test.util.ReflectionTestUtils.invokeMethod(facade, "completeJob", jobId, recipeId))
+                .as("favorite 추가 실패는 silent — completeJob 자체는 통과")
+                .doesNotThrowAnyException();
+
+        // 5회 retry 호출 확인 (V2와 동일 정책)
+        verify(transactionTemplate, times(5)).executeWithoutResult(any());
+        // activity log는 favorite 실패와 무관하게 시도됨
+        verify(recipeActivityService).saveLog(USER_ID, "tester", ActivityLogType.YOUTUBE_EXTRACT);
     }
 
     private RecipeIngredientRequestDto ing(String name, String quantity, String unit) {
