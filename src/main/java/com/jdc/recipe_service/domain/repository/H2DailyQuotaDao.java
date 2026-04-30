@@ -56,6 +56,79 @@ public class H2DailyQuotaDao implements DailyQuotaDao {
     }
 
     @Override
+    public boolean tryConsume(Long userId, QuotaType type, int limit, int amount) {
+        if (amount <= 0) return false; // 방어 가드: 음수 amount로 used_count 감소 차단
+        var today = LocalDate.now(props.zoneId());
+        String typeStr = type.name();
+
+        // 시작 조건만 used_count < limit. amount만큼 더하고 합이 limit을 초과해도 허용.
+        String sql = """
+            MERGE INTO user_daily_ai_usage_counter t
+            USING (SELECT CAST(? AS BIGINT) AS user_id, CAST(? AS DATE) AS used_on, CAST(? AS VARCHAR) AS quota_type) s
+            ON (t.user_id = s.user_id AND t.used_on = s.used_on AND t.quota_type = s.quota_type)
+            WHEN MATCHED AND t.used_count < ? THEN
+                UPDATE SET t.used_count = t.used_count + ?
+            WHEN NOT MATCHED THEN
+                INSERT (user_id, used_on, quota_type, used_count) VALUES (?, ?, ?, ?)
+            """;
+
+        int updated = jdbc.update(sql,
+                userId, today, typeStr,
+                limit, amount,
+                userId, today, typeStr, amount
+        );
+
+        return updated > 0;
+    }
+
+    @Override
+    public boolean tryConsume(Long userId, QuotaType type, int limit, int amount, LocalDate usedOn) {
+        if (amount <= 0 || usedOn == null) return false;
+        String typeStr = type.name();
+
+        String sql = """
+            MERGE INTO user_daily_ai_usage_counter t
+            USING (SELECT CAST(? AS BIGINT) AS user_id, CAST(? AS DATE) AS used_on, CAST(? AS VARCHAR) AS quota_type) s
+            ON (t.user_id = s.user_id AND t.used_on = s.used_on AND t.quota_type = s.quota_type)
+            WHEN MATCHED AND t.used_count < ? THEN
+                UPDATE SET t.used_count = t.used_count + ?
+            WHEN NOT MATCHED THEN
+                INSERT (user_id, used_on, quota_type, used_count) VALUES (?, ?, ?, ?)
+            """;
+
+        int updated = jdbc.update(sql,
+                userId, usedOn, typeStr,
+                limit, amount,
+                userId, usedOn, typeStr, amount
+        );
+
+        return updated > 0;
+    }
+
+    @Override
+    public void refund(Long userId, QuotaType type, int amount) {
+        if (amount <= 0) return; // 방어 가드: 음수 amount로 used_count 증가 차단
+        var today = LocalDate.now(props.zoneId());
+        String typeStr = type.name();
+
+        jdbc.update(
+                "UPDATE user_daily_ai_usage_counter SET used_count = (CASE WHEN used_count > ? THEN used_count - ? ELSE 0 END) WHERE user_id=? AND used_on=? AND quota_type=?",
+                amount, amount, userId, today, typeStr
+        );
+    }
+
+    @Override
+    public void refund(Long userId, QuotaType type, int amount, LocalDate usedOn) {
+        if (amount <= 0 || usedOn == null) return; // 방어 가드
+        String typeStr = type.name();
+
+        jdbc.update(
+                "UPDATE user_daily_ai_usage_counter SET used_count = (CASE WHEN used_count > ? THEN used_count - ? ELSE 0 END) WHERE user_id=? AND used_on=? AND quota_type=?",
+                amount, amount, userId, usedOn, typeStr
+        );
+    }
+
+    @Override
     public int remainingToday(Long userId, QuotaType type, int limit) { // [수정] limit 파라미터 추가
         var today = LocalDate.now(props.zoneId());
         String typeStr = type.name();
