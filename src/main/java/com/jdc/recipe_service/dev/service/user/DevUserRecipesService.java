@@ -89,6 +89,7 @@ public class DevUserRecipesService {
                 .listingStatus(recipe.getListingStatus() != null ? recipe.getListingStatus().name() : null)
                 .lifecycleStatus(recipe.getLifecycleStatus() != null ? recipe.getLifecycleStatus().name() : null)
                 .source(recipe.getSource() != null ? recipe.getSource().name() : null)
+                .imageStatus(recipe.getImageStatus() != null ? recipe.getImageStatus().name() : null)
                 .build());
     }
 }

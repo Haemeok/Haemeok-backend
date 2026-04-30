@@ -8,6 +8,7 @@ import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.type.DishType;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
@@ -143,6 +144,7 @@ class DevUserRecipesServiceTest {
                 .source(RecipeSourceType.AI)
                 .isAiGenerated(true)
                 .imageKey("ai.webp")  // AI는 imageKey 있어야 service 변환 정상 (service 자체는 통과시키지만 의미상)
+                .imageStatus(RecipeImageStatus.FAILED)
                 .isPrivate(false)
                 .build();
         ReflectionTestUtils.setField(restricted, "id", 999L);
@@ -159,6 +161,7 @@ class DevUserRecipesServiceTest {
         assertThat(dto.getListingStatus()).isEqualTo("UNLISTED");
         assertThat(dto.getLifecycleStatus()).isEqualTo("ACTIVE");
         assertThat(dto.getSource()).isEqualTo("AI");
+        assertThat(dto.getImageStatus()).isEqualTo("FAILED");
         // V1 base 필드 매핑 — isAiGenerated가 true로 정확히 전파
         assertThat(dto.getId()).isEqualTo(999L);
         assertThat(dto.isAiGenerated()).isTrue();
