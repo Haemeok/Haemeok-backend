@@ -14,8 +14,10 @@ import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.type.AiRecipeConcept;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.DailyQuotaService;
@@ -39,6 +41,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -50,6 +53,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -361,6 +365,61 @@ class DevAiRecipeFacadeTest {
         assertThat(generatedDto.getSteps().get(0).getIngredients())
                 .as("원본 step의 ingredients도 보존")
                 .containsExactly(rawStepIng);
+    }
+
+    @Test
+    @DisplayName("이미지 생성 실패: PENDING recipe를 FAILED/default image로 확정한 뒤 job COMPLETED")
+    @SuppressWarnings("unchecked")
+    void asyncImageFailure_marksRecipeFailedBeforeJobCompleted() {
+        Long jobId = 301L;
+        Long recipeId = 1000L;
+        RecipeGenerationJob job = mockJob(jobId);
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        given(surveyService.getSurvey(USER_ID)).willReturn(null);
+        given(ingredientBuilder.buildPrompt(any())).willReturn("system-prompt");
+
+        RecipeIngredientRequestDto rawIng = RecipeIngredientRequestDto.builder()
+                .name("양파").quantity("1").customUnit("개").build();
+
+        RecipeCreateRequestDto generatedDto = new RecipeCreateRequestDto();
+        generatedDto.setTitle("AI recipe");
+        generatedDto.setIngredients(new ArrayList<>(List.of(rawIng)));
+        generatedDto.setSteps(new ArrayList<>());
+
+        given(grokClientService.generateRecipeJson(any(), any()))
+                .willReturn(CompletableFuture.completedFuture(generatedDto));
+
+        given(transactionTemplate.execute(any())).willAnswer(inv -> {
+            TransactionCallback<Long> cb = inv.getArgument(0);
+            return cb.doInTransaction(null);
+        });
+        org.mockito.Mockito.doAnswer(inv -> {
+            Consumer<TransactionStatus> cb = inv.getArgument(0);
+            cb.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
+
+        PresignedUrlResponse savedResponse = mock(PresignedUrlResponse.class);
+        given(savedResponse.getRecipeId()).willReturn(recipeId);
+        given(recipeService.createRecipeAndGenerateUrls(
+                any(RecipeWithImageUploadRequest.class), eq(USER_ID), eq(RecipeSourceType.AI), any()))
+                .willReturn(savedResponse);
+
+        Recipe recipeEntity = mock(Recipe.class);
+        given(recipeEntity.getImageStatus()).willReturn(RecipeImageStatus.PENDING);
+        given(recipeRepository.findById(recipeId)).willReturn(Optional.of(recipeEntity));
+        given(asyncImageService.generateAndUploadAiImage(recipeId, true, VALID_MODEL))
+                .willThrow(new RuntimeException("image down"));
+
+        facade.processAiGenerationAsync(jobId, validRequest, AiRecipeConcept.INGREDIENT_FOCUS,
+                VALID_MODEL, USER_ID, /* usedToken= */ true);
+
+        verify(recipeEntity).updateImageKey(AsyncImageService.DEFAULT_IMAGE_KEY);
+        verify(recipeEntity).updateImageStatus(RecipeImageStatus.FAILED);
+        verify(recipeEntity).updateImageGenerationModel(VALID_MODEL);
+        verify(recipeEntity).applyVisibility(RecipeVisibility.PUBLIC);
+        assertThat(job.getStatus()).isEqualTo(com.jdc.recipe_service.domain.type.JobStatus.COMPLETED);
+        assertThat(job.getResultRecipeId()).isEqualTo(recipeId);
     }
 
     private RecipeGenerationJob mockJob(Long id) {

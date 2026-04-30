@@ -245,10 +245,7 @@ public class DevYoutubeRecipeExtractionFacade {
             // 7. 이미지 생성 — DevImageGenRouterService로 모델 라우팅
             updateProgress(job, JobStatus.IN_PROGRESS, 60);
             String imageUrl = generateImageWithRouter(result.recipeDto(), imageGenModel, videoId);
-            if (imageUrl != null && !imageUrl.isBlank()) {
-                result.recipeDto().setImageKey(YoutubeExtractionHelpers.extractS3Key(imageUrl));
-                result.recipeDto().setImageStatus(RecipeImageStatus.READY);
-            }
+            applyImageGenerationResult(result.recipeDto(), imageUrl);
 
             // 8. legacy Recipe.youtube* 필드 dual-write (운영 V1/V2 호환)
             applyYoutubeFieldsToDto(result.recipeDto(), videoId, videoData);
@@ -417,6 +414,17 @@ public class DevYoutubeRecipeExtractionFacade {
                     YoutubeExtractionHelpers.safeMsg(e));
             return null;
         }
+    }
+
+    private void applyImageGenerationResult(RecipeCreateRequestDto dto, String imageUrl) {
+        if (imageUrl != null && !imageUrl.isBlank()) {
+            dto.setImageKey(YoutubeExtractionHelpers.extractS3Key(imageUrl));
+            dto.setImageStatus(RecipeImageStatus.READY);
+            return;
+        }
+
+        dto.setImageKey(AsyncImageService.DEFAULT_IMAGE_KEY);
+        dto.setImageStatus(RecipeImageStatus.FAILED);
     }
 
     /**
