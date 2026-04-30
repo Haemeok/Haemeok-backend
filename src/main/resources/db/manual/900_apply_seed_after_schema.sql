@@ -1,0 +1,21 @@
+-- 스키마 수동 확장 후 실행 안내
+-- ===========================================================================
+-- 1) 001 ~ 006 SQL을 순서대로 실행하여 스키마를 확장한다.
+-- 2) 그 다음 아래 seed를 별도로 실행한다.
+--
+--   C:\workspace\projects\recipio\workbench\ingredient-research-pipeline\data\results\sql-full\_run_all.sql
+--
+-- 3) dump20260430 기준 상위 missing unit 보강 seed를 실행한다.
+--
+--   src/main/resources/db/manual/007_seed_top30_missing_ingredient_units_20260430.sql
+--
+-- 4) 그 다음 Java normalization backfill을 dry-run/apply 순서로 실행한다.
+--
+-- 예시:
+--   mysql -u <user> -p <db_name> < C:\workspace\projects\recipio\workbench\ingredient-research-pipeline\data\results\sql-full\_run_all.sql
+--
+-- 주의:
+--   - ingredient_aliases는 v1에서 seed 하지 않는다.
+--   - recipe_ingredients / ingredient_candidates도 v1 seed 대상이 아니다.
+--   - 이 manual SQL은 자동 실행되지 않는다. 실행 이력은 나중에 Flyway로 정리하는 것을 권장한다.
+-- ===========================================================================

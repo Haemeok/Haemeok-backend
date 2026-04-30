@@ -106,6 +106,17 @@ public class User extends BaseTimeEntity {
         return false;
     }
 
+    // 가변 차감: youtubeToken이 amount 이상일 때만 차감. 음수로 떨어지지 않는다.
+    // (음수 허용 마지막-기회 시맨틱은 일일 quota counter 쪽에만 적용됨. 보유 토큰은 항상 >=0 유지.)
+    public boolean tryUseYoutubeToken(int amount) {
+        if (amount <= 0) return false;
+        if (this.youtubeToken >= amount) {
+            this.youtubeToken -= amount;
+            return true;
+        }
+        return false;
+    }
+
     public boolean tryUseAiToken() {
         if (this.aiToken > 0) {
             this.aiToken--;
