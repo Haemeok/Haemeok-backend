@@ -112,7 +112,7 @@ cloud:
       access-key: ${AWS_ACCESS_KEY_ID}
       secret-key: ${AWS_SECRET_ACCESS_KEY}
 
-openai:
+grok:
   api-key: ${GROK_API_KEY}
   base-url: https://api.x.ai/v1
 
