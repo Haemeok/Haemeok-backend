@@ -7,6 +7,8 @@ import com.jdc.recipe_service.domain.type.recipe.RecipeDisplayMode;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
+
 @Entity
 @Getter
 @Setter
@@ -48,6 +50,22 @@ public class RecipeGenerationJob extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "display_mode")
     private RecipeDisplayMode displayMode;
+
+    @Column(name = "token_cost")
+    private Integer tokenCost;
+
+    @Column(name = "used_gemini_analysis")
+    private Boolean usedGeminiAnalysis;
+
+    @Column(name = "image_generation_model", length = 100)
+    private String imageGenerationModel;
+
+    /**
+     * Quota 차감 날짜. dev V3 전용 (운영 V1/V2는 null).
+     * Cross-midnight 환불 정확성용 — async가 자정 넘어 실패해도 시작일 quota에서 환불.
+     */
+    @Column(name = "quota_used_on")
+    private LocalDate quotaUsedOn;
 
     public void updateProgress(JobStatus status, int progress) {
         this.status = status;

@@ -78,6 +78,26 @@ FROM DUAL
             Long userId, LocalDateTime start, LocalDateTime end
     );
 
+    /**
+     * Half-open range 조회 — {@code createdAt >= start AND createdAt < end}.
+     *
+     * Spring Data {@code Between}은 양끝 inclusive라 월 경계 (예: 5월 1일 0시 정각) record가 4월 응답에 새는 문제를
+     * 회피하기 위한 변형. {@code @EntityGraph(attributePaths = "recipe")}로 N+1 동시 차단 — recipe.imageKey/getId() 호출
+     * 시 추가 SQL 없음.
+     */
+    @EntityGraph(attributePaths = "recipe")
+    @Query("""
+            SELECT c FROM CookingRecord c
+            WHERE c.user.id = :userId
+              AND c.createdAt >= :start
+              AND c.createdAt < :end
+            ORDER BY c.createdAt DESC
+            """)
+    List<CookingRecord> findByUserIdAndCreatedAtRange(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
     @Query("""
       SELECT DISTINCT cast(c.createdAt as date)
       FROM CookingRecord c

@@ -12,6 +12,8 @@ import java.time.ZoneId;
 public class QuotaProperties {
     private int perDay = 2;
     private int youtubePerDay = 3;
+    // dev V3 YouTube extraction quota (variable-cost: 2 또는 5). 기본 20.
+    private int devYoutubePerDay = 20;
     private String timezone = "Asia/Seoul";
     public ZoneId zoneId() { return ZoneId.of(timezone); }
 }
