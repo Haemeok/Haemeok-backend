@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.opensearch.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jdc.recipe_service.dev.opensearch.service.DevRecipeIndexingService;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeLikeRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
@@ -41,6 +42,11 @@ public class RecipeIndexingService {
     private final RecipeLikeRepository likeRepository;
     private final RecipeRepository recipeRepository;
     private final IndexingFailureLogService failureLogService;
+    /**
+     * Dev V3 mirror — flag off (default)면 모든 호출 no-op, 실패는 swallow.
+     * 절대 운영 indexing path에 throw하지 않는다는 invariant에 의존한다.
+     */
+    private final DevRecipeIndexingService devRecipeIndexingService;
 
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MS = 2000;
@@ -340,6 +346,9 @@ public class RecipeIndexingService {
                 doIndex(recipe);
                 log.info("레시피 인덱싱 성공: ID {} (시도 횟수: {})", recipeId, attempt);
 
+                // Dev V3 mirror — flag off면 no-op, 실패는 swallow (운영 path 영향 없음)
+                devRecipeIndexingService.mirrorIndex(recipe);
+
                 failureLogService.deleteByRecipeId(recipeId);
                 return;
             } catch (CustomException e) {
@@ -379,6 +388,10 @@ public class RecipeIndexingService {
                 client.update(req, RequestOptions.DEFAULT);
                 log.info("OpenSearch Privacy Status 업데이트 성공: ID {}, isPrivate: {} (시도 {})", recipeId, isPrivate, attempt);
 
+                // Dev V3 mirror — visibility 변경은 4-enum 모두 갱신되어야 하므로 partial update가 아닌 full reindex.
+                // flag off면 no-op, 실패는 swallow.
+                devRecipeIndexingService.mirrorReindex(recipeId);
+
                 failureLogService.deleteByRecipeId(recipeId);
                 return;
 
@@ -412,6 +425,9 @@ public class RecipeIndexingService {
             try {
                 deleteRecipe(recipeId);
                 log.info("레시피 OpenSearch 삭제 성공: ID {} (시도 {})", recipeId, attempt);
+
+                // Dev V3 mirror — flag off면 no-op, 실패는 swallow
+                devRecipeIndexingService.mirrorDelete(recipeId);
 
                 failureLogService.deleteByRecipeId(recipeId);
                 return;

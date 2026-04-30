@@ -414,6 +414,36 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             @Param("youtubeUrl") String youtubeUrl,
             @Param("officialUserId") Long officialUserId);
 
+    /**
+     * URL probe로 official YOUTUBE 레시피의 존재 여부를 확인할 때 가시성 누설을 막기 위한 strict 변형.
+     *
+     * 같은 URL에 older PRIVATE/HIDDEN row + later PUBLIC ACTIVE row가 공존할 수 있으므로 Java 필터로 첫 row만 보면
+     * 안 되고, SQL에서 4-enum + source + originRecipe IS NULL + imageStatus 조건을 모두 걸어야 한다.
+     *
+     * imageStatus는 dev V3 컨벤션을 따라 {@code READY OR NULL} (legacy null도 imageReady로 취급) — PENDING/FAILED만 차단.
+     *
+     * 호출자는 반드시 {@code PageRequest.of(0, 1)}을 넘기고 {@code stream().findFirst()}로 사용한다. {@code Pageable}
+     * 없이 단순 {@code Optional} 반환을 쓰면 strict 통과 row가 2개 이상일 때 {@code IncorrectResultSizeDataAccessException}
+     * 으로 500이 발생하므로 명시적 LIMIT이 필요하다.
+     */
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.youtubeUrl = :youtubeUrl
+              AND r.user.id = :officialUserId
+              AND r.originRecipe IS NULL
+              AND r.source = com.jdc.recipe_service.domain.type.recipe.RecipeSourceType.YOUTUBE
+              AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+              AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+              AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
+              AND (r.imageStatus = com.jdc.recipe_service.domain.type.RecipeImageStatus.READY
+                   OR r.imageStatus IS NULL)
+            ORDER BY r.id ASC
+            """)
+    List<Recipe> findStrictPublicYoutubeRecipes(
+            @Param("youtubeUrl") String youtubeUrl,
+            @Param("officialUserId") Long officialUserId,
+            org.springframework.data.domain.Pageable pageable);
+
     List<Recipe> findAllByYoutubeUrlIsNotNull();
 
     @Query("""

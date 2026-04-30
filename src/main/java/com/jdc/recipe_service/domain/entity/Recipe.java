@@ -171,6 +171,9 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "image_status")
     private RecipeImageStatus imageStatus;
 
+    @Column(name = "image_generation_model", length = 100)
+    private String imageGenerationModel;
+
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
     @BatchSize(size = 10)
     @Builder.Default
@@ -285,6 +288,10 @@ public class Recipe extends BaseTimeEntity {
     public void updateRatingCount(Long ratingCount) {this.ratingCount = ratingCount;}
 
     public void updateImageStatus(RecipeImageStatus imageStatus) {this.imageStatus = imageStatus;}
+
+    public void updateImageGenerationModel(String model) {
+        this.imageGenerationModel = model;
+    }
 
     public void updateCookingTips(String cookingTips) {
         this.cookingTips = cookingTips;
@@ -421,6 +428,33 @@ public class Recipe extends BaseTimeEntity {
 
     public void updateVisibility(RecipeVisibility visibility) {
         this.visibility = visibility;
+    }
+
+    /**
+     * visibility / listingStatus / isPrivate(legacy) 세 필드를 한 세트로 동기화한다.
+     * 운영 V1 API가 isPrivate 기준으로 노출 판정하는 경로가 남아 있어 dev/V2 쓰기에서도
+     * 셋 다 맞춰야 두 API의 노출 결과가 일관된다. (단일 필드 setter 직접 호출 금지)
+     *
+     *   PRIVATE    → visibility=PRIVATE,    listingStatus=UNLISTED, isPrivate=true
+     *   PUBLIC     → visibility=PUBLIC,     listingStatus=LISTED,   isPrivate=false
+     *   RESTRICTED → visibility=RESTRICTED, listingStatus=UNLISTED, isPrivate=false
+     */
+    public void applyVisibility(RecipeVisibility visibility) {
+        this.visibility = visibility;
+        switch (visibility) {
+            case PRIVATE -> {
+                this.listingStatus = RecipeListingStatus.UNLISTED;
+                this.isPrivate = true;
+            }
+            case PUBLIC -> {
+                this.listingStatus = RecipeListingStatus.LISTED;
+                this.isPrivate = false;
+            }
+            case RESTRICTED -> {
+                this.listingStatus = RecipeListingStatus.UNLISTED;
+                this.isPrivate = false;
+            }
+        }
     }
 
     public void updateListingStatus(RecipeListingStatus listingStatus) {

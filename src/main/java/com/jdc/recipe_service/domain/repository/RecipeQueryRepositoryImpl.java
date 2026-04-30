@@ -30,6 +30,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
 
+    private static final long MIN_FRIDGE_RECIPE_FAVORITE_COUNT = 2L;
+
     private final JPAQueryFactory queryFactory;
     private final RecipeLikeRepository recipeLikeRepository;
     private final RecipeBookItemRepository recipeBookItemRepository;
@@ -561,6 +563,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .join(recipe.ingredients, recipeIngredient)
                 .join(recipeIngredient.ingredient, ingredient)
                 .where(
+                        recipe.favoriteCount.coalesce(0L).goe(MIN_FRIDGE_RECIPE_FAVORITE_COUNT),
                         ingredient.id.in(userIngredientIds).and(ingredient.isPantry.isFalse()),
                         recipe.isPrivate.isFalse(),
                         typeFilter(types)

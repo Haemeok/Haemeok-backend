@@ -69,7 +69,8 @@ import static org.mockito.Mockito.verify;
  *       · DB 레벨: uq_recipes_origin_user 유니크 제약 → DataIntegrityViolationException 매핑
  *   - 서버가 body와 무관하게 visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true,
  *     source=YOUTUBE, extractorId=null, originRecipe=source 를 강제
- *   - 원본 imageKey가 있으면 S3 CopyObject로 새 키를 복제본에 할당
+ *   - 원본 imageKey가 있으면 S3 CopyObject로 list용(main.webp)과 detail용(main_detail.webp)
+ *     두 변형을 모두 새 키에 복제. detail이 없는 legacy 원본은 main만 복사하고 경고 로그.
  *
  * DB 레벨 유니크 제약은 Flyway V20260414_003__add_origin_recipe_id_to_recipes.sql에서 관리된다.
  * RecipeService가 수많은 협력자를 가지기 때문에 @SpringBootTest 대신 Mockito로 분기와 부수효과만 고정한다.
@@ -83,7 +84,9 @@ class RecipeServiceRemixCreateTest {
     private static final Long SOURCE_RECIPE_ID = 7L;
     private static final Long NEW_RECIPE_ID = 555L;
     private static final String SOURCE_IMAGE_KEY = "images/recipes/7/main.webp";
+    private static final String SOURCE_DETAIL_IMAGE_KEY = "images/recipes/7/main_detail.webp";
     private static final String EXPECTED_NEW_IMAGE_KEY = "images/recipes/555/main.webp";
+    private static final String EXPECTED_NEW_DETAIL_IMAGE_KEY = "images/recipes/555/main_detail.webp";
 
     @Mock private RecipeRepository recipeRepository;
     @Mock private UserRepository userRepository;
@@ -139,6 +142,9 @@ class RecipeServiceRemixCreateTest {
         given(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
                 .willReturn(Collections.emptyList());
 
+        // 기본적으로 detail 변형은 존재한다고 가정. legacy 시나리오만 별도 stub 으로 false 주입.
+        given(s3Util.doesObjectExist(anyString())).willReturn(true);
+
         Recipe fullRecipe = Recipe.builder().id(NEW_RECIPE_ID).user(remixer).title("remix").build();
         given(recipeRepository.findWithAllRelationsById(NEW_RECIPE_ID))
                 .willReturn(Optional.of(fullRecipe));
@@ -160,7 +166,7 @@ class RecipeServiceRemixCreateTest {
     }
 
     @Test
-    @DisplayName("유효한 원본으로 리믹스 시 PRIVATE/UNLISTED/isPrivate=true/source=YOUTUBE/originRecipe 강제, S3 CopyObject 호출")
+    @DisplayName("유효한 원본으로 리믹스 시 PRIVATE/UNLISTED/isPrivate=true/source=YOUTUBE/originRecipe 강제, S3 CopyObject가 main + detail 모두 호출")
     void remix_withValidSource_forcesInvariantsAndCopiesImage() {
         // given
         Recipe source = cloneableSource().build();
@@ -193,6 +199,7 @@ class RecipeServiceRemixCreateTest {
         assertThat(persisted.getUser().getId()).isEqualTo(REMIX_USER_ID);
 
         verify(s3Util).copyObject(SOURCE_IMAGE_KEY, EXPECTED_NEW_IMAGE_KEY);
+        verify(s3Util).copyObject(SOURCE_DETAIL_IMAGE_KEY, EXPECTED_NEW_DETAIL_IMAGE_KEY);
     }
 
     @Test
@@ -239,7 +246,7 @@ class RecipeServiceRemixCreateTest {
     }
 
     @Test
-    @DisplayName("리믹스 + 스텝 이미지 업로드 시 해당 스텝 DTO에 imageKey가 할당된다")
+    @DisplayName("리믹스 + 스텝 이미지 업로드 시 해당 스텝 DTO에 imageKey가 할당되고 메인은 main + detail 모두 복사")
     void remix_whenStepImageUploaded_assignsStepImageKey() {
         // given
         Recipe source = cloneableSource().build();
@@ -269,8 +276,9 @@ class RecipeServiceRemixCreateTest {
         recipeService.createRecipeAndGenerateUrls(req, REMIX_USER_ID, RecipeSourceType.USER, null);
 
         // then
-        // 메인은 업로드 없음 → 원본 복사 동작 유지
+        // 메인은 업로드 없음 → 원본 복사 동작 유지 (list + detail 두 변형)
         verify(s3Util).copyObject(SOURCE_IMAGE_KEY, EXPECTED_NEW_IMAGE_KEY);
+        verify(s3Util).copyObject(SOURCE_DETAIL_IMAGE_KEY, EXPECTED_NEW_DETAIL_IMAGE_KEY);
         // 스텝 DTO에 imageKey가 할당되어 saveAll로 전달되어야 한다
         assertThat(step1.getImageKey())
                 .isEqualTo("images/recipes/" + NEW_RECIPE_ID + "/step_1.webp");
@@ -293,6 +301,28 @@ class RecipeServiceRemixCreateTest {
 
         // then
         verify(s3Util, never()).copyObject(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("원본에 detail 변형이 없는 legacy 케이스: main만 복사하고 detail은 skip")
+    void remix_whenSourceHasNoDetailVariant_copiesOnlyMain() {
+        // given
+        Recipe source = cloneableSource().build();
+        given(recipeRepository.findById(SOURCE_RECIPE_ID)).willReturn(Optional.of(source));
+        given(recipeRepository.existsByOriginRecipeIdAndUserId(SOURCE_RECIPE_ID, REMIX_USER_ID))
+                .willReturn(false);
+        // legacy: detail 변형이 S3에 없는 상황을 명시적으로 주입
+        given(s3Util.doesObjectExist(SOURCE_DETAIL_IMAGE_KEY)).willReturn(false);
+
+        RecipeCreateRequestDto dto = baseDto();
+        dto.setOriginRecipeId(SOURCE_RECIPE_ID);
+
+        // when
+        recipeService.createRecipeAndGenerateUrls(wrap(dto), REMIX_USER_ID, RecipeSourceType.USER, null);
+
+        // then
+        verify(s3Util).copyObject(SOURCE_IMAGE_KEY, EXPECTED_NEW_IMAGE_KEY);
+        verify(s3Util, never()).copyObject(SOURCE_DETAIL_IMAGE_KEY, EXPECTED_NEW_DETAIL_IMAGE_KEY);
     }
 
     @Test

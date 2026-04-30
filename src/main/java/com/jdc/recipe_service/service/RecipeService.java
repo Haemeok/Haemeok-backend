@@ -673,13 +673,29 @@ public class RecipeService {
         }
     }
 
+    // Lambda가 원본 업로드 시 list용(main.webp)과 detail용(main_detail.webp) 두 변형을 생성하므로
+    // 리믹스 복사도 두 객체를 모두 옮겨야 한다. detail 변형이 없는 legacy 원본은 main만 복사.
     private void copyRemixMainImage(Recipe recipe, Recipe source) {
         String sourceKey = source.getImageKey();
         if (sourceKey == null || sourceKey.isBlank()) {
             return;
         }
         String destKey = "images/recipes/" + recipe.getId() + "/main.webp";
+        String sourceDetailKey = sourceKey.replace(".webp", "_detail.webp");
+        String destDetailKey = destKey.replace(".webp", "_detail.webp");
+
         s3Util.copyObject(sourceKey, destKey);
+
+        final List<String> rollbackKeys = new ArrayList<>();
+        rollbackKeys.add(destKey);
+
+        if (s3Util.doesObjectExist(sourceDetailKey)) {
+            s3Util.copyObject(sourceDetailKey, destDetailKey);
+            rollbackKeys.add(destDetailKey);
+        } else {
+            log.warn("리믹스 원본 detail 변형 없음 (legacy 가능): sourceKey={}", sourceDetailKey);
+        }
+
         recipe.updateImageKey(destKey);
         recipe.updateImageStatus(RecipeImageStatus.READY);
 
@@ -688,9 +704,9 @@ public class RecipeService {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     try {
-                        s3Util.deleteFiles(java.util.List.of(destKey));
+                        s3Util.deleteFiles(rollbackKeys);
                     } catch (Exception e) {
-                        log.warn("리믹스 이미지 롤백 정리 실패: key={}, error={}", destKey, e.getMessage());
+                        log.warn("리믹스 이미지 롤백 정리 실패: keys={}, error={}", rollbackKeys, e.getMessage());
                     }
                 }
             }

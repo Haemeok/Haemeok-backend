@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.domain.entity;
 
+import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -166,6 +168,66 @@ class RecipeTest {
             // Then
             assertThat(recipe.getFavoriteCount()).isEqualTo(0L);
             assertThat(recipe.getPopularityScore()).isEqualTo(2L);
+        }
+    }
+
+    @Nested
+    @DisplayName("applyVisibility (visibility/listingStatus/isPrivate 트리플 동기화)")
+    class ApplyVisibility {
+
+        @Test
+        @DisplayName("PRIVATE: visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true")
+        void privateAppliesAllThree() {
+            // given
+            Recipe recipe = Recipe.builder().id(1L).build();
+
+            // when
+            recipe.applyVisibility(RecipeVisibility.PRIVATE);
+
+            // then
+            assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+            assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+            assertThat(recipe.getIsPrivate()).isTrue();
+        }
+
+        @Test
+        @DisplayName("PUBLIC: visibility=PUBLIC, listingStatus=LISTED, isPrivate=false")
+        void publicAppliesAllThree() {
+            // given - 일부러 더러운 상태에서 시작 (PRIVATE 잔재가 정리되는지 확인)
+            Recipe recipe = Recipe.builder()
+                    .id(1L)
+                    .visibility(RecipeVisibility.PRIVATE)
+                    .listingStatus(RecipeListingStatus.UNLISTED)
+                    .isPrivate(true)
+                    .build();
+
+            // when
+            recipe.applyVisibility(RecipeVisibility.PUBLIC);
+
+            // then
+            assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+            assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.LISTED);
+            assertThat(recipe.getIsPrivate()).isFalse();
+        }
+
+        @Test
+        @DisplayName("RESTRICTED: visibility=RESTRICTED, listingStatus=UNLISTED, isPrivate=false")
+        void restrictedAppliesAllThree() {
+            // given - PUBLIC 상태에서 시작
+            Recipe recipe = Recipe.builder()
+                    .id(1L)
+                    .visibility(RecipeVisibility.PUBLIC)
+                    .listingStatus(RecipeListingStatus.LISTED)
+                    .isPrivate(false)
+                    .build();
+
+            // when
+            recipe.applyVisibility(RecipeVisibility.RESTRICTED);
+
+            // then
+            assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.RESTRICTED);
+            assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+            assertThat(recipe.getIsPrivate()).isFalse();
         }
     }
 
