@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -44,8 +45,44 @@ class AdminRecipeServiceTest {
     @Mock private RecipeLikeService recipeLikeService;
     @Mock private RecipeFavoriteService recipeFavoriteService;
     @Mock private CommentService commentService;
+    @Mock private RecipeRatingRepository recipeRatingRepository;
+    @Mock private CookingRecordRepository cookingRecordRepository;
+    @Mock private IngredientCandidateRepository ingredientCandidateRepository;
     @Mock private UserRepository userRepository;
     @Mock private com.jdc.recipe_service.util.S3Util s3Util;
+
+    @Test
+    @DisplayName("deleteRecipe: 관리자는 연관 데이터를 정리한 뒤 레시피를 삭제한다")
+    void deleteRecipe_admin_cleansDependentsBeforeDelete() {
+        // Given
+        Long recipeId = 99L;
+        Recipe recipe = Recipe.builder()
+                .id(recipeId)
+                .user(User.builder().id(10L).build())
+                .build();
+        given(recipeRepository.findWithUserById(recipeId)).willReturn(Optional.of(recipe));
+
+        // When
+        Long result = adminRecipeService.deleteRecipe(recipeId, 1L, true);
+
+        // Then
+        assertThat(result).isEqualTo(recipeId);
+        verify(recipeImageService).deleteImagesByRecipeId(recipeId);
+        verify(recipeLikeService).deleteByRecipeId(recipeId);
+        verify(recipeFavoriteService).deleteByRecipeId(recipeId);
+        verify(commentService).deleteAllByRecipeId(recipeId);
+        verify(recipeRatingRepository).deleteByRecipeId(recipeId);
+        verify(cookingRecordRepository).deleteByRecipeId(recipeId);
+        verify(recipeStepService).deleteAllByRecipeId(recipeId);
+        verify(recipeIngredientService).deleteAllByRecipeId(recipeId);
+        verify(recipeTagService).deleteAllByRecipeId(recipeId);
+        verify(ingredientCandidateRepository).clearSourceRecipeId(recipeId);
+        verify(recipeRepository).delete(recipe);
+
+        InOrder deleteOrder = inOrder(ingredientCandidateRepository, recipeRepository);
+        deleteOrder.verify(ingredientCandidateRepository).clearSourceRecipeId(recipeId);
+        deleteOrder.verify(recipeRepository).delete(recipe);
+    }
 
     @Test
     @DisplayName("재료 일괄 수정: 삭제, 생성, 수정(표준↔커스텀), 신고처리, 재계산이 모두 완벽하게 동작해야 한다.")

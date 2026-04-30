@@ -40,6 +40,9 @@ public class AdminRecipeService {
     private final RecipeLikeService recipeLikeService;
     private final RecipeFavoriteService recipeFavoriteService;
     private final CommentService commentService;
+    private final RecipeRatingRepository recipeRatingRepository;
+    private final CookingRecordRepository cookingRecordRepository;
+    private final IngredientCandidateRepository ingredientCandidateRepository;
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final S3Util s3Util;
@@ -176,9 +179,12 @@ public class AdminRecipeService {
         recipeLikeService.deleteByRecipeId(recipeId);
         recipeFavoriteService.deleteByRecipeId(recipeId);
         commentService.deleteAllByRecipeId(recipeId);
+        recipeRatingRepository.deleteByRecipeId(recipeId);
+        cookingRecordRepository.deleteByRecipeId(recipeId);
         recipeStepService.deleteAllByRecipeId(recipeId);
         recipeIngredientService.deleteAllByRecipeId(recipeId);
         recipeTagService.deleteAllByRecipeId(recipeId);
+        ingredientCandidateRepository.clearSourceRecipeId(recipeId);
 
         recipeRepository.delete(recipe);
         return recipeId;

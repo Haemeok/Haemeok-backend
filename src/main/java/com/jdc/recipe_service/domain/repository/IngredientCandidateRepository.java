@@ -2,6 +2,9 @@ package com.jdc.recipe_service.domain.repository;
 
 import com.jdc.recipe_service.domain.entity.IngredientCandidate;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -16,4 +19,8 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface IngredientCandidateRepository extends JpaRepository<IngredientCandidate, Long> {
+
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE IngredientCandidate c SET c.sourceRecipeId = null WHERE c.sourceRecipeId = :recipeId")
+    int clearSourceRecipeId(@Param("recipeId") Long recipeId);
 }

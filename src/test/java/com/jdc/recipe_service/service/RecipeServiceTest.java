@@ -7,6 +7,8 @@ import com.jdc.recipe_service.domain.dto.url.FileInfoRequest;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.User;
+import com.jdc.recipe_service.domain.repository.CookingRecordRepository;
+import com.jdc.recipe_service.domain.repository.IngredientCandidateRepository;
 import com.jdc.recipe_service.domain.repository.RecipeIngredientRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRatingRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
@@ -59,6 +61,8 @@ class RecipeServiceTest {
     @Mock private CommentService commentService;
     @Mock private RecipeImageService recipeImageService;
     @Mock private RecipeLikeService recipeLikeService;
+    @Mock private CookingRecordRepository cookingRecordRepository;
+    @Mock private IngredientCandidateRepository ingredientCandidateRepository;
     @Mock private RecipeIndexingService recipeIndexingService;
     @Mock private RecipeAnalysisService recipeAnalysisService;
     @Mock private RecipeActivityService recipeActivityService;
@@ -361,12 +365,21 @@ class RecipeServiceTest {
 
         verify(recipeRepository, times(1)).findWithUserById(400L);
         verify(recipeImageService, times(1)).deleteImagesByRecipeId(400L);
+        verify(recipeLikeService, times(1)).deleteByRecipeId(400L);
+        verify(recipeFavoriteService, times(1)).deleteByRecipeId(400L);
+        verify(commentService, times(1)).deleteAllByRecipeId(400L);
+        verify(recipeRatingRepository, times(1)).deleteByRecipeId(400L);
+        verify(cookingRecordRepository, times(1)).deleteByRecipeId(400L);
+        verify(recipeStepService, times(1)).deleteAllByRecipeId(400L);
+        verify(recipeIngredientService, times(1)).deleteAllByRecipeId(400L);
+        verify(recipeTagService, times(1)).deleteAllByRecipeId(400L);
+        verify(ingredientCandidateRepository, times(1)).clearSourceRecipeId(400L);
         verify(recipeRepository, times(1)).deleteByIdDirectly(400L);
         verify(recipeIndexingService, times(1)).deleteRecipeSafelyWithRetry(400L);
-        // 연관 테이블 정리는 DB cascade 로 이동했으므로 서비스에서는 호출하지 않는다
-        verifyNoInteractions(recipeLikeService, recipeFavoriteService, commentService,
-                recipeStepService, recipeIngredientService, recipeTagService);
-        verify(recipeRatingRepository, never()).deleteByRecipeId(anyLong());
+        // ingredient_candidates는 후보 큐 보존을 위해 삭제하지 않고 recipe FK만 끊는다.
+        InOrder deleteOrder = inOrder(ingredientCandidateRepository, recipeRepository);
+        deleteOrder.verify(ingredientCandidateRepository).clearSourceRecipeId(400L);
+        deleteOrder.verify(recipeRepository).deleteByIdDirectly(400L);
     }
 
     @Test
@@ -382,7 +395,8 @@ class RecipeServiceTest {
 
         verify(recipeRepository, times(1)).findWithUserById(500L);
         verifyNoMoreInteractions(recipeImageService, recipeLikeService, recipeFavoriteService,
-                commentService, recipeStepService, recipeIngredientService, recipeTagService, recipeIndexingService);
+                commentService, recipeRatingRepository, cookingRecordRepository, recipeStepService,
+                recipeIngredientService, recipeTagService, ingredientCandidateRepository, recipeIndexingService);
     }
 
     @Test
@@ -405,7 +419,8 @@ class RecipeServiceTest {
 
         verify(recipeRepository, times(1)).findWithUserById(600L);
         verifyNoMoreInteractions(recipeImageService, recipeLikeService, recipeFavoriteService,
-                commentService, recipeStepService, recipeIngredientService, recipeTagService, recipeIndexingService);
+                commentService, recipeRatingRepository, cookingRecordRepository, recipeStepService,
+                recipeIngredientService, recipeTagService, ingredientCandidateRepository, recipeIndexingService);
     }
 
     @Test

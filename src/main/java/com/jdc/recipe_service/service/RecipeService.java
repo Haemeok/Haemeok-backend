@@ -52,6 +52,8 @@ public class RecipeService {
     private final CommentService commentService;
     private final RecipeImageService recipeImageService;
     private final RecipeLikeService recipeLikeService;
+    private final CookingRecordRepository cookingRecordRepository;
+    private final IngredientCandidateRepository ingredientCandidateRepository;
     private final RecipeIndexingService recipeIndexingService;
     private final S3Util s3Util;
     private final EntityManager em;
@@ -450,21 +452,15 @@ public class RecipeService {
         validateOwnership(recipe, userId);
 
         recipeImageService.deleteImagesByRecipeId(recipeId);
-
-        /*recipeLikeService.deleteByRecipeId(recipeId);
-
+        recipeLikeService.deleteByRecipeId(recipeId);
         recipeFavoriteService.deleteByRecipeId(recipeId);
-
         commentService.deleteAllByRecipeId(recipeId);
-
         recipeRatingRepository.deleteByRecipeId(recipeId);
-
+        cookingRecordRepository.deleteByRecipeId(recipeId);
         recipeStepService.deleteAllByRecipeId(recipeId);
-
         recipeIngredientService.deleteAllByRecipeId(recipeId);
-
         recipeTagService.deleteAllByRecipeId(recipeId);
-        */
+        ingredientCandidateRepository.clearSourceRecipeId(recipeId);
 
         recipeRepository.deleteByIdDirectly(recipeId);
 
