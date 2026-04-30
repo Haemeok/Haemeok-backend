@@ -108,7 +108,7 @@ public class AuthController {
         var accessBuilder = ResponseCookie.from("accessToken", result.getAccessToken())
                 .path("/")
                 .httpOnly(true)
-                .maxAge(15 * 60)
+                .maxAge(jwtTokenProvider.getAccessTokenValidityInSeconds())
                 .sameSite("Lax");
 
         if (!isLocalRequest) {
@@ -198,7 +198,7 @@ public class AuthController {
 
         savedToken.setUser(testUser);
         savedToken.setToken(refreshToken);
-        savedToken.setExpiredAt(LocalDateTime.now().plusDays(7));
+        savedToken.setExpiredAt(jwtTokenProvider.getRefreshTokenExpiryAsLocalDateTime());
         refreshTokenRepository.save(savedToken);
 
         String origin = request.getHeader("Origin");
@@ -207,12 +207,12 @@ public class AuthController {
         var refreshBuilder = ResponseCookie.from("refreshToken", refreshToken)
                 .path("/")
                 .httpOnly(true)
-                .maxAge(7 * 24 * 60 * 60)
+                .maxAge(jwtTokenProvider.getRefreshTokenValidityInSeconds())
                 .sameSite("Lax");
         var accessBuilder  = ResponseCookie.from("accessToken", accessToken)
                 .path("/")
                 .httpOnly(true)
-                .maxAge(15 * 60)
+                .maxAge(jwtTokenProvider.getAccessTokenValidityInSeconds())
                 .sameSite("Lax");
 
         if (!isLocalRequest) {

@@ -12,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -73,6 +74,14 @@ public class JwtTokenProvider {
         return Instant.ofEpochMilli(expiryDate.getTime())
                 .atZone(ZoneId.systemDefault())
                 .toLocalDateTime();
+    }
+
+    public long getAccessTokenValidityInSeconds() {
+        return Math.max(Duration.ofMillis(accessTokenValidityInMilliseconds).getSeconds(), 0L);
+    }
+
+    public long getRefreshTokenValidityInSeconds() {
+        return Math.max(Duration.ofMillis(refreshTokenValidityInMilliseconds).getSeconds(), 0L);
     }
 
     public boolean validateToken(String token) {

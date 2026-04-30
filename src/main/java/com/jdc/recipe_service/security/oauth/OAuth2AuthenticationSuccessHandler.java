@@ -18,7 +18,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.net.URI;
-import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 
@@ -44,7 +43,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         refreshTokenRepository.save(RefreshToken.builder()
                 .user(oAuth2User.getUser())
                 .token(refreshToken)
-                .expiredAt(LocalDateTime.now().plusDays(7))
+                .expiredAt(jwtTokenProvider.getRefreshTokenExpiryAsLocalDateTime())
                 .build());
 
         List<RefreshToken> tokens = refreshTokenRepository
@@ -82,7 +81,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                     .path("/")
                     .httpOnly(true)
                     .secure(true)
-                    .maxAge(7 * 24 * 60 * 60)
+                    .maxAge(jwtTokenProvider.getRefreshTokenValidityInSeconds())
                     .sameSite("Lax")
                     .domain(".recipio.kr")
                     .build();
@@ -90,7 +89,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                     .path("/")
                     .httpOnly(true)
                     .secure(true)
-                    .maxAge(15 * 60)
+                    .maxAge(jwtTokenProvider.getAccessTokenValidityInSeconds())
                     .sameSite("Lax")
                     .domain(".recipio.kr")
                     .build();

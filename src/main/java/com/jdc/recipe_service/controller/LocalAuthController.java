@@ -40,14 +40,14 @@ public class LocalAuthController {
                 .path("/")
                 .httpOnly(true)
                 .sameSite("Lax")
-                .maxAge(60 * 60)
+                .maxAge(jwtTokenProvider.getAccessTokenValidityInSeconds())
                 .build();
 
         ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", refreshToken)
                 .path("/")
                 .httpOnly(true)
                 .sameSite("Lax")
-                .maxAge(60 * 60 * 24 * 7)
+                .maxAge(jwtTokenProvider.getRefreshTokenValidityInSeconds())
                 .build();
 
         HttpHeaders headers = new HttpHeaders();
