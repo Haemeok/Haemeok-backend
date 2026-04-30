@@ -1,0 +1,25 @@
+-- 수동 적용 가이드 (자동 실행 안 됨)
+-- ===========================================================================
+-- 목적:
+--   - 기존 ingredients / recipe_ingredients는 유지
+--   - 새 구조에 필요한 컬럼/테이블만 add-only로 확장
+--   - 위험한 DROP / RENAME / UNIQUE 제거는 이번 라운드에서 하지 않음
+--
+-- 적용 순서:
+--   1) 001_create_ingredient_aliases.sql
+--   2) 002_create_ingredient_units.sql
+--   3) 003_create_ingredient_price_snapshots.sql
+--   4) 004_create_ingredient_candidates.sql
+--   5) 005_alter_ingredients_add_v1_columns.sql
+--   6) 006_alter_recipe_ingredients_add_v1_columns.sql
+--
+-- 그 다음:
+--   - workbench/ingredient-research-pipeline/data/results/sql-full/_run_all.sql 실행
+--   - 007_seed_top30_missing_ingredient_units_20260430.sql 실행 (선택이 아니라 백필 전 권장)
+--   - Java normalization backfill 실행
+--
+-- 주의:
+--   - recipe_ingredients의 기존 UNIQUE(recipe_id, ingredient_id)는 아직 유지
+--   - ingredient_aliases는 v1 seed에서 비움
+--   - ingredients.price / unit / calorie 등 기존 레거시 컬럼은 그대로 유지
+-- ===========================================================================
