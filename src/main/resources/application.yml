@@ -8,7 +8,7 @@ spring:
           enabled: true
 
   # Spring AI 1.0 — 레시피 챗봇(Upstage Solar) 설정.
-  # 주의: 최상위 `openai.*` 블록은 Grok SDK(com.openai:openai-java)용 별도 prefix이므로 서로 충돌 없음.
+  # 주의: Grok 텍스트 생성은 최상위 `grok.*` 블록을 사용한다. 이 Spring AI openai 블록과 서로 충돌 없음.
   # Upstage는 기본 /v1/chat/completions 경로를 쓰지 않으므로 completions-path 명시 필수.
   ai:
     openai:
@@ -123,7 +123,7 @@ app:
     # 한 번 429 뜬 지역을 몇 ms 동안 제외할지 (여기선 30초)
     credentials: ${GEMINI_CREDENTIALS}
     cooldown-ms: 30000
-  # 실제 OpenAI 이미지 생성용 (dev). 기존 openai.api-key는 Grok 키이므로 별도 설정.
+  # 실제 OpenAI 이미지 생성용 (dev). Grok 텍스트 생성 키는 grok.api-key/GROK_API_KEY를 사용한다.
   # 모델 선택(apiModel)은 DevImageGenModel enum이 결정한다 — 여기에 model 글로벌 default 두지 않음.
   openai:
     api-key: ${OPENAI_API_KEY:}
