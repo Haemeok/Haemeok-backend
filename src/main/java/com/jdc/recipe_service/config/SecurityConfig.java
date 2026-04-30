@@ -65,6 +65,8 @@ public class SecurityConfig {
                             .requestMatchers("/api/test/ai-recipe/**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/logs/stats").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/ingredients/units/batch").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/dev/recipes/status").permitAll()  // dev V3 batch 동적 상태 — anonymous 허용 (gate는 service)
                             .requestMatchers(HttpMethod.GET, "/api/recipes/reports").hasRole("ADMIN")
                             // 2-a) 레시피 하위 중 인증 필요 GET
                             .requestMatchers(HttpMethod.GET, "/api/recipes/*/saved-books").authenticated()
@@ -73,6 +75,7 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.GET,
                                     "/api/ingredients",
                                     "/api/ingredients/names",
+                                    "/api/ingredients/*/units",
                                     "/api/ingredients/*",
                                     "/api/recipes/*/comments",
                                     "/api/recipes/*/comments/*/replies",
@@ -91,9 +94,20 @@ public class SecurityConfig {
                                     "/api/recipes/popular",
                                     "/api/recipes/budget",
                                     "/api/recipes/youtube/recommend",
+                                    // TODO(dev V3): 아래 /api/dev/* 경로는 V3 dev 컨트롤러
+                                    // (com.jdc.recipe_service.dev.*) 도착 시 재활성화. 그 전까진 404.
                                     "/api/dev/recipes/ai/status/**",
                                     "/api/dev/recipes/youtube/status/**",
                                     "/api/dev/recipes/youtube/check",
+                                    "/api/dev/recipes/*",  // dev V3 recipe 상세 (GET only — POST는 위 ai/youtube와 다른 segment)
+                                    "/api/dev/recipes/*/comments",  // dev V3 댓글 목록 — anonymous 허용 (gate는 service)
+                                    "/api/dev/recipes/*/comments/*/replies",  // dev V3 대댓글 목록 — anonymous 허용
+                                    "/api/dev/recipes/*/status",  // dev V3 단건 동적 상태 — anonymous 허용 (gate는 service)
+                                    "/api/dev/recipes/*/recommendations",  // dev V3 추천 — anonymous 허용 (base recipe gate는 service)
+                                    "/api/dev/recipes/*/remixes",  // dev V3 리믹스 목록 — anonymous 허용 (base recipe gate는 service)
+                                    "/api/dev/ingredients/*",  // dev V3 ingredient 상세 (운영 /api/ingredients/* 미러)
+                                    "/api/dev/users/*/recipes",  // dev V3 사용자 레시피 목록 (운영 /api/users/*/recipes 미러)
+                                    "/api/dev/search/**",  // dev V3 search mirrors
                                     "/api/recipes/sitemap"
                             ).permitAll()
 
@@ -113,7 +127,15 @@ public class SecurityConfig {
                                     "/api/me/streak",
                                     "/api/me/survey",
                                     "/api/me/fridge/recipes/**",
+                                    "/api/dev/me/fridge/recipes/**",  // dev V3 fridge 추천 (운영 /api/me/fridge/recipes 미러)
+                                    "/api/dev/me/recipes",  // dev V3 내 레시피 목록 (운영 /api/me/recipes 미러)
+                                    "/api/dev/me/favorites",  // dev V3 즐겨찾기 (운영 /api/me/favorites 미러)
+                                    "/api/dev/me/recipe-books/**",  // dev V3 레시피북 read (운영 /api/me/recipe-books/** 미러, write는 후속)
+                                    "/api/dev/recipes/*/saved-books",  // dev V3 본인 폴더 저장 상태 조회 (인증 필수, 게이트 없음)
+                                    "/api/dev/me/calendar",            // dev V3 캘린더 day records (silent filter)
+                                    "/api/dev/me/records/**",          // dev V3 요리 기록 timeline + detail (silent filter)
                                     "/api/ratings/recipe/*/me",
+                                    "/api/dev/ratings/recipe/*/me", // dev V3 내 평점 조회 (운영 미러)
                                     "/api/users/*/profile-image/presign"
                             ).authenticated()
 
@@ -131,23 +153,39 @@ public class SecurityConfig {
                                     "/api/recipes/*/presigned-urls",
                                     "/api/recipes/*/like",
                                     "/api/recipes/*/favorite",
+                                    "/api/dev/recipes/*/like",     // dev V3 like (운영 미러 + 권한 게이트)
+                                    "/api/dev/recipes/*/favorite", // dev V3 favorite (운영 미러 + 권한 게이트)
+                                    "/api/dev/recipes/*/comments", // dev V3 댓글 작성 (운영 미러 + 권한 게이트)
+                                    "/api/dev/recipes/*/comments/*/replies", // dev V3 대댓글 작성
+                                    "/api/dev/comments/*/like",   // dev V3 댓글 좋아요 (운영 미러 + recipe 가시성 게이트)
                                     "/api/ratings/recipe/*",
+                                    "/api/dev/ratings/recipe/*",   // dev V3 평점 등록/수정 (운영 미러 + 분기 게이트)
                                     "/api/token/logout",
                                     "/api/token/logout/all",
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/private",
                                     "/api/recipes/*/finalize",
                                     "/api/ws-ticket",
+                                    "/api/dev/recipes",            // dev V3 레시피 직접 등록 (운영 미러 + remix origin 게이트)
+                                    "/api/dev/recipes/*/presigned-urls", // dev V3 presigned URL (owner + ACTIVE, 운영 leak 차단)
+                                    "/api/dev/recipes/*/finalize",       // dev V3 finalize (owner + ACTIVE, admin escape 없음)
                                     "/api/dev/recipes/ai",
-                                    "/api/dev/recipes/youtube/extract"
+                                    "/api/dev/recipes/youtube/extract",
+                                    "/api/dev/me/recipe-books",          // dev V3 레시피북 생성 (운영 미러)
+                                    "/api/dev/me/recipe-books/*/recipes", // dev V3 레시피북 레시피 추가 (RESTRICTED 차단)
+                                    "/api/dev/me/records",              // dev V3 요리 기록 생성 (recipe 가시성 게이트)
+                                    "/api/dev/recipes/*/reports"        // dev V3 재료 신고 (recipe 가시성 게이트)
                             ).authenticated()
 
                             // 5) 보호된 PUT
                             .requestMatchers(HttpMethod.PUT,
                                     "/api/me",
                                     "/api/recipes/*",
+                                    "/api/dev/recipes/*",          // dev V3 레시피 수정 (owner + ACTIVE only)
                                     "/api/ingredients",
                                     "/api/recipes/*/images",
+                                    "/api/dev/recipes/*/images",   // dev V3 이미지 키 업데이트 (owner + ACTIVE)
+                                    "/api/dev/me/recipe-books/order", // dev V3 레시피북 순서 변경 (운영 미러)
                                     "/api/users/*"
                             ).authenticated()
 
@@ -157,15 +195,23 @@ public class SecurityConfig {
                                     "/api/me/fridge/items/*",
                                     "/api/me/fridge/items/bulk",
                                     "/api/recipes/*/comments/*",
+                                    "/api/dev/recipes/*/comments/*", // dev V3 댓글 삭제 (운영 미러)
                                     "/api/recipes/*",
+                                    "/api/dev/recipes/*",          // dev V3 레시피 삭제 (owner cleanup right)
                                     "/api/ratings/recipe/*",
+                                    "/api/dev/ratings/recipe/*",   // dev V3 평점 삭제 (운영 미러)
+                                    "/api/dev/me/recipe-books/*",          // dev V3 레시피북 삭제 (운영 미러)
+                                    "/api/dev/me/recipe-books/*/recipes",  // dev V3 레시피북 레시피 제거 (cleanup right)
                                     "/api/me/records/*",
+                                    "/api/dev/me/records/*",              // dev V3 요리 기록 삭제 (cleanup right)
                                     "/api/ingredients"
                             ).authenticated()
 
                             .requestMatchers(HttpMethod.PATCH,
                                     "/api/users/*",
-                                    "/api/me"
+                                    "/api/me",
+                                    "/api/dev/recipes/*/visibility",     // dev V3 가시성 변경
+                                    "/api/dev/me/recipe-books/*"         // dev V3 레시피북 이름 변경 (운영 미러)
                             ).authenticated()
 
                             // 7) 관리자용 API
@@ -247,7 +293,15 @@ public class SecurityConfig {
                                 "/api/me/streak",
                                 "/api/me/survey",
                                 "/api/me/fridge/recipes/**",
+                                "/api/dev/me/fridge/recipes/**",  // dev V3 fridge 추천 — local 분기와 정합
+                                "/api/dev/me/recipes",  // dev V3 내 레시피 목록 — local 분기와 정합
+                                "/api/dev/me/favorites",  // dev V3 즐겨찾기 — local 분기와 정합
+                                "/api/dev/me/recipe-books/**",  // dev V3 레시피북 read — local 분기와 정합
+                                "/api/dev/recipes/*/saved-books",  // dev V3 본인 폴더 저장 상태 — local 분기와 정합
+                                "/api/dev/me/calendar",            // dev V3 캘린더 day records — local 분기와 정합
+                                "/api/dev/me/records/**",          // dev V3 요리 기록 — local 분기와 정합
                                 "/api/ratings/recipe/*/me",
+                                "/api/dev/ratings/recipe/*/me", // dev V3 내 평점 조회 — local 분기와 정합
                                 "/api/users/*/profile-image/presign"
                         ).authenticated()
 
@@ -260,6 +314,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/ingredients",
                                 "/api/ingredients/names",
+                                "/api/ingredients/*/units",
                                 "/api/ingredients/*",
                                 "/api/recipes/*/comments",
                                 "/api/recipes/*/comments/*/replies",
@@ -285,13 +340,24 @@ public class SecurityConfig {
                                 "/api/dev/recipes/ai/status/**",
                                 "/api/dev/recipes/youtube/status/**",
                                 "/api/dev/recipes/youtube/check",
+                                "/api/dev/recipes/*",  // dev V3 recipe 상세 (GET) — local 분기와 정합
+                                "/api/dev/recipes/*/comments",  // dev V3 댓글 목록 — anonymous 허용 (gate는 service)
+                                "/api/dev/recipes/*/comments/*/replies",  // dev V3 대댓글 목록 — anonymous 허용
+                                "/api/dev/recipes/*/status",  // dev V3 단건 동적 상태 — local 분기와 정합
+                                "/api/dev/recipes/*/recommendations",  // dev V3 추천 — local 분기와 정합
+                                "/api/dev/recipes/*/remixes",  // dev V3 리믹스 목록 — local 분기와 정합
+                                "/api/dev/ingredients/*",  // dev V3 ingredient 상세 — local 분기와 정합
+                                "/api/dev/users/*/recipes",  // dev V3 사용자 레시피 목록 — local 분기와 정합
+                                "/api/dev/search/**",  // dev V3 search mirrors
                                 "/api/recipes/sitemap"
                         ).permitAll()
 
                         // [추가된 부분] POST
                         .requestMatchers(HttpMethod.POST, "/api/v2/recipes/status").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/dev/recipes/status").permitAll()  // dev V3 batch 동적 상태 — local 분기와 정합
                         .requestMatchers(HttpMethod.POST, "/api/logs/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/logs/stats").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/ingredients/units/batch").permitAll()
 
                         // 4) 인증 필요 POST
                         .requestMatchers(HttpMethod.POST,
@@ -308,26 +374,42 @@ public class SecurityConfig {
                                 "/api/recipes/*/presigned-urls",
                                 "/api/recipes/*/like",
                                 "/api/recipes/*/favorite",
+                                "/api/dev/recipes/*/like",     // dev V3 like — local 분기와 정합
+                                "/api/dev/recipes/*/favorite", // dev V3 favorite — local 분기와 정합
+                                "/api/dev/recipes/*/comments", // dev V3 댓글 작성 — local 분기와 정합
+                                "/api/dev/recipes/*/comments/*/replies", // dev V3 대댓글 작성 — local 분기와 정합
+                                "/api/dev/comments/*/like",   // dev V3 댓글 좋아요 — local 분기와 정합
                                 "/api/me/fridge/items",
                                 "/api/me/fridge/items/bulk",
                                 "/api/me/survey",
                                 "/api/me/records",
                                 "/api/ratings/recipe/*",
+                                "/api/dev/ratings/recipe/*",   // dev V3 평점 등록/수정 — local 분기와 정합
                                 "/api/token/logout",
                                 "/api/token/logout/all",
                                 "/api/recipes/*/private",
                                 "/api/recipes/*/finalize",
                                 "/api/ws-ticket",
+                                "/api/dev/recipes",            // dev V3 레시피 직접 등록 — local 분기와 정합
+                                "/api/dev/recipes/*/presigned-urls", // dev V3 presigned URL — local 분기와 정합
+                                "/api/dev/recipes/*/finalize", // dev V3 finalize — local 분기와 정합
                                 "/api/dev/recipes/ai",
-                                "/api/dev/recipes/youtube/extract"
+                                "/api/dev/recipes/youtube/extract",
+                                "/api/dev/me/recipe-books",          // dev V3 레시피북 생성 — local 분기와 정합
+                                "/api/dev/me/recipe-books/*/recipes", // dev V3 레시피북 레시피 추가 — local 분기와 정합
+                                "/api/dev/me/records",              // dev V3 요리 기록 생성 — local 분기와 정합
+                                "/api/dev/recipes/*/reports"        // dev V3 재료 신고 — local 분기와 정합
                         ).authenticated()
 
                         // 5) 인증 필요 PUT
                         .requestMatchers(HttpMethod.PUT,
                                 "/api/ingredients",
                                 "/api/recipes/*",
+                                "/api/dev/recipes/*",          // dev V3 레시피 수정 — local 분기와 정합
                                 "/api/me",
                                 "/api/recipes/*/images",
+                                "/api/dev/recipes/*/images",   // dev V3 이미지 키 업데이트 — local 분기와 정합
+                                "/api/dev/me/recipe-books/order", // dev V3 레시피북 순서 변경 — local 분기와 정합
                                 "/api/users/*"
                         ).authenticated()
 
@@ -335,17 +417,25 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE,
                                 "/api/ingredients",
                                 "/api/recipes/*/comments/*",
+                                "/api/dev/recipes/*/comments/*", // dev V3 댓글 삭제 — local 분기와 정합
                                 "/api/recipes/*",
+                                "/api/dev/recipes/*",          // dev V3 레시피 삭제 — local 분기와 정합
                                 "/api/ratings/recipe/*",
+                                "/api/dev/ratings/recipe/*",   // dev V3 평점 삭제 — local 분기와 정합
+                                "/api/dev/me/recipe-books/*",          // dev V3 레시피북 삭제 — local 분기와 정합
+                                "/api/dev/me/recipe-books/*/recipes",  // dev V3 레시피북 레시피 제거 — local 분기와 정합
                                 "/api/me",
                                 "/api/me/records/*",
+                                "/api/dev/me/records/*",              // dev V3 요리 기록 삭제 — local 분기와 정합
                                 "/api/me/fridge/items/*",
                                 "/api/me/fridge/items/bulk"
                         ).authenticated()
                         // 7) 인증 필요 PATCH
                         .requestMatchers(HttpMethod.PATCH,
                                 "/api/users/*",
-                                "/api/me"
+                                "/api/me",
+                                "/api/dev/recipes/*/visibility", // dev V3 가시성 변경 (prod 분기 정합)
+                                "/api/dev/me/recipe-books/*"     // dev V3 레시피북 이름 변경 — local 분기와 정합
                         ).authenticated()
 
                         // 8) 관리자용 API
