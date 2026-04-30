@@ -10,7 +10,7 @@ import java.util.List;
  * 레시피 수정용
  */
 @Getter @Setter
-@Builder
+@Builder(toBuilder = true)
 @AllArgsConstructor
 @NoArgsConstructor
 public class RecipeUpdateRequestDto {

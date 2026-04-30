@@ -8,9 +8,6 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "recipe_ingredients",
-        uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"recipe_id", "ingredient_id"})
-        },
         indexes = {
                 @Index(name = "idx_ri_covering", columnList = "ingredient_id, recipe_id")
         }
@@ -39,6 +36,30 @@ public class RecipeIngredient {
 
     @Column(length = 20)
     private String unit;
+
+    @Column(name = "ingredient_unit_id")
+    private Long ingredientUnitId;
+
+    @Column(name = "ingredient_candidate_id")
+    private Long ingredientCandidateId;
+
+    @Column(name = "raw_name", length = 100)
+    private String rawName;
+
+    @Column(name = "raw_quantity_text", length = 50)
+    private String rawQuantityText;
+
+    @Column(name = "raw_unit_text", length = 50)
+    private String rawUnitText;
+
+    @Column(name = "amount_value", precision = 12, scale = 3)
+    private BigDecimal amountValue;
+
+    @Column(name = "normalized_grams", precision = 12, scale = 3)
+    private BigDecimal normalizedGrams;
+
+    @Column(name = "resolution_status", length = 20)
+    private String resolutionStatus;
 
     @Column(name = "price")
     @Builder.Default
@@ -82,6 +103,9 @@ public class RecipeIngredient {
     public void updateWithMapping(String name, String quantity, String unit,
                                   Ingredient master, Integer calculatedPrice,
                                   AdminIngredientUpdateDto dto) {
+        this.rawName = name;
+        this.rawQuantityText = quantity;
+        this.rawUnitText = unit;
         this.quantity = quantity;
         this.unit = unit;
         this.price = calculatedPrice;
@@ -114,5 +138,22 @@ public class RecipeIngredient {
 
     public void updateCustomLink(String link) {
         this.customLink = link;
+    }
+
+    /**
+     * 2차 백필 전용 진입점 — 4개 정규화 필드만 갱신.
+     *
+     * <p>quantity/unit/customName/customUnit/custom_(price/calorie/etc)/raw_(name/quantity_text/unit_text)는
+     * 절대 건드리지 않는다 (raw 보존 정책). 이 메서드를 통해서만 갱신하게 함으로써 setter 노출 없이
+     * invariant를 강제.
+     */
+    public void applyNormalizationBackfill(java.math.BigDecimal amountValue,
+                                            Long ingredientUnitId,
+                                            java.math.BigDecimal normalizedGrams,
+                                            String resolutionStatus) {
+        this.amountValue = amountValue;
+        this.ingredientUnitId = ingredientUnitId;
+        this.normalizedGrams = normalizedGrams;
+        this.resolutionStatus = resolutionStatus;
     }
 }
