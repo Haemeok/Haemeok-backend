@@ -100,6 +100,35 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    /**
+     * 잘못된 JSON 본문(파싱 실패 / 인코딩 깨짐 / 본문 enum mismatch 등)을 400으로 매핑.
+     *
+     * <p>Spring 기본은 catch-all로 흘러 500 + errorId가 발급되어 운영자가 매번 로그를 추적해야 했다.
+     * 클라이언트 입력 오류는 사용자가 즉시 수정 가능한 4xx로 명확히 내려준다 — 운영 노이즈 감소.
+     *
+     * <p>대표 케이스 (request body 한정):
+     * <ul>
+     *   <li>UTF-8이 아닌 인코딩으로 한국어 본문이 들어옴 (charset mismatch)</li>
+     *   <li>중간이 잘린 JSON ("{\"name\":")</li>
+     *   <li>본문 enum 필드에 whitelist 외 문자열 (예: body의 visibility="UNKNOWN")</li>
+     *   <li>HashID 디코딩 실패</li>
+     * </ul>
+     *
+     * <p>query/path param의 enum mismatch는 별개 예외(MethodArgumentTypeMismatchException 등)로
+     * 들어오므로 이 핸들러 대상이 아니다.
+     */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        log.warn("요청 본문 파싱 실패: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(
+                        ErrorCode.INVALID_INPUT_VALUE.getCode(),
+                        "요청 본문 형식이 올바르지 않습니다. JSON 구문/UTF-8 인코딩/enum 값을 확인해주세요."
+                ));
+    }
+
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException ex) {
         log.warn("허용되지 않은 HTTP 메소드 요청: {} {}", ex.getMethod(), ex.getSupportedMethods());
