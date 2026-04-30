@@ -20,6 +20,9 @@ import java.util.List;
  * 운영의 owner-all-visible 정책과 다름 — dev V3는 ACTIVE에 한정. invariant 일관성 우선.
  *
  * imageReady (READY 또는 null + AI는 imageKey 필수) 조건은 운영 패턴 그대로.
+ *
+ * Owner image policy: non-owner/anonymous keep imageReady filters, but owner lists include PENDING/FAILED
+ * and imageKey-null rows so generation failures are visible in "my recipes".
  */
 public interface DevUserRecipesQueryRepository {
 

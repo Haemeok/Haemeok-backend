@@ -39,13 +39,18 @@ public class DevUserRecipesQueryRepositoryImpl implements DevUserRecipesQueryRep
                                                    @Nullable List<RecipeSourceType> sourceTypes,
                                                    Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
+        boolean ownerView = viewerId != null && viewerId.equals(targetUserId);
 
         BooleanExpression whereClause = recipe.user.id.eq(targetUserId)
-                .and(DevRecipeQueryPredicates.accessibleBy(recipe, viewerId))
-                // 운영 "completed recipes" 조건: AI는 imageKey 없으면 noisy(생성 중) → 차단
-                .and(recipe.isAiGenerated.isFalse().or(recipe.imageKey.isNotNull()))
-                // imageReady — A2/A3 정합. PENDING/FAILED는 dev 노출 차단 (인터페이스 javadoc 정합).
-                .and(recipe.imageStatus.eq(RecipeImageStatus.READY).or(recipe.imageStatus.isNull()));
+                .and(DevRecipeQueryPredicates.accessibleBy(recipe, viewerId));
+
+        // Owner should see in-progress/failed image generation rows in "my recipes".
+        // Public profile viewers only see displayable recipes.
+        if (!ownerView) {
+            whereClause = whereClause
+                    .and(recipe.isAiGenerated.isFalse().or(recipe.imageKey.isNotNull()))
+                    .and(recipe.imageStatus.eq(RecipeImageStatus.READY).or(recipe.imageStatus.isNull()));
+        }
 
         if (sourceTypes != null && !sourceTypes.isEmpty()) {
             whereClause = whereClause.and(recipe.source.in(sourceTypes));

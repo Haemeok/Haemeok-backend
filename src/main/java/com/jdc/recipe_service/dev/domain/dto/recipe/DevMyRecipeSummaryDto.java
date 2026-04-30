@@ -54,4 +54,7 @@ public class DevMyRecipeSummaryDto {
 
     @Schema(description = "source", example = "USER")
     private String source;
+
+    @Schema(description = "이미지 생성 상태. owner 목록에서는 PENDING/FAILED도 내려올 수 있음", example = "READY")
+    private String imageStatus;
 }

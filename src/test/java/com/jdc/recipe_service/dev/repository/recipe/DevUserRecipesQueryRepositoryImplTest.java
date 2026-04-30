@@ -135,7 +135,7 @@ class DevUserRecipesQueryRepositoryImplTest {
                 RecipeListingStatus.LISTED, RecipeImageStatus.READY, false, null);
         em.flush(); em.clear();
 
-        Page<Recipe> result = repo.findUserRecipesAccessible(owner.getId(), owner.getId(), null, PAGE_10);
+        Page<Recipe> result = repo.findUserRecipesAccessible(owner.getId(), other.getId(), null, PAGE_10);
 
         assertThat(result.getContent()).extracting(Recipe::getTitle)
                 .containsExactlyInAnyOrder("ai-with-image", "user-noimage");
@@ -154,7 +154,7 @@ class DevUserRecipesQueryRepositoryImplTest {
                 RecipeListingStatus.LISTED, RecipeImageStatus.FAILED, false, null);
         em.flush(); em.clear();
 
-        Page<Recipe> result = repo.findUserRecipesAccessible(owner.getId(), owner.getId(), null, PAGE_10);
+        Page<Recipe> result = repo.findUserRecipesAccessible(owner.getId(), other.getId(), null, PAGE_10);
 
         assertThat(result.getContent()).extracting(Recipe::getTitle)
                 .containsExactlyInAnyOrder("ready", "nullImage");
@@ -162,7 +162,27 @@ class DevUserRecipesQueryRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("source filter: sourceTypes 명시 시 IN 절로 추가 필터")
+    @DisplayName("owner 목록: PENDING/FAILED와 AI imageKey=null도 숨기지 않는다")
+    void owner_includesUnreadyAndAiWithoutImageKey() {
+        persistRecipeWithFlags(owner, "ai-noimage", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,
+                RecipeListingStatus.LISTED, RecipeImageStatus.PENDING, true, null);
+        persistRecipeWithFlags(owner, "pending", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,
+                RecipeListingStatus.LISTED, RecipeImageStatus.PENDING, false, null);
+        persistRecipeWithFlags(owner, "failed", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,
+                RecipeListingStatus.LISTED, RecipeImageStatus.FAILED, false, null);
+        persistRecipeWithFlags(owner, "ready", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,
+                RecipeListingStatus.LISTED, RecipeImageStatus.READY, false, "ready.webp");
+        em.flush(); em.clear();
+
+        Page<Recipe> result = repo.findUserRecipesAccessible(owner.getId(), owner.getId(), null, PAGE_10);
+
+        assertThat(result.getContent()).extracting(Recipe::getTitle)
+                .containsExactlyInAnyOrder("ai-noimage", "pending", "failed", "ready");
+        assertThat(result.getTotalElements()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("source filter: sourceTypes IN filter")
     void sourceFilter_appliesInClause() {
         persistWithSource(owner, "user-recipe", RecipeSourceType.USER);
         persistWithSource(owner, "ai-recipe", RecipeSourceType.AI);
