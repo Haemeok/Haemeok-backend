@@ -103,6 +103,9 @@ public class IngredientController {
             description = """
                     냉장고의 i버튼 팝업에서 사용할 재료 상세 정보를 반환합니다.
                     - 보관 정보(storageLocation/storageTemperature/storageDuration/storageNotes), 페어링(goodPairs/badPairs), 추천 조리법(recommendedCookingMethods), 그리고 해당 재료로 만들 수 있는 **공개** 레시피를 인기순 최대 10개 포함합니다.
+                    - nutritionPer100g는 ingredients의 per-g 영양값을 100g 기준으로 환산한 값입니다.
+                    - benefits/seasonMonths는 nullable 메타데이터입니다.
+                    - goodPairItems/badPairItems는 goodPairs/badPairs를 파싱한 구조화 목록이며 DB에 존재하는 재료는 id/imageUrl을 포함합니다.
                     - 레시피 목록은 `isPrivate=false` 이고 이미지가 `READY` 또는 준비 중이 아닌 것만 포함합니다.
                     - 페이지네이션은 제공하지 않으며 `recipes`는 항상 배열(최대 10건, 빈 배열 가능)입니다.
                     - 인증이 필요 없는 공개 엔드포인트입니다.
@@ -135,6 +138,57 @@ public class IngredientController {
             @Parameter(description = "재료 ID (해시)", example = "xJvY7aBp", required = true)
             @DecodeId("id") Long ingredientId) {
         return ResponseEntity.ok(service.findDetailById(ingredientId));
+    }
+
+    @GetMapping("/{id}/units")
+    @Operation(
+            summary = "재료 단위 목록 조회",
+            description = """
+                    단일 재료에서 사용자가 선택할 수 있는 단위 목록을 반환합니다.
+                    - units[].unit은 화면 표시 및 레시피 저장 시 ingredients[].unit으로 다시 전달하는 단위명입니다.
+                    - 현재 저장 API는 ingredientUnitId를 받지 않고 서버가 재료명 + unit 문자열로 ingredient_units를 매칭합니다.
+                    - gramsPerUnit은 사용자 표시용 총중량 기준 g입니다. 영양/원가 계산은 서버 내부에서 edibleGramsPerUnit으로 수행합니다.
+                    - isDefault=true인 단위가 있으면 프론트 기본 선택값으로 사용할 수 있습니다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = IngredientUnitsResponse.class))
+            ),
+            @ApiResponse(responseCode = "404", description = "재료를 찾을 수 없음 (errorCode: INGREDIENT_NOT_FOUND)")
+    })
+    public ResponseEntity<IngredientUnitsResponse> getIngredientUnits(
+            @Parameter(description = "재료 ID (HashID)", example = "xJvY7aBp", required = true)
+            @DecodeId("id") Long ingredientId) {
+        return ResponseEntity.ok(service.findUnitsByIngredientId(ingredientId));
+    }
+
+    @PostMapping("/units/batch")
+    @Operation(
+            summary = "여러 재료 단위 목록 일괄 조회",
+            description = """
+                    여러 재료 ID를 받아 각 재료에서 선택 가능한 단위 목록을 한 번에 반환합니다.
+                    - 요청/응답의 ingredientId는 HashID입니다.
+                    - units[].unit은 화면 표시 및 레시피 저장 시 ingredients[].unit으로 다시 전달하는 단위명입니다.
+                    - 응답 items는 요청 ingredientIds의 중복 제거 후 순서를 유지합니다.
+                    - 존재하지만 단위가 없는 재료는 units=[]로 반환될 수 있습니다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = IngredientUnitsBatchResponse.class))
+            ),
+            @ApiResponse(responseCode = "400", description = "ingredientIds가 비어 있거나 잘못됨 (errorCode: INVALID_INGREDIENT_REQUEST)"),
+            @ApiResponse(responseCode = "404", description = "요청한 재료 중 존재하지 않는 ID가 있음 (errorCode: INGREDIENT_NOT_FOUND)")
+    })
+    public ResponseEntity<IngredientUnitsBatchResponse> getIngredientUnitsBatch(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "재료 ID(HashID) 목록")
+            @RequestBody @Valid IngredientUnitsBatchRequest request) {
+        return ResponseEntity.ok(service.findUnitsByIngredientIds(request.getIngredientIds()));
     }
 
     /** 6) 여러 ID에 대한 이름 조회 (해시 ID 리스트)*/
