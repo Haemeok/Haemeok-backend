@@ -36,6 +36,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -292,5 +293,31 @@ class IngredientControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(ingredientService);
+    }
+
+    @Test
+    @DisplayName("GET /api/ingredients/names: ids query is required")
+    void getIngredientNames_missingIds_returns400() throws Exception {
+        mockMvc.perform(get("/api/ingredients/names"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INGREDIENT_REQUEST.getCode()));
+
+        verifyNoInteractions(ingredientService);
+    }
+
+    @Test
+    @DisplayName("GET /api/ingredients/names: passes hash ids to service and serializes ids")
+    void getIngredientNames_returnsContent() throws Exception {
+        long rawId = 42L;
+        String hashedId = hashids.encode(rawId);
+        given(ingredientService.findNamesByHashIds(eq(List.of(hashedId))))
+                .willReturn(List.of(new com.jdc.recipe_service.domain.dto.ingredient.IngredientIdNameDto(rawId, "onion")));
+
+        mockMvc.perform(get("/api/ingredients/names").param("ids", hashedId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(hashedId))
+                .andExpect(jsonPath("$.content[0].name").value("onion"));
+
+        verify(ingredientService).findNamesByHashIds(eq(List.of(hashedId)));
     }
 }
