@@ -14,8 +14,20 @@ import java.util.List;
 
 @Repository
 public interface RecipeIngredientRepository extends JpaRepository<RecipeIngredient, Long> {
+    /**
+     * 레시피 한 건의 모든 RecipeIngredient를 ID 오름차순(=삽입 순서)으로 결정적으로 반환.
+     *
+     * <p>여러 호출자가 같은 recipeId에 대해 이 메서드를 두 번 부를 수 있는데(V2 detail + dev detail
+     * 같은 read path), 같은 트랜잭션에서도 query result는 캐시되지 않으므로 명시 ORDER BY가 없으면
+     * 두 호출이 다른 순서를 받을 수 있다. dev raw-first 적용은 V2 base의 ingredient 인덱스에
+     * 의존하므로 ORDER BY 보장이 필수.
+     *
+     * <p>auto-increment id 기준이라 실질적으로 InnoDB가 이미 반환하던 자연 순서와 동일 — V2의
+     * 기존 표시 순서가 그대로 유지된다.
+     */
     @EntityGraph(attributePaths = {"ingredient"})
-    List<RecipeIngredient> findByRecipeId(Long recipeId);
+    @Query("SELECT ri FROM RecipeIngredient ri WHERE ri.recipe.id = :recipeId ORDER BY ri.id ASC")
+    List<RecipeIngredient> findByRecipeId(@Param("recipeId") Long recipeId);
 
     @EntityGraph(attributePaths = {"ingredient"})
     List<RecipeIngredient> findByRecipeIdIn(List<Long> recipeIds);
