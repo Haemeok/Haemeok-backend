@@ -22,4 +22,10 @@ public interface IngredientRepository
     Set<String> findAllNamesByNameIn(@Param("names") List<String> names);
 
     List<Ingredient> findTop20ByCoupangLinkIsNullOrderByIdAsc();
+
+    /**
+     * dev write path lookup용 — is_active=true 마스터만.
+     * 비활성 ingredient가 매칭되어 dual-write에 박히는 것을 차단.
+     */
+    List<Ingredient> findAllByIsActiveTrue();
 }
