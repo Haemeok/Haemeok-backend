@@ -22,7 +22,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -93,7 +92,7 @@ public class DevRecipeBookController {
     })
     public ResponseEntity<DevRecipeBookDetailResponse> getBookDetail(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(description = "레시피북 ID (HashID)", required = true) @DecodeId @PathVariable Long bookId,
+            @Parameter(description = "레시피북 ID (HashID)", required = true) @DecodeId("bookId") Long bookId,
             @Parameter(description = "정렬 기준: `createdAt` (default, 폴더 추가 시각) | `recipeCreatedAt` | `cookingTime`. " +
                     "기본 size 20 — 운영 RecipeBookController parity.")
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
