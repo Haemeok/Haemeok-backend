@@ -18,7 +18,9 @@ import com.jdc.recipe_service.domain.type.AiRecipeConcept;
 import com.jdc.recipe_service.domain.type.JobStatus;
 import com.jdc.recipe_service.domain.type.JobType;
 import com.jdc.recipe_service.domain.type.QuotaType;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.DailyQuotaService;
@@ -280,6 +282,7 @@ public class DevAiRecipeFacade {
 
             log.info("⏱️ [DevAi V3] 이미지 생성 소요: {}ms", System.currentTimeMillis() - imageGenStart);
 
+            markImageFailedIfStillPending(recipeId, imageGenModel);
             job.setResultRecipeId(recipeId);
             updateProgress(job, JobStatus.COMPLETED, 100);
 
@@ -324,6 +327,21 @@ public class DevAiRecipeFacade {
     public void updateProgress(RecipeGenerationJob job, JobStatus status, int progress) {
         job.updateProgress(status, progress);
         jobRepository.saveAndFlush(job);
+    }
+
+    private void markImageFailedIfStillPending(Long recipeId, String imageGenModel) {
+        transactionTemplate.executeWithoutResult(status -> {
+            recipeRepository.findById(recipeId).ifPresent(recipe -> {
+                RecipeImageStatus current = recipe.getImageStatus();
+                if (current != null && current != RecipeImageStatus.PENDING) {
+                    return;
+                }
+                recipe.updateImageKey(AsyncImageService.DEFAULT_IMAGE_KEY);
+                recipe.updateImageStatus(RecipeImageStatus.FAILED);
+                recipe.updateImageGenerationModel(imageGenModel);
+                recipe.applyVisibility(RecipeVisibility.PUBLIC);
+            });
+        });
     }
 
     // --- private helpers (V2와 동일) ---

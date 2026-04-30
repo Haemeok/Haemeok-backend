@@ -51,7 +51,7 @@ public class AsyncImageService {
     private final Hashids hashids;
 
     private final TransactionTemplate transactionTemplate;
-    private static final String DEFAULT_IMAGE_KEY =
+    public static final String DEFAULT_IMAGE_KEY =
             "images/icons/no_image.webp";
     private static final List<String> LIGHTING_OPTIONS = List.of(
             "Natural morning sunlight streaming through a kitchen window (Bright & Fresh)",

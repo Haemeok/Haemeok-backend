@@ -3,9 +3,11 @@ package com.jdc.recipe_service.dev.facade;
 import com.jdc.recipe_service.dev.facade.DevYoutubeRecipeExtractionFacade.JobCreateResult;
 import com.jdc.recipe_service.dev.service.image.DevImageGenRouterService;
 import com.jdc.recipe_service.dev.service.quota.DevYoutubeQuotaService;
+import com.jdc.recipe_service.dev.service.recipe.ingredient.DevRecipeIngredientPersistService;
 import com.jdc.recipe_service.dev.service.youtube.YoutubeSignalDetector;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
+import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.entity.media.RecipeYoutubeInfo;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
@@ -13,6 +15,9 @@ import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeExtractionInfoRepository;
 import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeInfoRepository;
+import com.jdc.recipe_service.domain.type.RecipeImageStatus;
+import com.jdc.recipe_service.domain.type.media.EvidenceLevel;
+import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.RecipeService;
@@ -28,6 +33,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -84,6 +90,7 @@ class DevYoutubeRecipeExtractionFacadeTest {
     @Mock RecipeGenerationJobRepository jobRepository;
     @Mock RecipeYoutubeInfoRepository recipeYoutubeInfoRepository;
     @Mock RecipeYoutubeExtractionInfoRepository extractionInfoRepository;
+    @Mock DevRecipeIngredientPersistService devIngredientPersist;
     @Mock TransactionTemplate transactionTemplate;
 
     @InjectMocks DevYoutubeRecipeExtractionFacade facade;
@@ -233,6 +240,71 @@ class DevYoutubeRecipeExtractionFacadeTest {
             cb.accept(null);
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
+    }
+
+    @Test
+    @DisplayName("이미지 생성 실패: recipe는 FAILED/default image로 저장한 뒤 job COMPLETED")
+    @SuppressWarnings("unchecked")
+    void async_imageGenerationFails_savesFailedImageAndCompletesJob() {
+        Long jobId = 120L;
+        Long recipeId = 700L;
+        LocalDate consumedOn = LocalDate.of(2026, 4, 30);
+        RecipeGenerationJob job = mockJobWithCost(jobId, DevYoutubeQuotaService.COST_BASIC, consumedOn);
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        stubTransactionTemplate();
+        given(transactionTemplate.execute(any())).willAnswer(inv -> {
+            TransactionCallback<Long> cb = inv.getArgument(0);
+            return cb.doInTransaction(null);
+        });
+
+        given(recipeYoutubeInfoRepository.findByVideoId(VIDEO_ID)).willReturn(Optional.empty());
+        given(recipeRepository.findFirstOfficialByYoutubeUrl(any(), any())).willReturn(Optional.empty());
+
+        YtDlpService.YoutubeFullDataDto data = new YtDlpService.YoutubeFullDataDto(
+                VIDEO_ID, "", "title", "description with ingredients",
+                "", "scriptTimecoded", "scriptPlain",
+                "channel", "channelId", "thumbnail", "profile", 100L, 200L, 300L);
+        given(ytDlpService.getVideoDataFull(VALID_URL)).willReturn(data);
+
+        YoutubeSignalDetector.SignalReport signals =
+                new YoutubeSignalDetector.SignalReport(true, true, false);
+        given(signalDetector.detectSignals(any(), any(), any())).willReturn(signals);
+        given(signalDetector.computeEvidence(signals, false)).willReturn(EvidenceLevel.HIGH);
+
+        RecipeCreateRequestDto dto = new RecipeCreateRequestDto();
+        dto.setIsRecipe(true);
+        dto.setTitle("youtube recipe");
+        dto.setIngredients(List.of(
+                ing("감자", "1", "개"),
+                ing("양파", "1", "개"),
+                ing("소금", "1", "작은술")));
+        given(grokClientService.generateRecipeStep1(any(), any()))
+                .willReturn(CompletableFuture.completedFuture(dto));
+
+        given(asyncImageService.buildPromptFromDto(any())).willReturn("image prompt");
+        given(devImageGenRouterService.generate(any(), any(), any(), any())).willReturn(List.of());
+
+        PresignedUrlResponse response = PresignedUrlResponse.builder()
+                .recipeId(recipeId)
+                .uploads(List.of())
+                .build();
+        given(recipeService.createRecipeAndGenerateUrls(
+                any(), eq(90121L), eq(RecipeSourceType.YOUTUBE), any()))
+                .willReturn(response);
+        Recipe recipe = mock(Recipe.class);
+        given(recipeRepository.findById(recipeId)).willReturn(Optional.of(recipe));
+
+        facade.processYoutubeExtractionAsync(jobId, VALID_URL, VALID_MODEL, USER_ID);
+
+        ArgumentCaptor<com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest> requestCaptor =
+                ArgumentCaptor.forClass(com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest.class);
+        verify(recipeService).createRecipeAndGenerateUrls(
+                requestCaptor.capture(), eq(90121L), eq(RecipeSourceType.YOUTUBE), any());
+        RecipeCreateRequestDto savedDto = requestCaptor.getValue().getRecipe();
+        assertThat(savedDto.getImageStatus()).isEqualTo(RecipeImageStatus.FAILED);
+        assertThat(savedDto.getImageKey()).isEqualTo(AsyncImageService.DEFAULT_IMAGE_KEY);
+        assertThat(job.getStatus()).isEqualTo(com.jdc.recipe_service.domain.type.JobStatus.COMPLETED);
+        assertThat(job.getResultRecipeId()).isEqualTo(recipeId);
     }
 
     private RecipeGenerationJob mockJobWithCost(Long jobId, int tokenCost) {
