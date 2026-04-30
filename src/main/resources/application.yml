@@ -60,6 +60,23 @@ opensearch:
 
 search:
   engine: auto  # auto | opensearch | querydsl
+  # dev V3 mirror 인덱스 (운영 검색에 영향 없는 별도 alias).
+  # enabled=true로 켜면 RecipeIndexingService가 운영 인덱스 write 성공 후 dev alias에도 dual-write.
+  # 실제 인덱스/매핑 생성 절차는 docs/dev/v3-search-index.md 참고.
+  dev-index:
+    enabled: false
+    alias: recipes_v3_dev
+
+# dev V3 visibility 정책 통제.
+# restricted-enabled=true로 켜면 PATCH /api/dev/recipes/*/visibility가 RESTRICTED 전환 허용.
+# default false — applyVisibility(RESTRICTED)가 isPrivate=false로 매핑되어 운영 V1/V2 검색
+# (isPrivate=false 기준)에 RESTRICTED가 갑자기 노출되는 운영 사고 방지.
+# 환경변수 DEV_VISIBILITY_RESTRICTED_ENABLED=true로 dev/CI 환경에서 활성화 가능.
+# (application-local.yml은 git ignored라 팀 공유가 안 됨 — 환경변수가 재현 가능한 표준 경로)
+# 운영 검색이 listingStatus 필터를 흡수한 뒤 default true로 변경 가능.
+dev:
+  visibility:
+    restricted-enabled: ${DEV_VISIBILITY_RESTRICTED_ENABLED:false}
 
 management:
   endpoints:
@@ -92,6 +109,8 @@ ai:
   quota:
     per-day: 2
     youtube-per-day: 3
+    # dev V3 YouTube extraction은 variable-cost (2 = 일반, 5 = Gemini 분석). 기본 20/일.
+    dev-youtube-per-day: 20
     timezone: "Asia/Seoul"
 # 챗봇 쿼터/킬스위치/분류기 활성/질문 최대길이는 chat_config 테이블에서 단일 관리
 # (db_and_logging.md §1.1 참조 — 운영 중 DB UPDATE로 즉시 반영)
@@ -104,7 +123,42 @@ app:
     # 한 번 429 뜬 지역을 몇 ms 동안 제외할지 (여기선 30초)
     credentials: ${GEMINI_CREDENTIALS}
     cooldown-ms: 30000
+  # 실제 OpenAI 이미지 생성용 (dev). 기존 openai.api-key는 Grok 키이므로 별도 설정.
+  # 모델 선택(apiModel)은 DevImageGenModel enum이 결정한다 — 여기에 model 글로벌 default 두지 않음.
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    image:
+      size: 1024x1024
+      endpoint: https://api.openai.com/v1/images/generations
 
 lemonsqueezy:
   webhook-secret: ${LEMON_WEBHOOK_SECRET}
   api-key: ${LEMON_API_KEY}
+
+# 정규화 백필 (recipe_ingredients amount_value/ingredient_unit_id/normalized_grams/resolution_status).
+# API V2와 혼동 회피를 위해 "v2" 명칭은 쓰지 않음. 기본 OFF — 실제 실행 시 환경변수로 명시 override 필요.
+ingredient:
+  normalization-backfill:
+    enabled: ${INGREDIENT_NORMALIZATION_BACKFILL_ENABLED:false}
+    dry-run: ${INGREDIENT_NORMALIZATION_BACKFILL_DRY_RUN:true}
+    batch-size: ${INGREDIENT_NORMALIZATION_BACKFILL_BATCH_SIZE:1000}
+    start-id: ${INGREDIENT_NORMALIZATION_BACKFILL_START_ID:0}
+    max-rows: ${INGREDIENT_NORMALIZATION_BACKFILL_MAX_ROWS:0}
+    sleep-ms: ${INGREDIENT_NORMALIZATION_BACKFILL_SLEEP_MS:100}
+    stop-on-error: ${INGREDIENT_NORMALIZATION_BACKFILL_STOP_ON_ERROR:false}
+
+# Recipe aggregate 백필 (recipes.totalIngredientCost / totalCalories / nutrition / totalIngredientCount /
+# (정책에 따라) marketPrice 재계산). 정규화 백필이 끝난 후 실행해야 의미 있음 — Runner Order로 자동 보장.
+# 기본 OFF + dryRun=true. marketPriceMode 기본 SKIP (사용자 명시 입력 보존). includePending=false면
+# pending line 있는 recipe는 stale 합계로 덮이지 않게 skip.
+recipe:
+  aggregate-backfill:
+    enabled: ${RECIPE_AGGREGATE_BACKFILL_ENABLED:false}
+    dry-run: ${RECIPE_AGGREGATE_BACKFILL_DRY_RUN:true}
+    batch-size: ${RECIPE_AGGREGATE_BACKFILL_BATCH_SIZE:200}
+    start-id: ${RECIPE_AGGREGATE_BACKFILL_START_ID:0}
+    max-rows: ${RECIPE_AGGREGATE_BACKFILL_MAX_ROWS:0}
+    sleep-ms: ${RECIPE_AGGREGATE_BACKFILL_SLEEP_MS:200}
+    stop-on-error: ${RECIPE_AGGREGATE_BACKFILL_STOP_ON_ERROR:false}
+    include-pending: ${RECIPE_AGGREGATE_BACKFILL_INCLUDE_PENDING:false}
+    market-price-mode: ${RECIPE_AGGREGATE_BACKFILL_MARKET_PRICE_MODE:SKIP}
