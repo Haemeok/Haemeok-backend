@@ -58,6 +58,7 @@ public enum ErrorCode {
     // --- AI (700) ---
     AI_RECIPE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "701", "AI 레시피 생성에 실패했습니다."),
     INVALID_AI_RECIPE_REQUEST(HttpStatus.BAD_REQUEST, "702", "AI 레시피 요청 형식이 잘못되었습니다."),
+    UNSUPPORTED_IMAGE_MODEL(HttpStatus.BAD_REQUEST, "703", "지원하지 않는 이미지 생성 모델입니다."),
 
     // --- Chat (703~) — 레시피 챗봇(Upstage Solar) ---
     CHAT_CLASSIFICATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "703", "챗봇 질문 분류에 실패했습니다."),
