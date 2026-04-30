@@ -90,4 +90,28 @@ class GlobalExceptionHandlerTest {
         // 이 경로에서는 refresh 전용 카운터가 오염되면 안 된다.
         assertThat(lockTimeoutCount()).isEqualTo(0.0);
     }
+
+    @Test
+    @DisplayName("**MUST 회귀 차단**: 잘못된 JSON 본문(파싱 실패)은 500 catch-all이 아니라 400 INVALID_INPUT_VALUE로 매핑된다")
+    void httpMessageNotReadable_mapsToBadRequest() {
+        // 운영에서 빈번한 케이스:
+        //   - charset mismatch로 한국어 본문 byte가 깨짐
+        //   - 중간이 잘린 JSON
+        //   - enum 값 mismatch (concept=UNKNOWN 등)
+        // 이전엔 catch-all로 흘러 errorId 발급 + 5xx 노이즈. 이제 4xx로 명확히.
+        org.springframework.http.converter.HttpMessageNotReadableException ex =
+                new org.springframework.http.converter.HttpMessageNotReadableException(
+                        "JSON parse error: Unexpected end-of-input");
+
+        ResponseEntity<ErrorResponse> response = handler.handleHttpMessageNotReadable(ex);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode())
+                .as("INVALID_INPUT_VALUE code(901)로 매핑")
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE.getCode());
+        assertThat(response.getBody().getMessage())
+                .as("사용자가 원인 추적할 수 있는 안내 메시지")
+                .contains("요청 본문");
+    }
 }
