@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.service.image;
 
+import com.jdc.recipe_service.dev.service.image.DevImageGenRouterService;
 import com.jdc.recipe_service.domain.dto.notification.NotificationCreateDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
@@ -13,6 +14,7 @@ import com.jdc.recipe_service.domain.type.ImageStatus;
 import com.jdc.recipe_service.domain.type.NotificationRelatedType;
 import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.NotificationService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
@@ -44,6 +46,7 @@ public class AsyncImageService {
     private final RecipeIndexingService recipeIndexingService;
     private final DeferredResultHolder deferredResultHolder;
     private final GeminiImageService geminiImageService;
+    private final DevImageGenRouterService devImageGenRouterService;
     private final NotificationService notificationService;
     private final Hashids hashids;
 
@@ -147,8 +150,26 @@ public class AsyncImageService {
 
     private record RecipePromptData(Long userId, String prompt) {}
 
+    /**
+     * V1/V2 (운영) 호출 진입점. imageGenModel 미지정 → 기존 Gemini 호출 + legacy isPrivate=false 유지.
+     */
     public String generateAndUploadAiImage(Long recipeId, boolean sendNotification) {
-        log.info("▶ [AsyncImageService] Gemini 이미지 생성 시작, recipeId={}", recipeId);
+        return generateAndUploadAiImage(recipeId, sendNotification, null);
+    }
+
+    /**
+     * V3 dev 호출 진입점.
+     *  - imageGenModel == null  : 기존 Gemini 직접 호출 (V1/V2 prod 동작 그대로)
+     *  - imageGenModel != null  : DevImageGenRouterService로 라우팅 (gemini-2.5-flash-image / gpt-image-2-* 등)
+     *                              + recipe.image_generation_model 컬럼 기록
+     *                              + Recipe.applyVisibility(PUBLIC)로 트리플 동기화 (legacy updateIsPrivate 대체)
+     *
+     * 화이트리스트 검증은 호출자(DevAiRecipeFacade)에서 DevImageGenModel.fromIdentifier로 미리 한다.
+     */
+    public String generateAndUploadAiImage(Long recipeId, boolean sendNotification, String imageGenModel) {
+        boolean useRouter = imageGenModel != null && !imageGenModel.isBlank();
+        log.info("▶ [AsyncImageService] 이미지 생성 시작, recipeId={}, model={}",
+                recipeId, useRouter ? imageGenModel : "gemini-default");
 
         try {
             RecipePromptData promptData = transactionTemplate.execute(status -> {
@@ -161,7 +182,7 @@ public class AsyncImageService {
 
             if (promptData == null) throw new RuntimeException("프롬프트 데이터 생성 실패");
 
-            log.info(">>>> [GEMINI PROMPT] Recipe ID: {}, Prompt Length: {}", recipeId, promptData.prompt.length());
+            log.info(">>>> [PROMPT] Recipe ID: {}, Prompt Length: {}", recipeId, promptData.prompt.length());
 
             try {
                 long minDelay = 100;
@@ -174,10 +195,12 @@ public class AsyncImageService {
                 Thread.currentThread().interrupt();
             }
 
-            List<String> imageUrls = geminiImageService.generateImageUrls(promptData.prompt, promptData.userId, recipeId);
+            List<String> imageUrls = useRouter
+                    ? devImageGenRouterService.generate(imageGenModel, promptData.prompt, promptData.userId, recipeId)
+                    : geminiImageService.generateImageUrls(promptData.prompt, promptData.userId, recipeId);
 
             if (imageUrls.isEmpty()) {
-                throw new RuntimeException("Gemini 응답에 이미지 URL이 없습니다.");
+                throw new RuntimeException("이미지 응답이 비어 있습니다.");
             }
 
             String fullUrl = imageUrls.get(0);
@@ -189,7 +212,15 @@ public class AsyncImageService {
 
                 recipe.updateImageKey(s3Key);
                 recipe.updateImageStatus(RecipeImageStatus.READY);
-                recipe.updateIsPrivate(false);
+
+                if (useRouter) {
+                    recipe.updateImageGenerationModel(imageGenModel);
+                    // dev 경로: 트리플 동기화 (visibility=PUBLIC, listingStatus=LISTED, isPrivate=false)
+                    recipe.applyVisibility(RecipeVisibility.PUBLIC);
+                } else {
+                    // V1/V2 legacy 경로: 단일 필드만 — 추후 V2를 dev로 swap할 때 함께 정리
+                    recipe.updateIsPrivate(false);
+                }
 
                 RecipeImage recipeImage = RecipeImage.builder()
                         .recipe(recipe)
@@ -251,7 +282,12 @@ public class AsyncImageService {
                     recipeRepository.findById(recipeId).ifPresent(failedRecipe -> {
                         failedRecipe.updateImageKey(DEFAULT_IMAGE_KEY);
                         failedRecipe.updateImageStatus(RecipeImageStatus.FAILED);
-                        failedRecipe.updateIsPrivate(false);
+                        if (useRouter) {
+                            failedRecipe.updateImageGenerationModel(imageGenModel);
+                            failedRecipe.applyVisibility(RecipeVisibility.PUBLIC);
+                        } else {
+                            failedRecipe.updateIsPrivate(false);
+                        }
                     });
                 });
             } catch (Exception ex) {
@@ -368,7 +404,12 @@ public class AsyncImageService {
         });
     }
 
-    private String buildPromptFromDto(RecipeCreateRequestDto dto) {
+    /**
+     * RecipeCreateRequestDto로부터 이미지 생성 프롬프트를 조립한다.
+     * dev 모듈(DevAiRecipeGenerationService 등)에서 모델 라우팅 시 동일한 프롬프트를 사용할 수 있도록 public 노출.
+     * (기존 generateImageFromDto 내부 로직과 동일.)
+     */
+    public String buildPromptFromDto(RecipeCreateRequestDto dto) {
 
         String allIngredients = dto.getIngredients().stream()
                 .map(RecipeIngredientRequestDto::getName)
