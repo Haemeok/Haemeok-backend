@@ -193,9 +193,17 @@ public class IngredientController {
 
     /** 6) 여러 ID에 대한 이름 조회 (해시 ID 리스트)*/
     @GetMapping("/names")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "ids가 비어 있거나 누락됨 (errorCode: INVALID_INGREDIENT_REQUEST)", content = @Content)
+    })
     @Operation(summary = "재료 이름 목록 조회", description = "해시화된 ID 리스트를 받아 해당 재료들의 이름 목록을 반환합니다.")
     public ResponseEntity<Map<String, List<IngredientIdNameDto>>> getIngredientNames(
-            @Parameter(description = "해시화된 ID 리스트 (쉼표로 구분)") @RequestParam List<String> ids) {
+            @Parameter(description = "해시화된 ID 리스트 (쉼표로 구분), 1개 이상 필수") @RequestParam(required = false) List<String> ids) {
+
+        if (ids == null || ids.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INGREDIENT_REQUEST);
+        }
 
         List<IngredientIdNameDto> content = service.findNamesByHashIds(ids);
 
