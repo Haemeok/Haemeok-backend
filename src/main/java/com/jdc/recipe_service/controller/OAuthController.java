@@ -2,6 +2,7 @@ package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.domain.dto.auth.AuthTokens;
 import com.jdc.recipe_service.domain.dto.auth.CodeDto;
+import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import com.jdc.recipe_service.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class OAuthController {
 
     private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @PostMapping("/login/oauth2/code/{provider}")
     public ResponseEntity<Void> oauthCallback(
@@ -35,13 +37,13 @@ public class OAuthController {
                 .path("/")
                 .httpOnly(true)
                 .sameSite("Lax")
-                .maxAge(15 * 60);
+                .maxAge(jwtTokenProvider.getAccessTokenValidityInSeconds());
 
         var refreshB = ResponseCookie.from("refreshToken", tokens.getRefreshToken())
                 .path("/")
                 .httpOnly(true)
                 .sameSite("Lax")
-                .maxAge(7 * 24 * 60 * 60);
+                .maxAge(jwtTokenProvider.getRefreshTokenValidityInSeconds());
 
         if ("prod".equalsIgnoreCase(env)) {
             accessB.secure(true).domain(".recipio.kr");
