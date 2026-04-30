@@ -63,6 +63,9 @@ public class RecipeYoutubeInfo extends BaseTimeEntity {
     @Column(name = "extractor_id")
     private Long extractorId;
 
+    @Column(name = "duration_seconds")
+    private Long durationSeconds;
+
     public void updateYoutubeInfo(String channelName, String channelId, String videoTitle,
                                   String thumbnailUrl, String channelProfileUrl,
                                   Long subscriberCount, Long videoViewCount) {
@@ -77,5 +80,9 @@ public class RecipeYoutubeInfo extends BaseTimeEntity {
 
     public void updateExtractorId(Long extractorId) {
         this.extractorId = extractorId;
+    }
+
+    public void updateDurationSeconds(Long durationSeconds) {
+        this.durationSeconds = durationSeconds;
     }
 }

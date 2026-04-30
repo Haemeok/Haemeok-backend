@@ -2,14 +2,11 @@ package com.jdc.recipe_service.service.media;
 
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
-import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
-import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,9 +28,17 @@ public class YoutubeUrlCheckService {
     );
 
     /**
-     * 특정 유튜브 URL에 대해 이미 '이미지 레시피'가 존재하는지 확인합니다.
+     * 특정 유튜브 URL에 대해 이미 공개 가능한 official 레시피가 존재하는지 확인합니다.
+     *
+     * strict 조건은 모두 SQL로 push down (source=YOUTUBE, ACTIVE, PUBLIC, LISTED, imageStatus=READY OR NULL).
+     * 같은 URL에 older PRIVATE row + later PUBLIC row가 공존해도 PUBLIC을 정확히 매칭한다.
+     * 매칭 실패 시 null 반환 — RESTRICTED/PRIVATE/non-ACTIVE/PENDING/FAILED 레시피의 존재가 누설되지 않음.
+     *
+     * {@link PageRequest#of(int, int) PageRequest.of(0, 1)}로 SQL LIMIT 1을 강제 — strict 통과 row가 2개 이상이어도
+     * 가장 작은 id 하나만 반환 ({@code IncorrectResultSizeDataAccessException} 회피).
+     *
      * @param videoUrl 검사할 유튜브 URL
-     * @return 존재 여부 및 기존 레시피 ID
+     * @return strict 조건 통과한 레시피 ID 또는 null
      */
     @Transactional(readOnly = true)
     public Long checkUrlExistence(String videoUrl) {
@@ -45,18 +50,18 @@ public class YoutubeUrlCheckService {
 
         String watchUrl = "https://www.youtube.com/watch?v=" + videoId;
         String shortsUrl = "https://www.youtube.com/shorts/" + videoId;
+        PageRequest limitOne = PageRequest.of(0, 1);
 
-        Optional<Recipe> existingRecipe = recipeRepository.findFirstOfficialByYoutubeUrl(watchUrl, OFFICIAL_RECIPE_USER_ID)
-                .or(() -> recipeRepository.findFirstOfficialByYoutubeUrl(shortsUrl, OFFICIAL_RECIPE_USER_ID));
+        Optional<Recipe> existingRecipe = recipeRepository
+                .findStrictPublicYoutubeRecipes(watchUrl, OFFICIAL_RECIPE_USER_ID, limitOne)
+                .stream()
+                .findFirst()
+                .or(() -> recipeRepository
+                        .findStrictPublicYoutubeRecipes(shortsUrl, OFFICIAL_RECIPE_USER_ID, limitOne)
+                        .stream()
+                        .findFirst());
 
-        return existingRecipe
-                .filter(r -> r.getImageKey() != null)
-                .filter(r -> r.getSource() == RecipeSourceType.YOUTUBE)
-                .filter(r -> r.getLifecycleStatus() == RecipeLifecycleStatus.ACTIVE)
-                .filter(r -> r.getVisibility() == RecipeVisibility.PUBLIC)
-                .filter(r -> r.getListingStatus() == RecipeListingStatus.LISTED)
-                .map(Recipe::getId)
-                .orElse(null);
+        return existingRecipe.map(Recipe::getId).orElse(null);
     }
 
     private String extractVideoId(String url) {

@@ -5,10 +5,13 @@ import com.jdc.recipe_service.domain.dto.recipe.JobStatusDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
+import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.media.RecipeYoutubeInfo;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
+import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeInfoRepository;
 import com.jdc.recipe_service.domain.type.JobStatus;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
@@ -57,6 +60,7 @@ class RecipeExtractionServiceTest {
     @Mock private TransactionTemplate transactionTemplate;
     @Mock private AsyncImageService asyncImageService;
     @Mock private RecipeGenerationJobRepository jobRepository;
+    @Mock private RecipeYoutubeInfoRepository recipeYoutubeInfoRepository;
 
     @Spy private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -73,7 +77,9 @@ class RecipeExtractionServiceTest {
                 ytDlpService, grokClientService, geminiMultimodalService, recipeService,
                 dailyQuotaService, recipeActivityService, recipeRepository, recipeFavoriteService,
                 recipeBookService, jobRepository,
-                youtubeTargetChannelRepository, youtubeRecommendationRepository, transactionTemplate,
+                youtubeTargetChannelRepository, youtubeRecommendationRepository,
+                recipeYoutubeInfoRepository,
+                transactionTemplate,
                 testExecutor, asyncImageService, objectMapper
         );
 
@@ -220,6 +226,84 @@ class RecipeExtractionServiceTest {
 
         verify(job).setResultRecipeId(123L);
         verify(job).updateProgress(JobStatus.COMPLETED, 100);
+    }
+
+    @Test
+    @DisplayName("**SHOULD 회귀 차단**: V2 success flow가 끝나면 recipe_youtube_info dual-write가 호출된다 (call site 제거 방지)")
+    void v2_successFlow_invokesDualWrite_withCorrectMetadata() {
+        Long jobId = 1L;
+        Long userId = 100L;
+        Long recipeId = 999L;
+        String videoUrl = "https://www.youtube.com/watch?v=wireV2x";
+        String videoId = "wireV2x";
+
+        RecipeGenerationJob job = spy(RecipeGenerationJob.builder().id(jobId).status(JobStatus.PENDING).build());
+        given(jobRepository.findById(jobId)).willReturn(Optional.of(job));
+        given(ytDlpService.getVideoDataFull(anyString())).willReturn(
+                new YtDlpService.YoutubeFullDataDto(
+                        videoId, videoUrl, "Title", SUFFICIENT_TEXT, "Comments", "Sub",
+                        SUFFICIENT_TEXT, "ChName", "ChId", "ThumbUrl", "ProfUrl",
+                        100L, 200L, 60L)
+        );
+        mockSuccessFlow(recipeId);
+
+        Recipe recipeRef = mock(Recipe.class);
+        given(recipeRepository.getReferenceById(recipeId)).willReturn(recipeRef);
+        given(recipeYoutubeInfoRepository.existsByRecipeId(recipeId)).willReturn(false);
+        given(recipeYoutubeInfoRepository.findByVideoId(videoId)).willReturn(Optional.empty());
+
+        service.processYoutubeExtractionAsyncV2(jobId, videoUrl, userId, "User");
+
+        // call site (line 981) 제거 시 이 verify가 깨진다
+        ArgumentCaptor<RecipeYoutubeInfo> captor = ArgumentCaptor.forClass(RecipeYoutubeInfo.class);
+        verify(recipeYoutubeInfoRepository).save(captor.capture());
+        RecipeYoutubeInfo saved = captor.getValue();
+        assertThat(saved.getVideoId()).isEqualTo(videoId);
+        assertThat(saved.getChannelName()).isEqualTo("ChName");
+        assertThat(saved.getChannelId()).isEqualTo("ChId");
+        assertThat(saved.getThumbnailUrl()).isEqualTo("ThumbUrl");
+        assertThat(saved.getExtractorId()).isEqualTo(userId);
+        assertThat(saved.getDurationSeconds()).isEqualTo(60L);
+        assertThat(saved.getRecipe()).isSameAs(recipeRef);
+    }
+
+    @Test
+    @DisplayName("**SHOULD 회귀 차단**: V1 (processActualExtractionLogic) success flow도 dual-write를 호출한다 (legacy /recipes/extract 보호)")
+    void v1_successFlow_invokesDualWrite() throws Exception {
+        Long userId = 100L;
+        Long recipeId = 888L;
+        String videoUrl = "https://www.youtube.com/watch?v=wireV1y";
+        String videoId = "wireV1y";
+
+        // V1은 별도 quota consume 경로 사용
+        given(dailyQuotaService.consumeForUserOrThrow(userId, QuotaType.YOUTUBE_EXTRACTION)).willReturn(true);
+        given(ytDlpService.getVideoDataFull(anyString())).willReturn(
+                new YtDlpService.YoutubeFullDataDto(
+                        videoId, videoUrl, "Title", SUFFICIENT_TEXT, "Comments", "Sub",
+                        SUFFICIENT_TEXT, "ChannelV1", "ChId", "ThumbUrl", "ProfUrl",
+                        50L, 60L, 70L)
+        );
+        mockSuccessFlow(recipeId);
+
+        Recipe recipeRef = mock(Recipe.class);
+        given(recipeRepository.getReferenceById(recipeId)).willReturn(recipeRef);
+        given(recipeYoutubeInfoRepository.existsByRecipeId(recipeId)).willReturn(false);
+        given(recipeYoutubeInfoRepository.findByVideoId(videoId)).willReturn(Optional.empty());
+
+        // private processActualExtractionLogic 직접 호출 — async/timeout/DeferredResult 회피
+        java.lang.reflect.Method method = RecipeExtractionService.class.getDeclaredMethod(
+                "processActualExtractionLogic", String.class, Long.class, String.class, String.class);
+        method.setAccessible(true);
+        method.invoke(service, videoUrl, userId, videoId, "User");
+
+        // call site (line 527) 제거 시 이 verify가 깨진다
+        ArgumentCaptor<RecipeYoutubeInfo> captor = ArgumentCaptor.forClass(RecipeYoutubeInfo.class);
+        verify(recipeYoutubeInfoRepository).save(captor.capture());
+        RecipeYoutubeInfo saved = captor.getValue();
+        assertThat(saved.getVideoId()).isEqualTo(videoId);
+        assertThat(saved.getChannelName()).isEqualTo("ChannelV1");
+        assertThat(saved.getExtractorId()).isEqualTo(userId);
+        assertThat(saved.getRecipe()).isSameAs(recipeRef);
     }
 
     @Test
@@ -428,5 +512,146 @@ class RecipeExtractionServiceTest {
 
         assertThat(result1).isEmpty();
         assertThat(result2).isEmpty();
+    }
+
+    // ─── dual-write recipe_youtube_info ──────────────────────────────────────
+    // 운영 추출 성공 후 보조 메타데이터 저장. 트랜잭션 밖, 실패 격리.
+
+    private void invokeDualWrite(Long recipeId, String videoId, Long durationSeconds) {
+        ReflectionTestUtils.invokeMethod(
+                service, "dualWriteRecipeYoutubeInfo",
+                recipeId, videoId, "https://youtu.be/v",
+                "Channel", "UC123",
+                "Title", "https://thumb",
+                "https://profile",
+                100L, 200L,
+                7L, durationSeconds
+        );
+    }
+
+    @Test
+    @DisplayName("dual-write happy path: recipe_youtube_info를 신규 저장하고 builder에 모든 메타데이터를 채운다")
+    void dualWrite_happyPath_savesYoutubeInfo() {
+        // given
+        Long recipeId = 555L;
+        Recipe recipeRef = mock(Recipe.class);
+        given(recipeYoutubeInfoRepository.existsByRecipeId(recipeId)).willReturn(false);
+        given(recipeYoutubeInfoRepository.findByVideoId("vid-xyz")).willReturn(Optional.empty());
+        given(recipeRepository.getReferenceById(recipeId)).willReturn(recipeRef);
+
+        // when
+        invokeDualWrite(recipeId, "vid-xyz", 60L);
+
+        // then
+        ArgumentCaptor<RecipeYoutubeInfo> captor = ArgumentCaptor.forClass(RecipeYoutubeInfo.class);
+        verify(recipeYoutubeInfoRepository).save(captor.capture());
+        RecipeYoutubeInfo saved = captor.getValue();
+        assertThat(saved.getVideoId()).isEqualTo("vid-xyz");
+        assertThat(saved.getYoutubeUrl()).isEqualTo("https://youtu.be/v");
+        assertThat(saved.getChannelName()).isEqualTo("Channel");
+        assertThat(saved.getChannelId()).isEqualTo("UC123");
+        assertThat(saved.getVideoTitle()).isEqualTo("Title");
+        assertThat(saved.getThumbnailUrl()).isEqualTo("https://thumb");
+        assertThat(saved.getChannelProfileUrl()).isEqualTo("https://profile");
+        assertThat(saved.getSubscriberCount()).isEqualTo(100L);
+        assertThat(saved.getVideoViewCount()).isEqualTo(200L);
+        assertThat(saved.getExtractorId()).isEqualTo(7L);
+        assertThat(saved.getDurationSeconds()).isEqualTo(60L);
+        assertThat(saved.getRecipe()).isSameAs(recipeRef);
+    }
+
+    @Test
+    @DisplayName("dual-write: 같은 recipeId에 이미 row가 있으면 skip하고 save를 호출하지 않는다")
+    void dualWrite_existingRecipeId_skipsSave() {
+        // given
+        Long recipeId = 555L;
+        given(recipeYoutubeInfoRepository.existsByRecipeId(recipeId)).willReturn(true);
+
+        // when
+        invokeDualWrite(recipeId, "vid-xyz", 60L);
+
+        // then
+        verify(recipeYoutubeInfoRepository, never()).findByVideoId(anyString());
+        verify(recipeYoutubeInfoRepository, never()).save(any());
+        verify(recipeRepository, never()).getReferenceById(any());
+    }
+
+    @Test
+    @DisplayName("dual-write: 같은 videoId가 다른 recipe에 이미 있으면 skip한다 (unique 충돌 방지)")
+    void dualWrite_duplicateVideoId_skipsSave() {
+        // given
+        Long recipeId = 555L;
+        given(recipeYoutubeInfoRepository.existsByRecipeId(recipeId)).willReturn(false);
+        given(recipeYoutubeInfoRepository.findByVideoId("vid-xyz"))
+                .willReturn(Optional.of(mock(RecipeYoutubeInfo.class)));
+
+        // when
+        invokeDualWrite(recipeId, "vid-xyz", 60L);
+
+        // then
+        verify(recipeYoutubeInfoRepository, never()).save(any());
+        verify(recipeRepository, never()).getReferenceById(any());
+    }
+
+    @Test
+    @DisplayName("dual-write: videoId가 null/blank면 save하지 않고 lookup도 하지 않는다")
+    void dualWrite_blankVideoId_skipsAll() {
+        // given
+        Long recipeId = 555L;
+
+        // when
+        invokeDualWrite(recipeId, null, 60L);
+        invokeDualWrite(recipeId, "", 60L);
+        invokeDualWrite(recipeId, "   ", 60L);
+
+        // then
+        verify(recipeYoutubeInfoRepository, never()).existsByRecipeId(any());
+        verify(recipeYoutubeInfoRepository, never()).findByVideoId(anyString());
+        verify(recipeYoutubeInfoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("dual-write: recipeId가 null이면 즉시 return한다 (앞 단계에서 recipe 저장 실패한 케이스 대비)")
+    void dualWrite_nullRecipeId_returnsImmediately() {
+        // when
+        invokeDualWrite(null, "vid-xyz", 60L);
+
+        // then
+        verify(recipeYoutubeInfoRepository, never()).existsByRecipeId(any());
+        verify(recipeYoutubeInfoRepository, never()).findByVideoId(anyString());
+        verify(recipeYoutubeInfoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("**SHOULD 회귀 차단**: dual-write save 실패는 호출자에게 전파되지 않는다 (레시피 생성 응답 보존)")
+    void dualWrite_saveFailure_isolatedFromCaller() {
+        // given — DataIntegrityViolationException(unique 충돌) 시뮬레이션
+        Long recipeId = 555L;
+        Recipe recipeRef = mock(Recipe.class);
+        given(recipeYoutubeInfoRepository.existsByRecipeId(recipeId)).willReturn(false);
+        given(recipeYoutubeInfoRepository.findByVideoId("vid-xyz")).willReturn(Optional.empty());
+        given(recipeRepository.getReferenceById(recipeId)).willReturn(recipeRef);
+        given(recipeYoutubeInfoRepository.save(any(RecipeYoutubeInfo.class)))
+                .willThrow(new org.springframework.dao.DataIntegrityViolationException("uq_youtube_video_id"));
+
+        // when & then — 예외가 전파되지 않아야 한다
+        invokeDualWrite(recipeId, "vid-xyz", 60L);
+
+        // save는 호출되었지만 예외 격리됨
+        verify(recipeYoutubeInfoRepository).save(any(RecipeYoutubeInfo.class));
+    }
+
+    @Test
+    @DisplayName("dual-write: existsByRecipeId 자체가 던져도 격리된다 (보조 저장 장애가 응답을 깨지 못함)")
+    void dualWrite_lookupFailure_isolatedFromCaller() {
+        // given
+        Long recipeId = 555L;
+        given(recipeYoutubeInfoRepository.existsByRecipeId(recipeId))
+                .willThrow(new RuntimeException("DB connection lost"));
+
+        // when & then — 예외가 전파되지 않아야 한다
+        invokeDualWrite(recipeId, "vid-xyz", 60L);
+
+        verify(recipeYoutubeInfoRepository, never()).save(any());
     }
 }

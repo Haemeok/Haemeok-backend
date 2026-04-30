@@ -7,6 +7,7 @@ import com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest;
 import com.jdc.recipe_service.domain.dto.recipe.ingredient.RecipeIngredientRequestDto;
 import com.jdc.recipe_service.domain.dto.url.PresignedUrlResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
+import com.jdc.recipe_service.domain.entity.media.RecipeYoutubeInfo;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.entity.YoutubeRecommendation;
 import com.jdc.recipe_service.domain.entity.YoutubeTargetChannel;
@@ -14,6 +15,7 @@ import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeRecommendationRepository;
 import com.jdc.recipe_service.domain.repository.YoutubeTargetChannelRepository;
+import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeInfoRepository;
 import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.exception.CustomException;
@@ -114,6 +116,7 @@ public class RecipeExtractionService {
     private final RecipeGenerationJobRepository jobRepository;
     private final YoutubeTargetChannelRepository youtubeTargetChannelRepository;
     private final YoutubeRecommendationRepository youtubeRecommendationRepository;
+    private final RecipeYoutubeInfoRepository recipeYoutubeInfoRepository;
 
     private final TransactionTemplate transactionTemplate;
     private final Executor extractionExecutor;
@@ -141,6 +144,7 @@ public class RecipeExtractionService {
             RecipeGenerationJobRepository jobRepository,
             YoutubeTargetChannelRepository youtubeTargetChannelRepository,
             YoutubeRecommendationRepository youtubeRecommendationRepository,
+            RecipeYoutubeInfoRepository recipeYoutubeInfoRepository,
             TransactionTemplate transactionTemplate,
             @Qualifier("recipeExtractionExecutor") Executor extractionExecutor,
             AsyncImageService asyncImageService,
@@ -158,13 +162,18 @@ public class RecipeExtractionService {
         this.jobRepository = jobRepository;
         this.youtubeTargetChannelRepository = youtubeTargetChannelRepository;
         this.youtubeRecommendationRepository = youtubeRecommendationRepository;
+        this.recipeYoutubeInfoRepository = recipeYoutubeInfoRepository;
         this.transactionTemplate = transactionTemplate;
         this.extractionExecutor = extractionExecutor;
         this.asyncImageService = asyncImageService;
         this.objectMapper = objectMapper;
     }
 
-    private String getExtractionPrompt() {
+    /**
+     * dev V3 (DevYoutubeRecipeExtractionFacade) 등에서도 동일 prompt를 재사용하기 위해 public static.
+     * 순수 string literal 반환이라 instance state 의존 없음 (additive 변경, V2 callers 무영향).
+     */
+    public static String getExtractionPrompt() {
         return """
             당신은 레시피 추출 AI입니다. 오직 유효한 JSON만 출력하세요.
             
@@ -227,10 +236,10 @@ public class RecipeExtractionService {
             2. 실제 사용한 메인 재료 1개만
             3. quantity 형식: "2", "0.5", "1/2" (혼합분수 금지)
             4. quantity="약간"은 정말 추정 불가능할 때만
-            **5. [단위 보존]: 영상에서 '국자', '컵', '개', '봉지', '줌' 등으로 표현된 단위는 무리하게 '큰술'이나 'g'으로 바꾸지 말고 들리는 그대로(예: "1 개", "1 국자") 적어라. (정확한 환산은 다음 단계에서 진행함)**
+            **5. [단위 보존 — 절대 변환 금지]: 영상에서 '국자', '컵', '개', '봉지', '줌', '쪽', '큰술', '작은술' 등 표현된 단위를 그대로 적어라. 'g', 'ml', 표준 단위로 임의 변환하지 마라. "1 국자"를 "30g"으로 바꾸거나 "3쪽"을 "15g"으로 환산하는 행위 금지. 서버에서 raw를 보존하고 가능한 범위에서만 정규화한다 — AI가 환산을 시도하면 잘못된 데이터가 영구 저장된다.**
             6. 소스 분해: 양념장 만드는 장면 있으면 간장/설탕/식초 등 모두 분리
             7. 부재료 포착: 파/깨/참기름/후추 등 조리 중 추가하는 것 누락 금지
-            **8. [중요] 총 합계 작성: 조리 과정 중 재료를 여러 번 나눠 넣더라도, ingredients 리스트에는 요리 전체에 사용된 '총 합계량'을 계산하여 적어라. (예: 고기 밑간에 1스푼, 소스에 2스푼을 썼다면 ingredients에는 3스푼으로 기재)**
+            **8. [중요] 같은 단위끼리만 합산 — 단위 다르면 별도 항목 유지: 조리 과정 중 재료가 같은 단위로 여러 번 나오면 합산하라(예: "간장 1큰술" + "간장 2큰술" → "간장 3큰술"). 단위가 다르면 절대 환산하지 말고 별도 ingredient 항목으로 그대로 유지하라(예: "마늘 3쪽"과 "마늘 1큰술"은 두 항목으로). 단위 변환은 서버가 raw를 보존한 채로 처리한다.**
             **9. [절대 생략 금지] 재료가 20개 이상이더라도 잘라내지 마라. 영상에 등장한 모든 재료를 빠짐없이 나열하라.**
             **10. [기본 재료 필수 포함] 마늘, 물, 소금, 대파, 깨, 참기름, 식용유 등 기본 양념·재료도 영상에서 조금이라도 언급되거나 사용되면 반드시 포함하라. '당연한 재료'라고 생략하면 안 된다.**
             **11. [설명글 체크리스트] 영상 설명글에 재료 목록이 있으면 그것을 기준 체크리스트로 삼아 한 항목씩 대조하라. 설명글 재료가 하나라도 빠지면 실패다.**
@@ -513,6 +522,15 @@ public class RecipeExtractionService {
             mergeDuplicateIngredientsByNameAndUnit(recipeDto);
 
             PresignedUrlResponse response = saveRecipeTransactional(recipeDto, OFFICIAL_RECIPE_USER_ID, userId);
+
+            // dev V3 read 경로 보조 메타데이터. 트랜잭션 밖, 실패 격리.
+            dualWriteRecipeYoutubeInfo(
+                    response.getRecipeId(), videoId, storageUrl,
+                    channelName, channelId, originalVideoTitle,
+                    thumbnailUrl, channelProfileUrl,
+                    subscriberCount, videoViewCount,
+                    userId, videoDuration
+            );
 
             log.info("💾 신규 생성 및 즐겨찾기 추가 완료: ID={}, OwnerID={}, ExtractorID={}",
                     response.getRecipeId(), OFFICIAL_RECIPE_USER_ID, userId);
@@ -959,6 +977,15 @@ public class RecipeExtractionService {
             long saveEnd = System.currentTimeMillis();
             log.info("⏱️ [Performance] DB 저장 소요 시간: {}ms", (saveEnd - saveStart));
 
+            // dev V3 read 경로 보조 메타데이터. 트랜잭션 밖, 실패 격리.
+            dualWriteRecipeYoutubeInfo(
+                    response.getRecipeId(), videoId, storageUrl,
+                    channelName, channelId, originalVideoTitle,
+                    thumbnailUrl, channelProfileUrl,
+                    subscriberCount, videoViewCount,
+                    userId, videoDuration
+            );
+
             log.info("✅ [Performance] 전체 유튜브 추출 총 소요 시간: {}ms", (System.currentTimeMillis() - startTime));
             log.info("💾 [V2] 신규 생성 완료: ID={}, UserID={}", response.getRecipeId(), userId);
             return response;
@@ -1167,6 +1194,63 @@ public class RecipeExtractionService {
                     .created(true)
                     .build();
         });
+    }
+
+    /**
+     * 운영 추출 성공 후 보조 메타데이터(recipe_youtube_info) dual-write.
+     * 프론트가 dev V3로 전환되기 전까지 신규 레시피의 video metadata 공백을 막기 위함.
+     *
+     * <p><b>실패 격리:</b> 본 메서드는 어떤 예외도 호출자에게 전파하지 않는다.
+     * unique 충돌 / DB 오류는 로그만 남기고 삼킨다 — 보조 저장 실패가
+     * 사용자 레시피 생성 응답을 깨뜨리면 안 되기 때문.
+     *
+     * <p><b>recipe_youtube_extraction_info skip:</b> 운영 경로는 evidence/signal/cost
+     * 데이터를 만들어내지 않으므로 extraction_info는 의도적으로 dual-write하지 않는다.
+     * 해당 테이블은 dev V3 신규 생성분부터만 정확히 채운다.
+     */
+    private void dualWriteRecipeYoutubeInfo(Long recipeId, String videoId, String storageUrl,
+                                            String channelName, String channelId,
+                                            String videoTitle, String thumbnailUrl,
+                                            String channelProfileUrl,
+                                            Long subscriberCount, Long videoViewCount,
+                                            Long extractorId, Long durationSeconds) {
+        if (recipeId == null) return;
+        if (videoId == null || videoId.isBlank()) {
+            log.info("ℹ️ [dual-write] videoId 없음 → recipe_youtube_info skip (recipeId={})", recipeId);
+            return;
+        }
+        try {
+            if (recipeYoutubeInfoRepository.existsByRecipeId(recipeId)) {
+                log.info("ℹ️ [dual-write] recipe_youtube_info 이미 존재 → skip (recipeId={})", recipeId);
+                return;
+            }
+            if (recipeYoutubeInfoRepository.findByVideoId(videoId).isPresent()) {
+                log.info("ℹ️ [dual-write] videoId 중복 → skip (videoId={}, recipeId={})", videoId, recipeId);
+                return;
+            }
+
+            Recipe recipeRef = recipeRepository.getReferenceById(recipeId);
+            RecipeYoutubeInfo info = RecipeYoutubeInfo.builder()
+                    .recipe(recipeRef)
+                    .videoId(videoId)
+                    .youtubeUrl(storageUrl)
+                    .channelName(channelName)
+                    .channelId(channelId)
+                    .videoTitle(videoTitle)
+                    .thumbnailUrl(thumbnailUrl)
+                    .channelProfileUrl(channelProfileUrl)
+                    .subscriberCount(subscriberCount)
+                    .videoViewCount(videoViewCount)
+                    .extractorId(extractorId)
+                    .durationSeconds(durationSeconds)
+                    .build();
+            recipeYoutubeInfoRepository.save(info);
+            log.info("✅ [dual-write] recipe_youtube_info 저장 완료 (recipeId={}, videoId={})", recipeId, videoId);
+        } catch (Exception e) {
+            // unique 충돌, DB 오류 등 — 레시피 생성은 그대로 유지
+            log.warn("⚠️ [dual-write] recipe_youtube_info 저장 실패 — 레시피 유지 (recipeId={}, videoId={}): {}",
+                    recipeId, videoId, safeMsg(e));
+        }
     }
 
     private boolean isTextSufficient(String description, String comments, String scriptPlain) {
