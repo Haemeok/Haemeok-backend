@@ -18,8 +18,10 @@ import com.jdc.recipe_service.domain.entity.media.RecipeYoutubeInfo;
 import com.jdc.recipe_service.domain.entity.recipe.RecipeGenerationJob;
 import com.jdc.recipe_service.domain.repository.RecipeGenerationJobRepository;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
+import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeExtractionInfoRepository;
 import com.jdc.recipe_service.domain.repository.meta.RecipeYoutubeInfoRepository;
+import com.jdc.recipe_service.domain.type.ActivityLogType;
 import com.jdc.recipe_service.domain.type.JobStatus;
 import com.jdc.recipe_service.domain.type.JobType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
@@ -28,7 +30,10 @@ import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.service.RecipeActivityService;
+import com.jdc.recipe_service.service.RecipeBookService;
 import com.jdc.recipe_service.service.RecipeExtractionService;
+import com.jdc.recipe_service.service.RecipeFavoriteService;
 import com.jdc.recipe_service.service.RecipeService;
 import com.jdc.recipe_service.service.ai.GeminiMultimodalService;
 import com.jdc.recipe_service.service.ai.GrokClientService;
@@ -94,6 +99,10 @@ public class DevYoutubeRecipeExtractionFacade {
     private final RecipeGenerationJobRepository jobRepository;
     private final RecipeYoutubeInfoRepository recipeYoutubeInfoRepository;
     private final RecipeYoutubeExtractionInfoRepository extractionInfoRepository;
+    private final UserRepository userRepository;
+    private final RecipeFavoriteService recipeFavoriteService;
+    private final RecipeBookService recipeBookService;
+    private final RecipeActivityService recipeActivityService;
     private final com.jdc.recipe_service.dev.service.recipe.ingredient.DevRecipeIngredientPersistService devIngredientPersist;
 
     private final TransactionTemplate transactionTemplate;
@@ -201,9 +210,20 @@ public class DevYoutubeRecipeExtractionFacade {
                 return;
             }
 
-            // 2. yt-dlp 메타데이터
+            // 2. yt-dlp 메타데이터 (실패 시 graceful Gemini multimodal fallback)
+            //    운영 V2(RecipeExtractionService:856)와 동일 정책: yt-dlp가 timeout/extractor error/JSON parse 등으로
+            //    throw하면 catch + 빈 videoData로 진행 → signal 모두 false → isTextSufficient=false → runExtraction이
+            //    자동으로 Gemini fallback path로 진입. 이전엔 try-catch 없어 yt-dlp 실패 시 상위 catch(Exception)로
+            //    흘러 903 catch-all로 박혔던 회귀를 닫는다.
             updateProgress(job, JobStatus.IN_PROGRESS, 20);
-            YtDlpService.YoutubeFullDataDto videoData = ytDlpService.getVideoDataFull(videoUrl);
+            YtDlpService.YoutubeFullDataDto videoData;
+            try {
+                videoData = ytDlpService.getVideoDataFull(videoUrl);
+            } catch (Exception e) {
+                log.warn("⚠️ [DevYt V3] yt-dlp 실패 → Gemini multimodal fallback 진입. videoUrl={}, error={}",
+                        videoUrl, YoutubeExtractionHelpers.safeMsg(e));
+                videoData = emptyVideoData(videoId);
+            }
 
             String description = YoutubeExtractionHelpers.cap(
                     YoutubeExtractionHelpers.nullToEmpty(videoData.description()),
@@ -217,9 +237,11 @@ public class DevYoutubeRecipeExtractionFacade {
             String title = YoutubeExtractionHelpers.nullToEmpty(videoData.title());
 
             // 3. 신호 검출 (이 시점에 잠가둠 — Gemini 결정 후 evidence 산출에 사용)
+            //    yt-dlp 실패 시 description/comments/scriptPlain 모두 빈 string → 모든 신호 false →
+            //    runExtraction이 isTextSufficient(signals)=false 분기로 가서 Grok 시도 없이 곧바로 Gemini fallback.
             SignalReport signals = signalDetector.detectSignals(description, comments, scriptPlain);
 
-            // 4. canonical URL 기반 dedup 한 번 더 (yt-dlp 응답 후)
+            // 4. canonical URL 기반 dedup 한 번 더 (yt-dlp 응답 후, 실패 시 canonicalUrl 빈 값이라 자동 skip)
             String canonicalUrl = YoutubeExtractionHelpers.nullToEmpty(videoData.canonicalUrl());
             if (!canonicalUrl.isBlank()) {
                 Optional<Recipe> existingByCanonical = recipeRepository
@@ -428,6 +450,38 @@ public class DevYoutubeRecipeExtractionFacade {
     }
 
     /**
+     * yt-dlp 실패 시 후속 흐름이 NPE 없이 진행되도록 빈 record 생성.
+     *
+     * <p>videoId만 채우고 나머지 텍스트 필드는 모두 빈 string, 숫자 필드는 null/0.
+     * downstream 코드는 모두 {@code nullToEmpty} / {@code .duration() != null} guard로 처리되어 안전.
+     * 이 빈 record로 진행하면:
+     * <ul>
+     *   <li>signal detection 결과 모든 boolean false → isTextSufficient=false → Gemini fallback path 진입</li>
+     *   <li>canonical dedup은 빈 URL이라 자동 skip</li>
+     *   <li>applyYoutubeFieldsToDto / saveRecipeAndMetadataAtomic가 빈 채널/제목/조회수로 저장 — 운영 V2 동등</li>
+     * </ul>
+     */
+    private static YtDlpService.YoutubeFullDataDto emptyVideoData(String videoId) {
+        // 14개 positional 인자는 record 필드 순서/추가 변경에 취약 → @Builder 사용으로 명시화.
+        return YtDlpService.YoutubeFullDataDto.builder()
+                .videoId(videoId)
+                .canonicalUrl("")
+                .title("")
+                .description("")
+                .comments("")
+                .scriptTimecoded("")
+                .scriptPlain("")
+                .channelName("")
+                .channelId("")
+                .thumbnailUrl("")
+                .channelProfileUrl("")
+                .youtubeSubscriberCount(0L)
+                .viewCount(0L)
+                .duration(0L)
+                .build();
+    }
+
+    /**
      * legacy Recipe.youtube* 필드 dual-write — 운영 V1/V2와 호환을 위해 유지.
      * 향후 RecipeYoutubeInfo로 완전 이행 후 contract 단계에서 제거.
      */
@@ -572,12 +626,76 @@ public class DevYoutubeRecipeExtractionFacade {
     }
 
     private void completeJob(Long jobId, Long resultRecipeId) {
-        transactionTemplate.executeWithoutResult(status -> {
+        // 1) job COMPLETED 처리 — 단일 트랜잭션
+        Long ownerUserId = transactionTemplate.execute(status -> {
             RecipeGenerationJob job = jobRepository.findById(jobId)
                     .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
             job.complete(resultRecipeId);
             jobRepository.saveAndFlush(job);
+            return job.getUserId();
         });
+
+        // 2) favorite + default book + activity log — 운영 V2(RecipeExtractionService:622)와 동일 정책.
+        //    YouTube 추출 recipe는 OFFICIAL_RECIPE_USER_ID 명의로 저장되어 본인 me/recipes에는 안 들어가므로,
+        //    추출자의 me/favorites + 기본 레시피북에 자동 등록해야 본인이 추출 결과를 찾을 수 있다.
+        //    위 트랜잭션 외부에서 별도 retry helper로 호출 — DB 경합/락 발생 시 5회 재시도.
+        if (ownerUserId != null && resultRecipeId != null) {
+            addFavoriteToUser(ownerUserId, resultRecipeId);
+            saveExtractActivityLog(ownerUserId);
+        }
+    }
+
+    /**
+     * 운영 V2 RecipeExtractionService.addFavoriteToUser와 동일 패턴 — 5회 retry + 100~350ms 백오프.
+     *
+     * <p>favorite과 default book 추가는 동일 트랜잭션 안에서 수행 (둘 중 하나만 성공하면 UX가 깨짐).
+     * 일시적 DB lock contention은 retry로 흡수, 최종 실패해도 catch-all로 흘러 사용자 응답에는
+     * 영향 주지 않는다 (job 자체는 이미 COMPLETED). 즉 favorite 추가 실패는 silent — 사용자가
+     * 수동으로 favorite을 누르면 복구 가능.
+     */
+    private void addFavoriteToUser(Long userId, Long recipeId) {
+        int maxRetries = 5;
+
+        for (int i = 1; i <= maxRetries; i++) {
+            try {
+                transactionTemplate.executeWithoutResult(status -> {
+                    recipeFavoriteService.addFavoriteIfNotExists(userId, recipeId);
+                    recipeBookService.saveToDefaultBookIfAbsent(userId, recipeId);
+                });
+                return;
+            } catch (Exception e) {
+                log.warn("⚠️ [DevYt V3] 즐겨찾기 추가 충돌 (시도 {}/{}): userId={}, recipeId={}, msg={}",
+                        i, maxRetries, userId, recipeId, e.getMessage());
+                if (i == maxRetries) {
+                    log.error("❌ [DevYt V3] 즐겨찾기 추가 최종 실패 — 사용자가 수동 favorite으로 복구 가능: userId={}, recipeId={}",
+                            userId, recipeId);
+                } else {
+                    try {
+                        Thread.sleep(100L + (i * 50L));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Activity log 기록 — 운영 V2와 동일한 ActivityLogType.YOUTUBE_EXTRACT.
+     * nickname은 user 조회로 가져온다. 실패해도 silent — log는 통계용이라 main flow를 막지 않음.
+     */
+    private void saveExtractActivityLog(Long userId) {
+        try {
+            String nickname = userRepository.findById(userId)
+                    .map(u -> u.getNickname())
+                    .orElse(null);
+            if (nickname != null) {
+                recipeActivityService.saveLog(userId, nickname, ActivityLogType.YOUTUBE_EXTRACT);
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ [DevYt V3] activity log 기록 실패 (silent): userId={}, msg={}", userId, e.getMessage());
+        }
     }
 
     private void handleAsyncError(RecipeGenerationJob job, Long userId, Exception e) {
