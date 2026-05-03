@@ -70,6 +70,28 @@ public class S3Util {
         }
     }
 
+    /**
+     * doesObjectExist의 엄격 버전. <strong>404/NoSuchKey만 false</strong>를 반환하고, 그 외 S3Exception
+     * (403 권한 문제, 5xx, 네트워크 등)은 그대로 propagate해서 catch-all 500으로 매핑되게 한다.
+     *
+     * <p>finalize 같은 "객체 존재 검증" 호출자는 권한/리전 오설정 같은 환경 문제가 "아직 변환 안 됨"으로
+     * 잘못 보고되어 프론트가 무한 폴링하는 것을 막기 위해 이 메서드를 사용한다.
+     */
+    public boolean isObjectPresent(String fileKey) {
+        try {
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileKey)
+                    .build());
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) return false;
+            throw e;
+        }
+    }
+
     public void deleteFiles(List<String> fileKeys) {
         if (fileKeys.isEmpty()) return;
         List<ObjectIdentifier> objects = fileKeys.stream()

@@ -1,5 +1,6 @@
 package com.jdc.recipe_service.handler;
 
+import com.jdc.recipe_service.exception.ArticleImagesNotReadyException;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.exception.ErrorResponse;
@@ -15,6 +16,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -65,6 +67,23 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse(ErrorCode.USER_NOT_FOUND.getCode(), "존재하지 않는 회원입니다. 다시 로그인해주세요."));
+    }
+
+    /**
+     * @PreAuthorize 등 method security가 던지는 AccessDeniedException을 403으로 매핑한다.
+     *
+     * <p>운영 경로에서는 ExceptionTranslationFilter가 처리하지만, filter chain을 우회한 경로
+     * (예: @WebMvcTest의 addFilters=false, 비표준 invocation)에서도 catch-all 500이 아닌 403이
+     * 나가도록 보강한다. 메시지/코드는 ADMIN_ACCESS_DENIED를 재사용한다 — 이 프로젝트의 @PreAuthorize는
+     * 사실상 admin 게이트 용도로만 쓰인다.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("AccessDenied: {}", ex.getMessage());
+        ErrorCode errorCode = ErrorCode.ADMIN_ACCESS_DENIED;
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(new ErrorResponse(errorCode.getCode(), errorCode.getMessage()));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -210,6 +229,29 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse("903", "서버 내부 오류가 발생했습니다. 문제가 지속되면 관리자에게 문의해주세요.", errorId));
+    }
+
+    /**
+     * Finalize 시점에 일부 imageKey가 S3에 없을 때 응답한다.
+     *
+     * <p>일반 ErrorResponse({code, message})를 확장해 missingKeys/presentKeys까지 포함한다 — 프론트가
+     * 정확히 어떤 키가 아직 변환 안 됐는지 알아야 폴링/리트라이 UX를 만들 수 있기 때문.
+     * (DailyQuotaExceededException의 retryAfter 패턴과 동일.)
+     */
+    @ExceptionHandler(ArticleImagesNotReadyException.class)
+    public ResponseEntity<Map<String, Object>> handleArticleImagesNotReady(ArticleImagesNotReadyException ex) {
+        ErrorCode errorCode = ErrorCode.ARTICLE_IMAGES_NOT_READY;
+        // 정상 폴링 과정에서 자주 발생하는 409라 debug로 낮춤. 운영 로그 노이즈 방지.
+        log.debug("Article images not ready: missing={}", ex.getMissingKeys());
+
+        Map<String, Object> body = Map.of(
+                "code", errorCode.getCode(),
+                "message", errorCode.getMessage(),
+                "missingKeys", ex.getMissingKeys(),
+                "presentKeys", ex.getPresentKeys()
+        );
+
+        return ResponseEntity.status(errorCode.getStatus()).body(body);
     }
 
     @ExceptionHandler(DailyQuotaService.DailyQuotaExceededException.class)

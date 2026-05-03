@@ -108,6 +108,8 @@ public class SecurityConfig {
                                     "/api/dev/ingredients/*",  // dev V3 ingredient 상세 (운영 /api/ingredients/* 미러)
                                     "/api/dev/users/*/recipes",  // dev V3 사용자 레시피 목록 (운영 /api/users/*/recipes 미러)
                                     "/api/dev/search/**",  // dev V3 search mirrors
+                                    "/api/curation-articles",        // public 큐레이션 아티클 목록 (PUBLISHED만 service가 강제)
+                                    "/api/curation-articles/*",      // public 큐레이션 아티클 상세 (slug; PUBLISHED만 service가 강제)
                                     "/api/recipes/sitemap"
                             ).permitAll()
 
@@ -349,6 +351,8 @@ public class SecurityConfig {
                                 "/api/dev/ingredients/*",  // dev V3 ingredient 상세 — local 분기와 정합
                                 "/api/dev/users/*/recipes",  // dev V3 사용자 레시피 목록 — local 분기와 정합
                                 "/api/dev/search/**",  // dev V3 search mirrors
+                                "/api/curation-articles",        // public 큐레이션 아티클 목록 (PUBLISHED만 service가 강제)
+                                "/api/curation-articles/*",      // public 큐레이션 아티클 상세 (slug; PUBLISHED만 service가 강제)
                                 "/api/recipes/sitemap"
                         ).permitAll()
 
