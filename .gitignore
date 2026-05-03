@@ -48,3 +48,6 @@ CLAUDE.md
 AGENTS.md
 .claude/
 .agents/
+
+### 프론트엔드 핸드오프 문서 ###
+docs/handoff/

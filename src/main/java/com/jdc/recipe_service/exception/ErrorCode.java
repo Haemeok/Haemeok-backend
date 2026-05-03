@@ -106,7 +106,16 @@ public enum ErrorCode {
     RECIPE_BOOK_DEFAULT_CANNOT_RENAME(HttpStatus.BAD_REQUEST, "1104", "기본 레시피북은 이름을 변경할 수 없습니다."),
     RECIPE_BOOK_DUPLICATE_ITEM(HttpStatus.CONFLICT, "1105", "이미 해당 레시피북에 추가된 레시피입니다."),
     RECIPE_BOOK_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "1106", "레시피북 생성 한도를 초과했습니다."),
-    RECIPE_BOOK_DUPLICATE_NAME(HttpStatus.CONFLICT, "1107", "이미 같은 이름의 레시피북이 존재합니다.");
+    RECIPE_BOOK_DUPLICATE_NAME(HttpStatus.CONFLICT, "1107", "이미 같은 이름의 레시피북이 존재합니다."),
+
+    // --- Curation Article (1200) ---
+    ARTICLE_NOT_FOUND(HttpStatus.NOT_FOUND, "1201", "요청한 큐레이션 아티클이 존재하지 않습니다."),
+    ARTICLE_SLUG_DUPLICATE(HttpStatus.CONFLICT, "1202", "이미 사용 중인 slug입니다."),
+    ARTICLE_INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "1203", "허용되지 않은 아티클 상태 전이입니다."),
+    ARTICLE_INVALID_RECIPE_REF(HttpStatus.BAD_REQUEST, "1204", "참조한 레시피 중 존재하지 않는 ID가 있습니다."),
+    ARTICLE_IMAGE_INVALID_CONTENT_TYPE(HttpStatus.BAD_REQUEST, "1205", "지원하지 않는 이미지 형식입니다. (jpeg/png/webp만 허용)"),
+    ARTICLE_IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "1206", "이미지 크기가 허용 한도(10MB)를 초과합니다."),
+    ARTICLE_IMAGES_NOT_READY(HttpStatus.CONFLICT, "1207", "아직 변환되지 않았거나 업로드되지 않은 이미지가 있습니다.");
 
     private final HttpStatus status;
     private final String code;
