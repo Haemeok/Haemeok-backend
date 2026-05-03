@@ -1,6 +1,6 @@
 package com.jdc.recipe_service.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.domain.dto.article.PublicCurationArticleResponse;
 import com.jdc.recipe_service.domain.dto.article.PublicCurationArticleSummaryResponse;
 import com.jdc.recipe_service.exception.CustomException;
@@ -11,6 +11,7 @@ import com.jdc.recipe_service.security.CustomAuthenticationEntryPoint;
 import com.jdc.recipe_service.service.article.PublicCurationArticleService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.hashids.Hashids;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -43,8 +45,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(controllers = CurationArticleController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import({GlobalExceptionHandler.class,
+@Import({GlobalExceptionHandler.class, HashIdConfig.class,
         CurationArticleControllerWebMvcTest.MeterRegistryTestConfig.class})
+@TestPropertySource(properties = {
+        "app.hashids.salt=TEST_SALT_FOR_PUBLIC_CURATION_ARTICLE_CONTROLLER",
+        "app.hashids.min-length=8"
+})
 class CurationArticleControllerWebMvcTest {
 
     @TestConfiguration
@@ -56,7 +62,7 @@ class CurationArticleControllerWebMvcTest {
     }
 
     @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+    @Autowired Hashids hashids;
 
     @MockBean PublicCurationArticleService publicArticleService;
     @MockBean JwtTokenProvider jwtTokenProvider;
@@ -64,7 +70,7 @@ class CurationArticleControllerWebMvcTest {
     @MockBean CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
     @Test
-    @DisplayName("GET /api/curation-articles: 200 + Page 응답 + 운영 전용 필드(status/generatedBy/humanReviewed) 미노출")
+    @DisplayName("GET /api/curation-articles: 200 + Page 응답. id는 HashID 문자열, 운영 전용 필드 미노출")
     void list_ok() throws Exception {
         PublicCurationArticleSummaryResponse item = PublicCurationArticleSummaryResponse.builder()
                 .id(7L)
@@ -78,10 +84,15 @@ class CurationArticleControllerWebMvcTest {
         given(publicArticleService.listPublished(eq("diet"), any()))
                 .willReturn(new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1));
 
+        // 기대값은 같은 Hashids 인스턴스로 동적 생성 — salt/minLength 변경되어도 회귀 안 깨짐
+        String expectedArticleId = hashids.encode(7L);
+
         mockMvc.perform(get("/api/curation-articles")
                         .param("category", "diet"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].id").value(7))
+                // raw Long 7이 아니라 HashID 문자열로 내려가야 한다
+                .andExpect(jsonPath("$.content[0].id").value(expectedArticleId))
+                .andExpect(jsonPath("$.content[0].id").isString())
                 .andExpect(jsonPath("$.content[0].slug").value("summer-diet"))
                 .andExpect(jsonPath("$.content[0].title").value("여름 다이어트"))
                 .andExpect(jsonPath("$.content[0].coverImageKey").value("images/articles/7/uuid.webp"))
@@ -98,7 +109,7 @@ class CurationArticleControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("GET /api/curation-articles/{slug}: 200 + 본문/recipeIds 포함 + 운영 필드 미노출")
+    @DisplayName("GET /api/curation-articles/{slug}: 200 + id/recipeIds가 HashID 문자열, 본문 포함, 운영 필드 미노출")
     void getBySlug_ok() throws Exception {
         PublicCurationArticleResponse resp = PublicCurationArticleResponse.builder()
                 .id(7L)
@@ -111,13 +122,21 @@ class CurationArticleControllerWebMvcTest {
                 .build();
         given(publicArticleService.getBySlug("summer-diet")).willReturn(resp);
 
+        String expectedArticleId = hashids.encode(7L);
+        String expectedRecipe0   = hashids.encode(11L);
+        String expectedRecipe1   = hashids.encode(12L);
+
         mockMvc.perform(get("/api/curation-articles/{slug}", "summer-diet"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(7))
+                // id는 HashID 문자열
+                .andExpect(jsonPath("$.id").value(expectedArticleId))
+                .andExpect(jsonPath("$.id").isString())
                 .andExpect(jsonPath("$.slug").value("summer-diet"))
                 .andExpect(jsonPath("$.contentMdx").value("# body"))
-                .andExpect(jsonPath("$.recipeIds[0]").value(11))
-                .andExpect(jsonPath("$.recipeIds[1]").value(12))
+                // recipeIds 각 element도 HashID 문자열
+                .andExpect(jsonPath("$.recipeIds[0]").value(expectedRecipe0))
+                .andExpect(jsonPath("$.recipeIds[1]").value(expectedRecipe1))
+                .andExpect(jsonPath("$.recipeIds[0]").isString())
                 .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.generatedBy").doesNotExist())
                 .andExpect(jsonPath("$.humanReviewed").doesNotExist());
