@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.domain.dto.article;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.domain.entity.article.CurationArticle;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
@@ -17,7 +19,14 @@ import java.time.LocalDateTime;
 @Schema(description = "Public 큐레이션 아티클 목록 응답")
 public class PublicCurationArticleSummaryResponse {
 
+    /**
+     * Public 응답에서는 HashID 문자열로 직렬화된다 (raw Long 노출 금지).
+     * 직렬화는 HashIdConfig의 정적 Hashids 인스턴스를 사용한다.
+     */
+    @JsonSerialize(using = HashIdConfig.HashIdSerializer.class)
+    @Schema(description = "아티클 ID (HashID 문자열)", example = "xJvY7aBp", type = "string")
     private Long id;
+
     private String slug;
     private String title;
     private String description;
