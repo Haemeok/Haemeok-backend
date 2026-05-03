@@ -38,6 +38,8 @@ dependencyManagement {
 		mavenBom "software.amazon.awssdk:bom:2.31.29"
 		// Spring AI BOM (1.0 GA) — 레시피 챗봇(Upstage Solar) 통합용
 		mavenBom "org.springframework.ai:spring-ai-bom:1.0.0"
+		// Testcontainers 1.20.x does not detect Docker Desktop 4.69 / Engine 29 reliably on Windows.
+		mavenBom "org.testcontainers:testcontainers-bom:1.21.4"
 	}
 }
 
@@ -115,8 +117,8 @@ dependencies {
 
 	// Testcontainers (MySQL repository integration tests — H2 대신 MySQL 사용)
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-	testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
-	testImplementation 'org.testcontainers:mysql:1.20.4'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:mysql'
 
 	// WireMock standalone — 챗봇 통합 테스트용 Upstage 응답 가상화
 	testImplementation 'org.wiremock:wiremock-standalone:3.10.0'
