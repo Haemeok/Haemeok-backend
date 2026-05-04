@@ -104,6 +104,7 @@ class ChatControllerIntegrationTest {
         wiremock.resetAll();
 
         given(chatConfigService.getBoolValue("chat_enabled")).willReturn(true);
+        given(chatConfigService.getBoolValue("mini_classifier_enabled")).willReturn(true);
         given(chatConfigService.getIntValue("daily_quota_per_user")).willReturn(20);
         given(chatConfigService.getIntValue("max_question_length")).willReturn(500);
 
@@ -236,22 +237,23 @@ class ChatControllerIntegrationTest {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // C. UNCLEAR — 정형 unclear, Pro 호출 X
+    // C. UNCLEAR — Pro 호출, 맥락 기반 답변/되묻기
     // ─────────────────────────────────────────────────────────────
     @Test
-    @DisplayName("C. POST /api/chat UNCLEAR — unclear 정형 응답, Pro 미호출")
-    void unclear_returnsUnclearWithoutCallingPro() throws Exception {
+    @DisplayName("C. POST /api/chat UNCLEAR — Pro 호출로 맥락 기반 답변을 생성")
+    void unclear_callsProForContextAwareAnswer() throws Exception {
         stubMini("UNCLEAR");
+        stubPro("어떤 부분을 말씀하시는지 조금만 더 알려주세요.");
 
         mockMvc.perform(post("/api/recipes/{recipeId}/chat", 60L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(chatBody("그거?")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("UNCLEAR"))
-                .andExpect(jsonPath("$.fromLlm").value(false))
-                .andExpect(jsonPath("$.answer", containsString("자세히")));
+                .andExpect(jsonPath("$.fromLlm").value(true))
+                .andExpect(jsonPath("$.answer", containsString("어떤 부분")));
 
-        wiremock.verify(0, postRequestedFor(urlEqualTo("/v1/solar/chat/completions"))
+        wiremock.verify(1, postRequestedFor(urlEqualTo("/v1/solar/chat/completions"))
                 .withRequestBody(containing("solar-pro3")));
     }
 

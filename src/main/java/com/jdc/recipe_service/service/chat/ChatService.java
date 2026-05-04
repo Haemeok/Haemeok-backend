@@ -24,8 +24,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -106,19 +108,20 @@ public class ChatService {
 
             List<Message> historyMessages = loadRecentHistory(userId, recipeId, sessionId);
 
-            long miniStart = System.currentTimeMillis();
-            miniResult = classifier.classify(cleanQuestion);
-            miniLatency = System.currentTimeMillis() - miniStart;
+            if (chatConfig.getBoolValue("mini_classifier_enabled")) {
+                long miniStart = System.currentTimeMillis();
+                miniResult = classifier.classify(cleanQuestion, historyMessages);
+                miniLatency = System.currentTimeMillis() - miniStart;
+            } else {
+                miniResult = new ClassificationResult(Intent.IN_SCOPE, 0, 0);
+            }
 
             Intent intent = miniResult.intent();
             String answer;
             boolean fromLlm;
 
             if (intent == Intent.OUT_OF_SCOPE) {
-                answer = prompts.get("reject");
-                fromLlm = false;
-            } else if (intent == Intent.UNCLEAR) {
-                answer = prompts.get("unclear");
+                answer = staticResponse("reject");
                 fromLlm = false;
             } else {
                 long proStart = System.currentTimeMillis();
@@ -132,7 +135,7 @@ public class ChatService {
                 ValidationResult validation = answerValidator.validate(guarded);
                 if (!validation.valid()) {
                     log.warn("Prompt leak detected, fallback to reject: reason={}", validation.reason());
-                    answer = prompts.get("reject");
+                    answer = staticResponse("reject");
                     fromLlm = false;
                 } else {
                     answer = guarded;
@@ -211,6 +214,18 @@ public class ChatService {
             messages.add(new AssistantMessage(log.getAnswer()));
         }
         return messages;
+    }
+
+    private String staticResponse(String key) {
+        String content = prompts.get(key);
+        List<String> variants = Arrays.stream(content.split("(?m)^---\\s*$"))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
+        if (variants.isEmpty()) {
+            return content;
+        }
+        return variants.get(ThreadLocalRandom.current().nextInt(variants.size()));
     }
 
     private BigDecimal calculateCost(ClassificationResult mini, GenerationResult pro) {

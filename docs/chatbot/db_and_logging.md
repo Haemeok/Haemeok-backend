@@ -109,11 +109,11 @@ CREATE TABLE chat_daily_usage (
 // service/chat/ChatConfigService.java
 package com.jdc.recipe_service.service.chat;
 
-import com.jdc.recipe_service.domain.entity.ChatConfig;
-import com.jdc.recipe_service.domain.repository.ChatConfigRepository;
+import com.jdc.recipe_service.domain.entity.chat.ChatConfig;
+import com.jdc.recipe_service.domain.repository.chat.ChatConfigRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -121,9 +121,18 @@ import org.springframework.stereotype.Service;
 public class ChatConfigService {
     
     private final ChatConfigRepository repository;
+    private final CacheManager cacheManager;
     
-    @Cacheable(value = "chatConfig", key = "#key")
     public String getValue(String key) {
+        if ("chat_enabled".equals(key)) {
+            return loadValue(key); // 긴급 킬스위치는 캐시 우회
+        }
+        Cache cache = cacheManager.getCache("chatConfig");
+        if (cache == null) return loadValue(key);
+        return cache.get(key, () -> loadValue(key));
+    }
+
+    private String loadValue(String key) {
         return repository.findByConfigKey(key)
             .map(ChatConfig::getConfigValue)
             .orElseThrow(() -> new IllegalStateException("Config not found: " + key));
@@ -137,19 +146,17 @@ public class ChatConfigService {
         return Boolean.parseBoolean(getValue(key));
     }
     
-    // 관리자가 변경 시 캐시 무효화
-    @CacheEvict(value = "chatConfig", key = "#key")
     public void updateValue(String key, String newValue, String updatedBy) {
         ChatConfig config = repository.findByConfigKey(key)
             .orElseThrow(() -> new IllegalStateException("Config not found: " + key));
-        config.setConfigValue(newValue);
-        config.setUpdatedBy(updatedBy);
-        repository.save(config);
+        config.updateValue(newValue, updatedBy);
+        Cache cache = cacheManager.getCache("chatConfig");
+        if (cache != null) cache.evict(key);
     }
 }
 ```
 
-**캐시 전략**: `@Cacheable`로 DB 조회 최소화. 설정 변경 시 `@CacheEvict`로 무효화 → **즉시 반영**.
+**캐시 전략**: `chat_enabled`는 긴급 킬스위치라 캐시를 우회해 DB 변경을 즉시 반영한다. 그 외 설정은 `chatConfig` 캐시로 DB 조회를 줄이고, 관리 API 변경 시 해당 key를 evict한다. 운영 DB를 직접 UPDATE하면 비킬스위치 설정은 캐시 TTL 동안 늦게 반영될 수 있다.
 
 ### 2.2 ChatLogService (기록 저장)
 
@@ -360,14 +367,14 @@ public class AsyncConfig {
 
 ## 3. 추가 ErrorCode
 
-기존 703~ 대역에 추가:
+기존 AI 700 대역에 추가:
 
 ```java
-// 703: CHAT_CLASSIFICATION_FAILED (Mini 호출 실패)
 // 704: CHAT_ANSWER_GENERATION_FAILED (Pro 호출 실패)
 // 705: CHAT_QUOTA_EXCEEDED (일일 쿼터 초과)
 // 706: CHAT_DISABLED (관리자가 비활성화)
 // 707: CHAT_QUESTION_TOO_LONG (질문 너무 김)
+// 711: CHAT_CLASSIFICATION_FAILED (Mini 호출 실패)
 ```
 
 ---
@@ -459,5 +466,5 @@ Claude Code가 구현할 때 체크할 것:
 - [ ] ChatConfigService + @Cacheable 설정
 - [ ] ChatLogService + @Async 저장
 - [ ] DailyQuotaService 확장 (챗봇용 오버로드 메서드)
-- [ ] ErrorCode 703~707 추가
+- [ ] ErrorCode 704~711 추가
 - [ ] chat_config 초기 데이터 INSERT (마이그레이션에 포함)

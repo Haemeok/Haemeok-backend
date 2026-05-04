@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -36,65 +37,52 @@ class ChatQuotaServiceTest {
     private ChatQuotaService service;
 
     @Test
-    @DisplayName("쿼터 한도 미만 — checkAndIncrement 통과 + incrementUsage 호출")
-    void underLimitPassesAndIncrements() {
+    @DisplayName("쿼터 한도 미만 — ensureRow 후 원자 증가가 성공하면 통과한다")
+    void underLimitPasses() {
         Long userId = 1L;
         given(chatConfig.getIntValue("daily_quota_per_user")).willReturn(20);
-        given(repository.findByUserIdAndUsageDate(eq(userId), any(LocalDate.class)))
-                .willReturn(Optional.of(ChatDailyUsage.builder().userId(userId).callCount(5).build()));
+        given(repository.incrementUsageIfBelowLimit(eq(userId), any(LocalDate.class), eq(20)))
+                .willReturn(1);
 
         assertThatCode(() -> service.checkAndIncrement(userId)).doesNotThrowAnyException();
-        verify(repository).incrementUsage(eq(userId), any(LocalDate.class));
+        verify(repository).ensureDailyUsageRow(eq(userId), any(LocalDate.class));
+        verify(repository).incrementUsageIfBelowLimit(eq(userId), any(LocalDate.class), eq(20));
     }
 
     @Test
-    @DisplayName("최초 호출 — chat_daily_usage row 없으면 count=0으로 간주, 통과")
-    void firstCallNoRowYetPasses() {
-        Long userId = 1L;
-        given(chatConfig.getIntValue("daily_quota_per_user")).willReturn(20);
-        given(repository.findByUserIdAndUsageDate(eq(userId), any())).willReturn(Optional.empty());
-
-        assertThatCode(() -> service.checkAndIncrement(userId)).doesNotThrowAnyException();
-        verify(repository).incrementUsage(eq(userId), any());
-    }
-
-    @Test
-    @DisplayName("한도 직전(limit-1) — 통과")
+    @DisplayName("한도 직전(limit-1) — 원자 증가가 성공하면 통과한다")
     void exactlyOneBelowLimitPasses() {
         Long userId = 1L;
         given(chatConfig.getIntValue("daily_quota_per_user")).willReturn(20);
-        given(repository.findByUserIdAndUsageDate(eq(userId), any()))
-                .willReturn(Optional.of(ChatDailyUsage.builder().userId(userId).callCount(19).build()));
+        given(repository.incrementUsageIfBelowLimit(eq(userId), any(), eq(20))).willReturn(1);
 
         assertThatCode(() -> service.checkAndIncrement(userId)).doesNotThrowAnyException();
-        verify(repository).incrementUsage(any(), any());
+        verify(repository).incrementUsageIfBelowLimit(eq(userId), any(), eq(20));
     }
 
     @Test
-    @DisplayName("한도 도달(=limit) — CHAT_QUOTA_EXCEEDED throw, increment 안 됨")
-    void atLimitThrowsAndDoesNotIncrement() {
+    @DisplayName("한도 도달(=limit) — 원자 증가가 매칭되지 않아 CHAT_QUOTA_EXCEEDED throw")
+    void atLimitThrows() {
         Long userId = 1L;
         given(chatConfig.getIntValue("daily_quota_per_user")).willReturn(20);
-        given(repository.findByUserIdAndUsageDate(eq(userId), any()))
-                .willReturn(Optional.of(ChatDailyUsage.builder().userId(userId).callCount(20).build()));
+        given(repository.incrementUsageIfBelowLimit(eq(userId), any(), eq(20))).willReturn(0);
 
         assertThatThrownBy(() -> service.checkAndIncrement(userId))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_QUOTA_EXCEEDED);
-        verify(repository, never()).incrementUsage(any(), any());
+        verify(repository).ensureDailyUsageRow(eq(userId), any());
     }
 
     @Test
-    @DisplayName("race로 한도 +1 초과(limit+1) — 여전히 차단")
-    void overLimitFromRaceStillBlocked() {
-        Long userId = 1L;
-        given(chatConfig.getIntValue("daily_quota_per_user")).willReturn(20);
-        given(repository.findByUserIdAndUsageDate(eq(userId), any()))
-                .willReturn(Optional.of(ChatDailyUsage.builder().userId(userId).callCount(21).build()));
+    @DisplayName("쿼터 설정이 0 이하이면 ensureRow 호출 전에 차단한다")
+    void nonPositiveLimitThrows() {
+        given(chatConfig.getIntValue("daily_quota_per_user")).willReturn(0);
 
-        assertThatThrownBy(() -> service.checkAndIncrement(userId))
+        assertThatThrownBy(() -> service.checkAndIncrement(1L))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_QUOTA_EXCEEDED);
+        verify(repository, never()).ensureDailyUsageRow(any(), any());
+        verify(repository, never()).incrementUsageIfBelowLimit(any(), any(), anyInt());
     }
 
     @Test

@@ -15,7 +15,9 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_chat_log_user_created", columnList = "user_id, created_at DESC"),
                 @Index(name = "idx_chat_log_recipe_id",   columnList = "recipe_id"),
                 @Index(name = "idx_chat_log_intent",      columnList = "intent"),
-                @Index(name = "idx_chat_log_created",     columnList = "created_at DESC")
+                @Index(name = "idx_chat_log_created",     columnList = "created_at DESC"),
+                @Index(name = "idx_chat_log_context",     columnList = "user_id, recipe_id, session_id, created_at DESC"),
+                @Index(name = "idx_chat_log_display",     columnList = "user_id, recipe_id, created_at DESC")
         }
 )
 @Getter

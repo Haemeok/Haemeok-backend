@@ -3,22 +3,18 @@ package com.jdc.recipe_service.service.chat;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.chat.prompt.PromptLoader;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.retry.TransientAiException;
 
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
 
 @Service
 @Slf4j
@@ -33,15 +29,8 @@ public class AnswerGenerator {
         this.prompts = prompts;
     }
 
-    @Retryable(
-            retryFor = {
-                    ResourceAccessException.class,
-                    HttpServerErrorException.class,
-                    TransientAiException.class
-            },
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 500, multiplier = 2)
-    )
+    @Retry(name = "chatbotPro", fallbackMethod = "fallbackGenerate")
+    @CircuitBreaker(name = "chatbotPro", fallbackMethod = "fallbackGenerate")
     public GenerationResult generate(String question, String recipeText, List<Message> history) {
         String systemPrompt = prompts.get("chat").replace("{RECIPE}", recipeText);
 
@@ -61,9 +50,8 @@ public class AnswerGenerator {
         return new GenerationResult(answer, input, cached, output);
     }
 
-    @Recover
-    public GenerationResult recoverGenerate(Exception e, String question, String recipeText, List<Message> history) {
-        log.error("Pro answer generation failed after retries", e);
+    private GenerationResult fallbackGenerate(String question, String recipeText, List<Message> history, Throwable e) {
+        log.error("Pro answer generation failed", e);
         throw new CustomException(ErrorCode.CHAT_ANSWER_GENERATION_FAILED);
     }
 

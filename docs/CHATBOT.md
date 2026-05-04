@@ -23,8 +23,8 @@
     ↓
 [3] Mini Classifier (Solar Mini)
     IN_SCOPE → Pro 호출
+    UNCLEAR → Pro 호출 (맥락 기반 답변 또는 짧은 되묻기)
     OUT_OF_SCOPE → reject 정형 응답
-    UNCLEAR → unclear 정형 응답
     ↓
 [4] Pro 답변 (Solar Pro 3)
     chat-v6 system prompt로 누설/위험 답변 차단
@@ -46,7 +46,7 @@
 | Method | Path | 설명 |
 |---|---|---|
 | `POST` | `/api/recipes/{recipeId}/chat` | 챗봇 질문 (auth 필수) |
-| `GET` | `/api/recipes/{recipeId}/chat/history?limit=` | 대화 기록 (DESC, max 50) |
+| `GET` | `/api/recipes/{recipeId}/chat/history?limit=` | 대화 기록 (DESC, max 50) — **선택**, 별도 "예전 질문 보기" UI용. Pro 컨텍스트 합치기는 sessionId로 자동 |
 | `GET` | `/api/chat/quota` | 일일 쿼터 (user-scoped) |
 
 상세 명세는 OpenAPI(Swagger UI: `/swagger-ui.html`) 참조.
@@ -96,6 +96,7 @@ APP_HASHIDS_SALT=...
 - `chat_config` 4 row (`V20260425_001_chat_chatbot_tables.sql`로 자동 마이그레이션)
   - `daily_quota_per_user=20`, `rate_limit_per_minute=10`
   - `chat_enabled=true`, `max_question_length=500`
+  - `chat_enabled`는 긴급 킬스위치라 캐시를 우회해 DB 변경을 즉시 반영
 - 테스트 유저 (`provider='test'`, `oauth_id='apple_reviewer'`) — `POST /api/token/test-login` 용
 
 ### 실행

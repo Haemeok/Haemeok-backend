@@ -541,13 +541,13 @@ class ChatControllerTest {
 
 ## 6. 추가 ErrorCode
 
-db_and_logging.md의 703~707에 추가:
+db_and_logging.md의 704~711에 추가:
 
 ```
 708: CHAT_RATE_LIMITED (burst 제한 초과)
 709: CHAT_INVALID_QUESTION (빈 질문, sanitize 후 0자)
 710: CHAT_PROMPT_LEAK_DETECTED (답변에 프롬프트 유출 감지)
-711: RECIPE_ACCESS_DENIED (비공개 레시피 접근)
+711: CHAT_CLASSIFICATION_FAILED (Mini 분류기 retry 모두 실패)
 ```
 
 ---
@@ -716,5 +716,5 @@ public ChatResponse chat(Long userId, ChatRequest request) {
 
 ### 운영
 - [ ] chat_config 초기 데이터 migration
-- [ ] ErrorCode 703~711 추가
+- [ ] ErrorCode 704~711 추가
 - [ ] 관리자가 DB 직접 UPDATE로 설정 변경 가능
