@@ -22,6 +22,6 @@ public class ArticleImageFinalizeResponse {
     private boolean ready;
 
     @Schema(description = "확인 완료된 imageKey 목록 (요청과 동일).",
-            example = "[\"images/articles/42/abc-uuid.webp\"]")
+            example = "[\"images/articles/xJvY7aBp/abc-uuid.webp\"]")
     private List<String> imageKeys;
 }

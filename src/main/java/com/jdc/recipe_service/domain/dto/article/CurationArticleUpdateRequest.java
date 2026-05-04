@@ -1,6 +1,8 @@
-
 package com.jdc.recipe_service.domain.dto.article;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.jdc.recipe_service.config.HashIdConfig;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -36,7 +38,7 @@ public class CurationArticleUpdateRequest {
 
     @Size(max = 500)
     @Schema(description = "커버 이미지 S3 key. presigned URL 응답의 imageKey(.webp)를 저장한다 — uploadKey가 아니다.",
-            example = "images/articles/123/uuid.webp")
+            example = "images/articles/xJvY7aBp/uuid.webp")
     private String coverImageKey;
 
     @NotBlank
@@ -51,7 +53,14 @@ public class CurationArticleUpdateRequest {
     @Schema(description = "생성에 사용된 AI 모델 식별자 (재생성 시 갱신)")
     private String generatedBy;
 
-    @Schema(description = "참조한 레시피 ID 목록 — 요청 값으로 전체 교체된다. 각 ID는 양의 정수여야 한다.")
+    /**
+     * 프론트는 HashID 문자열 배열로 보내고, 내부 필드는 Long으로 유지된다 (CreateRequest와 동일 정책).
+     */
+    @JsonDeserialize(contentUsing = HashIdConfig.StrictHashIdDeserializer.class)
+    @ArraySchema(
+            schema = @Schema(type = "string", example = "vK9mP2Qa", description = "레시피 ID (HashID 문자열)"),
+            arraySchema = @Schema(description = "참조한 레시피 ID 목록 (HashID 문자열 배열) — 요청 값으로 전체 교체된다.")
+    )
     private List<@NotNull(message = "recipeIds 항목에 null이 포함될 수 없습니다.")
                  @Positive(message = "recipeIds 항목은 양의 정수여야 합니다.") Long> recipeIds;
 }

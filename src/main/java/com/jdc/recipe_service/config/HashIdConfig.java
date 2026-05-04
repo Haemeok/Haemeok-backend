@@ -112,4 +112,30 @@ public class HashIdConfig implements WebMvcConfigurer {
             return decoded[0];
         }
     }
+
+    /**
+     * 엄격(strict) HashID 디코더. 숫자 문자열 fallback을 허용하지 않는다.
+     *
+     * <p>{@link HashIdDeserializer}는 마이그레이션 호환을 위해 raw 숫자 문자열도 받아주지만, 이건
+     * 신규 API에서 의도치 않은 raw Long 입력을 통과시켜 정책을 우회하게 만든다.
+     *
+     * <p>큐레이션 아티클처럼 "처음부터 HashID만 받겠다"고 정한 신규 도메인의 request DTO에 사용한다.
+     * 기존 도메인(레시피, 유저 등)은 lenient {@link HashIdDeserializer}를 그대로 쓴다.
+     */
+    public static class StrictHashIdDeserializer extends JsonDeserializer<Long> {
+        @Override
+        public Long deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+            String value = p.getText();
+            if (value == null || value.isBlank()) return null;
+            // 숫자만으로 된 입력은 거부 — raw Long을 그대로 박는 호출을 차단한다.
+            if (value.matches("^[0-9]+$")) {
+                throw new IllegalArgumentException("HashID는 문자열로만 입력해야 합니다 (숫자 입력 거부): " + value);
+            }
+            long[] decoded = staticHashids.decode(value);
+            if (decoded.length == 0) {
+                throw new IllegalArgumentException("Invalid Hash ID: " + value);
+            }
+            return decoded[0];
+        }
+    }
 }

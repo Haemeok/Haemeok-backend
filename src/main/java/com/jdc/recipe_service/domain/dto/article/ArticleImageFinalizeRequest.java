@@ -20,7 +20,7 @@ public class ArticleImageFinalizeRequest {
 
     @NotEmpty(message = "imageKeys는 비어 있을 수 없습니다.")
     @Size(max = 50, message = "한 번에 finalize 가능한 imageKey 개수는 최대 50개입니다.")
-    @Schema(description = "확인할 imageKey 목록 (.webp). 모두 images/articles/{articleId}/ 형식이어야 한다. 한 번에 최대 50개.",
-            example = "[\"images/articles/42/abc-uuid.webp\", \"images/articles/42/def-uuid.webp\"]")
+    @Schema(description = "확인할 imageKey 목록 (.webp). 모두 images/articles/{articleHashId}/ 형식이어야 한다. 한 번에 최대 50개.",
+            example = "[\"images/articles/xJvY7aBp/abc-uuid.webp\", \"images/articles/xJvY7aBp/def-uuid.webp\"]")
     private List<@NotBlank @Size(max = 500) String> imageKeys;
 }
