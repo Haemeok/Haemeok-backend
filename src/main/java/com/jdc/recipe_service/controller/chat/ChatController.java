@@ -32,7 +32,7 @@ public class ChatController {
 
     @PostMapping("/api/recipes/{recipeId}/chat")
     @Operation(summary = "레시피 챗봇 질문",
-            description = "Mini 분류기로 의도 판별 후 IN_SCOPE는 Pro 답변, 그 외는 정형 응답 반환")
+            description = "Mini 분류기로 의도 판별 후 IN_SCOPE/UNCLEAR는 Pro 답변, OUT_OF_SCOPE는 정형 거절 응답 반환")
     public ResponseEntity<ChatResponse> chat(
             @DecodeId Long recipeId,
             @Valid @RequestBody ChatRequest request,

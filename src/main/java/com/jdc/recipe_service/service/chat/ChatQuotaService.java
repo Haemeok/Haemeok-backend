@@ -26,17 +26,16 @@ public class ChatQuotaService {
     @Transactional
     public void checkAndIncrement(Long userId) {
         int limit = chatConfig.getIntValue("daily_quota_per_user");
-        LocalDate today = LocalDate.now(KST);
-
-        int currentCount = repository.findByUserIdAndUsageDate(userId, today)
-                .map(ChatDailyUsage::getCallCount)
-                .orElse(0);
-
-        if (currentCount >= limit) {
+        if (limit <= 0) {
             throw new CustomException(ErrorCode.CHAT_QUOTA_EXCEEDED);
         }
 
-        repository.incrementUsage(userId, today);
+        LocalDate today = LocalDate.now(KST);
+
+        repository.ensureDailyUsageRow(userId, today);
+        if (repository.incrementUsageIfBelowLimit(userId, today, limit) == 0) {
+            throw new CustomException(ErrorCode.CHAT_QUOTA_EXCEEDED);
+        }
     }
 
     public int getRemainingQuota(Long userId) {

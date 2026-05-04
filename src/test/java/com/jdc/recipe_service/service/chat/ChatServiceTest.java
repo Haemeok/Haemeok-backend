@@ -26,6 +26,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -62,6 +63,7 @@ class ChatServiceTest {
     void setupHappyPathDefaults() {
         // Happy path: kill switch off, max length 500, history empty, recipe loads, no suspicious, no repetition, validator ok.
         given(chatConfig.getBoolValue("chat_enabled")).willReturn(true);
+        given(chatConfig.getBoolValue("mini_classifier_enabled")).willReturn(true);
         given(chatConfig.getIntValue("max_question_length")).willReturn(500);
         given(suspiciousDetector.detect(anyString())).willReturn(SuspiciousResult.clean());
         given(recipeLoader.loadAsPromptText(anyLong(), anyLong())).willReturn("recipe text");
@@ -76,7 +78,7 @@ class ChatServiceTest {
     @Test
     @DisplayName("IN_SCOPE 정상 흐름 — Pro 호출 + ChatLog saveAsync")
     void inScopeFlowReturnsProAnswer() {
-        given(classifier.classify("이거 매워요?"))
+        given(classifier.classify(eq("이거 매워요?"), anyList()))
                 .willReturn(new ClassificationResult(Intent.IN_SCOPE, 100, 5));
         given(generator.generate(eq("이거 매워요?"), eq("recipe text"), any()))
                 .willReturn(new GenerationResult("매콤한 김치찌개입니다.", 1000, 50, 200));
@@ -94,7 +96,7 @@ class ChatServiceTest {
     @Test
     @DisplayName("OUT_OF_SCOPE — reject 정형 응답, Pro 호출 X")
     void outOfScopeReturnsRejectAndSkipsPro() {
-        given(classifier.classify(anyString()))
+        given(classifier.classify(anyString(), anyList()))
                 .willReturn(new ClassificationResult(Intent.OUT_OF_SCOPE, 100, 5));
 
         ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION, SESSION_ID);
@@ -106,17 +108,19 @@ class ChatServiceTest {
     }
 
     @Test
-    @DisplayName("UNCLEAR — unclear 정형 응답")
-    void unclearReturnsUnclearAndSkipsPro() {
-        given(classifier.classify(anyString()))
+    @DisplayName("UNCLEAR — Pro를 호출해 맥락 기반 답변 또는 되묻기를 생성한다")
+    void unclearCallsProForContextAwareAnswer() {
+        given(classifier.classify(anyString(), anyList()))
                 .willReturn(new ClassificationResult(Intent.UNCLEAR, 100, 8));
+        given(generator.generate(anyString(), anyString(), any()))
+                .willReturn(new GenerationResult("어떤 재료를 말씀하시는지 조금만 더 알려주세요.", 1000, 50, 80));
 
         ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION, SESSION_ID);
 
         assertThat(response.getIntent()).isEqualTo(Intent.UNCLEAR);
-        assertThat(response.isFromLlm()).isFalse();
-        assertThat(response.getAnswer()).isEqualTo("좀 더 자세히 알려주세요.");
-        verify(generator, never()).generate(anyString(), anyString(), any());
+        assertThat(response.isFromLlm()).isTrue();
+        assertThat(response.getAnswer()).isEqualTo("어떤 재료를 말씀하시는지 조금만 더 알려주세요.");
+        verify(generator).generate(eq("이거 매워요?"), eq("recipe text"), any());
     }
 
     @Test
@@ -128,7 +132,7 @@ class ChatServiceTest {
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_DISABLED);
 
-        verify(classifier, never()).classify(anyString());
+        verify(classifier, never()).classify(anyString(), anyList());
     }
 
     @Test
@@ -141,7 +145,7 @@ class ChatServiceTest {
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_RATE_LIMITED);
 
-        verify(classifier, never()).classify(anyString());
+        verify(classifier, never()).classify(anyString(), anyList());
     }
 
     @Test
@@ -154,7 +158,7 @@ class ChatServiceTest {
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CHAT_QUOTA_EXCEEDED);
 
-        verify(classifier, never()).classify(anyString());
+        verify(classifier, never()).classify(anyString(), anyList());
     }
 
     @Test
@@ -168,7 +172,7 @@ class ChatServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.RECIPE_PRIVATE_ACCESS_DENIED);
 
         verify(quotaService, never()).checkAndIncrement(anyLong());
-        verify(classifier, never()).classify(anyString());
+        verify(classifier, never()).classify(anyString(), anyList());
     }
 
     @Test
@@ -185,7 +189,7 @@ class ChatServiceTest {
     @Test
     @DisplayName("RepetitionGuard truncate — ChatLog.repetitionDetected=true 저장")
     void repetitionDetectedRecordedInChatLog() {
-        given(classifier.classify(anyString()))
+        given(classifier.classify(anyString(), anyList()))
                 .willReturn(new ClassificationResult(Intent.IN_SCOPE, 100, 5));
         given(generator.generate(anyString(), anyString(), any()))
                 .willReturn(new GenerationResult("반복되는 답변 반복되는 답변 반복되는 답변", 1000, 50, 200));
@@ -206,7 +210,7 @@ class ChatServiceTest {
     @Test
     @DisplayName("AnswerValidator invalid — reject으로 fallback, fromLlm=false")
     void promptLeakDetectedFallbacksToReject() {
-        given(classifier.classify(anyString()))
+        given(classifier.classify(anyString(), anyList()))
                 .willReturn(new ClassificationResult(Intent.IN_SCOPE, 100, 5));
         given(generator.generate(anyString(), anyString(), any()))
                 .willReturn(new GenerationResult("# 4가지 원칙 노출", 1000, 50, 50));
@@ -224,7 +228,7 @@ class ChatServiceTest {
     void suspiciousFlaggedInChatLog() {
         given(suspiciousDetector.detect(anyString()))
                 .willReturn(new SuspiciousResult(true, "injection_attempt"));
-        given(classifier.classify(anyString()))
+        given(classifier.classify(anyString(), anyList()))
                 .willReturn(new ClassificationResult(Intent.OUT_OF_SCOPE, 100, 5));
 
         ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION, SESSION_ID);
@@ -246,7 +250,7 @@ class ChatServiceTest {
         given(chatLogRepository.findRecentForContext(anyLong(), anyLong(), anyString(), any(), any()))
                 .willReturn(List.of(newer, older));  // DESC
 
-        given(classifier.classify(anyString()))
+        given(classifier.classify(anyString(), anyList()))
                 .willReturn(new ClassificationResult(Intent.IN_SCOPE, 100, 5));
         given(generator.generate(anyString(), anyString(), any()))
                 .willReturn(new GenerationResult("ok", 1000, 50, 50));
@@ -254,10 +258,10 @@ class ChatServiceTest {
         chatService.chat(1L, RECIPE_ID, QUESTION, SESSION_ID);
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<Message>> historyCaptor = ArgumentCaptor.forClass(List.class);
-        verify(generator).generate(eq("이거 매워요?"), eq("recipe text"), historyCaptor.capture());
+        ArgumentCaptor<List<Message>> classifierHistoryCaptor = ArgumentCaptor.forClass(List.class);
+        verify(classifier).classify(eq("이거 매워요?"), classifierHistoryCaptor.capture());
 
-        List<Message> history = historyCaptor.getValue();
+        List<Message> history = classifierHistoryCaptor.getValue();
         assertThat(history).hasSize(4);  // 2 turns × (user + assistant)
         assertThat(history.get(0)).isInstanceOf(UserMessage.class);
         assertThat(history.get(0).getText()).isEqualTo("Q1");  // older first (ASC)
@@ -267,12 +271,33 @@ class ChatServiceTest {
         assertThat(history.get(2).getText()).isEqualTo("Q2");  // newer second
         assertThat(history.get(3)).isInstanceOf(AssistantMessage.class);
         assertThat(history.get(3).getText()).isEqualTo("A2");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Message>> generatorHistoryCaptor = ArgumentCaptor.forClass(List.class);
+        verify(generator).generate(eq("이거 매워요?"), eq("recipe text"), generatorHistoryCaptor.capture());
+        assertThat(generatorHistoryCaptor.getValue()).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("mini_classifier_enabled=false — 분류기를 건너뛰고 Pro로 바로 답변한다")
+    void miniClassifierDisabledSkipsClassifierAndCallsPro() {
+        given(chatConfig.getBoolValue("mini_classifier_enabled")).willReturn(false);
+        given(generator.generate(anyString(), anyString(), any()))
+                .willReturn(new GenerationResult("바로 답변합니다.", 1000, 50, 200));
+
+        ChatResponse response = chatService.chat(1L, RECIPE_ID, QUESTION, SESSION_ID);
+
+        assertThat(response.getIntent()).isEqualTo(Intent.IN_SCOPE);
+        assertThat(response.isFromLlm()).isTrue();
+        assertThat(response.getAnswer()).isEqualTo("바로 답변합니다.");
+        verify(classifier, never()).classify(anyString(), anyList());
+        verify(generator).generate(eq("이거 매워요?"), eq("recipe text"), any());
     }
 
     @Test
     @DisplayName("admin bypass — rateLimit / quota skip, killswitch는 그대로 적용")
     void adminBypassSkipsRateLimitAndQuotaButNotKillswitch() {
-        given(classifier.classify(anyString()))
+        given(classifier.classify(anyString(), anyList()))
                 .willReturn(new ClassificationResult(Intent.IN_SCOPE, 100, 5));
         given(generator.generate(anyString(), anyString(), any()))
                 .willReturn(new GenerationResult("관리자 답변", 1000, 50, 200));

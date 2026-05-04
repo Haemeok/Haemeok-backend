@@ -60,8 +60,8 @@ public enum ErrorCode {
     INVALID_AI_RECIPE_REQUEST(HttpStatus.BAD_REQUEST, "702", "AI 레시피 요청 형식이 잘못되었습니다."),
     UNSUPPORTED_IMAGE_MODEL(HttpStatus.BAD_REQUEST, "703", "지원하지 않는 이미지 생성 모델입니다."),
 
-    // --- Chat (703~) — 레시피 챗봇(Upstage Solar) ---
-    CHAT_CLASSIFICATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "703", "챗봇 질문 분류에 실패했습니다."),
+    // --- Chat (704~711) — 레시피 챗봇(Upstage Solar) ---
+    CHAT_CLASSIFICATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "711", "챗봇 질문 분류에 실패했습니다."),
     CHAT_ANSWER_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "704", "챗봇 답변 생성에 실패했습니다."),
     CHAT_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "705", "챗봇 일일 사용 한도를 초과했습니다."),
     CHAT_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "706", "챗봇 기능이 일시적으로 비활성화되었습니다."),

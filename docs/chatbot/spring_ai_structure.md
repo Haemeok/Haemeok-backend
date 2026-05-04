@@ -90,7 +90,7 @@ src/main/resources/
     ├── classifier-v2.txt               # 분류 프롬프트
     ├── chat-v6.txt                     # Pro 답변 프롬프트
     └── responses/
-        ├── reject.txt                  # 범위밖 정형 답변
+        ├── reject.txt                  # 범위밖 정형 답변 후보 (`---` 구분)
         └── unclear.txt                 # 되묻기 답변
 ```
 

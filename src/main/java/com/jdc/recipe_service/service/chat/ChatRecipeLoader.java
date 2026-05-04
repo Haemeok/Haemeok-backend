@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
 public class ChatRecipeLoader {
@@ -73,9 +76,19 @@ public class ChatRecipeLoader {
     private void appendSteps(StringBuilder sb, Recipe recipe) {
         if (recipe.getSteps() == null || recipe.getSteps().isEmpty()) return;
         sb.append("조리법:\n");
-        int i = 1;
-        for (RecipeStep step : recipe.getSteps()) {
-            sb.append(i++).append(". ").append(safe(step.getInstruction())).append('\n');
+        List<RecipeStep> orderedSteps = recipe.getSteps().stream()
+                .sorted(Comparator.comparing(
+                        RecipeStep::getStepNumber,
+                        Comparator.nullsLast(Integer::compareTo)))
+                .toList();
+
+        int fallbackStepNumber = 1;
+        for (RecipeStep step : orderedSteps) {
+            int displayStepNumber = step.getStepNumber() != null
+                    ? step.getStepNumber()
+                    : fallbackStepNumber;
+            sb.append(displayStepNumber).append(". ").append(safe(step.getInstruction())).append('\n');
+            fallbackStepNumber = displayStepNumber + 1;
         }
     }
 

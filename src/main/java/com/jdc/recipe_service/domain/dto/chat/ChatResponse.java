@@ -20,6 +20,6 @@ public class ChatResponse {
     @Schema(description = "Mini 분류기 결과 의도", example = "IN_SCOPE")
     private Intent intent;
 
-    @Schema(description = "Pro 호출 여부. false면 정형 응답(reject/unclear).", example = "true")
+    @Schema(description = "최종 표시 답변이 Pro 원문 기반이면 true, 정형 응답 또는 후처리 fallback이면 false.", example = "true")
     private boolean fromLlm;
 }

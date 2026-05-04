@@ -25,7 +25,7 @@
       "post": {
         "tags": ["Chat"],
         "summary": "레시피 챗봇 질문",
-        "description": "Mini 분류기로 의도 판별 후 IN_SCOPE는 Pro 답변, 그 외는 정형 응답 반환. 같은 sessionId + 같은 (user, recipe)의 최근 5턴이 서버에서 자동으로 컨텍스트로 합침. sessionId 미전송 시 stateless.",
+        "description": "Mini 분류기로 의도 판별 후 IN_SCOPE/UNCLEAR는 Pro 답변, OUT_OF_SCOPE는 정형 거절 응답 반환. 같은 sessionId + 같은 (user, recipe)의 최근 5턴이 서버에서 자동으로 컨텍스트로 합침. sessionId 미전송 시 stateless.",
         "operationId": "chatPost",
         "parameters": [
           {
@@ -46,7 +46,7 @@
         },
         "responses": {
           "200": {
-            "description": "정상 응답 (IN_SCOPE Pro 답변 또는 OUT_OF_SCOPE/UNCLEAR 정형)",
+            "description": "정상 응답 (IN_SCOPE/UNCLEAR Pro 답변 또는 OUT_OF_SCOPE 정형 거절)",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ChatResponse" },
@@ -68,11 +68,11 @@
                     }
                   },
                   "unclear": {
-                    "summary": "UNCLEAR — 정형 unclear",
+                    "summary": "UNCLEAR — Pro 기반 되묻기",
                     "value": {
-                      "answer": "앗 잠깐, 조금 더 자세히 말씀해 주실 수 있어요?\n어떤 점이 궁금하신 건지 알려주시면 바로 도와드릴게요! 😊",
+                      "answer": "어떤 재료나 단계를 말씀하시는지 조금만 더 알려주세요.",
                       "intent": "UNCLEAR",
-                      "fromLlm": false
+                      "fromLlm": true
                     }
                   }
                 }
@@ -149,8 +149,8 @@
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
                 "examples": {
                   "classification": {
-                    "summary": "703 CHAT_CLASSIFICATION_FAILED — Mini retry 모두 실패",
-                    "value": { "code": "703", "message": "챗봇 질문 분류에 실패했습니다.", "errorId": "a1b2c3d4-..." }
+                    "summary": "711 CHAT_CLASSIFICATION_FAILED — Mini retry 모두 실패",
+                    "value": { "code": "711", "message": "챗봇 질문 분류에 실패했습니다.", "errorId": "a1b2c3d4-..." }
                   },
                   "answer": {
                     "summary": "704 CHAT_ANSWER_GENERATION_FAILED — Pro retry 모두 실패",
@@ -175,8 +175,8 @@
     "/api/recipes/{recipeId}/chat/history": {
       "get": {
         "tags": ["Chat"],
-        "summary": "레시피별 챗봇 대화 기록",
-        "description": "유저의 특정 레시피에 대한 정상 답변 history를 최신순(DESC)으로 반환. UI 표시용. **다음 POST에 다시 보낼 필요 없음** — 서버가 자동으로 컨텍스트 합침.",
+        "summary": "레시피별 챗봇 대화 기록 (선택)",
+        "description": "유저의 특정 레시피에 대한 정상 답변 history를 최신순(DESC)으로 반환. **이 endpoint는 선택입니다** — Pro 답변에 들어가는 컨텍스트는 서버가 sessionId로 자동 합치므로, '이 레시피에서 예전에 했던 질문 다시 보기' 같은 별도 UI를 만들 때만 호출. (user, recipe) 기준이라 sessionId가 달라도 모두 반환.",
         "operationId": "chatHistory",
         "parameters": [
           {
@@ -311,7 +311,7 @@
           },
           "fromLlm": {
             "type": "boolean",
-            "description": "Pro 모델 답변이면 true, 정형 응답(reject/unclear)이면 false",
+            "description": "최종 표시 답변이 Pro 원문 기반이면 true, OUT_OF_SCOPE 정형 거절 또는 보안 후처리 fallback이면 false",
             "example": true
           }
         }

@@ -185,6 +185,7 @@ public class Recipe extends BaseTimeEntity {
     private List<RecipeIngredient> ingredients;
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.LAZY)
+    @OrderBy("stepNumber ASC")
     @BatchSize(size = 100)
     @Fetch(FetchMode.SUBSELECT)
     private List<RecipeStep> steps;

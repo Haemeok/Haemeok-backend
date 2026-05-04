@@ -13,12 +13,24 @@ public interface ChatDailyUsageRepository extends JpaRepository<ChatDailyUsage, 
 
     Optional<ChatDailyUsage> findByUserIdAndUsageDate(Long userId, LocalDate usageDate);
 
-    // (user_id, usage_date) UNIQUE 기반 원자 증감. 한도 체크는 서비스에서 호출 전에 수행.
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(value = "INSERT INTO chat_daily_usage (user_id, usage_date, call_count, updated_at) " +
-            "VALUES (:userId, :usageDate, 1, CURRENT_TIMESTAMP(6)) " +
-            "ON DUPLICATE KEY UPDATE call_count = call_count + 1",
+    @Query(value = """
+            UPDATE chat_daily_usage
+            SET call_count = call_count + 1,
+                updated_at = CURRENT_TIMESTAMP(6)
+            WHERE user_id = :userId
+              AND usage_date = :usageDate
+              AND call_count < :limit
+            """,
             nativeQuery = true)
-    void incrementUsage(@Param("userId") Long userId,
-                        @Param("usageDate") LocalDate usageDate);
+    int incrementUsageIfBelowLimit(@Param("userId") Long userId,
+                                   @Param("usageDate") LocalDate usageDate,
+                                   @Param("limit") int limit);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "INSERT IGNORE INTO chat_daily_usage (user_id, usage_date, call_count) " +
+            "VALUES (:userId, :usageDate, 0)",
+            nativeQuery = true)
+    void ensureDailyUsageRow(@Param("userId") Long userId,
+                             @Param("usageDate") LocalDate usageDate);
 }
