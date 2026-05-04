@@ -9,6 +9,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.util.S3Util;
 import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -20,14 +21,18 @@ import java.util.UUID;
 /**
  * 어드민 큐레이션 아티클 이미지 업로드.
  *
- * <p>레시피 이미지와 동일한 원본→webp 변환 구조 + articleId 기반 key 정책:
+ * <p>레시피 이미지와 동일한 원본→webp 변환 구조 + <strong>articleHashId 기반 key 정책</strong>:
  * <pre>
- *   uploadKey  : original/images/articles/{articleId}/{uuid}.{ext}   (프론트 PUT 업로드 대상)
- *   imageKey   : images/articles/{articleId}/{uuid}.webp             (변환 후 최종, DB/MDX에 저장)
+ *   uploadKey  : original/images/articles/{articleHashId}/{uuid}.{ext}   (프론트 PUT 업로드 대상)
+ *   imageKey   : images/articles/{articleHashId}/{uuid}.webp             (변환 후 최종, DB/MDX에 저장)
  * </pre>
  *
- * <p>articleId를 path에 박아두는 이유는 운영 추적성 — S3 key만 봐도 어느 글에 속한 이미지인지 알 수 있고,
- * 글 삭제 시 prefix 단위 정리(`original/images/articles/{id}/`, `images/articles/{id}/`)가 가능해진다.
+ * <p>article segment를 raw Long이 아니라 HashID로 두는 이유: wire에 노출되는 모든 식별자(API path, response,
+ * S3 key)에서 raw Long을 새지 않게 한다. 운영 추적성은 그대로 — S3 key의 articleHashId를 디코드하면 article ID
+ * 식별 가능하고, 글 삭제 시 prefix 단위 정리(`original/images/articles/{hashId}/`, `images/articles/{hashId}/`)도 가능.
+ *
+ * <p>Lambda recipe-image-resizer는 srcKey의 {@code original/} prefix를 떼고 확장자만 {@code .webp}로 바꾸는 구조라
+ * 폴더 segment 형식이 raw Long이든 HashID든 상관없이 그대로 동작한다 — Lambda 코드 변경 불필요.
  *
  * <p>fileKey는 서버에서만 생성해 프론트가 S3 path를 결정하지 못하게 한다. DRAFT/PUBLISHED/ARCHIVED 어떤 상태에서도
  * 어드민은 이미지 업로드 URL을 받을 수 있다 — 발행 후 본문 수정 중 이미지 추가 시나리오를 막지 않기 위함.
@@ -44,14 +49,12 @@ import java.util.UUID;
  *   <li>finalize에서 HeadObjectResponse.contentLength()까지 검사하도록 확장 (단, 변환 후 webp의 크기는 원본과 다름)</li>
  * </ul>
  *
- * <p>TODO(image-pipeline): Lambda recipe-image-resizer가 articles 분기에서 다음 입출력을 처리해야 한다.
+ * <p>참고: Lambda recipe-image-resizer는 다음 입출력으로 동작한다 (이미 운영 배포됨, 추가 작업 불필요).
  * <pre>
- *   입력: original/images/articles/{articleId}/{uuid}.{ext}
- *   출력: images/articles/{articleId}/{uuid}.webp
+ *   입력: original/images/articles/{articleHashId}/{uuid}.{ext}
+ *   출력: images/articles/{articleHashId}/{uuid}.webp
  *   변환: width 1024, withoutEnlargement true, webp quality 85
  * </pre>
- * recipes 라우팅({@code original/images/recipes/} → {@code images/recipes/})은 이미 잡혀 있고, 여기에
- * articles 분기가 추가되어야 한다. 인프라/Lambda 갱신은 별도 배포 항목.
  */
 @Service
 @RequiredArgsConstructor
@@ -74,6 +77,7 @@ public class CurationArticleImageUploadService {
 
     private final S3Util s3Util;
     private final CurationArticleRepository articleRepo;
+    private final Hashids hashids;
 
     public ArticleImagePresignedUrlResponse issuePresignedUrl(Long articleId,
                                                               ArticleImagePresignedUrlRequest req) {
@@ -88,12 +92,12 @@ public class CurationArticleImageUploadService {
         if (req.getFileSize() > MAX_FILE_SIZE_BYTES) {
             throw new CustomException(ErrorCode.ARTICLE_IMAGE_TOO_LARGE);
         }
-
+        String articleHashId = hashids.encode(articleId);
         String uuid = UUID.randomUUID().toString();
-        String uploadKey = String.format("%s/%d/%s.%s",
-                UPLOAD_KEY_PREFIX, articleId, uuid, EXTENSION_BY_CONTENT_TYPE.get(contentType));
-        String imageKey = String.format("%s/%d/%s.%s",
-                IMAGE_KEY_PREFIX, articleId, uuid, CONVERTED_EXTENSION);
+        String uploadKey = String.format("%s/%s/%s.%s",
+                UPLOAD_KEY_PREFIX, articleHashId, uuid, EXTENSION_BY_CONTENT_TYPE.get(contentType));
+        String imageKey = String.format("%s/%s/%s.%s",
+                IMAGE_KEY_PREFIX, articleHashId, uuid, CONVERTED_EXTENSION);
 
         String presignedUrl = s3Util.createPresignedUrl(uploadKey, contentType);
 
@@ -110,7 +114,7 @@ public class CurationArticleImageUploadService {
      * <p>검증 순서:
      * <ol>
      *   <li>articleId 존재</li>
-     *   <li>각 key가 {@code images/articles/{articleId}/}로 시작하고 {@code .webp}로 끝나는지 (다른 글의 키 사칭 방지)</li>
+     *   <li>각 key가 {@code images/articles/{articleHashId}/}로 시작하고 {@code .webp}로 끝나는지 (다른 글의 키 사칭 방지)</li>
      *   <li>S3 HEAD로 객체 존재 여부 확인</li>
      * </ol>
      *
@@ -122,12 +126,11 @@ public class CurationArticleImageUploadService {
             throw new CustomException(ErrorCode.ARTICLE_NOT_FOUND);
         }
 
-        String requiredPrefix = String.format("%s/%d/", IMAGE_KEY_PREFIX, articleId);
+        String requiredPrefix = String.format("%s/%s/", IMAGE_KEY_PREFIX, hashids.encode(articleId));
         List<String> distinct = imageKeys.stream().distinct().toList();
 
         for (String key : distinct) {
             if (key == null || !key.startsWith(requiredPrefix) || !key.endsWith("." + CONVERTED_EXTENSION)) {
-                // 다른 article의 키 사칭 방지 + 변환 결과(.webp)만 허용
                 throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
                         "imageKey 형식이 잘못되었습니다: " + key);
             }
@@ -136,8 +139,6 @@ public class CurationArticleImageUploadService {
         List<String> missing = new ArrayList<>();
         List<String> present = new ArrayList<>();
         for (String key : distinct) {
-            // isObjectPresent는 404만 false. 권한/네트워크 문제는 예외로 propagate되어 catch-all 500이 되며,
-            // 프론트가 "아직 변환 안 됨"으로 오해하고 무한 폴링하는 것을 막는다.
             if (s3Util.isObjectPresent(key)) {
                 present.add(key);
             } else {

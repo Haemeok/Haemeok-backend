@@ -1,7 +1,10 @@
 package com.jdc.recipe_service.domain.dto.article;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.jdc.recipe_service.config.HashIdConfig;
 import com.jdc.recipe_service.domain.entity.article.CurationArticle;
 import com.jdc.recipe_service.domain.type.article.ArticleStatus;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
@@ -9,12 +12,19 @@ import lombok.Getter;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 어드민 큐레이션 아티클 상세 응답.
+ *
+ * <p>외부에 노출되는 모든 ID 필드는 HashID 문자열로 직렬화한다 — admin이라도 raw Long을 wire에 노출하지 않는다.
+ * 내부 필드 타입은 그대로 Long 유지 (DB/service/repository와 정합).
+ */
 @Getter
 @Builder
 @Schema(description = "큐레이션 아티클 상세 응답")
 public class CurationArticleResponse {
 
-    @Schema(description = "아티클 ID")
+    @JsonSerialize(using = HashIdConfig.HashIdSerializer.class)
+    @Schema(description = "아티클 ID (HashID 문자열)", example = "xJvY7aBp", type = "string")
     private Long id;
 
     @Schema(description = "URL slug")
@@ -26,7 +36,8 @@ public class CurationArticleResponse {
     @Schema(description = "메타 설명")
     private String description;
 
-    @Schema(description = "커버 이미지 S3 key")
+    @Schema(description = "커버 이미지 S3 imageKey (.webp). path segment는 articleHashId 기반.",
+            example = "images/articles/xJvY7aBp/uuid.webp")
     private String coverImageKey;
 
     @Schema(description = "본문 MDX 원본")
@@ -53,7 +64,11 @@ public class CurationArticleResponse {
     @Schema(description = "수정 시각")
     private LocalDateTime updatedAt;
 
-    @Schema(description = "참조한 레시피 ID 목록 (audit)")
+    @JsonSerialize(contentUsing = HashIdConfig.HashIdSerializer.class)
+    @ArraySchema(
+            schema = @Schema(type = "string", example = "vK9mP2Qa", description = "레시피 ID (HashID 문자열)"),
+            arraySchema = @Schema(description = "참조한 레시피 ID 목록 (HashID 문자열 배열, audit/soft link)")
+    )
     private List<Long> recipeIds;
 
     public static CurationArticleResponse of(CurationArticle a, List<Long> recipeIds) {

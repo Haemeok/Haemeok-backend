@@ -1,5 +1,8 @@
 package com.jdc.recipe_service.domain.dto.article;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.jdc.recipe_service.config.HashIdConfig;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -38,7 +41,7 @@ public class CurationArticleCreateRequest {
 
     @Size(max = 500)
     @Schema(description = "커버 이미지 S3 key. presigned URL 응답의 imageKey(.webp)를 저장한다 — uploadKey가 아니다.",
-            example = "images/articles/123/uuid.webp")
+            example = "images/articles/xJvY7aBp/uuid.webp")
     private String coverImageKey;
 
     @NotBlank
@@ -53,7 +56,20 @@ public class CurationArticleCreateRequest {
     @Schema(description = "생성에 사용된 AI 모델 식별자", example = "claude-opus-4.7")
     private String generatedBy;
 
-    @Schema(description = "참조한 레시피 ID 목록 (audit/soft link). 각 ID는 양의 정수여야 한다.")
+    /**
+     * 프론트가 보내는 wire 형식은 HashID 문자열 배열이지만, 내부 필드는 Long으로 유지해
+     * service/repository 레이어가 raw Long으로 처리하게 한다.
+     *
+     * <p>{@code @JsonDeserialize(contentUsing = StrictHashIdDeserializer)}가 element 단위로 String → Long 변환.
+     * Strict 버전이라 raw 숫자 입력(예: {@code [101, 102]})은 거부되고 HashID 문자열만 허용된다.
+     * Bean Validation의 {@code @NotNull} / {@code @Positive}는 디코드 후 element 값에 적용된다.
+     * OpenAPI는 wire 형식(string[])을 정확히 표현하기 위해 {@code @ArraySchema(schema=@Schema(type="string"))}.
+     */
+    @JsonDeserialize(contentUsing = HashIdConfig.StrictHashIdDeserializer.class)
+    @ArraySchema(
+            schema = @Schema(type = "string", example = "vK9mP2Qa", description = "레시피 ID (HashID 문자열)"),
+            arraySchema = @Schema(description = "참조한 레시피 ID 목록 (HashID 문자열 배열, audit/soft link)")
+    )
     private List<@NotNull(message = "recipeIds 항목에 null이 포함될 수 없습니다.")
                  @Positive(message = "recipeIds 항목은 양의 정수여야 합니다.") Long> recipeIds;
 }
