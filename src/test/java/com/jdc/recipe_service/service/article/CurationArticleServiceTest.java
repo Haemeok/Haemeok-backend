@@ -85,7 +85,6 @@ class CurationArticleServiceTest {
         @DisplayName("recipeIds 중 존재하지 않는 ID가 있으면 ARTICLE_INVALID_RECIPE_REF 예외를 던진다")
         void throwsWhenRecipeRefInvalid() {
             given(articleRepo.existsBySlug("summer-diet")).willReturn(false);
-            // 요청은 [1, 2]지만 1만 존재
             given(recipeRepo.findAllById(List.of(1L, 2L)))
                     .willReturn(List.of(Recipe.builder().build()));
 
@@ -149,6 +148,26 @@ class CurationArticleServiceTest {
         }
 
         @Test
+        @DisplayName("slug이 reserved 목록(sitemap)이면 ARTICLE_SLUG_RESERVED 예외 (route 충돌 방지)")
+        void create_reservedSlug_returns400() {
+            CurationArticleCreateRequest req = CurationArticleCreateRequest.builder()
+                    .slug("sitemap")
+                    .title("t")
+                    .contentMdx("c")
+                    .build();
+
+            assertThatThrownBy(() -> articleService.create(req))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ARTICLE_SLUG_RESERVED);
+
+            // reserved 검증이 가장 먼저 — DB(existsBySlug)나 recipeRepo가 호출되지 않는다
+            verify(articleRepo, never()).existsBySlug(any());
+            verify(recipeRepo, never()).findAllById(any());
+            verify(articleRepo, never()).save(any());
+        }
+
+        @Test
         @DisplayName("정상 생성 시 article 저장 + refs도 저장한다")
         void savesArticleAndRefs() {
             given(articleRepo.existsBySlug("summer-diet")).willReturn(false);
@@ -183,7 +202,6 @@ class CurationArticleServiceTest {
         @Test
         @DisplayName("본문이 바뀌면 humanReviewed가 false로 리셋된다")
         void resetsHumanReviewed() {
-            // given humanReviewed가 true인 article
             draftArticle.markReviewed();
             assertThat(draftArticle.isHumanReviewed()).isTrue();
             given(articleRepo.findById(100L)).willReturn(Optional.of(draftArticle));

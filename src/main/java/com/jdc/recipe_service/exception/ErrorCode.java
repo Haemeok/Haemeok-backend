@@ -115,7 +115,8 @@ public enum ErrorCode {
     ARTICLE_INVALID_RECIPE_REF(HttpStatus.BAD_REQUEST, "1204", "참조한 레시피 중 존재하지 않는 ID가 있습니다."),
     ARTICLE_IMAGE_INVALID_CONTENT_TYPE(HttpStatus.BAD_REQUEST, "1205", "지원하지 않는 이미지 형식입니다. (jpeg/png/webp만 허용)"),
     ARTICLE_IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "1206", "이미지 크기가 허용 한도(10MB)를 초과합니다."),
-    ARTICLE_IMAGES_NOT_READY(HttpStatus.CONFLICT, "1207", "아직 변환되지 않았거나 업로드되지 않은 이미지가 있습니다.");
+    ARTICLE_IMAGES_NOT_READY(HttpStatus.CONFLICT, "1207", "아직 변환되지 않았거나 업로드되지 않은 이미지가 있습니다."),
+    ARTICLE_SLUG_RESERVED(HttpStatus.BAD_REQUEST, "1208", "예약된 slug라 사용할 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;
