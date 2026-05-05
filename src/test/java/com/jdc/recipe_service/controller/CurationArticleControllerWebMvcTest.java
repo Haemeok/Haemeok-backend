@@ -1,6 +1,8 @@
 package com.jdc.recipe_service.controller;
 
 import com.jdc.recipe_service.config.HashIdConfig;
+import com.jdc.recipe_service.domain.dto.article.CurationArticleRecommendationResponse;
+import com.jdc.recipe_service.domain.dto.article.CurationArticleSitemapResponse;
 import com.jdc.recipe_service.domain.dto.article.PublicCurationArticleResponse;
 import com.jdc.recipe_service.domain.dto.article.PublicCurationArticleSummaryResponse;
 import com.jdc.recipe_service.exception.CustomException;
@@ -161,6 +163,116 @@ class CurationArticleControllerWebMvcTest {
                 .willThrow(new CustomException(ErrorCode.ARTICLE_NOT_FOUND));
 
         mockMvc.perform(get("/api/curation-articles/{slug}", "archived-slug"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("1201"));
+    }
+
+    @Test
+    @DisplayName("GET /api/curation-articles/sitemap: 200 + slug/updatedAt 배열, id/contentMdx/status 미노출")
+    void sitemap_ok() throws Exception {
+        CurationArticleSitemapResponse a = CurationArticleSitemapResponse.builder()
+                .slug("summer-diet")
+                .updatedAt(LocalDateTime.of(2026, 5, 5, 10, 20))
+                .build();
+        CurationArticleSitemapResponse b = CurationArticleSitemapResponse.builder()
+                .slug("winter-soup")
+                .updatedAt(LocalDateTime.of(2026, 5, 4, 9, 0))
+                .build();
+        given(publicArticleService.listSitemap()).willReturn(List.of(a, b));
+
+        mockMvc.perform(get("/api/curation-articles/sitemap"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].slug").value("summer-diet"))
+                .andExpect(jsonPath("$[0].updatedAt").value("2026-05-05T10:20:00"))
+                .andExpect(jsonPath("$[1].slug").value("winter-soup"))
+                .andExpect(jsonPath("$[0].id").doesNotExist())
+                .andExpect(jsonPath("$[0].contentMdx").doesNotExist())
+                .andExpect(jsonPath("$[0].status").doesNotExist())
+                .andExpect(jsonPath("$[0].title").doesNotExist())
+                .andExpect(jsonPath("$[0].coverImageKey").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /api/curation-articles/sitemap: 발행글이 없으면 빈 배열을 200으로 응답한다 (404 아님)")
+    void sitemap_empty_returns200WithEmptyArray() throws Exception {
+        given(publicArticleService.listSitemap()).willReturn(List.of());
+
+        mockMvc.perform(get("/api/curation-articles/sitemap"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("GET /api/curation-articles/sitemap: /sitemap이 /{slug} 매핑에 잡히지 않는다 — getBySlug 호출 안됨")
+    void sitemap_doesNotFallThroughToSlugHandler() throws Exception {
+        given(publicArticleService.listSitemap()).willReturn(List.of());
+
+        mockMvc.perform(get("/api/curation-articles/sitemap"))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(publicArticleService, org.mockito.Mockito.times(1)).listSitemap();
+        org.mockito.Mockito.verify(publicArticleService, org.mockito.Mockito.never())
+                .getBySlug(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("GET /api/curation-articles/{slug}/recommendations: 200 + slug/title/coverImageKey/category만 노출, 나머지 미노출")
+    void recommendations_ok() throws Exception {
+        CurationArticleRecommendationResponse a = CurationArticleRecommendationResponse.builder()
+                .slug("high-protein-breakfast")
+                .title("단백질 아침")
+                .coverImageKey("images/articles/abc/cover.webp")
+                .category("diet")
+                .build();
+        CurationArticleRecommendationResponse b = CurationArticleRecommendationResponse.builder()
+                .slug("winter-soup")
+                .title("겨울 수프")
+                .coverImageKey(null)
+                .category(null)
+                .build();
+        given(publicArticleService.listRecommendations(eq("summer-diet"), eq(6)))
+                .willReturn(List.of(a, b));
+
+        mockMvc.perform(get("/api/curation-articles/{slug}/recommendations", "summer-diet")
+                        .param("size", "6"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].slug").value("high-protein-breakfast"))
+                .andExpect(jsonPath("$[0].title").value("단백질 아침"))
+                .andExpect(jsonPath("$[0].coverImageKey").value("images/articles/abc/cover.webp"))
+                .andExpect(jsonPath("$[0].category").value("diet"))
+                // 카드 응답에 노출되면 안 되는 필드들
+                .andExpect(jsonPath("$[0].id").doesNotExist())
+                .andExpect(jsonPath("$[0].contentMdx").doesNotExist())
+                .andExpect(jsonPath("$[0].status").doesNotExist())
+                .andExpect(jsonPath("$[0].recipeIds").doesNotExist())
+                .andExpect(jsonPath("$[0].generatedBy").doesNotExist())
+                .andExpect(jsonPath("$[0].humanReviewed").doesNotExist())
+                // null 필드는 그대로 null로 직렬화
+                .andExpect(jsonPath("$[1].coverImageKey").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$[1].category").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    @DisplayName("GET /api/curation-articles/{slug}/recommendations: size 미지정이면 service에 null 전달 (default 처리는 service)")
+    void recommendations_sizeOmitted_passesNullToService() throws Exception {
+        given(publicArticleService.listRecommendations(eq("summer-diet"), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn(List.of());
+
+        mockMvc.perform(get("/api/curation-articles/{slug}/recommendations", "summer-diet"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("GET /api/curation-articles/{slug}/recommendations: 없는 slug면 service가 ARTICLE_NOT_FOUND, 404 + code=1201")
+    void recommendations_unknownSlug_returns404() throws Exception {
+        given(publicArticleService.listRecommendations(eq("ghost-slug"), org.mockito.ArgumentMatchers.any()))
+                .willThrow(new CustomException(ErrorCode.ARTICLE_NOT_FOUND));
+
+        mockMvc.perform(get("/api/curation-articles/{slug}/recommendations", "ghost-slug"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("1201"));
     }

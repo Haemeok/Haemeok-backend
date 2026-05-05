@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 큐레이션 아티클 어드민 유스케이스.
@@ -34,6 +35,15 @@ public class CurationArticleService {
     private final CurationArticleRepository articleRepo;
     private final CurationArticleRecipeRefRepository refRepo;
     private final RecipeRepository recipeRepo;
+
+    /**
+     * public {@code /api/curation-articles/{slug}}와 같은 prefix 아래 literal route가 잡고 있는 segment 목록.
+     * 이 값들이 slug로 들어오면 {@code GET /{slug}} 매핑이 영영 도달 불가능해지므로 create 시점에 차단한다.
+     *
+     * <p>새 literal route(예: 추후 {@code /api/curation-articles/feed} 같은 것)가
+     * {@link com.jdc.recipe_service.controller.CurationArticleController}에 추가되면 그 segment를 여기에도 추가해야 한다.
+     */
+    private static final Set<String> RESERVED_SLUGS = Set.of("sitemap");
 
     // ── Read ──
 
@@ -55,6 +65,9 @@ public class CurationArticleService {
 
     @Transactional
     public Long create(CurationArticleCreateRequest req) {
+        if (RESERVED_SLUGS.contains(req.getSlug())) {
+            throw new CustomException(ErrorCode.ARTICLE_SLUG_RESERVED);
+        }
         if (articleRepo.existsBySlug(req.getSlug())) {
             throw new CustomException(ErrorCode.ARTICLE_SLUG_DUPLICATE);
         }
@@ -110,7 +123,6 @@ public class CurationArticleService {
         loadArticle(articleId).markReviewed();
     }
 
-    // ── helpers ──
 
     private CurationArticle loadArticle(Long articleId) {
         return articleRepo.findById(articleId)
@@ -120,9 +132,6 @@ public class CurationArticleService {
     private void validateRecipeIds(List<Long> recipeIds) {
         if (recipeIds == null || recipeIds.isEmpty()) return;
 
-        // DTO에 element-level @NotNull/@Positive가 있지만, service 단독 호출(향후 internal caller / batch)
-        // 경로도 안전해야 한다. recipeRepo.findAllById가 null element를 받으면 IllegalArgumentException으로
-        // 터지면서 catch-all 500이 나갈 수 있어 여기서 명시적 4xx로 차단한다.
         if (recipeIds.stream().anyMatch(id -> id == null || id <= 0)) {
             throw new CustomException(ErrorCode.ARTICLE_INVALID_RECIPE_REF);
         }

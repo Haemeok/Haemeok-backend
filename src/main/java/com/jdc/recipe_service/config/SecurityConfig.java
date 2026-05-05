@@ -110,6 +110,7 @@ public class SecurityConfig {
                                     "/api/dev/search/**",  // dev V3 search mirrors
                                     "/api/curation-articles",        // public 큐레이션 아티클 목록 (PUBLISHED만 service가 강제)
                                     "/api/curation-articles/*",      // public 큐레이션 아티클 상세 (slug; PUBLISHED만 service가 강제)
+                                    "/api/curation-articles/*/recommendations",  // public 추천 — 2-depth라 위 단일 wildcard로 안 잡힘
                                     "/api/recipes/sitemap"
                             ).permitAll()
 
@@ -353,6 +354,7 @@ public class SecurityConfig {
                                 "/api/dev/search/**",  // dev V3 search mirrors
                                 "/api/curation-articles",        // public 큐레이션 아티클 목록 (PUBLISHED만 service가 강제)
                                 "/api/curation-articles/*",      // public 큐레이션 아티클 상세 (slug; PUBLISHED만 service가 강제)
+                                "/api/curation-articles/*/recommendations",  // public 추천 — 2-depth라 위 단일 wildcard로 안 잡힘
                                 "/api/recipes/sitemap"
                         ).permitAll()
 
