@@ -26,6 +26,24 @@ public interface CurationArticleRepository extends JpaRepository<CurationArticle
     Optional<CurationArticle> findBySlugAndStatus(String slug, ArticleStatus status);
 
     /**
+     * 자동 suffix 결정용 — base slug와 {@code base-} 로 시작하는 모든 slug를 한 번에 가져온다.
+     * UNIQUE index on slug가 prefix 매칭에 활용되므로 cost가 낮다. service에서 사용 중인 suffix 집합을
+     * 계산해 가장 작은 미사용 candidate를 결정한다.
+     *
+     * <p>{@code base-숫자}만 매칭하는 게 아니라 {@code base-anything} 전부 매칭한다 (예: {@code base-special}).
+     * service의 {@code pickAvailableSlug}는 정수 suffix만 시도하므로 set에 비-숫자 항목이 섞여 있어도 결과에 영향이 없다 —
+     * 그 항목이 실제로 점유된 slug이긴 해도 {@code base-2}, {@code base-3} 같은 숫자 후보를 가리지 않기 때문이다.
+     *
+     * <p>주의: LIKE escape 처리는 호출자 책임이 아니라 정책으로 차단한다 — slug는 {@code @Pattern} 검증으로
+     * {@code [a-z0-9-]}만 허용되어 LIKE wildcard({@code %, _})가 들어올 수 없다.
+     */
+    @Query("""
+            SELECT a.slug FROM CurationArticle a
+            WHERE a.slug = :base OR a.slug LIKE CONCAT(:base, '-%')
+            """)
+    List<String> findSlugsStartingWith(@Param("base") String base);
+
+    /**
      * 어드민 목록: status / category / q(title LIKE) 모두 optional. null이면 조건에서 제외.
      * Page로 반환해 어드민 화면 총 개수 노출을 지원한다.
      */
