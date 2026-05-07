@@ -278,4 +278,144 @@ class DevRecipeAccessPolicyTest {
             }
         }
     }
+
+    // =========================================================================
+    // V1.x — 의미별 메서드: isViewableBy / isOwnerVisibleBy
+    // =========================================================================
+
+    @Nested
+    @DisplayName("isViewableBy — 단건 상세/저장/상호작용 (PUBLIC+UNLISTED link-only 허용)")
+    class ViewableBy {
+
+        @Test
+        @DisplayName("ACTIVE + PUBLIC + non-owner → true (PUBLIC이면 listingStatus 무시 — link-only 핵심 invariant)")
+        void publicUnlisted_nonOwner_canView() {
+            // in-memory isViewableBy는 listingStatus 인자를 받지 않는다 (의미상 무시) — 실제 UNLISTED row의 SQL 결과는
+            // DevRecipeQueryPredicatesTest.viewableBy_nonOwner_includesPublicUnlistedAndExcludesRestrictedPrivate가 검증.
+            // 구 isAccessibleBy에서는 PUBLIC+UNLISTED non-owner가 false였던 케이스 — link-only 정책 회귀 잠금.
+            assertThat(DevRecipeAccessPolicy.isViewableBy(
+                    RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,
+                    OTHER_VIEWER_ID, OWNER_ID))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("ACTIVE + PUBLIC + anonymous(viewerId=null) → true (PUBLIC이면 listingStatus 무시)")
+        void publicUnlisted_anonymous_canView() {
+            assertThat(DevRecipeAccessPolicy.isViewableBy(
+                    RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,
+                    null, OWNER_ID))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("ACTIVE + PRIVATE + non-owner → false (PRIVATE는 owner만)")
+        void private_nonOwner_isFalse() {
+            assertThat(DevRecipeAccessPolicy.isViewableBy(
+                    RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE,
+                    OTHER_VIEWER_ID, OWNER_ID))
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("ACTIVE + PRIVATE + owner → true (owner는 자신의 비공개 글 볼 수 있음)")
+        void private_owner_canView() {
+            assertThat(DevRecipeAccessPolicy.isViewableBy(
+                    RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE,
+                    OWNER_ID, OWNER_ID))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("non-ACTIVE는 owner도 차단 (admin 우회 방지)")
+        void nonActive_ownerBlocked() {
+            for (RecipeLifecycleStatus lifecycle : new RecipeLifecycleStatus[]{
+                    RecipeLifecycleStatus.HIDDEN, RecipeLifecycleStatus.BANNED, RecipeLifecycleStatus.DELETED}) {
+                assertThat(DevRecipeAccessPolicy.isViewableBy(
+                        lifecycle, RecipeVisibility.PUBLIC, OWNER_ID, OWNER_ID))
+                        .as("lifecycle=%s + owner도 차단", lifecycle)
+                        .isFalse();
+            }
+        }
+
+        @Test
+        @DisplayName("ACTIVE + RESTRICTED + non-owner → false (legacy RESTRICTED는 owner만)")
+        void restricted_nonOwner_isFalse() {
+            assertThat(DevRecipeAccessPolicy.isViewableBy(
+                    RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED,
+                    OTHER_VIEWER_ID, OWNER_ID))
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("matrix: lifecycle×visibility 12조합 × 3시점(owner/non-owner/anonymous) — 'ACTIVE && (owner OR PUBLIC)' 공식과 일치 (listingStatus 무시)")
+        void viewableBy_matrixMatchesFormula() {
+            // listingStatus 차원이 빠진 매트릭스 — 12조합. 각 조합을 owner/non-owner/anonymous 3 시점으로 검증.
+            for (RecipeLifecycleStatus lifecycle : RecipeLifecycleStatus.values()) {
+                for (RecipeVisibility visibility : RecipeVisibility.values()) {
+                    boolean activeOnly = lifecycle == RecipeLifecycleStatus.ACTIVE;
+                    boolean publicVis = visibility == RecipeVisibility.PUBLIC;
+
+                    // owner 시점
+                    assertThat(DevRecipeAccessPolicy.isViewableBy(
+                            lifecycle, visibility, OWNER_ID, OWNER_ID))
+                            .as("owner: lifecycle=%s, visibility=%s", lifecycle, visibility)
+                            .isEqualTo(activeOnly);  // owner면 ACTIVE인 한 visibility 무관 true
+
+                    // non-owner 시점 — ACTIVE && PUBLIC만
+                    assertThat(DevRecipeAccessPolicy.isViewableBy(
+                            lifecycle, visibility, OTHER_VIEWER_ID, OWNER_ID))
+                            .as("non-owner: lifecycle=%s, visibility=%s", lifecycle, visibility)
+                            .isEqualTo(activeOnly && publicVis);
+
+                    // anonymous 시점 — ACTIVE && PUBLIC만
+                    assertThat(DevRecipeAccessPolicy.isViewableBy(
+                            lifecycle, visibility, null, OWNER_ID))
+                            .as("anonymous: lifecycle=%s, visibility=%s", lifecycle, visibility)
+                            .isEqualTo(activeOnly && publicVis);
+                }
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("isOwnerVisibleBy — 내 레시피 목록 등 owner-only 화면")
+    class OwnerVisibleBy {
+
+        @Test
+        @DisplayName("ACTIVE + owner → true")
+        void activeOwner_isTrue() {
+            assertThat(DevRecipeAccessPolicy.isOwnerVisibleBy(
+                    RecipeLifecycleStatus.ACTIVE, OWNER_ID, OWNER_ID))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("ACTIVE + non-owner → false")
+        void activeNonOwner_isFalse() {
+            assertThat(DevRecipeAccessPolicy.isOwnerVisibleBy(
+                    RecipeLifecycleStatus.ACTIVE, OTHER_VIEWER_ID, OWNER_ID))
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("anonymous(viewerId=null) → false")
+        void anonymous_isFalse() {
+            assertThat(DevRecipeAccessPolicy.isOwnerVisibleBy(
+                    RecipeLifecycleStatus.ACTIVE, null, OWNER_ID))
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("non-ACTIVE는 owner도 차단")
+        void nonActive_ownerBlocked() {
+            for (RecipeLifecycleStatus lifecycle : new RecipeLifecycleStatus[]{
+                    RecipeLifecycleStatus.HIDDEN, RecipeLifecycleStatus.BANNED, RecipeLifecycleStatus.DELETED}) {
+                assertThat(DevRecipeAccessPolicy.isOwnerVisibleBy(
+                        lifecycle, OWNER_ID, OWNER_ID))
+                        .as("lifecycle=%s + owner도 차단", lifecycle)
+                        .isFalse();
+            }
+        }
+    }
 }

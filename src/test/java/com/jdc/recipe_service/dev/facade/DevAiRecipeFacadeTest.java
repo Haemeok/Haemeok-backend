@@ -17,7 +17,6 @@ import com.jdc.recipe_service.domain.type.AiRecipeConcept;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
-import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.DailyQuotaService;
@@ -417,7 +416,7 @@ class DevAiRecipeFacadeTest {
         verify(recipeEntity).updateImageKey(AsyncImageService.DEFAULT_IMAGE_KEY);
         verify(recipeEntity).updateImageStatus(RecipeImageStatus.FAILED);
         verify(recipeEntity).updateImageGenerationModel(VALID_MODEL);
-        verify(recipeEntity).applyVisibility(RecipeVisibility.PUBLIC);
+        verify(recipeEntity).applyPublicListed();
         assertThat(job.getStatus()).isEqualTo(com.jdc.recipe_service.domain.type.JobStatus.COMPLETED);
         assertThat(job.getResultRecipeId()).isEqualTo(recipeId);
     }

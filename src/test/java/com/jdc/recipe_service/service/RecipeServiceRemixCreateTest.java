@@ -67,7 +67,7 @@ import static org.mockito.Mockito.verify;
  *   - 동일 유저가 동일 원본으로 2회 이상 → RECIPE_REMIX_ALREADY_EXISTS (409)
  *       · 애플리케이션 레벨: existsByOriginRecipeIdAndUserId 선검사
  *       · DB 레벨: uq_recipes_origin_user 유니크 제약 → DataIntegrityViolationException 매핑
- *   - 서버가 body와 무관하게 visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true,
+ *   - 서버가 body와 무관하게 visibility=PUBLIC, listingStatus=UNLISTED, isPrivate=false (link-only),
  *     source=YOUTUBE, extractorId=null, originRecipe=source 를 강제
  *   - 원본 imageKey가 있으면 S3 CopyObject로 list용(main.webp)과 detail용(main_detail.webp)
  *     두 변형을 모두 새 키에 복제. detail이 없는 legacy 원본은 main만 복사하고 경고 로그.
@@ -166,7 +166,7 @@ class RecipeServiceRemixCreateTest {
     }
 
     @Test
-    @DisplayName("유효한 원본으로 리믹스 시 PRIVATE/UNLISTED/isPrivate=true/source=YOUTUBE/originRecipe 강제, S3 CopyObject가 main + detail 모두 호출")
+    @DisplayName("유효한 원본으로 리믹스 시 PUBLIC/UNLISTED/isPrivate=false (link-only) + source=YOUTUBE/originRecipe 강제, S3 CopyObject가 main + detail 모두 호출")
     void remix_withValidSource_forcesInvariantsAndCopiesImage() {
         // given
         Recipe source = cloneableSource().build();
@@ -176,10 +176,10 @@ class RecipeServiceRemixCreateTest {
 
         RecipeCreateRequestDto dto = baseDto();
         dto.setOriginRecipeId(SOURCE_RECIPE_ID);
-        // 클라이언트가 PUBLIC/LISTED로 조작을 시도해도 서버가 덮어써야 한다
-        dto.setVisibility(RecipeVisibility.PUBLIC);
+        // 클라이언트가 PRIVATE/LISTED 등 다른 조합으로 조작을 시도해도 서버가 PUBLIC+UNLISTED로 덮어써야 한다
+        dto.setVisibility(RecipeVisibility.PRIVATE);
         dto.setListingStatus(RecipeListingStatus.LISTED);
-        dto.setIsPrivate(false);
+        dto.setIsPrivate(true);
         dto.setExtractorId(999L);
 
         // when
@@ -190,9 +190,10 @@ class RecipeServiceRemixCreateTest {
         verify(recipeRepository).save(saved.capture());
         Recipe persisted = saved.getValue();
 
-        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        // 리믹스는 link-only — 누구나 링크로 접근 가능하지만 검색/추천 등 discovery에는 노출되지 않는다
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
         assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
-        assertThat(persisted.getIsPrivate()).isTrue();
+        assertThat(persisted.getIsPrivate()).isFalse();
         assertThat(persisted.getSource()).isEqualTo(RecipeSourceType.YOUTUBE);
         assertThat(persisted.getExtractorId()).isNull();
         assertThat(persisted.getOriginRecipe()).isSameAs(source);
@@ -233,10 +234,10 @@ class RecipeServiceRemixCreateTest {
         verify(recipeRepository).save(saved.capture());
         Recipe persisted = saved.getValue();
 
-        // 리믹스 불변식은 유지되어야 한다
-        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        // 리믹스 불변식 (link-only): PUBLIC + UNLISTED + isPrivate=false
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
         assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
-        assertThat(persisted.getIsPrivate()).isTrue();
+        assertThat(persisted.getIsPrivate()).isFalse();
         assertThat(persisted.getSource()).isEqualTo(RecipeSourceType.YOUTUBE);
         assertThat(persisted.getOriginRecipe()).isSameAs(source);
         // imageKey는 새 레시피의 자체 경로로 배정되어야 한다 (복사가 아닌 프리사인드 업로드 대상)

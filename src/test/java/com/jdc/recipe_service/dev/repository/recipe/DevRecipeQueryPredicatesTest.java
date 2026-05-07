@@ -133,6 +133,106 @@ class DevRecipeQueryPredicatesTest {
         assertThat(titles).containsExactly("pub");
     }
 
+    // =========================================================================
+    // V1.x — viewableBy / ownerVisible (link-only 정책 SQL 표현 검증)
+    // =========================================================================
+
+    @Test
+    @DisplayName("viewableBy(other): PUBLIC+UNLISTED도 SELECT 포함 (link-only) — RESTRICTED/PRIVATE/non-ACTIVE 제외")
+    void viewableBy_nonOwner_includesPublicUnlistedAndExcludesRestrictedPrivate() {
+        persistRecipe(owner, "pub-listed",   RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED);
+        persistRecipe(owner, "pub-unlisted", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,     RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "priv",         RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE,    RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "restricted",   RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "hidden",       RecipeLifecycleStatus.HIDDEN, RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED);
+        em.flush();
+        em.clear();
+
+        QRecipe r = QRecipe.recipe;
+        List<String> titles = queryFactory.select(r.title)
+                .from(r)
+                .where(DevRecipeQueryPredicates.viewableBy(r, other.getId()))
+                .fetch();
+
+        // 핵심 invariant: PUBLIC+UNLISTED는 link-only로 non-owner도 볼 수 있다.
+        // RESTRICTED는 owner만, non-ACTIVE는 모두 차단.
+        assertThat(titles).containsExactlyInAnyOrder("pub-listed", "pub-unlisted");
+    }
+
+    @Test
+    @DisplayName("viewableBy(owner): ACTIVE 자기 레시피는 visibility 무관 SELECT — non-ACTIVE는 owner도 차단")
+    void viewableBy_owner_seesAllOwnActive_butNotNonActive() {
+        persistRecipe(owner, "pub",        RecipeLifecycleStatus.ACTIVE,  RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED);
+        persistRecipe(owner, "priv",       RecipeLifecycleStatus.ACTIVE,  RecipeVisibility.PRIVATE,    RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "restricted", RecipeLifecycleStatus.ACTIVE,  RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "hidden",     RecipeLifecycleStatus.HIDDEN,  RecipeVisibility.PRIVATE,    RecipeListingStatus.UNLISTED);
+        em.flush();
+        em.clear();
+
+        QRecipe r = QRecipe.recipe;
+        List<String> titles = queryFactory.select(r.title)
+                .from(r)
+                .where(DevRecipeQueryPredicates.viewableBy(r, owner.getId()))
+                .fetch();
+
+        assertThat(titles).containsExactlyInAnyOrder("pub", "priv", "restricted");
+    }
+
+    @Test
+    @DisplayName("viewableBy(null): anonymous는 ACTIVE+PUBLIC만 (UNLISTED도 포함) — RESTRICTED/PRIVATE 누수 없음")
+    void viewableBy_anonymous_matchesPublicAny() {
+        persistRecipe(owner, "pub-listed",   RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED);
+        persistRecipe(owner, "pub-unlisted", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,     RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "priv",         RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE,    RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "restricted",   RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED);
+        em.flush();
+        em.clear();
+
+        QRecipe r = QRecipe.recipe;
+        List<String> titles = queryFactory.select(r.title)
+                .from(r)
+                .where(DevRecipeQueryPredicates.viewableBy(r, null))
+                .fetch();
+
+        assertThat(titles).containsExactlyInAnyOrder("pub-listed", "pub-unlisted");
+    }
+
+    @Test
+    @DisplayName("ownerVisible(owner): ACTIVE 자기 레시피만 SELECT — 다른 사람 글이나 non-ACTIVE는 0건")
+    void ownerVisible_owner_seesOwnActiveOnly() {
+        persistRecipe(owner, "own-pub",    RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,  RecipeListingStatus.LISTED);
+        persistRecipe(owner, "own-priv",   RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE, RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "own-hidden", RecipeLifecycleStatus.HIDDEN, RecipeVisibility.PUBLIC,  RecipeListingStatus.LISTED);
+        persistRecipe(other, "other-pub",  RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,  RecipeListingStatus.LISTED);
+        em.flush();
+        em.clear();
+
+        QRecipe r = QRecipe.recipe;
+        List<String> titles = queryFactory.select(r.title)
+                .from(r)
+                .where(DevRecipeQueryPredicates.ownerVisible(r, owner.getId()))
+                .fetch();
+
+        // 다른 사람 PUBLIC + 자기 HIDDEN 모두 제외, 자기 ACTIVE만
+        assertThat(titles).containsExactlyInAnyOrder("own-pub", "own-priv");
+    }
+
+    @Test
+    @DisplayName("ownerVisible(null): anonymous는 0건 (1=0 가드) — anonymous 호출 시 owner 매칭 자체가 안 됨")
+    void ownerVisible_anonymous_returnsEmpty() {
+        persistRecipe(owner, "own-pub", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED);
+        em.flush();
+        em.clear();
+
+        QRecipe r = QRecipe.recipe;
+        List<String> titles = queryFactory.select(r.title)
+                .from(r)
+                .where(DevRecipeQueryPredicates.ownerVisible(r, null))
+                .fetch();
+
+        assertThat(titles).isEmpty();
+    }
+
     // ---------- fixtures ----------
 
     private User persistUser(String oauthId, String nickname) {

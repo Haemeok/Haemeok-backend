@@ -1,8 +1,11 @@
 package com.jdc.recipe_service.service;
 
+import com.jdc.recipe_service.domain.dto.recipe.RecipeCreateRequestDto;
 import com.jdc.recipe_service.domain.dto.report.AdminIngredientUpdateDto;
 import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
+import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.util.PricingUtil;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +53,178 @@ class AdminRecipeServiceTest {
     @Mock private IngredientCandidateRepository ingredientCandidateRepository;
     @Mock private UserRepository userRepository;
     @Mock private com.jdc.recipe_service.util.S3Util s3Util;
+
+    @Test
+    @DisplayName("createRecipe (단건): dto.isPrivate=true 입력 시 트리플 (PRIVATE+UNLISTED+isPrivate=true) 정규화")
+    void createRecipe_private_appliesTriple() {
+        Long userId = 1L;
+        User user = User.builder().id(userId).build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(recipeIngredientService.saveAll(any(Recipe.class), any(), any())).willReturn(0);
+
+        RecipeCreateRequestDto dto = RecipeCreateRequestDto.builder()
+                .title("관리자 단건 비공개")
+                .dishType("볶음")
+                .isPrivate(true)
+                .ingredients(java.util.Collections.emptyList())
+                .steps(java.util.Collections.emptyList())
+                .tags(java.util.Collections.emptyList())
+                .build();
+
+        adminRecipeService.createRecipe(dto, userId);
+
+        ArgumentCaptor<Recipe> captor = ArgumentCaptor.forClass(Recipe.class);
+        verify(recipeRepository).save(captor.capture());
+        Recipe persisted = captor.getValue();
+        // mapper만 거치면 PUBLIC+LISTED+isPrivate=true 깨진 row. 헬퍼 정규화 검증.
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(persisted.getIsPrivate()).isTrue();
+    }
+
+    @Test
+    @DisplayName("createRecipe (단건): dto.visibility=RESTRICTED 입력은 INVALID_INPUT_VALUE로 거부 (save 전 차단)")
+    void createRecipe_restricted_isRejected() {
+        Long userId = 1L;
+        User user = User.builder().id(userId).build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        RecipeCreateRequestDto dto = RecipeCreateRequestDto.builder()
+                .title("RESTRICTED 단건 시도")
+                .dishType("볶음")
+                .visibility(RecipeVisibility.RESTRICTED)
+                .ingredients(java.util.Collections.emptyList())
+                .steps(java.util.Collections.emptyList())
+                .tags(java.util.Collections.emptyList())
+                .build();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> adminRecipeService.createRecipe(dto, userId))
+                .isInstanceOf(com.jdc.recipe_service.exception.CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(com.jdc.recipe_service.exception.ErrorCode.INVALID_INPUT_VALUE);
+
+        verify(recipeRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    @DisplayName("createRecipeAndPresignedUrls: dto.isPrivate=true 입력 시 트리플 (PRIVATE+UNLISTED+isPrivate=true) 정규화")
+    void createRecipeAndPresignedUrls_private_appliesTriple() {
+        Long userId = 1L;
+        User user = User.builder().id(userId).build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(recipeIngredientService.saveAll(any(Recipe.class), any(), any())).willReturn(0);
+        // presigned URL 생성은 같은 클래스 내 private method — files=empty면 자체적으로 빈 리스트 반환하므로 별도 stub 불필요
+
+        RecipeCreateRequestDto dto = RecipeCreateRequestDto.builder()
+                .title("관리자 + presigned 비공개")
+                .dishType("볶음")
+                .isPrivate(true)
+                .ingredients(java.util.Collections.emptyList())
+                .steps(java.util.Collections.emptyList())
+                .tags(java.util.Collections.emptyList())
+                .build();
+        com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest req =
+                com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest.builder()
+                        .recipe(dto)
+                        .files(java.util.Collections.emptyList())
+                        .build();
+
+        adminRecipeService.createRecipeAndPresignedUrls(req, userId);
+
+        ArgumentCaptor<Recipe> captor = ArgumentCaptor.forClass(Recipe.class);
+        verify(recipeRepository).save(captor.capture());
+        Recipe persisted = captor.getValue();
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(persisted.getIsPrivate()).isTrue();
+    }
+
+    @Test
+    @DisplayName("createRecipeAndPresignedUrls: dto.visibility=RESTRICTED 입력은 INVALID_INPUT_VALUE로 거부")
+    void createRecipeAndPresignedUrls_restricted_isRejected() {
+        Long userId = 1L;
+        User user = User.builder().id(userId).build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        RecipeCreateRequestDto dto = RecipeCreateRequestDto.builder()
+                .title("RESTRICTED + presigned 시도")
+                .dishType("볶음")
+                .visibility(RecipeVisibility.RESTRICTED)
+                .ingredients(java.util.Collections.emptyList())
+                .steps(java.util.Collections.emptyList())
+                .tags(java.util.Collections.emptyList())
+                .build();
+        com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest req =
+                com.jdc.recipe_service.domain.dto.recipe.RecipeWithImageUploadRequest.builder()
+                        .recipe(dto)
+                        .files(java.util.Collections.emptyList())
+                        .build();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> adminRecipeService.createRecipeAndPresignedUrls(req, userId))
+                .isInstanceOf(com.jdc.recipe_service.exception.CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(com.jdc.recipe_service.exception.ErrorCode.INVALID_INPUT_VALUE);
+
+        verify(recipeRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    @DisplayName("createRecipesInBulk: dto.isPrivate=true 입력 시 트리플 (PRIVATE+UNLISTED+isPrivate=true) 정규화")
+    void createBulk_private_appliesTriple() {
+        // Given
+        Long userId = 1L;
+        User user = User.builder().id(userId).build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(recipeIngredientService.saveAll(any(Recipe.class), any(), any())).willReturn(0);
+
+        RecipeCreateRequestDto privateDto = RecipeCreateRequestDto.builder()
+                .title("관리자 비공개 레시피")
+                .dishType("볶음")
+                .isPrivate(true)
+                .ingredients(java.util.Collections.emptyList())
+                .steps(java.util.Collections.emptyList())
+                .tags(java.util.Collections.emptyList())
+                .build();
+
+        // When
+        adminRecipeService.createRecipesInBulk(List.of(privateDto), userId);
+
+        // Then - 헬퍼가 트리플 정규화. entity default(PUBLIC+LISTED)에 의존했다면 isPrivate=true이지만 visibility/listingStatus 그대로인 깨진 row.
+        ArgumentCaptor<Recipe> captor = ArgumentCaptor.forClass(Recipe.class);
+        verify(recipeRepository).save(captor.capture());
+        Recipe persisted = captor.getValue();
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(persisted.getIsPrivate()).isTrue();
+    }
+
+    @Test
+    @DisplayName("createRecipesInBulk: dto.visibility=RESTRICTED 입력은 INVALID_INPUT_VALUE로 거부 (RESTRICTED 신규 생성 차단)")
+    void createBulk_restricted_isRejected() {
+        Long userId = 1L;
+        User user = User.builder().id(userId).build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        RecipeCreateRequestDto restrictedDto = RecipeCreateRequestDto.builder()
+                .title("RESTRICTED 시도")
+                .dishType("볶음")
+                .visibility(RecipeVisibility.RESTRICTED)
+                .ingredients(java.util.Collections.emptyList())
+                .steps(java.util.Collections.emptyList())
+                .tags(java.util.Collections.emptyList())
+                .build();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> adminRecipeService.createRecipesInBulk(List.of(restrictedDto), userId))
+                .isInstanceOf(com.jdc.recipe_service.exception.CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(com.jdc.recipe_service.exception.ErrorCode.INVALID_INPUT_VALUE);
+
+        // RESTRICTED 입력이 helper 단계에서 차단되어 save까지 도달 안 함
+        verify(recipeRepository, org.mockito.Mockito.never()).save(any());
+    }
 
     @Test
     @DisplayName("deleteRecipe: 관리자는 연관 데이터를 정리한 뒤 레시피를 삭제한다")

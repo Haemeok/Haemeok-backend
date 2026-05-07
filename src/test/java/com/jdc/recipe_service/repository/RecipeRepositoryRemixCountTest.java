@@ -81,20 +81,21 @@ class RecipeRepositoryRemixCountTest {
     }
 
     @Test
-    @DisplayName("H6: count와 find의 WHERE 절이 동일한 집합을 산출한다 (각 차원별 제외 조건 모두 반영)")
+    @DisplayName("H6: count와 find의 WHERE 절이 동일한 집합을 산출한다 — V1.x 정책 (PUBLIC+UNLISTED link-only도 포함)")
     void countRemixes_matchesFindRemixesWhereClause() {
-        // given: 3개는 모든 필터를 통과해야 한다
-        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED, RecipeLifecycleStatus.ACTIVE, false);
-        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED, RecipeLifecycleStatus.ACTIVE, false);
-        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED, RecipeLifecycleStatus.ACTIVE, false);
-
-        // 각 필터 차원별로 제외되어야 하는 케이스
-        persistRemix(RecipeVisibility.PRIVATE, RecipeListingStatus.UNLISTED, RecipeLifecycleStatus.ACTIVE, true);
-        persistRemix(RecipeVisibility.RESTRICTED, RecipeListingStatus.LISTED, RecipeLifecycleStatus.ACTIVE, false);
+        // given: 모든 필터를 통과하는 row (ACTIVE + PUBLIC + isPrivate=false)
+        // V1.x 정책: 리믹스는 listingStatus 무관 — LISTED/UNLISTED 모두 통과 (link-only도 원본의 리믹스 목록에 포함)
+        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,   RecipeLifecycleStatus.ACTIVE, false);
+        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,   RecipeLifecycleStatus.ACTIVE, false);
+        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,   RecipeLifecycleStatus.ACTIVE, false);
         persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.UNLISTED, RecipeLifecycleStatus.ACTIVE, false);
-        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED, RecipeLifecycleStatus.HIDDEN, false);
-        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED, RecipeLifecycleStatus.DELETED, false);
-        persistRemix(RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED, RecipeLifecycleStatus.ACTIVE, true);
+
+        // 각 필터 차원별로 제외되어야 하는 케이스 (PRIVATE / RESTRICTED / non-ACTIVE / isPrivate=true)
+        persistRemix(RecipeVisibility.PRIVATE,    RecipeListingStatus.UNLISTED, RecipeLifecycleStatus.ACTIVE,  true);
+        persistRemix(RecipeVisibility.RESTRICTED, RecipeListingStatus.LISTED,   RecipeLifecycleStatus.ACTIVE,  false);
+        persistRemix(RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED,   RecipeLifecycleStatus.HIDDEN,  false);
+        persistRemix(RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED,   RecipeLifecycleStatus.DELETED, false);
+        persistRemix(RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED,   RecipeLifecycleStatus.ACTIVE,  true);
         em.flush();
         em.clear();
 
@@ -106,10 +107,10 @@ class RecipeRepositoryRemixCountTest {
         assertThat(count)
                 .as("countRemixes와 findRemixes는 동일한 WHERE 조건을 써야 한다 (H6 invariant)")
                 .isEqualTo(page.getTotalElements())
-                .isEqualTo(3L);
+                .isEqualTo(4L);
         assertThat(page.getContent())
-                .as("필터를 통과한 3건만 리스트에 나온다")
-                .hasSize(3);
+                .as("필터를 통과한 4건 (PUBLIC+LISTED 3 + PUBLIC+UNLISTED 1)")
+                .hasSize(4);
     }
 
     @Test

@@ -112,25 +112,28 @@ class DevRecipeRemixQueryRepositoryTest {
     }
 
     @Test
-    @DisplayName("PRIVATE/RESTRICTED/UNLISTED/non-ACTIVE remix 모두 제외")
-    void nonStrictVisibility_excluded() {
+    @DisplayName("PRIVATE/RESTRICTED/non-ACTIVE remix 제외하지만 PUBLIC+UNLISTED(link-only)는 포함 (V1.x 리믹스 정책)")
+    void nonViewableRemixesExcluded_butPublicUnlistedIncluded() {
         persistRecipe("private", origin,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE, RecipeListingStatus.UNLISTED,
                 RecipeImageStatus.READY);
         persistRecipe("restricted", origin,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED,
                 RecipeImageStatus.READY);
-        persistRecipe("unlisted", origin,
-                RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.UNLISTED,
-                RecipeImageStatus.READY);
         persistRecipe("hidden", origin,
                 RecipeLifecycleStatus.HIDDEN, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
+                RecipeImageStatus.READY);
+        // V1.x: 리믹스는 항상 PUBLIC+UNLISTED로 생성됨 — 이 케이스가 원본의 리믹스 목록에 포함되지 않으면 모든 리믹스가 빠진다.
+        persistRecipe("public-unlisted", origin,
+                RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.UNLISTED,
                 RecipeImageStatus.READY);
         em.flush(); em.clear();
 
         Page<RecipeSimpleDto> result = repo.findStrictRemixesByOriginRecipeId(origin.getId(), PageRequest.of(0, 10));
 
-        assertThat(result.getTotalElements()).isZero();
+        // PUBLIC+UNLISTED만 통과
+        assertThat(result.getContent()).extracting(RecipeSimpleDto::getTitle)
+                .containsExactly("public-unlisted");
     }
 
     @Test
