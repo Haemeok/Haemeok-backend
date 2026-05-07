@@ -20,7 +20,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -31,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -41,6 +46,7 @@ class CurationArticleServiceTest {
     @Mock private CurationArticleRepository articleRepo;
     @Mock private CurationArticleRecipeRefRepository refRepo;
     @Mock private RecipeRepository recipeRepo;
+    @Mock private PlatformTransactionManager transactionManager;
 
     @InjectMocks private CurationArticleService articleService;
 
@@ -59,32 +65,180 @@ class CurationArticleServiceTest {
     }
 
     @Nested
-    @DisplayName("create")
+    @DisplayName("create — 자동 slug suffix 정책")
     class Create {
 
-        @Test
-        @DisplayName("slug이 이미 존재하면 ARTICLE_SLUG_DUPLICATE 예외를 던진다")
-        void throwsWhenSlugDuplicate() {
-            given(articleRepo.existsBySlug("summer-diet")).willReturn(true);
+        /**
+         * @PostConstruct가 단위 테스트에선 호출되지 않으므로 writeTxTemplate을 직접 주입한다.
+         * fake template은 callback을 그대로 실행해 retry 로직만 검증하고, 트랜잭션 격리 자체는 통합 테스트가 잡는다.
+         */
+        @BeforeEach
+        void wireTxTemplate() {
+            TransactionTemplate fakeTxTemplate = mock(TransactionTemplate.class);
+            given(fakeTxTemplate.execute(any())).willAnswer(inv -> {
+                TransactionCallback<?> callback = inv.getArgument(0);
+                return callback.doInTransaction(null);
+            });
+            ReflectionTestUtils.setField(articleService, "writeTxTemplate", fakeTxTemplate);
+        }
 
-            CurationArticleCreateRequest req = CurationArticleCreateRequest.builder()
-                    .slug("summer-diet")
+        private CurationArticle savedArticle(long id, String slug) {
+            CurationArticle a = CurationArticle.builder()
+                    .slug(slug)
                     .title("t")
                     .contentMdx("c")
+                    .status(ArticleStatus.DRAFT)
                     .build();
+            ReflectionTestUtils.setField(a, "id", id);
+            return a;
+        }
 
-            assertThatThrownBy(() -> articleService.create(req))
+        private CurationArticleCreateRequest reqWithSlug(String slug) {
+            return CurationArticleCreateRequest.builder()
+                    .slug(slug).title("t").contentMdx("c").build();
+        }
+
+        @Test
+        @DisplayName("base slug가 비어있으면 base 그대로 저장한다 (suffix 없음)")
+        void assignsBaseSlugWhenAvailable() {
+            given(articleRepo.findSlugsStartingWith("summer-diet")).willReturn(List.of());
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    .willAnswer(inv -> {
+                        CurationArticle a = inv.getArgument(0);
+                        ReflectionTestUtils.setField(a, "id", 100L);
+                        return a;
+                    });
+
+            CurationArticleCreateResult result = articleService.create(reqWithSlug("summer-diet"));
+
+            assertThat(result.id()).isEqualTo(100L);
+            assertThat(result.slug()).isEqualTo("summer-diet");
+            ArgumentCaptor<CurationArticle> captor = ArgumentCaptor.forClass(CurationArticle.class);
+            verify(articleRepo).saveAndFlush(captor.capture());
+            assertThat(captor.getValue().getSlug()).isEqualTo("summer-diet");
+        }
+
+        @Test
+        @DisplayName("base가 점유돼 있으면 -2 suffix를 붙여 저장한다")
+        void assignsSuffixTwoWhenBaseTaken() {
+            given(articleRepo.findSlugsStartingWith("summer-diet"))
+                    .willReturn(List.of("summer-diet"));
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    .willReturn(savedArticle(101L, "summer-diet-2"));
+
+            CurationArticleCreateResult result = articleService.create(reqWithSlug("summer-diet"));
+
+            assertThat(result.slug()).isEqualTo("summer-diet-2");
+            ArgumentCaptor<CurationArticle> captor = ArgumentCaptor.forClass(CurationArticle.class);
+            verify(articleRepo).saveAndFlush(captor.capture());
+            assertThat(captor.getValue().getSlug()).isEqualTo("summer-diet-2");
+        }
+
+        @Test
+        @DisplayName("base + base-2가 점유돼 있으면 -3을 사용한다 (가장 작은 미사용 suffix)")
+        void assignsNextAvailableSuffix() {
+            given(articleRepo.findSlugsStartingWith("summer-diet"))
+                    .willReturn(List.of("summer-diet", "summer-diet-2"));
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    .willReturn(savedArticle(102L, "summer-diet-3"));
+
+            CurationArticleCreateResult result = articleService.create(reqWithSlug("summer-diet"));
+
+            assertThat(result.slug()).isEqualTo("summer-diet-3");
+        }
+
+        @Test
+        @DisplayName("점유된 suffix가 비연속이어도 가장 작은 미사용을 채운다 — base + -3 점유 시 -2를 사용")
+        void fillsLowestAvailableSuffix() {
+            // base, base-3, base-5가 점유 — 가장 작은 미사용은 base-2
+            given(articleRepo.findSlugsStartingWith("summer-diet"))
+                    .willReturn(List.of("summer-diet", "summer-diet-3", "summer-diet-5"));
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    .willReturn(savedArticle(103L, "summer-diet-2"));
+
+            CurationArticleCreateResult result = articleService.create(reqWithSlug("summer-diet"));
+
+            assertThat(result.slug()).isEqualTo("summer-diet-2");
+        }
+
+        @Test
+        @DisplayName("race로 첫 saveAndFlush가 IntegrityViolation이면 새 트랜잭션에서 재시도해 성공한다")
+        void retriesOnRace() {
+            // 첫 attempt: select 결과 [base] → candidate = base-2 → INSERT race fail
+            // 두 번째 attempt: select 결과 [base, base-2] → candidate = base-3 → 성공
+            given(articleRepo.findSlugsStartingWith("summer-diet"))
+                    .willReturn(List.of("summer-diet"))
+                    .willReturn(List.of("summer-diet", "summer-diet-2"));
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    .willThrow(new DataIntegrityViolationException("unique slug race"))
+                    .willReturn(savedArticle(104L, "summer-diet-3"));
+
+            CurationArticleCreateResult result = articleService.create(reqWithSlug("summer-diet"));
+
+            assertThat(result.slug()).isEqualTo("summer-diet-3");
+            verify(articleRepo, times(2)).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("retry 한도(5회) 모두 실패하면 ARTICLE_SLUG_DUPLICATE를 던진다")
+        void exhaustsRetriesAndThrows() {
+            given(articleRepo.findSlugsStartingWith("summer-diet")).willReturn(List.of());
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    // 메시지에 'slug' 포함 — slug constraint violation으로 식별돼 retry 대상
+                    .willThrow(new DataIntegrityViolationException(
+                            "Duplicate entry 'summer-diet' for key 'curation_articles.slug'"));
+
+            assertThatThrownBy(() -> articleService.create(reqWithSlug("summer-diet")))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.ARTICLE_SLUG_DUPLICATE);
 
-            verify(articleRepo, never()).save(any());
+            verify(articleRepo, times(5)).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("slug 외 DB 제약 위반(NOT NULL 등)은 retry 없이 그대로 propagate해 원인이 가려지지 않는다")
+        void nonSlugConstraintViolationIsNotRetried() {
+            // 메시지에 'slug'가 없어 slug constraint violation이 아님 — outer retry는 잡지 않는다.
+            DataIntegrityViolationException nonSlugViolation =
+                    new DataIntegrityViolationException(
+                            "Cannot insert NULL into column 'content_mdx'");
+            given(articleRepo.findSlugsStartingWith("summer-diet")).willReturn(List.of());
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    .willThrow(nonSlugViolation);
+
+            assertThatThrownBy(() -> articleService.create(reqWithSlug("summer-diet")))
+                    .isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining("content_mdx");
+
+            // retry 안 일어나야 한다 — saveAndFlush는 정확히 1번 호출
+            verify(articleRepo, times(1)).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("매우 긴 base slug는 컬럼 길이를 넘지 않도록 잘리고 suffix가 붙는다")
+        void trimsBaseToFitColumnLength() {
+            // base 길이 250자 → 자른 max는 248 (255 - 7 reserve). 잘린 끝이 hyphen이면 추가 trim.
+            String longBase = "a".repeat(250);
+            String trimmed = "a".repeat(248);
+            given(articleRepo.findSlugsStartingWith(trimmed))
+                    .willReturn(List.of(trimmed));
+            given(articleRepo.saveAndFlush(any(CurationArticle.class)))
+                    .willAnswer(inv -> {
+                        CurationArticle a = inv.getArgument(0);
+                        ReflectionTestUtils.setField(a, "id", 105L);
+                        return a;
+                    });
+
+            CurationArticleCreateResult result = articleService.create(reqWithSlug(longBase));
+
+            assertThat(result.slug()).isEqualTo(trimmed + "-2");
+            assertThat(result.slug().length()).isLessThanOrEqualTo(255);
         }
 
         @Test
         @DisplayName("recipeIds 중 존재하지 않는 ID가 있으면 ARTICLE_INVALID_RECIPE_REF 예외를 던진다")
         void throwsWhenRecipeRefInvalid() {
-            given(articleRepo.existsBySlug("summer-diet")).willReturn(false);
             given(recipeRepo.findAllById(List.of(1L, 2L)))
                     .willReturn(List.of(Recipe.builder().build()));
 
@@ -100,15 +254,13 @@ class CurationArticleServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.ARTICLE_INVALID_RECIPE_REF);
 
-            verify(articleRepo, never()).save(any());
+            verify(articleRepo, never()).saveAndFlush(any());
             verify(refRepo, never()).saveAll(any());
         }
 
         @Test
         @DisplayName("recipeIds에 null이 섞이면 findAllById를 부르지 않고 ARTICLE_INVALID_RECIPE_REF로 차단된다")
         void throwsWhenRecipeIdContainsNull() {
-            given(articleRepo.existsBySlug("summer-diet")).willReturn(false);
-
             CurationArticleCreateRequest req = CurationArticleCreateRequest.builder()
                     .slug("summer-diet")
                     .title("t")
@@ -123,14 +275,12 @@ class CurationArticleServiceTest {
                     .isEqualTo(ErrorCode.ARTICLE_INVALID_RECIPE_REF);
 
             verify(recipeRepo, never()).findAllById(any());
-            verify(articleRepo, never()).save(any());
+            verify(articleRepo, never()).saveAndFlush(any());
         }
 
         @Test
         @DisplayName("recipeIds에 비양수(0/음수)가 섞이면 ARTICLE_INVALID_RECIPE_REF로 차단된다")
         void throwsWhenRecipeIdNonPositive() {
-            given(articleRepo.existsBySlug("summer-diet")).willReturn(false);
-
             CurationArticleCreateRequest req = CurationArticleCreateRequest.builder()
                     .slug("summer-diet")
                     .title("t")
@@ -144,11 +294,11 @@ class CurationArticleServiceTest {
                     .isEqualTo(ErrorCode.ARTICLE_INVALID_RECIPE_REF);
 
             verify(recipeRepo, never()).findAllById(any());
-            verify(articleRepo, never()).save(any());
+            verify(articleRepo, never()).saveAndFlush(any());
         }
 
         @Test
-        @DisplayName("slug이 reserved 목록(sitemap)이면 ARTICLE_SLUG_RESERVED 예외 (route 충돌 방지)")
+        @DisplayName("slug이 reserved 목록(sitemap)이면 ARTICLE_SLUG_RESERVED — DB select도 호출되지 않는다")
         void create_reservedSlug_returns400() {
             CurationArticleCreateRequest req = CurationArticleCreateRequest.builder()
                     .slug("sitemap")
@@ -161,19 +311,19 @@ class CurationArticleServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.ARTICLE_SLUG_RESERVED);
 
-            // reserved 검증이 가장 먼저 — DB(existsBySlug)나 recipeRepo가 호출되지 않는다
-            verify(articleRepo, never()).existsBySlug(any());
+            // reserved 검증이 가장 먼저 — slug 후보 select / recipe ref / saveAndFlush 어느 것도 호출되지 않는다
+            verify(articleRepo, never()).findSlugsStartingWith(any());
             verify(recipeRepo, never()).findAllById(any());
-            verify(articleRepo, never()).save(any());
+            verify(articleRepo, never()).saveAndFlush(any());
         }
 
         @Test
-        @DisplayName("정상 생성 시 article 저장 + refs도 저장한다")
+        @DisplayName("정상 생성 시 article 저장 + refs도 저장하고 result에 id+slug 반환")
         void savesArticleAndRefs() {
-            given(articleRepo.existsBySlug("summer-diet")).willReturn(false);
+            given(articleRepo.findSlugsStartingWith("summer-diet")).willReturn(List.of());
             given(recipeRepo.findAllById(List.of(1L, 2L)))
                     .willReturn(List.of(Recipe.builder().build(), Recipe.builder().build()));
-            given(articleRepo.save(any(CurationArticle.class))).willReturn(draftArticle);
+            given(articleRepo.saveAndFlush(any(CurationArticle.class))).willReturn(draftArticle);
 
             CurationArticleCreateRequest req = CurationArticleCreateRequest.builder()
                     .slug("summer-diet")
@@ -182,9 +332,10 @@ class CurationArticleServiceTest {
                     .recipeIds(List.of(1L, 2L))
                     .build();
 
-            Long id = articleService.create(req);
+            CurationArticleCreateResult result = articleService.create(req);
 
-            assertThat(id).isEqualTo(100L);
+            assertThat(result.id()).isEqualTo(100L);
+            assertThat(result.slug()).isEqualTo("summer-diet");
             ArgumentCaptor<List<CurationArticleRecipeRef>> captor =
                     ArgumentCaptor.forClass(List.class);
             verify(refRepo).saveAll(captor.capture());

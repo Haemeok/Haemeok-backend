@@ -14,6 +14,7 @@ import com.jdc.recipe_service.domain.type.Role;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import com.jdc.recipe_service.security.CustomAuthenticationEntryPoint;
 import com.jdc.recipe_service.security.CustomUserDetails;
+import com.jdc.recipe_service.service.article.CurationArticleCreateResult;
 import com.jdc.recipe_service.service.article.CurationArticleImageUploadService;
 import com.jdc.recipe_service.service.article.CurationArticleService;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -107,14 +108,16 @@ class AdminCurationArticleControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("POST /api/admin/curation-articles: 정상 요청 → 201 + articleId가 HashID 문자열")
+    @DisplayName("POST /api/admin/curation-articles: 정상 요청 → 201 + articleId(HashID) + slug 응답")
     void create_ok() throws Exception {
         CurationArticleCreateRequest req = CurationArticleCreateRequest.builder()
                 .slug("summer-diet")
                 .title("여름 다이어트")
                 .contentMdx("# body")
                 .build();
-        given(articleService.create(any(CurationArticleCreateRequest.class))).willReturn(42L);
+        // service가 자동 suffix를 적용해 -2가 붙은 최종 slug를 반환하는 케이스
+        given(articleService.create(any(CurationArticleCreateRequest.class)))
+                .willReturn(new CurationArticleCreateResult(42L, "summer-diet-2"));
 
         String expectedHashId = hashids.encode(42L);
 
@@ -123,7 +126,10 @@ class AdminCurationArticleControllerWebMvcTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.articleId").value(expectedHashId))
-                .andExpect(jsonPath("$.articleId").isString());
+                .andExpect(jsonPath("$.articleId").isString())
+                // 자동 suffix 적용된 최종 slug가 응답에 그대로 — 프론트는 이걸 상세 URL에 사용
+                .andExpect(jsonPath("$.slug").value("summer-diet-2"))
+                .andExpect(jsonPath("$.slug").isString());
 
         verify(articleService).create(any(CurationArticleCreateRequest.class));
     }
@@ -146,7 +152,8 @@ class AdminCurationArticleControllerWebMvcTest {
                 }
                 """, hashedRecipe1, hashedRecipe2);
 
-        given(articleService.create(any(CurationArticleCreateRequest.class))).willReturn(42L);
+        given(articleService.create(any(CurationArticleCreateRequest.class)))
+                .willReturn(new CurationArticleCreateResult(42L, "summer-diet"));
 
         mockMvc.perform(post("/api/admin/curation-articles")
                         .contentType(MediaType.APPLICATION_JSON)

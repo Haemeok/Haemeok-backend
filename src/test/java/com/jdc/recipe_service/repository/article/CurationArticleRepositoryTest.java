@@ -108,6 +108,35 @@ class CurationArticleRepositoryTest {
     }
 
     @Test
+    @DisplayName("findSlugsStartingWith: base와 base-N 형태만 반환하고 다른 prefix는 제외한다")
+    void findSlugsStartingWith_returnsBaseAndSuffixedOnly() {
+        // 같은 base prefix 그룹
+        articleRepo.save(buildArticle("foo",   "t1", ArticleStatus.DRAFT, null));
+        articleRepo.save(buildArticle("foo-2", "t2", ArticleStatus.DRAFT, null));
+        articleRepo.save(buildArticle("foo-3", "t3", ArticleStatus.DRAFT, null));
+        // 비슷하지만 매칭되면 안 되는 것들
+        articleRepo.save(buildArticle("foobar",       "t4", ArticleStatus.DRAFT, null));  // prefix가 'foo'지만 hyphen 아님
+        articleRepo.save(buildArticle("food-2",       "t5", ArticleStatus.DRAFT, null));  // prefix가 'foo'지만 'food-' 형태
+        articleRepo.save(buildArticle("bar",          "t6", ArticleStatus.DRAFT, null));  // 완전히 다른 base
+        em.flush();
+        em.clear();
+
+        List<String> slugs = articleRepo.findSlugsStartingWith("foo");
+
+        assertThat(slugs).containsExactlyInAnyOrder("foo", "foo-2", "foo-3");
+    }
+
+    @Test
+    @DisplayName("findSlugsStartingWith: base가 아예 없으면 빈 리스트")
+    void findSlugsStartingWith_emptyWhenNoMatch() {
+        articleRepo.save(buildArticle("alpha", "t", ArticleStatus.DRAFT, null));
+        em.flush();
+        em.clear();
+
+        assertThat(articleRepo.findSlugsStartingWith("beta")).isEmpty();
+    }
+
+    @Test
     @DisplayName("findAllForSitemap은 PUBLISHED만 반환하며 정렬은 updatedAt DESC, id DESC다 (DRAFT/ARCHIVED 제외)")
     void findAllForSitemap() {
         LocalDateTime t1 = LocalDateTime.of(2026, 5, 1, 10, 0);

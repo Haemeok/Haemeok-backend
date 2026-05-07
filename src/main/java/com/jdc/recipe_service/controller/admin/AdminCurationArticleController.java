@@ -5,12 +5,14 @@ import com.jdc.recipe_service.domain.dto.article.ArticleImageFinalizeResponse;
 import com.jdc.recipe_service.domain.dto.article.ArticleImagePresignedUrlRequest;
 import com.jdc.recipe_service.domain.dto.article.ArticleImagePresignedUrlResponse;
 import com.jdc.recipe_service.domain.dto.article.CurationArticleCreateRequest;
+import com.jdc.recipe_service.domain.dto.article.CurationArticleCreateResponse;
 import com.jdc.recipe_service.domain.dto.article.CurationArticleResponse;
 import com.jdc.recipe_service.domain.dto.article.CurationArticleSummaryResponse;
 import com.jdc.recipe_service.domain.dto.article.CurationArticleUpdateRequest;
 import com.jdc.recipe_service.domain.type.article.ArticleStatus;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
+import com.jdc.recipe_service.service.article.CurationArticleCreateResult;
 import com.jdc.recipe_service.service.article.CurationArticleImageUploadService;
 import com.jdc.recipe_service.service.article.CurationArticleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,11 +56,19 @@ public class AdminCurationArticleController {
     private final Hashids hashids;
 
     @PostMapping
-    @Operation(summary = "아티클 생성", description = "DRAFT 상태로 새 아티클을 생성한다. recipeIds는 audit/soft link로 저장되며 요청은 HashID 문자열 배열로 받는다. 응답의 articleId도 HashID 문자열.")
-    public ResponseEntity<Map<String, String>> create(
+    @Operation(summary = "아티클 생성",
+            description = """
+                    DRAFT 상태로 새 아티클을 생성한다. recipeIds는 audit/soft link로 저장되며 요청은 HashID 문자열 배열로 받는다.
+                    응답의 articleId는 HashID 문자열, slug는 백엔드가 확정한 최종 slug. base slug가 이미 존재하면
+                    자동으로 -2/-3/... suffix가 붙으므로 프론트는 응답 slug를 그대로 사용해야 한다.""")
+    public ResponseEntity<CurationArticleCreateResponse> create(
             @RequestBody @Valid CurationArticleCreateRequest request) {
-        Long articleId = articleService.create(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("articleId", hashids.encode(articleId)));
+        CurationArticleCreateResult result = articleService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                CurationArticleCreateResponse.builder()
+                        .articleId(result.id())
+                        .slug(result.slug())
+                        .build());
     }
 
     @GetMapping
