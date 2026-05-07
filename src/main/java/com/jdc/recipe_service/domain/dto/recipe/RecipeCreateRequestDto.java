@@ -70,7 +70,8 @@ public class RecipeCreateRequestDto {
     private List<String> imageMatchKeywords;
 
     @Schema(description = "리믹스(복제) 원본 레시피 ID. 지정 시 서버가 원본 cloneable 검증 후 " +
-            "visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true, counts=0, source=YOUTUBE 으로 강제한다.",
+            "visibility=PUBLIC, listingStatus=UNLISTED, isPrivate=false (link-only), counts=0, source=YOUTUBE 으로 강제한다. " +
+            "리믹스는 누구나 링크로 접근/저장/상호작용 가능하지만 검색/추천 등 discovery에는 노출되지 않는다.",
             example = "Xk8B2a9m")
     @JsonDeserialize(using = HashIdConfig.HashIdDeserializer.class)
     private Long originRecipeId;

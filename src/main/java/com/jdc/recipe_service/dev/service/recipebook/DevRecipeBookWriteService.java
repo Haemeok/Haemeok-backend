@@ -117,8 +117,9 @@ public class DevRecipeBookWriteService {
         List<DevRecipeAccessProjection> projections =
                 accessProjectionRepository.findAccessProjectionsByIds(recipeIds);
         return projections.stream()
-                .filter(p -> DevRecipeAccessPolicy.isAccessibleBy(
-                        p.lifecycleStatus(), p.visibility(), p.listingStatus(), viewerId, p.ownerId()))
+                // V1.x 정책: 레시피북 추가는 viewable 단위 — PUBLIC+UNLISTED(link-only) 글도 저장 가능. listingStatus 무시.
+                .filter(p -> DevRecipeAccessPolicy.isViewableBy(
+                        p.lifecycleStatus(), p.visibility(), viewerId, p.ownerId()))
                 .map(DevRecipeAccessProjection::recipeId)
                 .collect(Collectors.toSet());
     }

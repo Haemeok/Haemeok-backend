@@ -7,7 +7,6 @@ import com.jdc.recipe_service.domain.entity.*;
 import com.jdc.recipe_service.domain.repository.*;
 import com.jdc.recipe_service.domain.type.*;
 import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.event.AiRecipeCreatedEvent;
@@ -18,6 +17,7 @@ import com.jdc.recipe_service.mapper.*;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import com.jdc.recipe_service.service.image.RecipeImageService;
+import com.jdc.recipe_service.service.recipe.RecipeVisibilityPolicy;
 import com.jdc.recipe_service.util.*;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -133,16 +133,9 @@ public class RecipeService {
         }
 
         if (sourceType == RecipeSourceType.AI || sourceType == RecipeSourceType.YOUTUBE) {
-            boolean isPrivate = (dto.getIsPrivate() != null) ? dto.getIsPrivate() : false;
-            recipe.updateIsPrivate(isPrivate);
-
-            if (dto.getVisibility() != null) {
-                recipe.updateVisibility(dto.getVisibility());
-            }
-
-            if (dto.getListingStatus() != null) {
-                recipe.updateListingStatus(dto.getListingStatus());
-            }
+            // 단일 setter 직접 호출 금지 — 의미별 helper로 정규화해 트리플 invariant를 깨지 않게 한다.
+            // RESTRICTED는 신규 입력 차단 (ACL 기능 부재). PUBLIC+UNLISTED 조합은 link-only 의미로 매핑.
+            RecipeVisibilityPolicy.applyFromDto(recipe, dto);
 
             if (dto.getImageStatus() != null) {
                 recipe.updateImageStatus(dto.getImageStatus());
@@ -155,15 +148,18 @@ public class RecipeService {
             if (!hasMain) {
                 throw new CustomException(ErrorCode.USER_RECIPE_IMAGE_REQUIRED);
             }
-            recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
+            // USER 생성도 동일 정책 — entity builder default(PUBLIC+LISTED)에 의존하면 isPrivate=true 입력 시
+            // 트리플 깨진 row(PUBLIC+LISTED+isPrivate=true)가 만들어진다. 헬퍼로 정규화.
+            RecipeVisibilityPolicy.applyFromDto(recipe, dto);
             recipe.updateImageStatus(RecipeImageStatus.PENDING);
         }
 
         if (remixSource != null) {
             recipe.updateOriginRecipe(remixSource);
-            recipe.updateVisibility(RecipeVisibility.PRIVATE);
-            recipe.updateListingStatus(RecipeListingStatus.UNLISTED);
-            recipe.updateIsPrivate(true);
+            // 리믹스는 링크 공개(PUBLIC+UNLISTED) 기본 — 누구나 링크로 접근/저장/상호작용 가능하지만
+            // 검색/추천/타인 프로필 등 discovery에는 노출되지 않는다.
+            // dto의 isPrivate은 무시한다 (리믹스 정책이 사용자 입력보다 우선).
+            recipe.applyPublicUnlisted();
             recipe.updateExtractorId(null);
             recipe.updateImageStatus(RecipeImageStatus.PENDING);
             recipe.updateImageKey(null);
@@ -538,14 +534,15 @@ public class RecipeService {
         }
 
         if (!recipe.isAiGenerated()) {
-            /*if (!hasMainImageUploaded) {
-                recipe.updateIsPrivate(true);
-                log.warn("사용자 레시피 {} finalize 실패: 메인 이미지 누락. 강제 비공개 처리.", recipeId);
-            } else {
-                recipe.updateIsPrivate(false);
-            }*/
             recipe.updateImageStatus(RecipeImageStatus.READY);
-            recipe.updateIsPrivate(false);
+            // V1 정책: 사용자 레시피 이미지 finalize 후 공개 전환. 단일 setter(updateIsPrivate(false))는
+            // visibility/listingStatus를 그대로 두어 PRIVATE+UNLISTED+isPrivate=false 같은 깨진 조합을 만든다.
+            // 의미별 helper로 정규화 — origin 있으면 link-only, 일반 원본은 검색 노출.
+            if (recipe.getOriginRecipe() != null) {
+                recipe.applyPublicUnlisted();
+            } else {
+                recipe.applyPublicListed();
+            }
         }
 
         em.flush();
@@ -596,13 +593,17 @@ public class RecipeService {
             throw new CustomException(ErrorCode.CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE);
         }
 
-        recipe.updateIsPrivate(newValue);
         if (newValue) {
-            recipe.updateVisibility(RecipeVisibility.PRIVATE);
-            recipe.updateListingStatus(RecipeListingStatus.UNLISTED);
+            // private 전환 — visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true 트리플 동기화
+            recipe.applyPrivate();
         } else {
-            recipe.updateVisibility(RecipeVisibility.PUBLIC);
-            recipe.updateListingStatus(RecipeListingStatus.LISTED);
+            // public 전환 — origin이 있으면 link-only(UNLISTED), 일반 원본은 LISTED.
+            // 리믹스가 비공개로 바뀌었다가 다시 풀릴 때도 검색/추천에 갑자기 노출되지 않게 한다.
+            if (recipe.getOriginRecipe() != null) {
+                recipe.applyPublicUnlisted();
+            } else {
+                recipe.applyPublicListed();
+            }
         }
 
         TransactionSynchronizationManager.registerSynchronization(

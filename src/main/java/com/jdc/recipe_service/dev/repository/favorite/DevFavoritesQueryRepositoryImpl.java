@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * 운영 {@code findMyFavoritesWithPending}와 거의 동일 query 구조지만 dev 정책 적용:
  *  - {@code (r.isPrivate = false OR r.imageStatus = PENDING)} 자리에
- *    {@code accessibleBy(recipe, userId)} + {@code imageReady}
+ *    {@code viewableBy(recipe, userId)} + {@code imageReady} (link-only PUBLIC+UNLISTED 저장 항목도 노출)
  *  - userId가 favoriter이자 viewer (즐겨찾기는 본인 컬렉션)
  *
  * Fetch 전략: {@code select(recipe).from(favorite).join(favorite.recipe, recipe).join(recipe.user, user).fetchJoin()}.
@@ -44,8 +44,8 @@ public class DevFavoritesQueryRepositoryImpl implements DevFavoritesQueryReposit
         QRecipe recipe = QRecipe.recipe;
         QUser user = QUser.user;
 
-        // 운영 isPrivate=false OR PENDING 대신 dev 정책 (accessibleBy + imageReady)
-        BooleanExpression accessCondition = DevRecipeQueryPredicates.accessibleBy(recipe, userId);
+        // V1.x 정책: 즐겨찾기는 viewable — PUBLIC+UNLISTED(link-only) 저장된 글도 보여야 함. listingStatus 무시.
+        BooleanExpression accessCondition = DevRecipeQueryPredicates.viewableBy(recipe, userId);
         BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
                 .or(recipe.imageStatus.isNull());
 

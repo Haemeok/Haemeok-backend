@@ -14,7 +14,6 @@ import com.jdc.recipe_service.domain.type.ImageStatus;
 import com.jdc.recipe_service.domain.type.NotificationRelatedType;
 import com.jdc.recipe_service.domain.type.NotificationType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
 import com.jdc.recipe_service.service.NotificationService;
 import com.jdc.recipe_service.util.DeferredResultHolder;
@@ -162,7 +161,7 @@ public class AsyncImageService {
      *  - imageGenModel == null  : 기존 Gemini 직접 호출 (V1/V2 prod 동작 그대로)
      *  - imageGenModel != null  : DevImageGenRouterService로 라우팅 (gemini-2.5-flash-image / gpt-image-2-* 등)
      *                              + recipe.image_generation_model 컬럼 기록
-     *                              + Recipe.applyVisibility(PUBLIC)로 트리플 동기화 (legacy updateIsPrivate 대체)
+     *                              + Recipe.applyPublicListed()로 트리플 동기화 (legacy updateIsPrivate 대체)
      *
      * 화이트리스트 검증은 호출자(DevAiRecipeFacade)에서 DevImageGenModel.fromIdentifier로 미리 한다.
      */
@@ -215,12 +214,11 @@ public class AsyncImageService {
 
                 if (useRouter) {
                     recipe.updateImageGenerationModel(imageGenModel);
-                    // dev 경로: 트리플 동기화 (visibility=PUBLIC, listingStatus=LISTED, isPrivate=false)
-                    recipe.applyVisibility(RecipeVisibility.PUBLIC);
-                } else {
-                    // V1/V2 legacy 경로: 단일 필드만 — 추후 V2를 dev로 swap할 때 함께 정리
-                    recipe.updateIsPrivate(false);
                 }
+                // dev/legacy 경로 모두 동일 정책 — V1/V2 prod의 AI 흐름은 origin 없는 일반 원본이라 검색 노출.
+                // 단일 setter(updateIsPrivate(false))는 입력 recipe가 PRIVATE/UNLISTED일 때 트리플을
+                // PRIVATE+UNLISTED+isPrivate=false 깨진 조합으로 남기므로 helper로 정규화.
+                recipe.applyPublicListed();
 
                 RecipeImage recipeImage = RecipeImage.builder()
                         .recipe(recipe)
@@ -284,10 +282,9 @@ public class AsyncImageService {
                         failedRecipe.updateImageStatus(RecipeImageStatus.FAILED);
                         if (useRouter) {
                             failedRecipe.updateImageGenerationModel(imageGenModel);
-                            failedRecipe.applyVisibility(RecipeVisibility.PUBLIC);
-                        } else {
-                            failedRecipe.updateIsPrivate(false);
                         }
+                        // dev/legacy 경로 실패 fallback 모두 동일 정책 — default 이미지가 들어가더라도 검색에 노출 (PUBLIC + LISTED).
+                        failedRecipe.applyPublicListed();
                     });
                 });
             } catch (Exception ex) {

@@ -348,7 +348,7 @@ public class RecipeSearchServiceV2 {
     private BooleanExpression createWhereClauseForSearch(RecipeSearchCondition cond) {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
-        BooleanExpression privacy = recipe.isPrivate.eq(false);
+        BooleanExpression privacy = RecipeQueryPredicates.discoverable(recipe);
         BooleanBuilder typeFilter = filterByTypes(cond.getTypes());
         BooleanExpression keywordSearch = null;
         if (StringUtils.hasText(cond.getTitle())) {

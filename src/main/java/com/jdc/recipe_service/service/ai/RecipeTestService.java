@@ -226,9 +226,12 @@ public class RecipeTestService {
                 .cookingTime(dto.getCookingTime())
                 .servings(dto.getServings())
                 .isAiGenerated(false)
-                .isPrivate(true)
                 .imageStatus(RecipeImageStatus.PENDING)
                 .build();
+        // 이미지 생성 진행 중이라 일단 비공개. 단일 setter(.isPrivate(true)) 직접 set은 entity builder default
+        // (visibility=PUBLIC, listingStatus=LISTED)와 결합되어 PUBLIC+LISTED+isPrivate=true 깨진 row를 만든다.
+        // 이미지 생성 실패 시 그 깨진 상태로 남으므로 트리플 정규화가 필수.
+        recipe.applyPrivate();
 
         recipeRepository.save(recipe);
 
@@ -301,7 +304,8 @@ public class RecipeTestService {
                 Recipe savedRecipe = recipeRepository.findById(recipe.getId()).orElseThrow();
                 savedRecipe.updateImageKey(s3Key);
                 savedRecipe.updateImageStatus(RecipeImageStatus.READY);
-                savedRecipe.updateIsPrivate(false);
+                // 이미지 생성 성공 — 일반 원본 user 레시피 (origin 없음, isAiGenerated=false)이라 검색 노출 정책.
+                savedRecipe.applyPublicListed();
 
                 RecipeImage recipeImage = RecipeImage.builder()
                         .recipe(savedRecipe)

@@ -27,7 +27,6 @@ import com.jdc.recipe_service.domain.type.JobType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.media.EvidenceLevel;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
-import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.RecipeActivityService;
@@ -64,7 +63,7 @@ import java.util.Optional;
  *  - YoutubeSignalDetector로 신호 검출 + EvidenceLevel 산출
  *  - RecipeYoutubeExtractionInfo 저장 (signals + evidence + cost)
  *  - RecipeYoutubeInfo dual-write (legacy Recipe.youtube* 와 함께)
- *  - Recipe.applyVisibility() 트리플 동기화
+ *  - Recipe.applyPublicListed()로 트리플 동기화 (의미: 일반 원본 — discovery 노출)
  *  - Idempotency key namespacing (dev-yt:{userId}:{sha256(rawKey)})
  *
  * 본 MVP에서 생략 (V2에 있지만 dev 1차에는 미포함, 후속 단계):
@@ -549,7 +548,8 @@ public class DevYoutubeRecipeExtractionFacade {
                     .orElseThrow(() -> new CustomException(ErrorCode.RECIPE_NOT_FOUND));
 
             recipe.updateImageGenerationModel(imageGenModel);
-            recipe.applyVisibility(RecipeVisibility.PUBLIC);
+            // dev YouTube 추출 레시피는 origin 없는 일반 원본 — 검색/추천 노출 (PUBLIC + LISTED + isPrivate=false).
+            recipe.applyPublicListed();
 
             // 2a. dev ingredient dual-write + step→recipe_ingredient FK 재연결.
             // YouTube path → customByUser=false 강제 (시스템 매칭 실패는 UNRESOLVED이지 사용자 의도 CUSTOM 아님)

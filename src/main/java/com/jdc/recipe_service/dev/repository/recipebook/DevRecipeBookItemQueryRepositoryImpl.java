@@ -25,9 +25,10 @@ import java.util.Map;
 /**
  * 운영 {@code RecipeBookItemRepository}의 dev 미러 (QueryDSL).
  *
- * isPrivate 단일 필터 대신 {@code accessibleBy(recipe, userId)} + {@code imageReady} 적용.
+ * <p>V1.x 정책: 레시피북에 저장된 항목 조회는 viewable — PUBLIC+UNLISTED(link-only)도 보여야 함. listingStatus 무시.
+ * isPrivate 단일 필터 대신 {@code viewableBy(recipe, userId)} + {@code imageReady} 적용.
  *
- * Fetch 전략: {@code select(item).from(item).join(item.recipe, recipe).join(recipe.user, user).fetchJoin()}.
+ * <p>Fetch 전략: {@code select(item).from(item).join(item.recipe, recipe).join(recipe.user, user).fetchJoin()}.
  * item이 select 대상, recipe와 recipe.user는 후속 변환에서 사용되므로 모두 fetch (N+1 차단).
  */
 @Repository
@@ -45,7 +46,7 @@ public class DevRecipeBookItemQueryRepositoryImpl implements DevRecipeBookItemQu
         // book ownership guard: 다른 사람 bookId가 들어와도 빈 결과 (defense in depth — 호출자 ownership check가 잊혀도 누수 없음)
         BooleanExpression whereClause = item.book.id.eq(bookId)
                 .and(item.book.user.id.eq(userId))
-                .and(DevRecipeQueryPredicates.accessibleBy(recipe, userId))
+                .and(DevRecipeQueryPredicates.viewableBy(recipe, userId))
                 .and(recipe.imageStatus.eq(RecipeImageStatus.READY).or(recipe.imageStatus.isNull()));
 
         int pageSize = pageable.getPageSize();
@@ -81,7 +82,7 @@ public class DevRecipeBookItemQueryRepositoryImpl implements DevRecipeBookItemQu
                         item.book.id.eq(bookId),
                         // ownership guard (footgun 방지) — find와 일관
                         item.book.user.id.eq(userId),
-                        DevRecipeQueryPredicates.accessibleBy(recipe, userId),
+                        DevRecipeQueryPredicates.viewableBy(recipe, userId),
                         recipe.imageStatus.eq(RecipeImageStatus.READY).or(recipe.imageStatus.isNull())
                 )
                 .fetchOne();
@@ -99,7 +100,7 @@ public class DevRecipeBookItemQueryRepositoryImpl implements DevRecipeBookItemQu
                 .join(item.recipe, recipe)
                 .where(
                         item.book.user.id.eq(userId),
-                        DevRecipeQueryPredicates.accessibleBy(recipe, userId),
+                        DevRecipeQueryPredicates.viewableBy(recipe, userId),
                         recipe.imageStatus.eq(RecipeImageStatus.READY).or(recipe.imageStatus.isNull())
                 )
                 .groupBy(item.book.id)

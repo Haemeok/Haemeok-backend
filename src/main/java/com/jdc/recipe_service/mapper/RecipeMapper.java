@@ -17,6 +17,17 @@ import java.util.Set;
 
 public class RecipeMapper {
 
+    /**
+     * dto → Recipe entity 1:1 매핑.
+     *
+     * <p><b>주의 — visibility 트리플은 이 메서드가 보장하지 않는다</b>: 여기서는 {@code .isPrivate(...)}만 set하고
+     * visibility/listingStatus는 entity builder default(PUBLIC/LISTED)에 의존한다. 호출자는 반드시 이 메서드 직후
+     * {@code RecipeVisibilityPolicy.applyFromDto(recipe, dto)}를 호출해 트리플을 정규화해야 한다 — 그렇지 않으면
+     * dto.isPrivate=true일 때 PUBLIC+LISTED+isPrivate=true 깨진 row가 만들어진다.
+     *
+     * <p>(이 매퍼에서 isPrivate set을 빼는 게 더 안전하지만 mapper 호출자가 빌드 직후 dto를 안 보고 entity로 다른 처리만
+     * 하는 사례가 있어 호환을 위해 그대로 둔다 — 정책 수렴은 호출자 책임.)
+     */
     public static Recipe toEntity(RecipeCreateRequestDto dto, User user) {
         Set<String> tools = dto.getCookingTools() != null
                 ? new HashSet<>(dto.getCookingTools())

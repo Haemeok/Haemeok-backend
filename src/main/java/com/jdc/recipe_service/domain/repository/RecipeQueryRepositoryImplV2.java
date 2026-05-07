@@ -48,7 +48,7 @@ public class RecipeQueryRepositoryImplV2 implements RecipeQueryRepositoryV2 {
         QRecipe recipe   = QRecipe.recipe;
         QRecipeTag tag    = QRecipeTag.recipeTag;
 
-        BooleanExpression privacyCondition = recipe.isPrivate.eq(false);
+        BooleanExpression privacyCondition = RecipeQueryPredicates.discoverable(recipe);
 
         BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
                 .or(recipe.imageStatus.isNull());

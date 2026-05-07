@@ -30,12 +30,17 @@ import java.util.List;
 /**
  * Dev V3 QueryDSL search 구현.
  *
- * 운영 {@link com.jdc.recipe_service.domain.repository.RecipeQueryRepositoryImplV2}와 거의 동일한 query 구조지만:
- *  - {@code privacyCondition (recipe.isPrivate.eq(false))} 자리에 {@link DevRecipeQueryPredicates#accessibleBy} 사용
- *    → RESTRICTED/PRIVATE/non-ACTIVE를 정책에 따라 차단
- *  - SELECT projection을 {@link DevRecipeSimpleStaticDto}로 (4 enum 추가)
+ * <p>운영 {@link com.jdc.recipe_service.domain.repository.RecipeQueryRepositoryImplV2}와 거의 동일한 query 구조지만:
+ * <ul>
+ *   <li>{@code privacyCondition (recipe.isPrivate.eq(false))} 자리에 {@link DevRecipeQueryPredicates#publicListedActive} 사용
+ *       → discovery 단일 정책 (검색은 viewer 무관하게 ACTIVE+PUBLIC+LISTED만, owner 자기 PRIVATE 글도 검색 결과에 안 섞임)</li>
+ *   <li>SELECT projection을 {@link DevRecipeSimpleStaticDto}로 (4 enum 추가)</li>
+ * </ul>
  *
- * 운영 코드는 zero touch (의존성 방향 깔끔, 영향 0). 헬퍼들은 일시적 중복.
+ * <p>운영 코드는 zero touch (의존성 방향 깔끔, 영향 0). 헬퍼들은 일시적 중복.
+ *
+ * <p><b>viewerId 인자</b>: 시그니처 호환을 위해 유지하되 정책상 무시된다 (검색은 discovery라 viewer 분기 없음).
+ * 향후 인터페이스 정리 시 제거 가능.
  */
 @Repository
 @RequiredArgsConstructor
@@ -61,8 +66,8 @@ public class DevRecipeQueryRepositoryImplV2 implements DevRecipeQueryRepositoryV
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
 
-        // 운영 isPrivate 필터 대신 dev 정책 (ACTIVE && (owner OR (PUBLIC && LISTED)))
-        BooleanExpression accessCondition = DevRecipeQueryPredicates.accessibleBy(recipe, viewerId);
+        // 검색은 discovery 단일 정책 — ACTIVE && PUBLIC && LISTED. viewerId는 무시 (link-only/PRIVATE/RESTRICTED 모두 검색에서 빠짐).
+        BooleanExpression accessCondition = DevRecipeQueryPredicates.publicListedActive(recipe);
 
         BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
                 .or(recipe.imageStatus.isNull());
@@ -91,7 +96,6 @@ public class DevRecipeQueryRepositoryImplV2 implements DevRecipeQueryRepositoryV
                         recipe.youtubeUrl,
                         recipe.isAiGenerated,
                         recipe.visibility,
-                        recipe.listingStatus,
                         recipe.lifecycleStatus,
                         recipe.source
                 ))
@@ -157,8 +161,8 @@ public class DevRecipeQueryRepositoryImplV2 implements DevRecipeQueryRepositoryV
         QRecipe recipe = QRecipe.recipe;
 
         // OpenSearch dev index stale/lag 대비 — DB가 source of truth로 한 번 더 정책 검증.
-        // accessibleByFilter 통과한 id 중 mirror 누락으로 PRIVATE/RESTRICTED/non-ACTIVE인 row를 차단.
-        BooleanExpression accessCondition = DevRecipeQueryPredicates.accessibleBy(recipe, viewerId);
+        // OpenSearch 검색이 publicListedActiveFilter를 쓰므로 hydration도 동일 정책 — PUBLIC+UNLISTED/RESTRICTED/PRIVATE/non-ACTIVE 차단.
+        BooleanExpression accessCondition = DevRecipeQueryPredicates.publicListedActive(recipe);
         BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
                 .or(recipe.imageStatus.isNull());
 
@@ -186,7 +190,6 @@ public class DevRecipeQueryRepositoryImplV2 implements DevRecipeQueryRepositoryV
                         recipe.youtubeUrl,
                         recipe.isAiGenerated,
                         recipe.visibility,
-                        recipe.listingStatus,
                         recipe.lifecycleStatus,
                         recipe.source
                 ))

@@ -1,6 +1,5 @@
 package com.jdc.recipe_service.dev.service.recipe;
 
-import com.jdc.recipe_service.dev.config.DevVisibilityProperties;
 import com.jdc.recipe_service.dev.domain.dto.recipe.DevVisibilityUpdateResponse;
 import com.jdc.recipe_service.domain.entity.Recipe;
 import com.jdc.recipe_service.domain.repository.RecipeRepository;
@@ -19,23 +18,28 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /**
  * Dev V3 레시피 가시성 변경 서비스.
  *
- * V1 prod의 `togglePrivacy`와 다른 점:
- *  - PUBLIC↔PRIVATE 단순 토글이 아닌 **명시적 visibility 지정** (PRIVATE/PUBLIC/RESTRICTED 모두 지원)
- *  - 트리플 동기화는 항상 `recipe.applyVisibility()` 헬퍼만 사용 → 단일 setter로 인한 invariant 깨짐 차단
- *  - V1과 동일한 도메인 가드 유지: AI 생성 + PUBLIC 전환 + 이미지 없음 → CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE
- *  - V1과 동일하게 OpenSearch 인덱스 갱신 (afterCommit hook → updatePrivacyStatusSafely)
- *  - dev V3 강화: 라이프사이클 가드 — non-ACTIVE 레시피의 visibility 변경 차단 (V1엔 없음)
+ * <p>V1 prod의 {@code togglePrivacy}와 다른 점:
+ * <ul>
+ *   <li>PUBLIC↔PRIVATE 단순 토글이 아닌 <b>명시적 visibility 지정</b></li>
+ *   <li>트리플 동기화는 의미별 헬퍼({@link Recipe#applyPublicListed}, {@link Recipe#applyPublicUnlisted},
+ *       {@link Recipe#applyPrivate})만 사용 — 단일 setter 직접 호출 금지</li>
+ *   <li>V1과 동일한 도메인 가드: AI 생성 + PUBLIC 전환 + 이미지 없음 → CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE</li>
+ *   <li>V1과 동일하게 OpenSearch 인덱스 갱신 (afterCommit hook → updatePrivacyStatusSafely)</li>
+ *   <li>dev V3 강화: 라이프사이클 가드 — non-ACTIVE 레시피의 visibility 변경 차단 (V1엔 없음)</li>
+ * </ul>
  *
- * RESTRICTED 활성화 (Phase A3 완료 후, feature flag로 환경별 통제):
- *  - {@code dev.visibility.restricted-enabled=true} (dev 검증 환경)일 때만 허용
- *  - default false (운영) — applyVisibility(RESTRICTED)가 isPrivate=false로 매핑되어 운영 V1/V2 검색이
- *    isPrivate=false만 보면 RESTRICTED가 운영에 노출됨. 운영 search가 listingStatus 흡수까지 차단 유지.
- *  - 활성 시 트리플: visibility=RESTRICTED, listingStatus=UNLISTED, isPrivate=false
- *    → dev 검색/목록 경로(A2/A3)는 listingStatus=LISTED 필터로 자연 차단
- *    → owner detail direct link 접근은 허용 (검색에서는 빠지고 link 공유 전용)
- *  - dev mirror enabled면 OpenSearch dev alias도 자동 갱신 (A1 Batch 2의 mirrorReindex hook)
+ * <p><b>PUBLIC 전환 정책 (V1.x)</b>:
+ * <ul>
+ *   <li>리믹스(originRecipe != null) → {@link Recipe#applyPublicUnlisted} (link-only, discovery 미노출)</li>
+ *   <li>일반 원본(originRecipe == null) → {@link Recipe#applyPublicListed} (검색/추천 노출)</li>
+ * </ul>
+ * 같은 리믹스를 PRIVATE로 숨겼다가 다시 풀 때도 검색/추천에 갑자기 노출되지 않게 보장.
  *
- * 권한: 작성자 본인만 변경 가능 (ADMIN 권한 분기는 미포함 — 필요 시 별도 admin endpoint).
+ * <p><b>RESTRICTED는 신규 입력 거부</b>: ACL 기반 권한 제어용으로 도입됐으나 ACL 기능 미보유로 신규 사용 중지.
+ * 기존 DB row 디시리얼라이즈 호환을 위해 enum 값과 entity의 deprecated {@code applyVisibility(RESTRICTED)} 분기는
+ * 보존하되, 이 service는 외부 입력으로 들어오면 즉시 INVALID_INPUT_VALUE로 거부한다.
+ *
+ * <p>권한: 작성자 본인만 변경 가능 (ADMIN 권한 분기는 미포함 — 필요 시 별도 admin endpoint).
  */
 @Service
 @RequiredArgsConstructor
@@ -44,18 +48,17 @@ public class DevRecipeVisibilityService {
 
     private final RecipeRepository recipeRepository;
     private final RecipeIndexingService recipeIndexingService;
-    private final DevVisibilityProperties devVisibilityProperties;
 
     @Transactional
     public DevVisibilityUpdateResponse updateVisibility(Long recipeId,
                                                         RecipeVisibility newVisibility,
                                                         Long currentUserId) {
-        // RESTRICTED는 feature flag로 환경별 통제 (default false).
-        // 운영 V1/V2 검색이 isPrivate=false만 보므로, flag off에서 RESTRICTED 허용 시 PRIVATE→RESTRICTED 전환이
-        // 운영 검색에 갑자기 노출되는 운영 데이터 노출 사고가 발생함.
-        if (newVisibility == RecipeVisibility.RESTRICTED && !devVisibilityProperties.isRestrictedEnabled()) {
+        // RESTRICTED는 ACL 기능 부재로 신규 사용 중지. 기존 row만 enum 호환 위해 보존.
+        // 외부 입력으로 들어오면 명확한 메시지로 거부 — 운영 검색이 isPrivate=false만 보던 시절
+        // RESTRICTED 노출 사고를 막던 feature flag 가드는 이제 의미가 없다 (정책 자체가 차단).
+        if (newVisibility == RecipeVisibility.RESTRICTED) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
-                    "RESTRICTED는 dev.visibility.restricted-enabled=true 환경에서만 허용 (운영 검색 노출 방지).");
+                    "RESTRICTED는 더 이상 사용할 수 없는 visibility 값입니다. PUBLIC 또는 PRIVATE를 사용해주세요.");
         }
 
         Recipe recipe = recipeRepository.findById(recipeId)
@@ -81,8 +84,8 @@ public class DevRecipeVisibilityService {
             throw new CustomException(ErrorCode.CANNOT_MAKE_PUBLIC_WITHOUT_IMAGE);
         }
 
-        // 4. 트리플 동기화 — applyVisibility 헬퍼만 사용 (단일 setter 직접 호출 금지)
-        recipe.applyVisibility(newVisibility);
+        // 4. 트리플 동기화 — 의미별 헬퍼만 사용. PUBLIC 전환은 origin 여부로 listed/unlisted 분기.
+        applyTripleSync(recipe, newVisibility);
         boolean newIsPrivate = recipe.getIsPrivate();
 
         // 5. OpenSearch 인덱스 갱신 — V1과 동일 패턴 (afterCommit으로 DB 커밋 후 비동기 안전).
@@ -99,9 +102,35 @@ public class DevRecipeVisibilityService {
 
         return new DevVisibilityUpdateResponse(
                 recipe.getVisibility(),
-                recipe.getListingStatus(),
                 newIsPrivate
         );
+    }
+
+    /**
+     * 트리플 동기화 + PUBLIC 전환 시 origin 분기.
+     *
+     * <ul>
+     *   <li>PRIVATE → {@link Recipe#applyPrivate}</li>
+     *   <li>PUBLIC + 리믹스(origin 있음) → {@link Recipe#applyPublicUnlisted} (link-only)</li>
+     *   <li>PUBLIC + 일반 원본(origin 없음) → {@link Recipe#applyPublicListed} (discovery 노출)</li>
+     * </ul>
+     */
+    private static void applyTripleSync(Recipe recipe, RecipeVisibility newVisibility) {
+        switch (newVisibility) {
+            case PRIVATE -> recipe.applyPrivate();
+            case PUBLIC -> {
+                if (recipe.getOriginRecipe() != null) {
+                    recipe.applyPublicUnlisted();
+                } else {
+                    recipe.applyPublicListed();
+                }
+            }
+            case RESTRICTED -> {
+                // unreachable — 위에서 INVALID_INPUT_VALUE로 차단됨. 안전망.
+                throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
+                        "RESTRICTED는 더 이상 사용할 수 없는 visibility 값입니다.");
+            }
+        }
     }
 
     /**

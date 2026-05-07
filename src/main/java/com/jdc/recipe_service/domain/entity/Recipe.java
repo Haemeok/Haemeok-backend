@@ -432,14 +432,50 @@ public class Recipe extends BaseTimeEntity {
     }
 
     /**
-     * visibility / listingStatus / isPrivate(legacy) 세 필드를 한 세트로 동기화한다.
-     * 운영 V1 API가 isPrivate 기준으로 노출 판정하는 경로가 남아 있어 dev/V2 쓰기에서도
-     * 셋 다 맞춰야 두 API의 노출 결과가 일관된다. (단일 필드 setter 직접 호출 금지)
+     * 일반 원본(non-remix) 공개 — 검색/추천/타인 프로필 등 discovery 대상에 노출된다.
+     * 트리플: visibility=PUBLIC, listingStatus=LISTED, isPrivate=false.
+     */
+    public void applyPublicListed() {
+        this.visibility = RecipeVisibility.PUBLIC;
+        this.listingStatus = RecipeListingStatus.LISTED;
+        this.isPrivate = false;
+    }
+
+    /**
+     * 링크 공개(unlisted) — 누구나 직접 접근/저장/상호작용 가능하지만 검색/추천 등 discovery에는 노출되지 않는다.
+     * 트리플: visibility=PUBLIC, listingStatus=UNLISTED, isPrivate=false.
      *
+     * <p>주된 용도: 리믹스 레시피 — 원본 매거진 흐름과 분리되도록 검색에서 빠진 채 링크로만 공유.
+     */
+    public void applyPublicUnlisted() {
+        this.visibility = RecipeVisibility.PUBLIC;
+        this.listingStatus = RecipeListingStatus.UNLISTED;
+        this.isPrivate = false;
+    }
+
+    /**
+     * 비공개 — owner만 접근 가능. 검색/추천에서도 자연 제외된다.
+     * 트리플: visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true.
+     */
+    public void applyPrivate() {
+        this.visibility = RecipeVisibility.PRIVATE;
+        this.listingStatus = RecipeListingStatus.UNLISTED;
+        this.isPrivate = true;
+    }
+
+    /**
+     * @deprecated PUBLIC이 무조건 LISTED로 동기화되어 link-only 의도와 충돌한다.
+     * 신규 호출은 의미별 메서드({@link #applyPublicListed}, {@link #applyPublicUnlisted}, {@link #applyPrivate})를 사용한다.
+     *
+     * <p>RESTRICTED는 ACL 기반 권한 제어용으로 도입됐으나 ACL 기능 미보유로 신규 사용 중지(외부 입력은 service에서 거부).
+     * enum 값과 이 분기는 기존 DB row 디시리얼라이즈 호환을 위해 보존한다.
+     *
+     * <p>구 매핑:
      *   PRIVATE    → visibility=PRIVATE,    listingStatus=UNLISTED, isPrivate=true
      *   PUBLIC     → visibility=PUBLIC,     listingStatus=LISTED,   isPrivate=false
      *   RESTRICTED → visibility=RESTRICTED, listingStatus=UNLISTED, isPrivate=false
      */
+    @Deprecated
     public void applyVisibility(RecipeVisibility visibility) {
         this.visibility = visibility;
         switch (visibility) {

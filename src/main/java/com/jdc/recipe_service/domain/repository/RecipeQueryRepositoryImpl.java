@@ -52,7 +52,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
 
-        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
+        BooleanExpression privacyCondition = RecipeQueryPredicates.discoverable(recipe);
 
         BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
                 .or(recipe.imageStatus.isNull());
@@ -205,7 +205,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .leftJoin(recipeLike)
                 .on(recipeLike.recipe.eq(recipe)
                         .and(recipeLike.createdAt.goe(startDate)))
-                .where(recipe.isPrivate.isFalse())
+                .where(RecipeQueryPredicates.discoverable(recipe))
                 .groupBy(
                         recipe.id,
                         recipe.title,
@@ -233,7 +233,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         Long total = queryFactory
                 .select(recipe.count())
                 .from(recipe)
-                .where(recipe.isPrivate.isFalse())
+                .where(RecipeQueryPredicates.discoverable(recipe))
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0);
@@ -243,7 +243,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
     public Page<RecipeSimpleDto> findBudgetRecipes(Integer maxCost, Pageable pageable) {
         QRecipe recipe = QRecipe.recipe;
 
-        BooleanExpression condition = recipe.isPrivate.isFalse();
+        BooleanExpression condition = RecipeQueryPredicates.discoverable(recipe);
         if (maxCost != null) {
             condition = condition.and(recipe.totalIngredientCost.loe(maxCost));
         }
@@ -302,7 +302,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipe recipe = QRecipe.recipe;
         QRecipeTag tag = QRecipeTag.recipeTag;
 
-        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
+        BooleanExpression privacyCondition = RecipeQueryPredicates.discoverable(recipe);
 
         Order dir = direction.isAscending() ? Order.ASC : Order.DESC;
         OrderSpecifier<?> dynamicOrder;
@@ -426,7 +426,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QIngredient ing = QIngredient.ingredient;
         QRecipeTag tag = QRecipeTag.recipeTag;
 
-        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
+        BooleanExpression privacyCondition = RecipeQueryPredicates.discoverable(recipe);
 
         BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
                 .or(recipe.imageStatus.isNull());
@@ -565,7 +565,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
                 .where(
                         recipe.favoriteCount.coalesce(0L).goe(MIN_FRIDGE_RECIPE_FAVORITE_COUNT),
                         ingredient.id.in(userIngredientIds).and(ingredient.isPantry.isFalse()),
-                        recipe.isPrivate.isFalse(),
+                        RecipeQueryPredicates.discoverable(recipe),
                         typeFilter(types)
                 )
                 .groupBy(recipe.id)
@@ -598,7 +598,7 @@ public class RecipeQueryRepositoryImpl implements RecipeQueryRepository {
         QRecipe recipe = QRecipe.recipe;
         QRecipeIngredient ri = QRecipeIngredient.recipeIngredient;
 
-        BooleanExpression privacyCondition = recipe.isPrivate.isFalse();
+        BooleanExpression privacyCondition = RecipeQueryPredicates.discoverable(recipe);
         BooleanExpression imageReadyCondition = recipe.imageStatus.eq(RecipeImageStatus.READY)
                 .or(recipe.imageStatus.isNull());
         BooleanExpression ingredientFilter = ri.ingredient.id.eq(ingredientId);
