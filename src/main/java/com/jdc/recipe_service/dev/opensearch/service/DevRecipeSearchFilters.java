@@ -41,12 +41,53 @@ public final class DevRecipeSearchFilters {
     }
 
     /**
-     * viewer 기준 접근 가능 필터.
-     *  - viewerId == null → publicListedActive와 동일
-     *  - viewerId != null → ACTIVE && (owner OR (PUBLIC && LISTED))
+     * viewable — 단건 상세/저장/상호작용용. ACTIVE && (owner OR PUBLIC). listingStatus 무시 →
+     * PUBLIC+UNLISTED(link-only)도 누구나 접근 가능.
      *
-     * 호출처는 dev document에 {@code userId} 필드(owner id)가 있다고 가정한다 (DevRecipeDocument에서 추가).
+     * <ul>
+     *   <li>viewerId == null → ACTIVE && PUBLIC (listingStatus 무관)</li>
+     *   <li>viewerId != null → ACTIVE && (owner OR PUBLIC)</li>
+     * </ul>
      */
+    public static BoolQueryBuilder viewableByFilter(@Nullable Long viewerId) {
+        BoolQueryBuilder activeOnly = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(FIELD_LIFECYCLE_STATUS, RecipeLifecycleStatus.ACTIVE.name()));
+
+        if (viewerId == null) {
+            return activeOnly
+                    .filter(QueryBuilders.termQuery(FIELD_VISIBILITY, RecipeVisibility.PUBLIC.name()));
+        }
+
+        BoolQueryBuilder isPublic = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(FIELD_VISIBILITY, RecipeVisibility.PUBLIC.name()));
+        BoolQueryBuilder isOwner = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(FIELD_USER_ID, viewerId));
+
+        return activeOnly.filter(QueryBuilders.boolQuery().should(isOwner).should(isPublic).minimumShouldMatch(1));
+    }
+
+    /**
+     * owner-only — 내 레시피 목록 등. ACTIVE && owner.
+     * viewerId == null이면 항상 0건이 되도록 매칭 불가능 필터를 반환 (anonymous 안전).
+     */
+    public static BoolQueryBuilder ownerVisibleFilter(@Nullable Long viewerId) {
+        if (viewerId == null) {
+            // 매칭 불가능 — 음수 id로 term query (id가 음수일 일 없음). 빈 결과 강제.
+            return QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(FIELD_USER_ID, -1L));
+        }
+        return QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(FIELD_LIFECYCLE_STATUS, RecipeLifecycleStatus.ACTIVE.name()))
+                .filter(QueryBuilders.termQuery(FIELD_USER_ID, viewerId));
+    }
+
+    /**
+     * @deprecated PUBLIC+UNLISTED를 link-only로 허용하지 않는 구 정책 (V1 호환용).
+     * 의미별 필터({@link #publicListedActiveFilter}/{@link #viewableByFilter}/{@link #ownerVisibleFilter})로 점진 교체.
+     *
+     * <p>구 동작: ACTIVE && (owner OR (PUBLIC && LISTED)).
+     */
+    @Deprecated
     public static BoolQueryBuilder accessibleByFilter(@Nullable Long viewerId) {
         BoolQueryBuilder activeOnly = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(FIELD_LIFECYCLE_STATUS, RecipeLifecycleStatus.ACTIVE.name()));

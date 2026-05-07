@@ -686,7 +686,7 @@ public class YoutubeRecipeExtractionService {
             recipeDto.setVisibility(RecipeVisibility.PUBLIC);
             recipeDto.setListingStatus(RecipeListingStatus.LISTED);
         } else {
-            log.info("📝 텍스트 모드 유지 -> RESTRICTED / UNLISTED 모드");
+            log.info("📝 텍스트 모드 유지 -> PUBLIC / UNLISTED 모드 (link-only)");
 
             // TODO: 여기서 [키워드 검색 이미지 / 기본 이미지] 매칭 로직이 들어갈 자리입니다.
             DishType currentDishType = DishType.fromDisplayName(recipeDto.getDishType());
@@ -705,8 +705,11 @@ public class YoutubeRecipeExtractionService {
             }
 
             recipeDto.setImageStatus(RecipeImageStatus.READY);
-            recipeDto.setVisibility(RecipeVisibility.RESTRICTED);
+            // 매칭 실패로 카테고리 기본 이미지를 쓴 경우 — 검색에 노출되지는 않지만 link로는 접근 가능.
+            // 정책 V1.x: PUBLIC + UNLISTED. 기존 RESTRICTED 의도("검색 미노출 공개")를 의미별 조합으로 재표현.
+            recipeDto.setVisibility(RecipeVisibility.PUBLIC);
             recipeDto.setListingStatus(RecipeListingStatus.UNLISTED);
+            recipeDto.setIsPrivate(false);
         }
         recipeDto.setLifecycleStatus(RecipeLifecycleStatus.ACTIVE);
 

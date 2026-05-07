@@ -15,6 +15,7 @@ import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.mapper.RecipeMapper;
 import com.jdc.recipe_service.service.image.RecipeImageService;
+import com.jdc.recipe_service.service.recipe.RecipeVisibilityPolicy;
 import com.jdc.recipe_service.util.PricingUtil;
 import com.jdc.recipe_service.util.S3Util;
 import jakarta.persistence.EntityManager;
@@ -56,6 +57,9 @@ public class AdminRecipeService {
     public Long createRecipe(RecipeCreateRequestDto dto, Long userId) {
         User user = getUserOrThrow(userId);
         Recipe recipe = RecipeMapper.toEntity(dto, user);
+        // mapper는 isPrivate만 set하고 visibility/listingStatus는 entity default(PUBLIC/LISTED)에 의존한다.
+        // dto.isPrivate=true면 PUBLIC+LISTED+isPrivate=true 깨진 row가 만들어지므로 헬퍼로 정규화.
+        RecipeVisibilityPolicy.applyFromDto(recipe, dto);
         recipeRepository.save(recipe);
         recipeRepository.flush();
 
@@ -77,6 +81,9 @@ public class AdminRecipeService {
         RecipeCreateRequestDto dto = req.getRecipe();
 
         Recipe recipe = RecipeMapper.toEntity(dto, user);
+        // mapper의 isPrivate만 set + entity default(PUBLIC/LISTED) 조합이 트리플 invariant를 깬다.
+        // 헬퍼로 정규화 + RESTRICTED 신규 입력 거부 (admin 단건 + presigned URL 흐름).
+        RecipeVisibilityPolicy.applyFromDto(recipe, dto);
         recipeRepository.save(recipe);
         int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), RecipeSourceType.USER);
         recipe.updateTotalIngredientCost(totalCost);
@@ -103,7 +110,9 @@ public class AdminRecipeService {
 
         for (RecipeCreateRequestDto dto : recipeDtos) {
             Recipe recipe = RecipeMapper.toEntity(dto, user);
-            recipe.updateIsPrivate(dto.getIsPrivate() != null && dto.getIsPrivate());
+            // bulk create도 일반 생성 흐름과 동일 정책 — 단일 setter 직접 호출 금지.
+            // RESTRICTED 입력 거부 + visibility/listingStatus/isPrivate 트리플 동기화는 헬퍼가 책임진다.
+            RecipeVisibilityPolicy.applyFromDto(recipe, dto);
             recipeRepository.save(recipe);
 
             int totalCost = recipeIngredientService.saveAll(recipe, dto.getIngredients(), RecipeSourceType.USER);

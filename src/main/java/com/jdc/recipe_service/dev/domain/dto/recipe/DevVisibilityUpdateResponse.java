@@ -1,26 +1,14 @@
 package com.jdc.recipe_service.dev.domain.dto.recipe;
 
-import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * Dev V3 가시성 변경 응답 — 적용 후 트리플 상태 노출.
- * 프론트는 세 필드 모두 일관되게 갱신되었는지 확인 가능 (visibility 트리플 동기화 검증).
- *
- * 트리플 매핑:
- *  - PUBLIC     → listingStatus=LISTED,   isPrivate=false
- *  - PRIVATE    → listingStatus=UNLISTED, isPrivate=true
- *  - RESTRICTED → listingStatus=UNLISTED, isPrivate=false
- */
+/** Dev V3 가시성 변경 응답. RESTRICTED는 신규 입력에서 거부되므로 정상 흐름에 등장하지 않음. */
 public record DevVisibilityUpdateResponse(
-        @Schema(description = "갱신된 visibility (source of truth)",
-                allowableValues = {"PUBLIC", "PRIVATE", "RESTRICTED"})
+        @Schema(description = "갱신된 visibility. 신규 응답에는 PUBLIC | PRIVATE만 등장.",
+                allowableValues = {"PUBLIC", "PRIVATE"})
         RecipeVisibility visibility,
 
-        @Schema(description = "트리플 동기화된 listingStatus (PUBLIC → LISTED, PRIVATE/RESTRICTED → UNLISTED)")
-        RecipeListingStatus listingStatus,
-
-        @Schema(description = "트리플 동기화된 legacy isPrivate (PRIVATE → true, PUBLIC/RESTRICTED → false)")
+        @Schema(description = "legacy isPrivate. PRIVATE=true, PUBLIC=false.")
         Boolean isPrivate
 ) {}

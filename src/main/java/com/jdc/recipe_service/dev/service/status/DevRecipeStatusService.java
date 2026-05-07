@@ -96,8 +96,9 @@ public class DevRecipeStatusService {
         List<DevRecipeAccessProjection> projections =
                 accessProjectionRepository.findAccessProjectionsByIds(recipeIds);
         return projections.stream()
-                .filter(p -> DevRecipeAccessPolicy.isAccessibleBy(
-                        p.lifecycleStatus(), p.visibility(), p.listingStatus(), viewerId, p.ownerId()))
+                // V1.x 정책: status 조회는 viewable 단위 — PUBLIC+UNLISTED도 동적 상태 조회 가능. listingStatus 무시.
+                .filter(p -> DevRecipeAccessPolicy.isViewableBy(
+                        p.lifecycleStatus(), p.visibility(), viewerId, p.ownerId()))
                 .map(DevRecipeAccessProjection::recipeId)
                 .collect(Collectors.toSet());
     }

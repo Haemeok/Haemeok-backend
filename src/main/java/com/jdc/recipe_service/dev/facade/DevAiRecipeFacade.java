@@ -20,7 +20,6 @@ import com.jdc.recipe_service.domain.type.JobType;
 import com.jdc.recipe_service.domain.type.QuotaType;
 import com.jdc.recipe_service.domain.type.RecipeImageStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
-import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.service.DailyQuotaService;
@@ -339,7 +338,8 @@ public class DevAiRecipeFacade {
                 recipe.updateImageKey(AsyncImageService.DEFAULT_IMAGE_KEY);
                 recipe.updateImageStatus(RecipeImageStatus.FAILED);
                 recipe.updateImageGenerationModel(imageGenModel);
-                recipe.applyVisibility(RecipeVisibility.PUBLIC);
+                // dev AI 레시피는 origin 없는 일반 원본 — 검색/추천 노출 (PUBLIC + LISTED + isPrivate=false).
+                recipe.applyPublicListed();
             });
         });
     }

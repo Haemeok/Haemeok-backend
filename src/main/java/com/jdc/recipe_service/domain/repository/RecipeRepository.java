@@ -55,14 +55,32 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
     @EntityGraph(attributePaths = {"fineDiningDetails"})
     Page<Recipe> findByUserId(Long userId, Pageable pageable);
 
+    /**
+     * 타인 프로필의 사용자 레시피 목록 — V1.x discovery 정책 (ACTIVE + PUBLIC + LISTED).
+     *
+     * <p>Spring Data derived query({@code findByUserIdAndIsPrivateFalse})는 isPrivate=false만 보므로
+     * PUBLIC+UNLISTED(link-only) 리믹스가 타인 프로필에 노출되는 누수가 있다. discovery 정책에 맞게
+     * 명시적 {@code @Query}로 4-enum 필터 추가.
+     */
     @EntityGraph(attributePaths = {"fineDiningDetails"})
-    Page<Recipe> findByUserIdAndIsPrivateFalse(Long userId, Pageable pageable);
+    @Query("""
+            SELECT r FROM Recipe r
+            WHERE r.user.id = :userId
+              AND r.isPrivate = false
+              AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+              AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+              AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
+            """)
+    Page<Recipe> findByUserIdAndIsPrivateFalse(@Param("userId") Long userId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"fineDiningDetails"})
     @Query("""
             SELECT r FROM Recipe r
             WHERE r.user.id = :userId
               AND r.isPrivate = false
+              AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+              AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+              AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
               AND r.source IN :sources
             """)
     Page<Recipe> findByUserIdAndIsPrivateFalseAndSourceIn(
@@ -211,6 +229,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         )
         FROM Recipe r
         WHERE r.isPrivate = false
+          AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+          AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+          AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
           AND r.isAiGenerated = false
         ORDER BY (COALESCE(r.weeklyLikeCount, 0) + COALESCE(r.weeklyFavoriteCount, 0)) DESC, r.createdAt DESC
     """)
@@ -241,6 +262,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
                 JOIN r.user u
                 LEFT JOIN RecipeLike rl ON rl.recipe = r AND rl.createdAt >= :startDate
                 WHERE r.isPrivate = false
+                  AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+                  AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+                  AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
                   AND r.isAiGenerated = false
                 GROUP BY
                    r.id, r.title, r.imageKey, u.id, u.nickname, u.profileImage, r.createdAt, r.cookingTime,
@@ -257,6 +281,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         SELECT r.id
         FROM Recipe r
         WHERE r.isPrivate = false
+          AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+          AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+          AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
           AND r.isAiGenerated = false
         ORDER BY (COALESCE(r.weeklyLikeCount, 0) + COALESCE(r.weeklyFavoriteCount, 0)) DESC, r.createdAt DESC
     """)
@@ -285,6 +312,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
         FROM Recipe r
         JOIN r.user u
         WHERE r.isPrivate = false
+          AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+          AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+          AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
           AND r.isAiGenerated = false
           AND r.totalIngredientCost <= :maxCost
           AND r.totalIngredientCost >= 1000
@@ -329,6 +359,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             JOIN FETCH r.user
             WHERE r.id IN :ids
               AND r.isPrivate = false
+              AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+              AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+              AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
             """)
     List<Recipe> findAllByIdInAndIsPrivateFalseFetchUser(@Param("ids") List<Long> ids);
 
@@ -379,6 +412,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             SELECT r.id
             FROM recipes r
             WHERE r.is_private = false
+              AND r.lifecycle_status = 'ACTIVE'
+              AND r.visibility = 'PUBLIC'
+              AND r.listing_status = 'LISTED'
               AND r.is_ai_generated = false
             ORDER BY RAND()
             LIMIT 100
@@ -390,6 +426,9 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             FROM Recipe r
             WHERE r.dishType IN :dishTypes
               AND r.isPrivate = false
+              AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
+              AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC
+              AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED
               AND r.isAiGenerated = false
             """)
     List<Long> findIdsByDishTypeIn(@Param("dishTypes") List<DishType> dishTypes);
@@ -480,7 +519,10 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "WHERE REPLACE(r.title, ' ', '') LIKE %:keyword% " +
             "AND r.dishType = :dishType " +
             "AND r.imageKey IS NOT NULL " +
-            "AND r.isPrivate = false")
+            "AND r.isPrivate = false " +
+            "AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE " +
+            "AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC " +
+            "AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED")
     long countCandidateRecipes(
             @Param("keyword") String keyword,
             @Param("dishType") DishType dishType);
@@ -489,7 +531,10 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "WHERE REPLACE(r.title, ' ', '') LIKE %:keyword% " +
             "AND r.dishType = :dishType " +
             "AND r.imageKey IS NOT NULL " +
-            "AND r.isPrivate = false")
+            "AND r.isPrivate = false " +
+            "AND r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE " +
+            "AND r.visibility = com.jdc.recipe_service.domain.type.recipe.RecipeVisibility.PUBLIC " +
+            "AND r.listingStatus = com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus.LISTED")
     Page<Recipe> findCandidateRecipesByKeywordAndDishType(
             @Param("keyword") String keyword,
             @Param("dishType") DishType dishType,
@@ -504,6 +549,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
 
     boolean existsByOriginRecipeIdAndUserId(Long originRecipeId, Long userId);
 
+    // V1.x 리믹스 정책: 리믹스는 항상 PUBLIC+UNLISTED로 생성되므로 listingStatus=LISTED 조건이 있으면 모든 리믹스가 누락된다.
+    // ACTIVE + visibility=PUBLIC만 적용 — PRIVATE 전환된 리믹스만 제외, link-only 리믹스는 모두 노출.
     @Query("SELECT new com.jdc.recipe_service.domain.dto.recipe.RecipeSimpleDto(" +
             "r.id, r.title, r.imageKey, r.user.id, r.user.nickname, r.user.profileImage, r.createdAt, r.favoriteCount, " +
             "r.likeCount, FALSE, r.cookingTime, r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl, r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount, " +
@@ -512,8 +559,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "WHERE r.originRecipe.id = :originRecipeId " +
             "  AND r.isPrivate = false " +
             "  AND r.lifecycleStatus = 'ACTIVE' " +
-            "  AND r.visibility = 'PUBLIC' " +
-            "  AND r.listingStatus = 'LISTED'")
+            "  AND r.visibility = 'PUBLIC'")
     Page<RecipeSimpleDto> findRemixesByOriginRecipeId(@Param("originRecipeId") Long originRecipeId, Pageable pageable);
 
     // H6: WHERE 절은 findRemixesByOriginRecipeId와 동일해야 한다. 하나라도 어긋나면 count != list.size 불일치.
@@ -521,7 +567,6 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long>, RecipeQue
             "WHERE r.originRecipe.id = :originRecipeId " +
             "  AND r.isPrivate = false " +
             "  AND r.lifecycleStatus = 'ACTIVE' " +
-            "  AND r.visibility = 'PUBLIC' " +
-            "  AND r.listingStatus = 'LISTED'")
+            "  AND r.visibility = 'PUBLIC'")
     long countRemixesByOriginRecipeId(@Param("originRecipeId") Long originRecipeId);
 }

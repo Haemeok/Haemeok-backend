@@ -204,7 +204,7 @@ public class AiRecipeGenerationService {
             generatedDto.setVisibility(RecipeVisibility.PUBLIC);
             generatedDto.setListingStatus(RecipeListingStatus.LISTED);
         } else {
-            log.info("📝 텍스트 모드(또는 실패) -> RESTRICTED / UNLISTED");
+            log.info("📝 텍스트 모드(또는 실패) -> PUBLIC / UNLISTED (link-only)");
 
             DishType currentDishType = DishType.fromDisplayName(generatedDto.getDishType());
 
@@ -224,8 +224,11 @@ public class AiRecipeGenerationService {
             // TODO: 여기서 [키워드 검색 이미지 / 기본 이미지] 매칭 로직이 들어갈 자리입니다.
 
             generatedDto.setImageStatus(RecipeImageStatus.READY);
-            generatedDto.setVisibility(RecipeVisibility.RESTRICTED);
+            // 매칭 실패로 카테고리 기본 이미지를 쓴 경우 — 검색에 노출되지는 않지만 link로는 접근 가능.
+            // 정책 V1.x: PUBLIC + UNLISTED. 기존 RESTRICTED 의도("검색 미노출 공개")를 의미별 조합으로 재표현.
+            generatedDto.setVisibility(RecipeVisibility.PUBLIC);
             generatedDto.setListingStatus(RecipeListingStatus.UNLISTED);
+            generatedDto.setIsPrivate(false);
         }
         generatedDto.setLifecycleStatus(RecipeLifecycleStatus.ACTIVE);
 

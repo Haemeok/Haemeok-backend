@@ -31,13 +31,16 @@ public class DevRecipeQueryBuilder {
     private final Hashids hashids;
 
     /**
-     * @param viewerId 로그인한 사용자 id (anonymous면 null) — accessibleByFilter의 owner 분기에 사용
+     * 검색 빌더 — 검색은 discovery 단일 정책이라 viewer 분기 없이 publicListedActiveFilter만 적용한다.
+     * owner의 자기 PRIVATE/UNLISTED는 검색에 섞이면 안 됨 (link-only 글도 직접 링크로만 접근).
+     *
+     * @param viewerId 시그니처 호환을 위해 유지하지만 검색 정책상 무시. 향후 cleanup 가능.
      */
     public BoolQueryBuilder buildSearchQuery(RecipeSearchCondition cond, @Nullable Long viewerId) {
         BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
-        // 운영의 isPrivate=false 필터를 dev V3 4-enum 정책으로 대체
-        bool.filter(DevRecipeSearchFilters.accessibleByFilter(viewerId));
+        // 검색은 discovery 단일 정책 — ACTIVE+PUBLIC+LISTED. viewer 무관.
+        bool.filter(DevRecipeSearchFilters.publicListedActiveFilter());
 
         if (cond.getTitle() != null && !cond.getTitle().isBlank()) {
             String keyword = cond.getTitle().trim();
