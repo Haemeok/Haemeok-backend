@@ -67,16 +67,9 @@ search:
     enabled: false
     alias: recipes_v3_dev
 
-# dev V3 visibility 정책 통제.
-# restricted-enabled=true로 켜면 PATCH /api/dev/recipes/*/visibility가 RESTRICTED 전환 허용.
-# default false — applyVisibility(RESTRICTED)가 isPrivate=false로 매핑되어 운영 V1/V2 검색
-# (isPrivate=false 기준)에 RESTRICTED가 갑자기 노출되는 운영 사고 방지.
-# 환경변수 DEV_VISIBILITY_RESTRICTED_ENABLED=true로 dev/CI 환경에서 활성화 가능.
-# (application-local.yml은 git ignored라 팀 공유가 안 됨 — 환경변수가 재현 가능한 표준 경로)
-# 운영 검색이 listingStatus 필터를 흡수한 뒤 default true로 변경 가능.
-dev:
-  visibility:
-    restricted-enabled: ${DEV_VISIBILITY_RESTRICTED_ENABLED:false}
+# dev V3 visibility 정책 — RESTRICTED는 ACL 기능 부재로 신규 입력 거부 정책으로 전환됨 (V1.x).
+# 기존 dev.visibility.restricted-enabled flag는 더 이상 동작에 영향을 주지 않으므로 제거됨.
+# 외부 입력으로 RESTRICTED가 들어오면 DevRecipeVisibilityService가 즉시 INVALID_INPUT_VALUE로 거부한다.
 
 management:
   endpoints:
