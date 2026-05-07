@@ -103,11 +103,13 @@ class RecipeQueryRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("findTopByIngredientId: isPrivate=true 레시피는 제외")
+    @DisplayName("findTopByIngredientId: PRIVATE 레시피는 제외 (V1.x discovery 정책 — ACTIVE+PUBLIC+LISTED)")
     void findTopByIngredientId_excludesPrivateRecipes() {
         Recipe pub = persistRecipe("public", 10L, RecipeImageStatus.READY);
         Recipe priv = persistRecipe("private", 999L, RecipeImageStatus.READY);
-        priv.updateIsPrivate(true);
+        // 단일 setter(updateIsPrivate)는 visibility/listingStatus를 동기화 안 해 깨진 row 생성.
+        // V1.x 정책 헬퍼로 트리플 동기화 (visibility=PRIVATE, listingStatus=UNLISTED, isPrivate=true).
+        priv.applyPrivate();
         linkIngredient(pub, target);
         linkIngredient(priv, target);
         em.flush();

@@ -64,4 +64,74 @@ class DevRecipeSearchFiltersTest {
         assertThat(json).contains("minimum_should_match");
         assertThat(json).contains("\"1\"");
     }
+
+    // =========================================================================
+    // V1.x — 의미별 필터 (link-only 정책)
+    // =========================================================================
+
+    @Test
+    @DisplayName("viewableByFilter(null): ACTIVE + PUBLIC만 — listingStatus는 의도적으로 빠짐 (PUBLIC+UNLISTED도 link로 접근)")
+    void viewableBy_anonymous_omitsListingStatus() {
+        BoolQueryBuilder filter = DevRecipeSearchFilters.viewableByFilter(null);
+        String json = filter.toString();
+
+        assertThat(json).contains(DevRecipeSearchFilters.FIELD_LIFECYCLE_STATUS);
+        assertThat(json).contains(DevRecipeSearchFilters.FIELD_VISIBILITY);
+        assertThat(json).contains("ACTIVE");
+        assertThat(json).contains("PUBLIC");
+        // 핵심 invariant: listingStatus 필드는 viewable에서 절대 들어가면 안 된다 (link-only 허용 위해 의도적 누락)
+        assertThat(json).doesNotContain(DevRecipeSearchFilters.FIELD_LISTING_STATUS);
+        assertThat(json).doesNotContain("LISTED");
+        assertThat(json).doesNotContain(DevRecipeSearchFilters.FIELD_USER_ID);
+    }
+
+    @Test
+    @DisplayName("viewableByFilter(viewerId): owner 분기 + listingStatus 빠짐 (link-only 핵심)")
+    void viewableBy_authenticated_includesOwnerBranchWithoutListingStatus() {
+        Long viewerId = 42L;
+        BoolQueryBuilder filter = DevRecipeSearchFilters.viewableByFilter(viewerId);
+        String json = filter.toString();
+
+        assertThat(json).contains("ACTIVE");
+        assertThat(json).contains(DevRecipeSearchFilters.FIELD_USER_ID);
+        assertThat(json).contains("42");
+        assertThat(json).contains("PUBLIC");
+        // viewable의 핵심 invariant: listingStatus는 owner 분기에도 non-owner 분기에도 절대 안 들어간다.
+        // (들어가면 PUBLIC+UNLISTED가 OpenSearch 검색에서 빠져서 link-only 정책 위반)
+        assertThat(json).doesNotContain(DevRecipeSearchFilters.FIELD_LISTING_STATUS);
+        assertThat(json).doesNotContain("LISTED");
+        // owner OR public 분기를 위해 should + minimum_should_match=1 필요
+        assertThat(json).containsIgnoringCase("should");
+        assertThat(json).contains("minimum_should_match");
+        assertThat(json).contains("\"1\"");
+    }
+
+    @Test
+    @DisplayName("ownerVisibleFilter(viewerId): ACTIVE + userId만 — visibility/listing 차원 빠짐 (owner-only)")
+    void ownerVisible_authenticated_filtersByOwnerActiveOnly() {
+        Long viewerId = 42L;
+        BoolQueryBuilder filter = DevRecipeSearchFilters.ownerVisibleFilter(viewerId);
+        String json = filter.toString();
+
+        assertThat(json).contains(DevRecipeSearchFilters.FIELD_LIFECYCLE_STATUS);
+        assertThat(json).contains("ACTIVE");
+        assertThat(json).contains(DevRecipeSearchFilters.FIELD_USER_ID);
+        assertThat(json).contains("42");
+        // ownerVisible은 owner 자신의 모든 ACTIVE 글을 보여주므로 visibility/listing 차원에 의존하면 안 된다.
+        assertThat(json).doesNotContain(DevRecipeSearchFilters.FIELD_VISIBILITY);
+        assertThat(json).doesNotContain("PUBLIC");
+        assertThat(json).doesNotContain(DevRecipeSearchFilters.FIELD_LISTING_STATUS);
+        assertThat(json).doesNotContain("LISTED");
+    }
+
+    @Test
+    @DisplayName("ownerVisibleFilter(null): anonymous는 매칭 불가능한 음수 id로 0건 강제 (안전 가드)")
+    void ownerVisible_anonymous_matchesNothing() {
+        BoolQueryBuilder filter = DevRecipeSearchFilters.ownerVisibleFilter(null);
+        String json = filter.toString();
+
+        // anonymous에 ownerVisible은 의미상 0건 — 음수 id term으로 어떤 row와도 매칭 안 됨.
+        assertThat(json).contains(DevRecipeSearchFilters.FIELD_USER_ID);
+        assertThat(json).contains("-1");
+    }
 }

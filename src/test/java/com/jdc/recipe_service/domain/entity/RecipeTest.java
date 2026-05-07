@@ -172,7 +172,73 @@ class RecipeTest {
     }
 
     @Nested
-    @DisplayName("applyVisibility (visibility/listingStatus/isPrivate 트리플 동기화)")
+    @DisplayName("applyPublicListed / applyPublicUnlisted / applyPrivate (의미별 트리플 동기화)")
+    class ApplyVisibilityByMeaning {
+
+        @Test
+        @DisplayName("applyPublicListed: PUBLIC + LISTED + isPrivate=false (검색/추천 노출)")
+        void applyPublicListed_setsAllThree() {
+            // given - PRIVATE 더러운 상태에서 시작
+            Recipe recipe = Recipe.builder()
+                    .id(1L)
+                    .visibility(RecipeVisibility.PRIVATE)
+                    .listingStatus(RecipeListingStatus.UNLISTED)
+                    .isPrivate(true)
+                    .build();
+
+            // when
+            recipe.applyPublicListed();
+
+            // then
+            assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+            assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.LISTED);
+            assertThat(recipe.getIsPrivate()).isFalse();
+        }
+
+        @Test
+        @DisplayName("applyPublicUnlisted: PUBLIC + UNLISTED + isPrivate=false (link-only, discovery 미노출)")
+        void applyPublicUnlisted_setsLinkOnlyTriple() {
+            // given - LISTED 상태에서 시작 (PUBLIC 원본이었다가 리믹스 정책으로 link-only로 강등되는 케이스)
+            Recipe recipe = Recipe.builder()
+                    .id(1L)
+                    .visibility(RecipeVisibility.PUBLIC)
+                    .listingStatus(RecipeListingStatus.LISTED)
+                    .isPrivate(false)
+                    .build();
+
+            // when
+            recipe.applyPublicUnlisted();
+
+            // then - listingStatus만 UNLISTED로 강등, 나머지는 PUBLIC 그대로
+            assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+            assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+            assertThat(recipe.getIsPrivate()).isFalse();
+        }
+
+        @Test
+        @DisplayName("applyPrivate: PRIVATE + UNLISTED + isPrivate=true (owner only)")
+        void applyPrivate_setsAllThree() {
+            // given - PUBLIC LISTED 상태에서 시작
+            Recipe recipe = Recipe.builder()
+                    .id(1L)
+                    .visibility(RecipeVisibility.PUBLIC)
+                    .listingStatus(RecipeListingStatus.LISTED)
+                    .isPrivate(false)
+                    .build();
+
+            // when
+            recipe.applyPrivate();
+
+            // then
+            assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+            assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+            assertThat(recipe.getIsPrivate()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("applyVisibility (legacy / deprecated — 기존 RESTRICTED row 호환 검증용)")
+    @SuppressWarnings("deprecation")
     class ApplyVisibility {
 
         @Test

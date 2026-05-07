@@ -15,12 +15,15 @@ import com.jdc.recipe_service.domain.repository.RecipeRepository;
 import com.jdc.recipe_service.domain.repository.UserRepository;
 import com.jdc.recipe_service.domain.type.ActivityLogType;
 import com.jdc.recipe_service.domain.type.AiRecipeConcept;
+import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
+import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateRequestDto;
 import com.jdc.recipe_service.domain.dto.recipe.RecipeUpdateWithImageRequest;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.opensearch.service.RecipeIndexingService;
+import org.mockito.ArgumentCaptor;
 import com.jdc.recipe_service.service.ai.RecipeAnalysisService;
 import com.jdc.recipe_service.service.image.RecipeImageService;
 import com.jdc.recipe_service.util.S3Util;
@@ -424,9 +427,141 @@ class RecipeServiceTest {
     }
 
     @Test
-    @DisplayName("togglePrivacy: 일반 사용자 레시피 공개/비공개 전환 성공")
-    void togglePrivacy_success() {
-        // Given
+    @DisplayName("createRecipeAndGenerateUrls(USER): isPrivate=true 입력 시 트리플 (PRIVATE+UNLISTED+isPrivate=true) 정규화")
+    void createRecipe_userPrivate_appliesTriple() throws Exception {
+        // Given - 사용자가 비공개 의도로 레시피 생성
+        given(userRepository.findById(author.getId())).willReturn(Optional.of(author));
+        willAnswer(invocation -> {
+            Recipe toSave = invocation.getArgument(0);
+            Field idField = Recipe.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(toSave, 556L);
+            return toSave;
+        }).given(recipeRepository).save(any(Recipe.class));
+        given(recipeIngredientService.saveAll(any(Recipe.class), anyList(), eq(RecipeSourceType.USER)))
+                .willReturn(0);
+        given(recipeIngredientRepository.findByRecipeId(anyLong())).willReturn(Collections.emptyList());
+        given(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
+                .willReturn(Collections.emptyList());
+        Recipe fullRecipe = Recipe.builder().id(556L).user(author).build();
+        given(recipeRepository.findWithAllRelationsById(556L)).willReturn(Optional.of(fullRecipe));
+
+        RecipeCreateRequestDto privateDto = RecipeCreateRequestDto.builder()
+                .title("비공개 레시피")
+                .dishType("볶음")
+                .isPrivate(true)  // ← 핵심: 사용자가 비공개 입력
+                .ingredients(Collections.emptyList())
+                .steps(Collections.emptyList())
+                .tags(Collections.emptyList())
+                .build();
+        RecipeWithImageUploadRequest req = RecipeWithImageUploadRequest.builder()
+                .recipe(privateDto)
+                .files(nonEmptyFiles)
+                .build();
+
+        // When
+        recipeService.createRecipeAndGenerateUrls(req, author.getId(), RecipeSourceType.USER, null);
+
+        // Then - save된 entity의 트리플이 정규화됐는지 (entity default에 의존하면 PUBLIC+LISTED+isPrivate=true 깨진 row)
+        ArgumentCaptor<Recipe> captor = ArgumentCaptor.forClass(Recipe.class);
+        verify(recipeRepository).save(captor.capture());
+        Recipe persisted = captor.getValue();
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(persisted.getIsPrivate()).isTrue();
+    }
+
+    @Test
+    @DisplayName("createRecipeAndGenerateUrls(USER): isPrivate=false (default) 입력 시 트리플 (PUBLIC+LISTED+isPrivate=false)")
+    void createRecipe_userPublic_appliesTriple() throws Exception {
+        given(userRepository.findById(author.getId())).willReturn(Optional.of(author));
+        willAnswer(invocation -> {
+            Recipe toSave = invocation.getArgument(0);
+            Field idField = Recipe.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(toSave, 557L);
+            return toSave;
+        }).given(recipeRepository).save(any(Recipe.class));
+        given(recipeIngredientService.saveAll(any(Recipe.class), anyList(), eq(RecipeSourceType.USER)))
+                .willReturn(0);
+        given(recipeIngredientRepository.findByRecipeId(anyLong())).willReturn(Collections.emptyList());
+        given(recipeImageService.generateAndSavePresignedUrls(any(Recipe.class), anyList()))
+                .willReturn(Collections.emptyList());
+        Recipe fullRecipe = Recipe.builder().id(557L).user(author).build();
+        given(recipeRepository.findWithAllRelationsById(557L)).willReturn(Optional.of(fullRecipe));
+
+        RecipeWithImageUploadRequest req = RecipeWithImageUploadRequest.builder()
+                .recipe(createDto)  // createDto는 isPrivate=false
+                .files(nonEmptyFiles)
+                .build();
+
+        recipeService.createRecipeAndGenerateUrls(req, author.getId(), RecipeSourceType.USER, null);
+
+        ArgumentCaptor<Recipe> captor = ArgumentCaptor.forClass(Recipe.class);
+        verify(recipeRepository).save(captor.capture());
+        Recipe persisted = captor.getValue();
+        assertThat(persisted.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+        assertThat(persisted.getListingStatus()).isEqualTo(RecipeListingStatus.LISTED);
+        assertThat(persisted.getIsPrivate()).isFalse();
+    }
+
+    @Test
+    @DisplayName("finalizeRecipeImages: 일반 원본 user 레시피 → PUBLIC+LISTED+isPrivate=false 트리플 (단일 setter 깨진 조합 방지)")
+    void finalize_originalUserRecipe_appliesPublicListed() {
+        // Given - PRIVATE 상태의 일반 원본 user 레시피 (origin 없음)
+        Recipe recipe = Recipe.builder()
+                .id(700L)
+                .user(author)
+                .visibility(RecipeVisibility.PRIVATE)
+                .listingStatus(RecipeListingStatus.UNLISTED)
+                .isPrivate(true)
+                .isAiGenerated(false)
+                .build();
+        given(recipeRepository.findWithStepsById(700L)).willReturn(Optional.of(recipe));
+        given(recipeImageService.getImagesByRecipeId(700L)).willReturn(Collections.emptyList());
+        given(s3Util.listKeysInFolder(anyString())).willReturn(Collections.emptySet());
+
+        // When - finalize 호출 (이미지 finalize 후 공개 전환 V1 정책)
+        recipeService.finalizeRecipeImages(700L, author.getId(), false);
+
+        // Then - 단일 updateIsPrivate(false) 호출이었다면 PRIVATE+UNLISTED+isPrivate=false 깨진 조합.
+        // 헬퍼가 트리플 정규화하는지 검증.
+        assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+        assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.LISTED);
+        assertThat(recipe.getIsPrivate()).isFalse();
+    }
+
+    @Test
+    @DisplayName("finalizeRecipeImages: 리믹스 user 레시피 → PUBLIC+UNLISTED+isPrivate=false 트리플 (link-only 보존)")
+    void finalize_remixUserRecipe_appliesPublicUnlisted() {
+        // Given - 리믹스 (origin 있음)
+        Recipe origin = Recipe.builder().id(799L).build();
+        Recipe remix = Recipe.builder()
+                .id(701L)
+                .user(author)
+                .visibility(RecipeVisibility.PRIVATE)
+                .listingStatus(RecipeListingStatus.UNLISTED)
+                .isPrivate(true)
+                .isAiGenerated(false)
+                .originRecipe(origin)
+                .build();
+        given(recipeRepository.findWithStepsById(701L)).willReturn(Optional.of(remix));
+        given(recipeImageService.getImagesByRecipeId(701L)).willReturn(Collections.emptyList());
+        given(s3Util.listKeysInFolder(anyString())).willReturn(Collections.emptySet());
+
+        // When
+        recipeService.finalizeRecipeImages(701L, author.getId(), false);
+
+        // Then - 리믹스는 PUBLIC으로 풀려도 검색/추천 누출 차단. UNLISTED 보존.
+        assertThat(remix.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+        assertThat(remix.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(remix.getIsPrivate()).isFalse();
+    }
+
+    @Test
+    @DisplayName("togglePrivacy: 일반 원본의 PRIVATE → PUBLIC = PUBLIC+LISTED+isPrivate=false (검색 노출)")
+    void togglePrivacy_originalRecipe_privateToPublic_setsListed() {
+        // Given - origin 없는 일반 원본 레시피, PRIVATE 상태
         Recipe recipe = Recipe.builder()
                 .id(123L)
                 .user(author)
@@ -440,10 +575,63 @@ class RecipeServiceTest {
         // When
         boolean result = recipeService.togglePrivacy(123L, author.getId());
 
-        // Then
+        // Then - 일반 원본은 LISTED로 풀려 검색에 노출됨
         assertThat(result).isFalse();
+        assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+        assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.LISTED);
+        assertThat(recipe.getIsPrivate()).isFalse();
 
         verify(recipeRepository).findWithUserById(123L);
+    }
+
+    @Test
+    @DisplayName("togglePrivacy: 리믹스의 PRIVATE → PUBLIC = PUBLIC+UNLISTED+isPrivate=false (link-only 보존)")
+    void togglePrivacy_remixRecipe_privateToPublic_setsUnlisted() {
+        // Given - origin이 있는 리믹스 레시피 (link-only 정책 유지 대상)
+        Recipe origin = Recipe.builder().id(999L).user(author).build();
+        Recipe remix = Recipe.builder()
+                .id(123L)
+                .user(author)
+                .isPrivate(true)
+                .isAiGenerated(false)
+                .imageKey("remix.jpg")
+                .originRecipe(origin)
+                .build();
+
+        given(recipeRepository.findWithUserById(123L)).willReturn(Optional.of(remix));
+
+        // When
+        boolean result = recipeService.togglePrivacy(123L, author.getId());
+
+        // Then - 리믹스는 검색/추천에 갑자기 노출되지 않도록 UNLISTED 유지
+        assertThat(result).isFalse();
+        assertThat(remix.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
+        assertThat(remix.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(remix.getIsPrivate()).isFalse();
+    }
+
+    @Test
+    @DisplayName("togglePrivacy: PUBLIC → PRIVATE = PRIVATE+UNLISTED+isPrivate=true (origin 유무 무관)")
+    void togglePrivacy_publicToPrivate_appliesPrivate() {
+        // Given - PUBLIC 상태 (origin 유무는 PRIVATE 전환에서 영향 없음)
+        Recipe recipe = Recipe.builder()
+                .id(123L)
+                .user(author)
+                .isPrivate(false)
+                .isAiGenerated(false)
+                .imageKey("image.jpg")
+                .build();
+
+        given(recipeRepository.findWithUserById(123L)).willReturn(Optional.of(recipe));
+
+        // When
+        boolean result = recipeService.togglePrivacy(123L, author.getId());
+
+        // Then
+        assertThat(result).isTrue();
+        assertThat(recipe.getVisibility()).isEqualTo(RecipeVisibility.PRIVATE);
+        assertThat(recipe.getListingStatus()).isEqualTo(RecipeListingStatus.UNLISTED);
+        assertThat(recipe.getIsPrivate()).isTrue();
     }
 
     @Test

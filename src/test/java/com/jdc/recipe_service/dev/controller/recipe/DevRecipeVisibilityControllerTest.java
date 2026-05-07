@@ -4,7 +4,6 @@ import com.jdc.recipe_service.dev.domain.dto.recipe.DevVisibilityUpdateRequest;
 import com.jdc.recipe_service.dev.domain.dto.recipe.DevVisibilityUpdateResponse;
 import com.jdc.recipe_service.dev.service.recipe.DevRecipeVisibilityService;
 import com.jdc.recipe_service.domain.entity.User;
-import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -65,7 +64,7 @@ class DevRecipeVisibilityControllerTest {
 
         DevVisibilityUpdateRequest req = new DevVisibilityUpdateRequest(RecipeVisibility.PUBLIC);
         DevVisibilityUpdateResponse expected = new DevVisibilityUpdateResponse(
-                RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED, false);
+                RecipeVisibility.PUBLIC, false);
         given(devRecipeVisibilityService.updateVisibility(RECIPE_ID, RecipeVisibility.PUBLIC, USER_ID))
                 .willReturn(expected);
 
@@ -94,25 +93,24 @@ class DevRecipeVisibilityControllerTest {
     }
 
     @Test
-    @DisplayName("RESTRICTED 요청: controller가 enum을 그대로 service에 전달 (API contract — flag/정책 결정은 service 책임)")
+    @DisplayName("RESTRICTED 요청: controller가 enum을 그대로 service에 전달 (API contract — 거부 정책은 service 책임)")
     void restrictedRequest_passedThroughToService() {
         given(userDetails.getUser()).willReturn(user);
         given(user.getId()).willReturn(USER_ID);
 
         DevVisibilityUpdateRequest req = new DevVisibilityUpdateRequest(RecipeVisibility.RESTRICTED);
-        DevVisibilityUpdateResponse expected = new DevVisibilityUpdateResponse(
-                RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED, false);
+        // service가 INVALID_INPUT_VALUE를 던지는 동작은 DevRecipeVisibilityServiceTest가 검증.
+        // 이 controller 테스트는 enum이 stripping 없이 service로 그대로 전달되는 contract를 잠근다.
         given(devRecipeVisibilityService.updateVisibility(RECIPE_ID, RecipeVisibility.RESTRICTED, USER_ID))
-                .willReturn(expected);
+                .willThrow(new CustomException(ErrorCode.INVALID_INPUT_VALUE));
 
-        ResponseEntity<DevVisibilityUpdateResponse> response =
-                controller.updateVisibility(RECIPE_ID, req, userDetails);
-
-        // controller는 RESTRICTED를 거부하지 않고 그대로 전달.
-        // flag disabled 환경 차단은 service의 책임 (DevVisibilityProperties 게이트 — 운영 노출 사고 방지의 single source of truth).
-        // 이 테스트가 잡는 회귀: 누가 controller에 "RESTRICTED 일시 차단" 분기를 다시 넣으면 contract가 service와 갈림.
-        assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody().visibility()).isEqualTo(RecipeVisibility.RESTRICTED);
+        // controller는 RESTRICTED를 거부하지 않고 그대로 전달 — 거부는 service의 단일 책임.
+        // 이 테스트가 잡는 회귀: 누가 controller에 "RESTRICTED 일시 차단" 분기를 다시 넣으면 contract가 service와 갈려서
+        // 실제 거부 메시지/에러코드가 두 군데에서 결정되는 위험이 생김.
+        assertThatThrownBy(() -> controller.updateVisibility(RECIPE_ID, req, userDetails))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
         verify(devRecipeVisibilityService).updateVisibility(RECIPE_ID, RecipeVisibility.RESTRICTED, USER_ID);
     }
 }
