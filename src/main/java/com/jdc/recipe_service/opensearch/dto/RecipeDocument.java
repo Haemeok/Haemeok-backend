@@ -34,4 +34,9 @@ public class RecipeDocument {
     private Float fat;
     private Float sugar;
     private Float sodium;
+
+    // 재색인 전 구 인덱스 문서엔 이 필드들이 없으므로 null 허용.
+    private String visibility;
+    private String listingStatus;
+    private String lifecycleStatus;
 }

@@ -49,7 +49,7 @@ public class OpenSearchSuggestionService {
                     .fetchSource(new String[]{"title"}, null);
 
             SearchResponse resp = client.search(
-                    new SearchRequest("recipes").source(src),
+                    new SearchRequest(RecipeIndexingService.RECIPE_INDEX_ALIAS).source(src),
                     RequestOptions.DEFAULT
             );
 

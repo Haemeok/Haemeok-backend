@@ -11,12 +11,20 @@ import com.jdc.recipe_service.opensearch.dto.RecipeDocument;
 import com.jdc.recipe_service.opensearch.indexingfailure.IndexingFailureLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.opensearch.OpenSearchStatusException;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.client.indices.CreateIndexResponse;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
@@ -24,6 +32,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -50,6 +59,9 @@ public class RecipeIndexingService {
 
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MS = 2000;
+
+    /** 일상 read/write가 사용하는 logical 이름. alias로 등록되면 alias swap으로 무중단 재색인 가능. */
+    public static final String RECIPE_INDEX_ALIAS = "recipes";
 
     public static final Set<Long> PANTRY_IDS = Set.of(
             18L, 25L, 26L, 27L, 28L, 31L, 35L, 42L, 43L, 51L,
@@ -79,11 +91,13 @@ public class RecipeIndexingService {
     @Value("${cloud.aws.region.static}")
     private String region;
 
-    /**
-     * 한 번만 호출해서 'recipes' 인덱스를 생성합니다.
-     */
     public boolean createRecipeIndex() throws IOException {
-        var request = new CreateIndexRequest("recipes");
+        return createRecipeIndex(RECIPE_INDEX_ALIAS);
+    }
+
+    // 명시 mapping 사용 — dynamic mapping에 기대면 string field가 text+keyword subfield로 잡혀 termQuery 정확도가 깨진다.
+    public boolean createRecipeIndex(String indexName) throws IOException {
+        var request = new CreateIndexRequest(indexName);
 
         request.settings("""
                 {
@@ -180,7 +194,10 @@ public class RecipeIndexingService {
                     "carbohydrate": { "type": "float" },
                     "fat": { "type": "float" },
                     "sugar": { "type": "float" },
-                    "sodium": { "type": "float" }
+                    "sodium": { "type": "float" },
+                    "visibility": { "type": "keyword" },
+                    "listingStatus": { "type": "keyword" },
+                    "lifecycleStatus": { "type": "keyword" }
                   }
                 }
                 """, XContentType.JSON);
@@ -197,41 +214,139 @@ public class RecipeIndexingService {
         doIndex(recipe);
     }
 
-    public void indexAllRecipes() {
+    public ReindexResult indexAllRecipes() {
+        return indexAllRecipes(RECIPE_INDEX_ALIAS);
+    }
+
+    /**
+     * DB → toDocument() 기반 bulk 색인. OpenSearch native {@code _reindex}는 구 인덱스에 새 enum 필드가
+     * 없거나 dynamic mapping으로 잘못 잡혀 있을 수 있어 새 인덱스에는 반드시 DB에서 새로 색인한다.
+     *
+     * <p>호출자는 {@link ReindexResult#hasFailures()}가 true면 alias swap을 진행하면 안 된다.
+     */
+    public ReindexResult indexAllRecipes(String indexName) {
         int page = 0;
         int size = 1000;
+        long totalIndexed = 0;
+        List<Long> failedIds = new ArrayList<>();
+        log.info("레시피 Bulk 재색인 시작 — target index: {}", indexName);
 
         while (true) {
-            Page<Recipe> recipePage = recipeRepository.findAll(PageRequest.of(page, size));
+            // 정렬 없으면 페이지 사이에 row 누락/중복 가능 — alias swap용 전체 색인이라 id ASC 명시.
+            Page<Recipe> recipePage = recipeRepository.findAll(
+                    PageRequest.of(page, size, Sort.by("id").ascending()));
             if (!recipePage.hasContent()) {
                 break;
             }
 
             BulkRequest bulkRequest = new BulkRequest();
+            List<Long> pageIds = new ArrayList<>(recipePage.getContent().size());
 
             for (Recipe recipe : recipePage.getContent()) {
                 try {
                     RecipeDocument doc = buildDocument(recipe);
 
-                    bulkRequest.add(new IndexRequest("recipes")
+                    bulkRequest.add(new IndexRequest(indexName)
                             .id(recipe.getId().toString())
                             .source(objectMapper.writeValueAsString(doc), XContentType.JSON)
                     );
+                    pageIds.add(recipe.getId());
                 } catch (Exception e) {
                     log.error("Bulk 색인 중 문서 변환 오류 ID: {}", recipe.getId(), e);
+                    failedIds.add(recipe.getId());
                 }
             }
             try {
                 if (bulkRequest.numberOfActions() > 0) {
-                    client.bulk(bulkRequest, RequestOptions.DEFAULT);
-                    log.info("레시피 Bulk 색인 진행 중: {}건 완료", (page * size) + bulkRequest.numberOfActions());
+                    BulkResponse response = client.bulk(bulkRequest, RequestOptions.DEFAULT);
+                    if (response.hasFailures()) {
+                        for (BulkItemResponse item : response.getItems()) {
+                            if (item.isFailed()) {
+                                long failedId = Long.parseLong(item.getId());
+                                failedIds.add(failedId);
+                                log.error("Bulk item 실패 ID: {}, message: {}", failedId,
+                                        item.getFailureMessage());
+                            }
+                        }
+                    }
+                    totalIndexed += countSucceeded(response);
+                    log.info("레시피 Bulk 색인 진행 중 ({}): 누적 성공 {}건, 누적 실패 {}건",
+                            indexName, totalIndexed, failedIds.size());
                 }
             } catch (IOException e) {
-                log.error("레시피 Bulk 색인 실패 (페이지: {})", page, e);
+                log.error("레시피 Bulk 색인 실패 (페이지: {}, target: {}, 영향받은 row 수: {})",
+                        page, indexName, pageIds.size(), e);
+                failedIds.addAll(pageIds);
             }
             page++;
         }
-        log.info("모든 레시피 Bulk 색인 완료.");
+        boolean hasFailures = !failedIds.isEmpty();
+        if (hasFailures) {
+            log.error("레시피 Bulk 색인 완료 — target {}: 성공 {}건 / 실패 {}건. **alias swap 금지**",
+                    indexName, totalIndexed, failedIds.size());
+        } else {
+            log.info("모든 레시피 Bulk 색인 완료 — target index: {}, 총 {}건", indexName, totalIndexed);
+        }
+        return new ReindexResult(indexName, totalIndexed, failedIds, hasFailures);
+    }
+
+    private static long countSucceeded(BulkResponse response) {
+        long count = 0;
+        for (BulkItemResponse item : response.getItems()) {
+            if (!item.isFailed()) count++;
+        }
+        return count;
+    }
+
+    /** Bulk 재색인 결과. {@code hasFailures()}가 true면 alias swap 금지. */
+    public record ReindexResult(String indexName, long totalIndexed, List<Long> failedIds, boolean hasFailures) {}
+
+    /**
+     * Atomic alias swap. 단일 작업이라 검색 클라이언트가 "alias 미존재" 순간을 보지 않는다.
+     *
+     * <p>alias name과 동일한 concrete index가 있으면 alias 등록 자체가 충돌하므로 운영자가 사전에 구 인덱스를 정리해야 한다.
+     *
+     * @return swap 전 alias가 가리키던 인덱스 이름들 (구 인덱스 정리 참고용)
+     */
+    public Set<String> swapRecipeAlias(String newIndexName) throws IOException {
+        // controller 가드 우회 차단 — service 직접 호출 경로에서도 alias 자기 자신 swap을 거부.
+        if (RECIPE_INDEX_ALIAS.equals(newIndexName)) {
+            throw new IllegalArgumentException("newIndexName='" + RECIPE_INDEX_ALIAS
+                    + "'은 alias 자기 자신을 swap target으로 지정한 것 — 새 인덱스 이름(예: recipes_v2)을 사용하세요.");
+        }
+
+        // alias 자체가 없는 첫 등록 시점에는 OpenSearch가 404를 던진다 — empty로 처리하고 add만 수행.
+        Set<String> previousIndices;
+        try {
+            GetAliasesRequest getReq = new GetAliasesRequest(RECIPE_INDEX_ALIAS);
+            Map<String, Set<AliasMetadata>> aliasMap = client.indices().getAlias(getReq, RequestOptions.DEFAULT)
+                    .getAliases();
+            previousIndices = aliasMap.keySet();
+        } catch (OpenSearchStatusException e) {
+            if (e.status() == RestStatus.NOT_FOUND) {
+                log.info("alias '{}'가 아직 등록돼있지 않음 — 첫 등록으로 처리 (previousIndices=[])",
+                        RECIPE_INDEX_ALIAS);
+                previousIndices = Set.of();
+            } else {
+                throw e;
+            }
+        }
+
+        // 2) atomic swap: 기존 alias 제거 + 새 인덱스에 alias add
+        IndicesAliasesRequest swapReq = new IndicesAliasesRequest();
+        for (String prev : previousIndices) {
+            swapReq.addAliasAction(AliasActions.remove()
+                    .index(prev)
+                    .alias(RECIPE_INDEX_ALIAS));
+        }
+        swapReq.addAliasAction(AliasActions.add()
+                .index(newIndexName)
+                .alias(RECIPE_INDEX_ALIAS));
+
+        client.indices().updateAliases(swapReq, RequestOptions.DEFAULT);
+        log.info("alias swap 완료 — alias '{}' : {} → {}",
+                RECIPE_INDEX_ALIAS, previousIndices, newIndexName);
+        return previousIndices;
     }
 
     public void updateRecipe(Recipe recipe) {
@@ -252,12 +367,9 @@ public class RecipeIndexingService {
         doUpdate(recipe);
     }
 
-    /**
-     * 레시피 삭제 시 색인도 삭제합니다.
-     */
     public void deleteRecipe(Long recipeId) {
         try {
-            DeleteRequest request = new DeleteRequest("recipes", recipeId.toString());
+            DeleteRequest request = new DeleteRequest(RECIPE_INDEX_ALIAS, recipeId.toString());
             client.delete(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
             throw new CustomException(
@@ -326,6 +438,9 @@ public class RecipeIndexingService {
                 .fat(fat)
                 .sugar(sugar)
                 .sodium(sodium)
+                .visibility(recipe.getVisibility() != null ? recipe.getVisibility().name() : null)
+                .listingStatus(recipe.getListingStatus() != null ? recipe.getListingStatus().name() : null)
+                .lifecycleStatus(recipe.getLifecycleStatus() != null ? recipe.getLifecycleStatus().name() : null)
                 .build();
     }
 
@@ -375,13 +490,14 @@ public class RecipeIndexingService {
     }
 
 
+    /** isPrivate만 partial update — visibility/listingStatus/lifecycleStatus는 여기서 갱신되지 않는다. */
     @Async
     @Transactional(propagation = Propagation.NEVER)
     public void updatePrivacyStatusSafely(Long recipeId, boolean isPrivate) {
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
                 Map<String, Object> updateFields = Map.of("isPrivate", isPrivate);
-                UpdateRequest req = new UpdateRequest("recipes", recipeId.toString())
+                UpdateRequest req = new UpdateRequest(RECIPE_INDEX_ALIAS, recipeId.toString())
                         .doc(objectMapper.writeValueAsString(updateFields), XContentType.JSON)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -453,7 +569,7 @@ public class RecipeIndexingService {
     private void doIndex(Recipe recipe) {
         try {
             RecipeDocument doc = buildDocument(recipe);
-            IndexRequest req = new IndexRequest("recipes")
+            IndexRequest req = new IndexRequest(RECIPE_INDEX_ALIAS)
                     .id(recipe.getId().toString())
                     .source(objectMapper.writeValueAsString(doc), XContentType.JSON)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -469,7 +585,7 @@ public class RecipeIndexingService {
     private void doUpdate(Recipe recipe) {
         try {
             RecipeDocument doc = buildDocument(recipe);
-            UpdateRequest req = new UpdateRequest("recipes", recipe.getId().toString())
+            UpdateRequest req = new UpdateRequest(RECIPE_INDEX_ALIAS, recipe.getId().toString())
                     .doc(objectMapper.writeValueAsString(doc), XContentType.JSON)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             client.update(req, RequestOptions.DEFAULT);
