@@ -78,7 +78,7 @@ public class OpenSearchService {
             }
 
             SearchResponse resp = client.search(
-                    new SearchRequest("recipes").source(src),
+                    new SearchRequest(RecipeIndexingService.RECIPE_INDEX_ALIAS).source(src),
                     RequestOptions.DEFAULT
             );
             SearchHits hits = resp.getHits();
@@ -133,7 +133,7 @@ public class OpenSearchService {
                 );
             }
 
-            SearchResponse resp = client.search(new SearchRequest("recipes").source(src), RequestOptions.DEFAULT);
+            SearchResponse resp = client.search(new SearchRequest(RecipeIndexingService.RECIPE_INDEX_ALIAS).source(src), RequestOptions.DEFAULT);
             SearchHits hits = resp.getHits();
 
             List<Long> ids = Arrays.stream(hits.getHits()).map(h -> Long.valueOf(h.getId())).collect(Collectors.toList());
