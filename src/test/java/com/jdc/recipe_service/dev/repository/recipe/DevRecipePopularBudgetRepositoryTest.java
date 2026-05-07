@@ -76,10 +76,8 @@ class DevRecipePopularBudgetRepositoryTest {
         assertThat(result.getContent()).extracting(DevRecipeSimpleStaticDto::getTitle)
                 .containsExactly("high", "mid", "low"); // weeklyLikeCount + weeklyFavoriteCount DESC
 
-        // 4 enum 응답에 매핑
         DevRecipeSimpleStaticDto first = result.getContent().get(0);
         assertThat(first.getVisibility()).isEqualTo("PUBLIC");
-        assertThat(first.getListingStatus()).isEqualTo("LISTED");
         assertThat(first.getLifecycleStatus()).isEqualTo("ACTIVE");
         assertThat(first.getSource()).isEqualTo("USER");
     }
@@ -155,9 +153,7 @@ class DevRecipePopularBudgetRepositoryTest {
         DevRecipeSimpleStaticDtoV2 dto = result.getContent().get(0);
         assertThat(dto.getIngredientCost()).isEqualTo(5000);
         assertThat(dto.getMarketPrice()).isEqualTo(8000);
-        // 4 enum
         assertThat(dto.getVisibility()).isEqualTo("PUBLIC");
-        assertThat(dto.getListingStatus()).isEqualTo("LISTED");
         assertThat(dto.getLifecycleStatus()).isEqualTo("ACTIVE");
         assertThat(dto.getSource()).isEqualTo("USER");
     }

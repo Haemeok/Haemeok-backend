@@ -1,9 +1,9 @@
 package com.jdc.recipe_service.dev.controller.record;
 
 import com.jdc.recipe_service.config.HashIdConfig;
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordFeedResponse;
 import com.jdc.recipe_service.dev.service.record.DevCookingRecordReadService;
 import com.jdc.recipe_service.domain.dto.calendar.CookingRecordDto;
-import com.jdc.recipe_service.domain.dto.calendar.CookingRecordFeedResponse;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.jwt.JwtTokenProvider;
 import com.jdc.recipe_service.security.CustomAuthenticationEntryPoint;
@@ -102,7 +102,7 @@ class DevCookingRecordReadControllerWebMvcTest {
     @Test
     @DisplayName("GET /api/dev/me/records/timeline: 인증 principal 추출 후 service 위임 (path variable 없음)")
     void timeline_authenticated_callsService() throws Exception {
-        CookingRecordFeedResponse stub = CookingRecordFeedResponse.builder().groups(java.util.List.of()).hasNext(false).build();
+        DevCookingRecordFeedResponse stub = DevCookingRecordFeedResponse.builder().groups(java.util.List.of()).hasNext(false).build();
         given(devCookingRecordReadService.getRecordFeed(eq(RAW_USER_ID), any(Pageable.class))).willReturn(stub);
 
         mockMvc.perform(get("/api/dev/me/records/timeline"))

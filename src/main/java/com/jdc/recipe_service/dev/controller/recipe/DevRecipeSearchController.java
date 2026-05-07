@@ -48,7 +48,7 @@ public class DevRecipeSearchController {
                     운영 V2 검색과 동일한 query 인터페이스. dev V3 차이점:
                       - **접근 정책**: `lifecycle=ACTIVE && (owner OR (PUBLIC && LISTED))` 적용 →
                         RESTRICTED / PRIVATE / non-ACTIVE 누수 차단 (운영 V2의 `isPrivate=false` 단일 필터를 대체)
-                      - **응답 필드**: V2 base + `visibility` / `listingStatus` / `lifecycleStatus` / `source` 4 enum 추가
+                      - **응답 필드**: V2 base + `visibility` / `lifecycleStatus` / `source` 추가
                       - **Engine 분기**: `search.engine` (auto/opensearch/querydsl) + `search.dev-index.enabled` 조건
                         AND. dev mirror disabled면 OpenSearch 안 써서 빈 결과 사고 방지.
                       - **Pagination**: `page` (0-based), `size` (default 10), `sort` (createdAt | cookingTime, default createdAt,desc)
@@ -81,7 +81,7 @@ public class DevRecipeSearchController {
             description = """
                     운영 V2 popular와 동일한 query 인터페이스. dev V3 차이점:
                       - **접근 정책**: lifecycle=ACTIVE && visibility=PUBLIC && listing=LISTED → RESTRICTED/PRIVATE/non-ACTIVE 누수 차단
-                      - **응답 필드**: V2 base + 4 enum (visibility/listingStatus/lifecycleStatus/source)
+                      - **응답 필드**: V2 base + visibility / lifecycleStatus / source
                       - **Period**: `weekly` (default, weeklyLikeCount column 기반 fast path) / `monthly` (최근 30일 RecipeLike 실시간 COUNT) / 그 외 (2000-01-01 이후 모든 RecipeLike COUNT — 사실상 `all`)
                       - **Period fallback**: 알 수 없는 값(예: `quarterly`, 빈 문자열 외)은 `all` 시맨틱으로 처리 (운영 V2 parity, strict whitelist 없음)
                       - **Cache**: 운영 V2의 @Cacheable 미적용 — dev에서 fresh 응답 우선

@@ -55,7 +55,7 @@ public class DevUserRecipesController {
                         * 본인이 자기 프로필 보면 ACTIVE PRIVATE/RESTRICTED 모두 노출 (owner 분기)
                         * 타인이 보면 ACTIVE+PUBLIC+LISTED만 노출 (RESTRICTED 누수 차단)
                       - **lifecycle**: ACTIVE만 (HIDDEN/BANNED/DELETED는 owner도 차단 — admin 우회 방지)
-                      - **응답 필드**: V1 base + 4 enum (visibility/listingStatus/lifecycleStatus/source)
+                      - **응답 필드**: V1 base + visibility / lifecycleStatus / source / isRemix
                       - **인증**: 선택 (anonymous면 PUBLIC+LISTED+ACTIVE만)
                     """)
     @ApiResponses({

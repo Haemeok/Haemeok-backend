@@ -30,13 +30,15 @@ import java.util.List;
 /**
  * Dev V3 레시피북 read API (목록 + 상세).
  *
- * 운영 {@code /api/me/recipe-books}, {@code /api/me/recipe-books/{bookId}} 미러. 차이점:
- *  - book 안 레시피는 dev 정책({@code accessibleBy(viewerId)} + imageReady) 적용 → 다른 사람 RESTRICTED/PRIVATE 차단
- *  - recipeCount는 dev 정책 통과 레시피만 (운영보다 엄격)
- *  - book 상세 응답은 4 enum 노출 ({@link DevRecipeBookDetailResponse})
- *  - book 자체(목록 항목)는 운영 {@link RecipeBookResponse} 그대로 — 정책 무관
+ * <p>운영 {@code /api/me/recipe-books}, {@code /api/me/recipe-books/{bookId}} 미러. 차이점:
+ * <ul>
+ *   <li>book 안 레시피는 dev 정책({@code viewableBy(viewerId)} + imageReady) 적용 — 본인 ACTIVE PRIVATE + 다른 사람 PUBLIC(UNLISTED 포함) 노출, 다른 사람 RESTRICTED/PRIVATE 차단</li>
+ *   <li>recipeCount는 dev 정책 통과 레시피만 (운영보다 엄격)</li>
+ *   <li>book 상세 응답은 4 enum 노출 ({@link DevRecipeBookDetailResponse})</li>
+ *   <li>book 자체(목록 항목)는 운영 {@link RecipeBookResponse} 그대로 — 정책 무관</li>
+ * </ul>
  *
- * Write 계열(create/rename/delete/addRecipes/removeRecipes/reorder)은 후속 phase.
+ * <p>Write 계열(create/rename/delete/addRecipes/removeRecipes/reorder)은 후속 phase.
  */
 @RestController
 @RequestMapping("/api/dev/me/recipe-books")
@@ -52,8 +54,9 @@ public class DevRecipeBookController {
             summary = "Dev V3 레시피북 목록",
             description = """
                     운영 `/api/me/recipe-books` 미러. dev V3 차이점:
-                      - **recipeCount는 dev 정책 통과만**: 본인 ACTIVE PRIVATE/RESTRICTED + 다른 사람 PUBLIC+LISTED+ACTIVE만 카운트
-                      - 다른 사람의 RESTRICTED/PRIVATE/non-ACTIVE 레시피가 폴더에 들어 있어도 카운트 제외 (운영보다 엄격)
+                      - **recipeCount는 dev 정책(`viewableBy`) 통과만**: 본인 ACTIVE PRIVATE + 다른 사람 PUBLIC(LISTED+UNLISTED 모두) 카운트.
+                        link-only(PUBLIC+UNLISTED)도 폴더에 저장돼 있으면 카운트에 포함.
+                      - 다른 사람의 PRIVATE/RESTRICTED/non-ACTIVE 레시피가 폴더에 들어 있어도 카운트 제외 (운영보다 엄격)
                       - book 자체 정보 (name/isDefault/displayOrder)는 운영과 동일
                       - **인증 필수**
                     """)
@@ -76,10 +79,11 @@ public class DevRecipeBookController {
             summary = "Dev V3 레시피북 상세",
             description = """
                     운영 `/api/me/recipe-books/{bookId}` 미러. dev V3 차이점:
-                      - **레시피 목록 정책**: `accessibleBy(viewerId)` (본인 ACTIVE PRIVATE/RESTRICTED + 다른 사람 PUBLIC+LISTED+ACTIVE)
+                      - **레시피 목록 정책**: `viewableBy(viewerId)` — 본인 ACTIVE PRIVATE + 다른 사람 PUBLIC(LISTED+UNLISTED 모두) 노출.
+                        link-only(PUBLIC+UNLISTED) 글도 폴더에 저장돼 있으면 보여야 함. 다른 사람 PRIVATE/RESTRICTED는 차단.
                       - **imageReady**: PENDING/FAILED 차단 (A2/A3/User Lists 정합)
                       - **recipeCount**: dev 정책 통과 레시피만
-                      - **응답 4 enum 노출**: DevRecipeBookItemResponse에 visibility/listingStatus/lifecycleStatus/source
+                      - **응답 enum 노출**: DevRecipeBookItemResponse에 visibility / lifecycleStatus / source / isRemix
                       - **인증 필수**, ownership check (본인 폴더만)
                       - 정렬: `createdAt` (default, item.createdAt = 폴더 추가 시각) | `recipeCreatedAt` | `cookingTime`. fallback은 `createdAt`.
                     """)

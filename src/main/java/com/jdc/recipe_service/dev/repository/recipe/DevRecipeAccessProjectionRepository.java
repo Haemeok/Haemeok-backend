@@ -9,19 +9,17 @@ import org.springframework.stereotype.Repository;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Recipe 4-enum + ownerId만 batch로 조회하는 dev 전용 repository.
- *
- * 운영 {@code RecipeRepository}는 zero-touch 유지를 위해 신규 method를 추가하지 않고 dev 전용 인터페이스를 둔다.
- * 같은 Recipe 엔티티를 가리키지만 dev V3 access matrix용 좁은 projection만 노출.
- */
+/** Dev V3 access matrix용 좁은 projection만 노출하는 dev 전용 repository. */
 @Repository
 public interface DevRecipeAccessProjectionRepository extends JpaRepository<Recipe, Long> {
 
+    // originRecipe는 nullable FK라 implicit join(r.originRecipe.id)은 inner join이 되어
+    // 원본 레시피(originRecipe IS NULL)가 결과에서 누락된다. LEFT JOIN 필수.
     @Query("""
             SELECT new com.jdc.recipe_service.dev.repository.recipe.DevRecipeAccessProjection(
-                r.id, r.user.id, r.lifecycleStatus, r.visibility, r.listingStatus, r.imageStatus)
+                r.id, r.user.id, r.lifecycleStatus, r.visibility, r.listingStatus, r.imageStatus, orig.id)
             FROM Recipe r
+            LEFT JOIN r.originRecipe orig
             WHERE r.id IN :ids
             """)
     List<DevRecipeAccessProjection> findAccessProjectionsByIds(@Param("ids") Collection<Long> ids);

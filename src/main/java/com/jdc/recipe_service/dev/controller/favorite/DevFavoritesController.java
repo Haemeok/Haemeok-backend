@@ -45,10 +45,11 @@ public class DevFavoritesController {
             summary = "Dev V3 내 즐겨찾기 목록",
             description = """
                     운영 `/api/me/favorites` 미러. dev V3 차이점:
-                      - **접근 정책**: `accessibleBy(viewerId)` — 본인이 만든 RESTRICTED/PRIVATE은 노출, 다른 사람 거는 차단
-                        (운영의 `isPrivate=false OR PENDING` 단일 필터를 대체 — 운영보다 더 엄격)
+                      - **접근 정책**: `viewableBy(viewerId)` — 본인 ACTIVE PRIVATE 글 + 다른 사람 PUBLIC(LISTED+UNLISTED 모두) 노출.
+                        link-only(PUBLIC+UNLISTED) 글도 즐겨찾기에 저장돼 있으면 보여야 함. 다른 사람 PRIVATE/RESTRICTED는 차단.
+                        (운영의 `isPrivate=false OR PENDING` 단일 필터를 4-enum 정책으로 대체)
                       - **imageReady 통일**: PENDING/FAILED 차단 (운영의 PENDING 노출 정책과 다름 — A2/A3 정합)
-                      - **응답 필드**: V1 base + 4 enum (visibility/listingStatus/lifecycleStatus/source)
+                      - **응답 필드**: V1 base + visibility / lifecycleStatus / source / isRemix
                       - **인증 필수**
                       - **favoriteByCurrentUser는 항상 true** (즐겨찾기 목록이라)
                     """)

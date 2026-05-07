@@ -123,9 +123,29 @@ class DevFavoritesServiceTest {
 
         DevRecipeSimpleDto dto = result.getContent().get(0);
         assertThat(dto.getVisibility()).isEqualTo("RESTRICTED");
-        assertThat(dto.getListingStatus()).isEqualTo("UNLISTED");
         assertThat(dto.getLifecycleStatus()).isEqualTo("ACTIVE");
         assertThat(dto.getSource()).isEqualTo("USER");
+        assertThat(dto.isRemix()).isFalse();
+    }
+
+    @Test
+    @DisplayName("[remix] favorited 레시피가 PUBLIC+UNLISTED remix면 isRemix=true (link-only remix 보존이 핵심)")
+    void favoritedRemix_mapsIsRemixTrue() {
+        Recipe origin = recipeFor(700L, "origin", RecipeVisibility.PUBLIC);
+        Recipe remix = recipeFor(701L, "remix-of-700", RecipeVisibility.PUBLIC);
+        ReflectionTestUtils.setField(remix, "listingStatus", RecipeListingStatus.UNLISTED);
+        ReflectionTestUtils.setField(remix, "originRecipe", origin);  // ManyToOne 직접 세팅
+
+        given(devFavoritesQueryRepository.findFavoritesAccessible(USER_ID, PAGE_10))
+                .willReturn(new PageImpl<>(List.of(remix), PAGE_10, 1));
+        given(recipeLikeRepository.findByUserIdAndRecipeIdIn(eq(USER_ID), anyList()))
+                .willReturn(List.of());
+
+        Page<DevRecipeSimpleDto> result = service.getMyFavoritesDev(USER_ID, PAGE_10);
+
+        DevRecipeSimpleDto dto = result.getContent().get(0);
+        assertThat(dto.isRemix()).isTrue();
+        assertThat(dto.getVisibility()).isEqualTo("PUBLIC");
     }
 
     // ---------- helpers ----------

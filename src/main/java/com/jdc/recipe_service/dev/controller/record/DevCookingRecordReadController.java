@@ -1,9 +1,9 @@
 package com.jdc.recipe_service.dev.controller.record;
 
 import com.jdc.recipe_service.config.HashIdConfig.DecodeId;
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordFeedResponse;
 import com.jdc.recipe_service.dev.service.record.DevCookingRecordReadService;
 import com.jdc.recipe_service.domain.dto.calendar.CookingRecordDto;
-import com.jdc.recipe_service.domain.dto.calendar.CookingRecordFeedResponse;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -43,18 +43,17 @@ public class DevCookingRecordReadController {
     @GetMapping("/timeline")
     @Operation(summary = "Dev V3 요리 기록 타임라인",
             description = """
-                    운영 `GET /api/me/records/timeline` 미러. dev V3 차이점:
+                    dev V3 정책:
                       - **silent filter**: record 안 recipe가 현재 RESTRICTED/non-ACTIVE/PENDING/FAILED면 응답에서 silently 제외
-                        (cooked 시점엔 PUBLIC이었더라도 현재 가시성 + imageReady 정책으로 재평가)
                       - 그룹의 모든 record가 차단되면 그룹 자체도 응답에서 제거
-                      - 통계가 일부 손실될 수 있음 — favorites/saved-books와 동일한 silent filter 패턴
-                      - **인증 필수**
+                      - 각 record에 `visibility`, `isRemix` 포함
+                      - 인증 필수
                     """)
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공 — 날짜 그룹 + record summary"),
-            @ApiResponse(responseCode = "401", description = "인증 필요 (UNAUTHORIZED)", content = @Content)
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "UNAUTHORIZED", content = @Content)
     })
-    public ResponseEntity<CookingRecordFeedResponse> getRecordFeed(
+    public ResponseEntity<DevCookingRecordFeedResponse> getRecordFeed(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         if (userDetails == null) {

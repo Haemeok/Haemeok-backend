@@ -39,7 +39,7 @@ public interface DevRecipePopularBudgetRepository extends JpaRepository<Recipe, 
             r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl,
             r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount,
             r.youtubeUrl, r.isAiGenerated,
-            r.visibility, r.listingStatus, r.lifecycleStatus, r.source
+            r.visibility, r.lifecycleStatus, r.source
         )
         FROM Recipe r
         WHERE r.lifecycleStatus = com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus.ACTIVE
@@ -61,7 +61,7 @@ public interface DevRecipePopularBudgetRepository extends JpaRepository<Recipe, 
             r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl,
             r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount,
             r.youtubeUrl, r.isAiGenerated,
-            r.visibility, r.listingStatus, r.lifecycleStatus, r.source
+            r.visibility, r.lifecycleStatus, r.source
         )
         FROM Recipe r
         JOIN r.user u
@@ -75,7 +75,7 @@ public interface DevRecipePopularBudgetRepository extends JpaRepository<Recipe, 
            r.likeCount, r.favoriteCount, r.avgRating, r.ratingCount,
            r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl,
            r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount, r.youtubeUrl, r.isAiGenerated,
-           r.visibility, r.listingStatus, r.lifecycleStatus, r.source
+           r.visibility, r.lifecycleStatus, r.source
         ORDER BY COUNT(DISTINCT rl.id) DESC, r.createdAt DESC
     """)
     Page<DevRecipeSimpleStaticDto> findPopularDevByRealtimeCount(
@@ -107,7 +107,7 @@ public interface DevRecipePopularBudgetRepository extends JpaRepository<Recipe, 
             r.youtubeChannelName, r.youtubeChannelId, r.youtubeVideoTitle, r.youtubeThumbnailUrl,
             r.youtubeChannelProfileUrl, r.youtubeSubscriberCount, r.youtubeVideoViewCount,
             r.youtubeUrl, r.isAiGenerated,
-            r.visibility, r.listingStatus, r.lifecycleStatus, r.source
+            r.visibility, r.lifecycleStatus, r.source
         )
         FROM Recipe r
         JOIN r.user u

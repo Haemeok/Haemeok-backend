@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.dev.service.record;
 
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordFeedResponse;
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordSummaryDto;
 import com.jdc.recipe_service.dev.policy.recipe.DevRecipeAccessPolicy;
 import com.jdc.recipe_service.dev.repository.recipe.DevRecipeAccessProjection;
 import com.jdc.recipe_service.dev.repository.recipe.DevRecipeAccessProjectionRepository;
@@ -58,22 +60,25 @@ public class DevCookingRecordReadService {
     private final DevRecipeAccessProjectionRepository accessProjectionRepository;
 
     @Transactional(readOnly = true)
-    public CookingRecordFeedResponse getRecordFeed(Long userId, Pageable pageable) {
+    public DevCookingRecordFeedResponse getRecordFeed(Long userId, Pageable pageable) {
         CookingRecordFeedResponse raw = cookingRecordService.getRecordFeed(userId, pageable);
         if (raw.getGroups() == null || raw.getGroups().isEmpty()) {
-            return raw;
+            return DevCookingRecordFeedResponse.builder()
+                    .groups(List.of())
+                    .hasNext(raw.isHasNext())
+                    .build();
         }
-        Set<Long> displayableIds = collectDisplayableRecipeIds(extractRecipeIds(raw), userId);
+        Map<Long, DevRecipeAccessProjection> displayableMeta = collectDisplayableRecipeMeta(extractRecipeIds(raw), userId);
 
-        List<CookingRecordFeedResponse.DailyGroup> filteredGroups = raw.getGroups().stream()
-                .map(g -> CookingRecordFeedResponse.DailyGroup.builder()
+        List<DevCookingRecordFeedResponse.DailyGroup> filteredGroups = raw.getGroups().stream()
+                .map(g -> DevCookingRecordFeedResponse.DailyGroup.builder()
                         .date(g.getDate())
-                        .records(filterRecordSummaries(g.getRecords(), displayableIds))
+                        .records(toDevSummaries(g.getRecords(), displayableMeta))
                         .build())
                 .filter(g -> !g.getRecords().isEmpty())  // 그룹의 모든 record가 차단되면 해당 날짜 그룹도 제거
                 .toList();
 
-        return CookingRecordFeedResponse.builder()
+        return DevCookingRecordFeedResponse.builder()
                 .groups(filteredGroups)
                 .hasNext(raw.isHasNext())
                 .build();
@@ -100,7 +105,7 @@ public class DevCookingRecordReadService {
         }
 
         List<Long> recipeIds = all.stream().map(r -> r.getRecipe().getId()).distinct().toList();
-        Set<Long> displayableIds = collectDisplayableRecipeIds(recipeIds, userId);
+        Set<Long> displayableIds = collectDisplayableRecipeMeta(recipeIds, userId).keySet();
         List<CookingRecord> displayable = all.stream()
                 .filter(r -> displayableIds.contains(r.getRecipe().getId()))
                 .toList();
@@ -136,8 +141,8 @@ public class DevCookingRecordReadService {
     }
 
     @Transactional(readOnly = true)
-    public List<CookingRecordSummaryDto> getDayRecords(Long userId, LocalDate date,
-                                                         java.util.function.Function<String, String> imageUrlGenerator) {
+    public List<DevCookingRecordSummaryDto> getDayRecords(Long userId, LocalDate date,
+                                                          java.util.function.Function<String, String> imageUrlGenerator) {
         var entities = cookingRecordService.getDailyRecordEntities(userId, date);
         if (entities.isEmpty()) {
             return List.of();
@@ -146,11 +151,19 @@ public class DevCookingRecordReadService {
         List<Long> recipeIds = entities.stream()
                 .map(e -> e.getRecipe().getId())
                 .toList();
-        Set<Long> displayableIds = collectDisplayableRecipeIds(recipeIds, userId);
+        Map<Long, DevRecipeAccessProjection> displayableMeta = collectDisplayableRecipeMeta(recipeIds, userId);
 
         return entities.stream()
-                .filter(e -> displayableIds.contains(e.getRecipe().getId()))
-                .map(e -> CookingRecordSummaryDto.from(e, imageUrlGenerator.apply(e.getRecipe().getImageKey())))
+                .filter(e -> displayableMeta.containsKey(e.getRecipe().getId()))
+                .map(e -> {
+                    CookingRecordSummaryDto raw = CookingRecordSummaryDto.from(
+                            e, imageUrlGenerator.apply(e.getRecipe().getImageKey()));
+                    DevRecipeAccessProjection meta = displayableMeta.get(e.getRecipe().getId());
+                    return DevCookingRecordSummaryDto.fromRaw(
+                            raw,
+                            meta.visibility() != null ? meta.visibility().name() : null,
+                            meta.isRemix());
+                })
                 .toList();
     }
 
@@ -160,7 +173,7 @@ public class DevCookingRecordReadService {
         CookingRecordDto dto = cookingRecordService.getRecordDetail(userId, recordId);
 
         // record가 가리키는 recipe가 현재 inaccessible/PENDING이면 detail도 차단 (single-record는 silent skip 대신 명시 응답)
-        Set<Long> displayableIds = collectDisplayableRecipeIds(List.of(dto.getRecipeId()), userId);
+        Set<Long> displayableIds = collectDisplayableRecipeMeta(List.of(dto.getRecipeId()), userId).keySet();
         if (!displayableIds.contains(dto.getRecipeId())) {
             // record는 존재하지만 표시 불가 — 사용자에게는 "없는 것처럼" (favorite list 정책과 동일 매핑)
             throw new CustomException(ErrorCode.COOKING_RECORD_NOT_FOUND);
@@ -176,27 +189,32 @@ public class DevCookingRecordReadService {
                 .toList();
     }
 
-    private List<CookingRecordSummaryDto> filterRecordSummaries(
-            List<CookingRecordSummaryDto> records, Set<Long> displayableIds) {
+    private List<DevCookingRecordSummaryDto> toDevSummaries(
+            List<CookingRecordSummaryDto> records,
+            Map<Long, DevRecipeAccessProjection> displayableMeta) {
         if (records == null) return List.of();
         return records.stream()
-                .filter(r -> displayableIds.contains(r.getRecipeId()))
+                .filter(r -> displayableMeta.containsKey(r.getRecipeId()))
+                .map(r -> {
+                    DevRecipeAccessProjection meta = displayableMeta.get(r.getRecipeId());
+                    return DevCookingRecordSummaryDto.fromRaw(
+                            r,
+                            meta.visibility() != null ? meta.visibility().name() : null,
+                            meta.isRemix());
+                })
                 .toList();
     }
 
-    /**
-     * 가시성(accessibleBy) AND 표시가능(imageReady) 둘 다 통과한 ID만 반환.
-     * recommendation post-filter와 동일 패턴.
-     */
-    private Set<Long> collectDisplayableRecipeIds(List<Long> recipeIds, Long viewerId) {
-        if (recipeIds.isEmpty()) return Collections.emptySet();
+    /** viewableBy + imageReady 통과한 recipeId → projection meta 매핑 (DTO 채울 visibility/isRemix가 meta에서 나오므로 Set이 아니라 Map). */
+    private Map<Long, DevRecipeAccessProjection> collectDisplayableRecipeMeta(List<Long> recipeIds, Long viewerId) {
+        if (recipeIds.isEmpty()) return Collections.emptyMap();
         List<DevRecipeAccessProjection> projections =
                 accessProjectionRepository.findAccessProjectionsByIds(recipeIds);
         return projections.stream()
-                .filter(p -> DevRecipeAccessPolicy.isAccessibleBy(
-                        p.lifecycleStatus(), p.visibility(), p.listingStatus(), viewerId, p.ownerId()))
+                // V1.x 정책: 조리 기록은 viewable 단위 — PUBLIC+UNLISTED 글로 만든 기록도 표시. listingStatus 무시.
+                .filter(p -> DevRecipeAccessPolicy.isViewableBy(
+                        p.lifecycleStatus(), p.visibility(), viewerId, p.ownerId()))
                 .filter(DevRecipeAccessProjection::isImageReady)
-                .map(DevRecipeAccessProjection::recipeId)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(DevRecipeAccessProjection::recipeId, p -> p));
     }
 }

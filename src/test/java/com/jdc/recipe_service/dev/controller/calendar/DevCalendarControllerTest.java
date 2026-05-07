@@ -1,8 +1,8 @@
 package com.jdc.recipe_service.dev.controller.calendar;
 
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordSummaryDto;
 import com.jdc.recipe_service.dev.service.record.DevCookingRecordReadService;
 import com.jdc.recipe_service.domain.dto.calendar.CalendarMonthSummaryDto;
-import com.jdc.recipe_service.domain.dto.calendar.CookingRecordSummaryDto;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -32,7 +32,7 @@ class DevCalendarControllerTest {
     @Mock CalendarMonthSummaryDto monthSummaryDto;
     @Mock CustomUserDetails userDetails;
     @Mock User user;
-    @Mock CookingRecordSummaryDto summaryDto;
+    @Mock DevCookingRecordSummaryDto summaryDto;
 
     @InjectMocks DevCalendarController controller;
 
@@ -68,7 +68,7 @@ class DevCalendarControllerTest {
         given(devCookingRecordReadService.getDayRecords(eq(USER_ID), eq(DATE), any()))
                 .willReturn(List.of(summaryDto));
 
-        ResponseEntity<List<CookingRecordSummaryDto>> response = controller.dayRecords(userDetails, DATE);
+        ResponseEntity<List<DevCookingRecordSummaryDto>> response = controller.dayRecords(userDetails, DATE);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).containsExactly(summaryDto);

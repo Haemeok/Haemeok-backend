@@ -84,12 +84,12 @@ public class DevUserRecipesService {
                 .isAiGenerated(recipe.isAiGenerated())
                 .isPrivate(recipe.getIsPrivate())
                 .likedByCurrentUser(likedIds.contains(recipe.getId()))
-                // dev V3 4 enum 노출
                 .visibility(recipe.getVisibility() != null ? recipe.getVisibility().name() : null)
-                .listingStatus(recipe.getListingStatus() != null ? recipe.getListingStatus().name() : null)
                 .lifecycleStatus(recipe.getLifecycleStatus() != null ? recipe.getLifecycleStatus().name() : null)
                 .source(recipe.getSource() != null ? recipe.getSource().name() : null)
                 .imageStatus(recipe.getImageStatus() != null ? recipe.getImageStatus().name() : null)
+                // LAZY ManyToOne의 != null 체크는 FK 값만 보므로 select 미발생.
+                .remix(recipe.getOriginRecipe() != null)
                 .build());
     }
 }

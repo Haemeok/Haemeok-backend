@@ -257,30 +257,30 @@ class DevRecipeRelatedServiceTest {
     private static DevRecipeAccessProjection publicListed(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 
     private static DevRecipeAccessProjection restricted(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 
     private static DevRecipeAccessProjection publicListedPending(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.PENDING);
+                RecipeImageStatus.PENDING, null);
     }
 
     private static DevRecipeAccessProjection publicListedFailed(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.FAILED);
+                RecipeImageStatus.FAILED, null);
     }
 
     private static DevRecipeAccessProjection publicListedNullImage(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                null);
+                null, null);
     }
 }

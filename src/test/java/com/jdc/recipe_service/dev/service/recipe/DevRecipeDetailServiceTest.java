@@ -136,7 +136,6 @@ class DevRecipeDetailServiceTest {
         assertThat(result.getImageGenerationModel()).isEqualTo("gemini-2.5-flash-image");
         assertThat(result.getVisibility()).isEqualTo(RecipeVisibility.PUBLIC);
         assertThat(result.getLifecycleStatus()).isEqualTo(RecipeLifecycleStatus.ACTIVE);
-        assertThat(result.getListingStatus()).isEqualTo(RecipeListingStatus.LISTED);
         assertThat(result.getSource()).isEqualTo(RecipeSourceType.YOUTUBE);
         // youtubeInfo (분리 테이블)
         assertThat(result.getYoutubeInfo()).isNotNull();

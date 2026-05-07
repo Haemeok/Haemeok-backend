@@ -1,5 +1,7 @@
 package com.jdc.recipe_service.dev.service.record;
 
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordFeedResponse;
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordSummaryDto;
 import com.jdc.recipe_service.dev.repository.recipe.DevRecipeAccessProjection;
 import com.jdc.recipe_service.dev.repository.recipe.DevRecipeAccessProjectionRepository;
 import com.jdc.recipe_service.domain.dto.calendar.CalendarDaySummaryDto;
@@ -65,27 +67,29 @@ class DevCookingRecordReadServiceTest {
     // ---------- timeline ----------
 
     @Test
-    @DisplayName("[timeline] 운영 빈 응답 → projection 조회 없이 그대로 반환")
+    @DisplayName("[timeline] 운영 빈 응답 → projection 조회 없이 빈 dev DTO 반환")
     void timeline_emptyOperational_skipsProjection() {
         CookingRecordFeedResponse empty = CookingRecordFeedResponse.builder()
                 .groups(List.of()).hasNext(false).build();
         given(cookingRecordService.getRecordFeed(USER_ID, PAGE)).willReturn(empty);
 
-        CookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
+        DevCookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
 
-        assertThat(result).isSameAs(empty);
+        // dev DTO 변환되어도 groups 비어있고 hasNext false 유지
+        assertThat(result.getGroups()).isEmpty();
+        assertThat(result.isHasNext()).isFalse();
         verify(accessProjectionRepository, never()).findAccessProjectionsByIds(anyCollection());
     }
 
     @Test
-    @DisplayName("[timeline] 모든 record가 accessible+imageReady → 운영 응답 그대로 반환")
+    @DisplayName("[timeline] 모든 record가 accessible+imageReady → 모두 dev DTO로 변환되어 반환")
     void timeline_allDisplayable_returnsAll() {
         CookingRecordFeedResponse raw = feedWith(group(TODAY, summary(1L, 100L), summary(2L, 200L)));
         given(cookingRecordService.getRecordFeed(USER_ID, PAGE)).willReturn(raw);
         given(accessProjectionRepository.findAccessProjectionsByIds(List.of(100L, 200L)))
                 .willReturn(List.of(publicReady(100L), publicReady(200L)));
 
-        CookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
+        DevCookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
 
         assertThat(result.getGroups()).hasSize(1);
         assertThat(result.getGroups().get(0).getRecords()).hasSize(2);
@@ -100,11 +104,11 @@ class DevCookingRecordReadServiceTest {
         given(accessProjectionRepository.findAccessProjectionsByIds(List.of(1L, 2L, 3L)))
                 .willReturn(List.of(publicReady(1L), restricted(2L), publicReady(3L)));
 
-        CookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
+        DevCookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
 
         assertThat(result.getGroups()).hasSize(1);
         assertThat(result.getGroups().get(0).getRecords())
-                .extracting(CookingRecordSummaryDto::getRecipeId)
+                .extracting(DevCookingRecordSummaryDto::getRecipeId)
                 .containsExactly(1L, 3L);  // 2L 제외됨
     }
 
@@ -116,10 +120,10 @@ class DevCookingRecordReadServiceTest {
         given(accessProjectionRepository.findAccessProjectionsByIds(List.of(1L, 2L)))
                 .willReturn(List.of(publicReady(1L), publicPending(2L)));
 
-        CookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
+        DevCookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
 
         assertThat(result.getGroups().get(0).getRecords())
-                .extracting(CookingRecordSummaryDto::getRecipeId)
+                .extracting(DevCookingRecordSummaryDto::getRecipeId)
                 .containsExactly(1L);
     }
 
@@ -134,12 +138,12 @@ class DevCookingRecordReadServiceTest {
         given(accessProjectionRepository.findAccessProjectionsByIds(List.of(1L, 2L, 3L)))
                 .willReturn(List.of(restricted(1L), restricted(2L), publicReady(3L)));
 
-        CookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
+        DevCookingRecordFeedResponse result = devCookingRecordReadService.getRecordFeed(USER_ID, PAGE);
 
         assertThat(result.getGroups()).hasSize(1);
         assertThat(result.getGroups().get(0).getDate()).isEqualTo(TODAY.minusDays(1));
         assertThat(result.getGroups().get(0).getRecords())
-                .extracting(CookingRecordSummaryDto::getRecipeId)
+                .extracting(DevCookingRecordSummaryDto::getRecipeId)
                 .containsExactly(3L);
     }
 
@@ -150,7 +154,7 @@ class DevCookingRecordReadServiceTest {
     void dayRecords_emptyEntities_returnsEmpty() {
         given(cookingRecordService.getDailyRecordEntities(USER_ID, TODAY)).willReturn(List.of());
 
-        List<CookingRecordSummaryDto> result =
+        List<DevCookingRecordSummaryDto> result =
                 devCookingRecordReadService.getDayRecords(USER_ID, TODAY, key -> "url:" + key);
 
         assertThat(result).isEmpty();
@@ -166,10 +170,29 @@ class DevCookingRecordReadServiceTest {
         given(accessProjectionRepository.findAccessProjectionsByIds(List.of(1L, 2L)))
                 .willReturn(List.of(publicReady(1L), restricted(2L)));
 
-        List<CookingRecordSummaryDto> result =
+        List<DevCookingRecordSummaryDto> result =
                 devCookingRecordReadService.getDayRecords(USER_ID, TODAY, key -> "url:" + key);
 
-        assertThat(result).extracting(CookingRecordSummaryDto::getRecipeId).containsExactly(1L);
+        assertThat(result).extracting(DevCookingRecordSummaryDto::getRecipeId).containsExactly(1L);
+    }
+
+    @Test
+    @DisplayName("[timeline + dayRecords] dev DTO에 visibility/listingStatus/isRemix 매핑 — projection meta로 채워짐")
+    void timelineAndDayRecords_mapVisibilityListingIsRemixFromProjection() {
+        // dayRecords 한 record (recipe 1L) — link-only PUBLIC+UNLISTED + remix 시나리오
+        CookingRecord rec = mockRecord(11L, 1L);
+        given(cookingRecordService.getDailyRecordEntities(USER_ID, TODAY)).willReturn(List.of(rec));
+        given(accessProjectionRepository.findAccessProjectionsByIds(List.of(1L)))
+                .willReturn(List.of(linkOnlyRemix(1L)));
+
+        List<DevCookingRecordSummaryDto> result =
+                devCookingRecordReadService.getDayRecords(USER_ID, TODAY, key -> "url:" + key);
+
+        assertThat(result).hasSize(1);
+        DevCookingRecordSummaryDto dto = result.get(0);
+        assertThat(dto.getRecipeId()).isEqualTo(1L);
+        assertThat(dto.getVisibility()).isEqualTo("PUBLIC");
+        assertThat(dto.isRemix()).isTrue();
     }
 
     // ---------- monthSummary ----------
@@ -389,18 +412,25 @@ class DevCookingRecordReadServiceTest {
     private static DevRecipeAccessProjection publicReady(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 
     private static DevRecipeAccessProjection publicPending(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.PENDING);
+                RecipeImageStatus.PENDING, null);
     }
 
     private static DevRecipeAccessProjection restricted(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
+    }
+
+    /** PUBLIC + UNLISTED (link-only) + originRecipeId not-null → dev DTO에 isRemix=true 검증용. */
+    private static DevRecipeAccessProjection linkOnlyRemix(Long id) {
+        return new DevRecipeAccessProjection(id, OWNER_ID,
+                RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.UNLISTED,
+                RecipeImageStatus.READY, /* originRecipeId */ 999L);
     }
 }

@@ -7,7 +7,6 @@ import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.jdc.recipe_service.domain.dto.v2.recipe.RecipeDetailStaticDto;
 import com.jdc.recipe_service.domain.type.media.EvidenceLevel;
 import com.jdc.recipe_service.domain.type.recipe.RecipeLifecycleStatus;
-import com.jdc.recipe_service.domain.type.recipe.RecipeListingStatus;
 import com.jdc.recipe_service.domain.type.recipe.RecipeSourceType;
 import com.jdc.recipe_service.domain.type.recipe.RecipeVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,14 +20,8 @@ import java.math.BigDecimal;
 /**
  * Dev V3 레시피 상세 응답.
  *
- * 운영 V2 응답(`RecipeDetailStaticDto`)을 그대로 unwrap해서 모든 필드를 top-level에 노출 +
- * dev V3 신규 필드 추가:
- *  - youtubeInfo       : RecipeYoutubeInfo(분리 테이블) 데이터. 있으면 우선 사용, 없으면 base.youtube* fallback.
- *  - extractionInfo    : RecipeYoutubeExtractionInfo(추출 근거) — evidenceLevel, signals, usedGemini, tokenCost.
- *  - imageGenerationModel : Recipe.image_generation_model (gemini/gpt-image 식별자).
- *  - visibility, lifecycleStatus, listingStatus, source : Recipe entity 직접 노출 (V2 base에는 isPrivate만).
- *
- * 호환성: V2 응답 shape는 그대로 유지(unwrap), 신규 필드는 추가 — 프론트는 점진적 migration 가능.
+ * <p>운영 V2 응답({@code RecipeDetailStaticDto})을 {@code @JsonUnwrapped}로 top-level에 펼치고
+ * youtubeInfo / extractionInfo / imageGenerationModel / visibility / lifecycleStatus / source / 영양·원가 요약을 추가한다.
  */
 @Getter
 @Builder
@@ -37,21 +30,17 @@ import java.math.BigDecimal;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class DevRecipeDetailDto {
 
-    /** V2 base 응답 — 모든 필드가 unwrap되어 top-level에 노출됨. */
     @JsonUnwrapped
     private RecipeDetailStaticDto base;
 
     @Schema(description = "이미지 생성 모델 식별자 (gemini-2.5-flash-image | gpt-image-2-low/medium/high). null이면 사용자 직접 업로드.")
     private String imageGenerationModel;
 
-    @Schema(description = "공개 정책 — visibility/listingStatus/isPrivate 트리플의 source of truth.")
+    @Schema(description = "공개 정책. 신규 응답에는 PUBLIC | PRIVATE만 등장.")
     private RecipeVisibility visibility;
 
     @Schema(description = "레시피 라이프사이클 상태 (ACTIVE/HIDDEN/BANNED/DELETED).")
     private RecipeLifecycleStatus lifecycleStatus;
-
-    @Schema(description = "리스팅 상태 (LISTED/UNLISTED).")
-    private RecipeListingStatus listingStatus;
 
     @Schema(description = "레시피 출처 (USER/AI/YOUTUBE/REELS).")
     private RecipeSourceType source;

@@ -85,9 +85,7 @@ class DevRecipeQueryRepositoryImplV2Test {
 
         DevRecipeSimpleStaticDto dto = result.getContent().get(0);
         assertThat(dto.getTitle()).isEqualTo("pub");
-        // 4 enum이 응답에 String name으로 매핑됨 — 프론트에서 RESTRICTED 활성화 후 UI 분기에 사용
         assertThat(dto.getVisibility()).isEqualTo("PUBLIC");
-        assertThat(dto.getListingStatus()).isEqualTo("LISTED");
         assertThat(dto.getLifecycleStatus()).isEqualTo("ACTIVE");
         assertThat(dto.getSource()).isEqualTo("USER");
     }
@@ -108,23 +106,23 @@ class DevRecipeQueryRepositoryImplV2Test {
     }
 
     @Test
-    @DisplayName("searchStatic owner: 자신의 PRIVATE/RESTRICTED 포함, 다른 owner의 RESTRICTED는 제외")
-    void searchStatic_owner_includesOwnRestricted_excludesOtherOwnerRestricted() {
-        persistRecipe(owner, "owner-pub", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED);
-        persistRecipe(owner, "owner-priv", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE, RecipeListingStatus.UNLISTED);
-        persistRecipe(owner, "owner-restricted", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED);
-        // 다른 owner의 RESTRICTED — owner는 자기 거 아니므로 못 봄 (PUBLIC+LISTED 분기로 떨어짐)
-        persistRecipe(other, "other-restricted", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED);
-        persistRecipe(other, "other-pub", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED);
+    @DisplayName("searchStatic owner: 자신의 PRIVATE/UNLISTED/RESTRICTED도 검색에서 빠짐 (V1.x discovery 단일 정책)")
+    void searchStatic_owner_excludesOwnNonListed() {
+        persistRecipe(owner, "owner-pub-listed",   RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED);
+        persistRecipe(owner, "owner-pub-unlisted", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,     RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "owner-priv",         RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE,    RecipeListingStatus.UNLISTED);
+        persistRecipe(owner, "owner-restricted",   RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED);
+        persistRecipe(other, "other-pub",          RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC,     RecipeListingStatus.LISTED);
         em.flush();
         em.clear();
 
         Page<DevRecipeSimpleStaticDto> result = repo.searchStatic(new RecipeSearchCondition(), PAGE_10, owner.getId());
 
-        // owner 자신: pub + priv + restricted (3개) + 다른 사람 PUBLIC+LISTED 1개
+        // V1.x 정책: 검색은 viewer 무관 publicListedActive 단일 — owner의 PRIVATE/UNLISTED/RESTRICTED 모두 검색에서 빠짐.
+        // 자기 link-only(PUBLIC+UNLISTED) 글도 검색 결과에 안 섞이게 → 직접 링크로만 접근.
         assertThat(result.getContent()).extracting(DevRecipeSimpleStaticDto::getTitle)
-                .containsExactlyInAnyOrder("owner-pub", "owner-priv", "owner-restricted", "other-pub");
-        assertThat(result.getTotalElements()).isEqualTo(4);
+                .containsExactlyInAnyOrder("owner-pub-listed", "other-pub");
+        assertThat(result.getTotalElements()).isEqualTo(2);
     }
 
     @Test
@@ -183,9 +181,10 @@ class DevRecipeQueryRepositoryImplV2Test {
     }
 
     @Test
-    @DisplayName("findAllByIds owner: 자신의 PRIVATE/RESTRICTED는 stale ids로 와도 통과 (ACTIVE 한정)")
-    void findAllByIds_owner_passesOwnRestrictedAndPrivate() {
-        Recipe pub = persistRecipe(owner, "pub", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED);
+    @DisplayName("findAllByIds owner: stale ids 와도 검색 hydration은 publicListedActive 단일 — 자기 PRIVATE/UNLISTED도 차단")
+    void findAllByIds_owner_filtersAllNonListed() {
+        Recipe pubListed = persistRecipe(owner, "pub-listed", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED);
+        Recipe pubUnlisted = persistRecipe(owner, "pub-unlisted", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.UNLISTED);
         Recipe priv = persistRecipe(owner, "priv", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE, RecipeListingStatus.UNLISTED);
         Recipe restricted = persistRecipe(owner, "restricted", RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED);
         Recipe hidden = persistRecipe(owner, "hidden", RecipeLifecycleStatus.HIDDEN, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED);
@@ -193,12 +192,12 @@ class DevRecipeQueryRepositoryImplV2Test {
         em.clear();
 
         List<DevRecipeSimpleStaticDto> result = repo.findAllByIds(
-                List.of(pub.getId(), priv.getId(), restricted.getId(), hidden.getId()),
+                List.of(pubListed.getId(), pubUnlisted.getId(), priv.getId(), restricted.getId(), hidden.getId()),
                 owner.getId());
 
-        // owner는 ACTIVE 자신 거 3개 모두 통과, HIDDEN은 owner라도 차단
+        // V1.x 정책: 검색 hydration은 OpenSearch publicListedActiveFilter와 동일 정책 — owner의 자기 link-only/PRIVATE도 차단.
         assertThat(result).extracting(DevRecipeSimpleStaticDto::getTitle)
-                .containsExactlyInAnyOrder("pub", "priv", "restricted");
+                .containsExactly("pub-listed");
     }
 
     @Test
