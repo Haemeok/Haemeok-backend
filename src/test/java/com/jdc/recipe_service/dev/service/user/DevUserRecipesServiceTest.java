@@ -156,15 +156,41 @@ class DevUserRecipesServiceTest {
         Page<DevMyRecipeSummaryDto> result = service.getUserRecipesDev(TARGET_USER_ID, VIEWER_ID, null, PAGE_10);
 
         DevMyRecipeSummaryDto dto = result.getContent().get(0);
-        // 4 enum 매핑
         assertThat(dto.getVisibility()).isEqualTo("RESTRICTED");
-        assertThat(dto.getListingStatus()).isEqualTo("UNLISTED");
         assertThat(dto.getLifecycleStatus()).isEqualTo("ACTIVE");
         assertThat(dto.getSource()).isEqualTo("AI");
         assertThat(dto.getImageStatus()).isEqualTo("FAILED");
-        // V1 base 필드 매핑 — isAiGenerated가 true로 정확히 전파
         assertThat(dto.getId()).isEqualTo(999L);
         assertThat(dto.isAiGenerated()).isTrue();
+        assertThat(dto.isRemix()).isFalse();
+    }
+
+    @Test
+    @DisplayName("[remix] originRecipe가 채워진 레시피 → DTO.isRemix=true (/me/recipes 와 /users/{userId}/recipes 모두 동일 매핑)")
+    void remix_recipeMapsIsRemixTrue() {
+        given(userRepository.findById(TARGET_USER_ID)).willReturn(Optional.of(mockUser(TARGET_USER_ID)));
+        Recipe origin = recipeFor(500L, "origin");
+        Recipe remix = Recipe.builder()
+                .user(mockUser(TARGET_USER_ID))
+                .title("remix-of-500")
+                .dishType(DishType.FRYING)
+                .lifecycleStatus(RecipeLifecycleStatus.ACTIVE)
+                .visibility(RecipeVisibility.PUBLIC)
+                .listingStatus(RecipeListingStatus.UNLISTED)  // link-only — remix 분기 UI 핵심 케이스
+                .source(RecipeSourceType.USER)
+                .build();
+        ReflectionTestUtils.setField(remix, "id", 501L);
+        ReflectionTestUtils.setField(remix, "originRecipe", origin);  // ManyToOne 직접 세팅 — entity update 메서드 회피
+        given(devUserRecipesQueryRepository.findUserRecipesAccessible(eq(TARGET_USER_ID), eq(VIEWER_ID), any(), eq(PAGE_10)))
+                .willReturn(new PageImpl<>(List.of(remix), PAGE_10, 1));
+        given(recipeLikeRepository.findByUserIdAndRecipeIdIn(VIEWER_ID, List.of(501L)))
+                .willReturn(List.of());
+
+        Page<DevMyRecipeSummaryDto> result = service.getUserRecipesDev(TARGET_USER_ID, VIEWER_ID, null, PAGE_10);
+
+        DevMyRecipeSummaryDto dto = result.getContent().get(0);
+        assertThat(dto.isRemix()).isTrue();
+        assertThat(dto.getVisibility()).isEqualTo("PUBLIC");
     }
 
     // ---------- helpers ----------

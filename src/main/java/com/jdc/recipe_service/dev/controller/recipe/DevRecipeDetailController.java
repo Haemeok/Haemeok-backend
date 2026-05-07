@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
  *
  * V2 (`/api/v2/recipes/{id}`) 응답 shape를 그대로 유지하면서 dev 신규 필드 추가:
  *  - imageGenerationModel
- *  - visibility / lifecycleStatus / listingStatus / source
+ *  - visibility / lifecycleStatus / source
  *  - youtubeInfo (RecipeYoutubeInfo 분리 테이블 — legacy fallback)
  *  - extractionInfo (RecipeYoutubeExtractionInfo — evidence/cost)
  *  - ingredientCalculationSummary (1.2): raw 보존 + per-g 기반 새 계산 요약. base.totalCalories/

@@ -1,8 +1,8 @@
 package com.jdc.recipe_service.dev.controller.calendar;
 
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordSummaryDto;
 import com.jdc.recipe_service.dev.service.record.DevCookingRecordReadService;
 import com.jdc.recipe_service.domain.dto.calendar.CalendarMonthSummaryDto;
-import com.jdc.recipe_service.domain.dto.calendar.CookingRecordSummaryDto;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
 import com.jdc.recipe_service.security.CustomUserDetails;
@@ -92,17 +92,17 @@ public class DevCalendarController {
     @GetMapping(params = "date")
     @Operation(summary = "Dev V3 특정 날짜 요리 기록",
             description = """
-                    운영 `GET /api/me/calendar?date=...` 미러. dev V3 차이점:
+                    dev V3 정책:
                       - **silent filter**: 그날 record 안 recipe가 현재 RESTRICTED/non-ACTIVE/PENDING/FAILED면 응답에서 silently 제외
-                      - 결과 list가 운영보다 짧을 수 있음 (다른 사람 RESTRICTED 정보 누수 차단)
-                      - **인증 필수**
+                      - 각 record에 `visibility`, `isRemix` 포함
+                      - 인증 필수
                     """)
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공 — record summary list"),
-            @ApiResponse(responseCode = "400", description = "date param 누락 (INVALID_INPUT_VALUE)", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 필요 (UNAUTHORIZED)", content = @Content)
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "INVALID_INPUT_VALUE", content = @Content),
+            @ApiResponse(responseCode = "401", description = "UNAUTHORIZED", content = @Content)
     })
-    public ResponseEntity<List<CookingRecordSummaryDto>> dayRecords(
+    public ResponseEntity<List<DevCookingRecordSummaryDto>> dayRecords(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "조회할 날짜 (yyyy-MM-dd)", example = "2026-04-26", required = true)
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -114,7 +114,7 @@ public class DevCalendarController {
         }
         Long userId = userDetails.getUser().getId();
 
-        List<CookingRecordSummaryDto> summaries = devCookingRecordReadService.getDayRecords(
+        List<DevCookingRecordSummaryDto> summaries = devCookingRecordReadService.getDayRecords(
                 userId, date, this::generateImageUrl);
         return ResponseEntity.ok(summaries);
     }

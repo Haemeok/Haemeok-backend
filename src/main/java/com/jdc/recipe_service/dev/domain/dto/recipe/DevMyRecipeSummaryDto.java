@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.dev.domain.dto.recipe;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -11,14 +12,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * Dev V3 user/me recipes 응답 DTO.
- *
- * 운영 {@link com.jdc.recipe_service.domain.dto.recipe.MyRecipeSummaryDto} 필드를 그대로 + dev V3 4-enum
- * (visibility/listingStatus/lifecycleStatus/source) 추가 노출. RESTRICTED 활성화 후 프론트가 UI 분기할 때 사용.
- *
- * 운영 DTO는 zero touch — 별도 클래스.
- */
+/** Dev V3 user/me recipes 응답 DTO. */
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -41,13 +35,8 @@ public class DevMyRecipeSummaryDto {
     @Builder.Default
     private boolean likedByCurrentUser = false;
 
-    // === Dev V3 신규 4-enum 노출 ===
-
     @Schema(description = "레시피 가시성", example = "PUBLIC")
     private String visibility;
-
-    @Schema(description = "listing 상태", example = "LISTED")
-    private String listingStatus;
 
     @Schema(description = "lifecycle 상태", example = "ACTIVE")
     private String lifecycleStatus;
@@ -57,4 +46,10 @@ public class DevMyRecipeSummaryDto {
 
     @Schema(description = "이미지 생성 상태. owner 목록에서는 PENDING/FAILED도 내려올 수 있음", example = "READY")
     private String imageStatus;
+
+    // 필드명을 'remix'로 둔 이유: Lombok @Getter의 isRemix() 메서드를 Jackson이 "remix"로 별도 등록해
+    // JSON 키 두 개("isRemix" + "remix")가 나가는 것을 막기 위함. boolean 'remix'에 대한 getter는 그대로 isRemix().
+    @Schema(description = "remix(클론) 레시피 여부", example = "true")
+    @JsonProperty("isRemix")
+    private boolean remix;
 }

@@ -103,7 +103,6 @@ public class DevRecipeDetailService {
                 .imageGenerationModel(recipe.getImageGenerationModel())
                 .visibility(recipe.getVisibility())
                 .lifecycleStatus(recipe.getLifecycleStatus())
-                .listingStatus(recipe.getListingStatus())
                 .source(recipe.getSource())
                 .youtubeInfo(youtubeInfo)
                 .extractionInfo(extractionInfo)

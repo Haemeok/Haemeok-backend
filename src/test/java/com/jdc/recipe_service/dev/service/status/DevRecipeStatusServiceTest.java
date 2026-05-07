@@ -248,24 +248,24 @@ class DevRecipeStatusServiceTest {
     private DevRecipeAccessProjection publicListed(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 
     private DevRecipeAccessProjection privateOther(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE, RecipeListingStatus.UNLISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 
     private DevRecipeAccessProjection privateOwnedBy(Long id, Long ownerId) {
         return new DevRecipeAccessProjection(id, ownerId,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PRIVATE, RecipeListingStatus.UNLISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 
     private DevRecipeAccessProjection nonActive(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.HIDDEN, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 }

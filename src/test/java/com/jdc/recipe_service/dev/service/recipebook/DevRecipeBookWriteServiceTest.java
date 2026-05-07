@@ -325,12 +325,12 @@ class DevRecipeBookWriteServiceTest {
     private static DevRecipeAccessProjection publicListed(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.PUBLIC, RecipeListingStatus.LISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 
     private static DevRecipeAccessProjection restricted(Long id) {
         return new DevRecipeAccessProjection(id, OWNER_ID,
                 RecipeLifecycleStatus.ACTIVE, RecipeVisibility.RESTRICTED, RecipeListingStatus.UNLISTED,
-                RecipeImageStatus.READY);
+                RecipeImageStatus.READY, null);
     }
 }

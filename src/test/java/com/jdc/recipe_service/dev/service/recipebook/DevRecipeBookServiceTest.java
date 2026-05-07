@@ -156,12 +156,55 @@ class DevRecipeBookServiceTest {
         assertThat(result.getRecipes()).hasSize(1);
 
         DevRecipeBookItemResponse dto = result.getRecipes().get(0);
-        // 4 enum 매핑
         assertThat(dto.getVisibility()).isEqualTo("RESTRICTED");
-        assertThat(dto.getListingStatus()).isEqualTo("UNLISTED");
         assertThat(dto.getLifecycleStatus()).isEqualTo("ACTIVE");
         assertThat(dto.getSource()).isEqualTo("AI");
         assertThat(dto.isAiGenerated()).isTrue();
+        assertThat(dto.isRemix()).isFalse();
+    }
+
+    @Test
+    @DisplayName("[remix] book 안 remix 레시피 → DTO.isRemix=true (originRecipe로 판정)")
+    void bookItem_withRemixRecipe_mapsIsRemixTrue() {
+        RecipeBook book = mockBook(BOOK_ID, "my-book");
+        given(bookRepo.findById(BOOK_ID)).willReturn(Optional.of(book));
+
+        Recipe origin = Recipe.builder()
+                .user(mockUser(USER_ID, "origin-author"))
+                .title("origin")
+                .dishType(DishType.FRYING)
+                .lifecycleStatus(RecipeLifecycleStatus.ACTIVE)
+                .visibility(RecipeVisibility.PUBLIC)
+                .listingStatus(RecipeListingStatus.LISTED)
+                .source(RecipeSourceType.USER)
+                .build();
+        ReflectionTestUtils.setField(origin, "id", 800L);
+
+        Recipe remix = Recipe.builder()
+                .user(mockUser(USER_ID, "remixer"))
+                .title("remix-of-800")
+                .dishType(DishType.FRYING)
+                .lifecycleStatus(RecipeLifecycleStatus.ACTIVE)
+                .visibility(RecipeVisibility.PUBLIC)
+                .listingStatus(RecipeListingStatus.UNLISTED)
+                .source(RecipeSourceType.USER)
+                .build();
+        ReflectionTestUtils.setField(remix, "id", 801L);
+        ReflectionTestUtils.setField(remix, "originRecipe", origin);
+
+        RecipeBookItem item = RecipeBookItem.builder().book(book).recipe(remix).build();
+        ReflectionTestUtils.setField(item, "id", 900L);
+
+        Slice<RecipeBookItem> itemSlice = new SliceImpl<>(List.of(item), PAGE_10, false);
+        given(devItemRepo.findAccessibleDevByBookIdAndUserId(eq(BOOK_ID), eq(USER_ID), eq(PAGE_10)))
+                .willReturn(itemSlice);
+        given(devItemRepo.countAccessibleDevByBookIdAndUserId(BOOK_ID, USER_ID)).willReturn(1);
+
+        DevRecipeBookDetailResponse result = service.getBookDetailDev(USER_ID, BOOK_ID, PAGE_10);
+
+        DevRecipeBookItemResponse dto = result.getRecipes().get(0);
+        assertThat(dto.isRemix()).isTrue();
+        assertThat(dto.getVisibility()).isEqualTo("PUBLIC");
     }
 
     // ---------- helpers ----------

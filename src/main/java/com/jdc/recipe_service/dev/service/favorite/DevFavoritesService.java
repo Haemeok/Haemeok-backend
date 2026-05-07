@@ -84,11 +84,11 @@ public class DevFavoritesService {
                     .ratingCount(recipe.getRatingCount())
                     .isYoutube(isYoutube)
                     .isAiGenerated(recipe.isAiGenerated())
-                    // dev V3 4 enum
                     .visibility(recipe.getVisibility() != null ? recipe.getVisibility().name() : null)
-                    .listingStatus(recipe.getListingStatus() != null ? recipe.getListingStatus().name() : null)
                     .lifecycleStatus(recipe.getLifecycleStatus() != null ? recipe.getLifecycleStatus().name() : null)
                     .source(recipe.getSource() != null ? recipe.getSource().name() : null)
+                    // LAZY ManyToOne의 != null 체크는 FK 값만 보므로 select 미발생.
+                    .remix(recipe.getOriginRecipe() != null)
                     .build();
         });
     }

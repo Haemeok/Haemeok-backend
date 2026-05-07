@@ -1,8 +1,8 @@
 package com.jdc.recipe_service.dev.controller.record;
 
+import com.jdc.recipe_service.dev.domain.dto.record.DevCookingRecordFeedResponse;
 import com.jdc.recipe_service.dev.service.record.DevCookingRecordReadService;
 import com.jdc.recipe_service.domain.dto.calendar.CookingRecordDto;
-import com.jdc.recipe_service.domain.dto.calendar.CookingRecordFeedResponse;
 import com.jdc.recipe_service.domain.entity.User;
 import com.jdc.recipe_service.exception.CustomException;
 import com.jdc.recipe_service.exception.ErrorCode;
@@ -28,7 +28,7 @@ class DevCookingRecordReadControllerTest {
     @Mock DevCookingRecordReadService devCookingRecordReadService;
     @Mock CustomUserDetails userDetails;
     @Mock User user;
-    @Mock CookingRecordFeedResponse feedResponse;
+    @Mock DevCookingRecordFeedResponse feedResponse;
     @Mock CookingRecordDto detailDto;
 
     @InjectMocks DevCookingRecordReadController controller;
@@ -54,7 +54,7 @@ class DevCookingRecordReadControllerTest {
         given(user.getId()).willReturn(USER_ID);
         given(devCookingRecordReadService.getRecordFeed(USER_ID, PAGE)).willReturn(feedResponse);
 
-        ResponseEntity<CookingRecordFeedResponse> response = controller.getRecordFeed(userDetails, PAGE);
+        ResponseEntity<DevCookingRecordFeedResponse> response = controller.getRecordFeed(userDetails, PAGE);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isSameAs(feedResponse);

@@ -1,6 +1,7 @@
 package com.jdc.recipe_service.dev.domain.dto.recipebook;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.jdc.recipe_service.config.HashIdConfig.HashIdSerializer;
 import com.jdc.recipe_service.domain.entity.Recipe;
@@ -14,20 +15,12 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * Dev V3 레시피북 내 레시피 항목 응답.
- *
- * 운영 {@link com.jdc.recipe_service.domain.dto.recipebook.RecipeBookItemResponse} 모든 필드 +
- * dev V3 4-enum (visibility / listingStatus / lifecycleStatus / source) 추가.
- *
- * 사용 의도: 사용자가 자기 레시피북에 다른 사람이 만든 RESTRICTED 레시피가 들어 있을 때 (dev 정책으로
- * 차단되긴 하지만 본인 거 RESTRICTED는 노출됨) UI에서 가시성 뱃지로 구분.
- */
+/** Dev V3 레시피북 내 레시피 항목 응답. */
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Dev V3 레시피북 내 레시피 항목 (V1 base + 4 enum)")
+@Schema(description = "Dev V3 레시피북 내 레시피 항목")
 public class DevRecipeBookItemResponse {
 
     @JsonSerialize(using = HashIdSerializer.class)
@@ -94,19 +87,19 @@ public class DevRecipeBookItemResponse {
     @Schema(description = "AI가 생성한 레시피 여부")
     private boolean isAiGenerated;
 
-    // === Dev V3 4-enum 추가 ===
-
     @Schema(description = "레시피 가시성", example = "PUBLIC")
     private String visibility;
-
-    @Schema(description = "listing 상태", example = "LISTED")
-    private String listingStatus;
 
     @Schema(description = "lifecycle 상태", example = "ACTIVE")
     private String lifecycleStatus;
 
     @Schema(description = "source", example = "USER")
     private String source;
+
+    // 필드명 'remix' — Lombok isRemix() getter가 Jackson에 "remix"로 이중 등록되는 것 회피.
+    @Schema(description = "remix(클론) 레시피 여부", example = "true")
+    @JsonProperty("isRemix")
+    private boolean remix;
 
     public static DevRecipeBookItemResponse from(RecipeBookItem item, String imageUrl) {
         Recipe recipe = item.getRecipe();
@@ -137,9 +130,9 @@ public class DevRecipeBookItemResponse {
                 .isAiGenerated(recipe.isAiGenerated())
                 // dev V3 4 enum
                 .visibility(recipe.getVisibility() != null ? recipe.getVisibility().name() : null)
-                .listingStatus(recipe.getListingStatus() != null ? recipe.getListingStatus().name() : null)
                 .lifecycleStatus(recipe.getLifecycleStatus() != null ? recipe.getLifecycleStatus().name() : null)
                 .source(recipe.getSource() != null ? recipe.getSource().name() : null)
+                .remix(recipe.getOriginRecipe() != null)  // builder: 필드명 'remix' → setter '.remix(...)'
                 .build();
     }
 }
